@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>CoZy</title>
   <style>
     :root {
@@ -28,7 +28,7 @@
 
     body {
       font-family: Arial, Helvetica, sans-serif;
-      touch-action: manipulation;
+      touch-action: none;
     }
 
     #viewport {
@@ -104,7 +104,7 @@
       transform: translate(-50%, -50%);
       transform-origin: center center;
       will-change: left, top, opacity;
-      touch-action: manipulation;
+      touch-action: none;
     }
 
     /*
@@ -207,7 +207,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.1</div>
+  <div id="versionLabel">v0.11</div>
 
   <script>
     (() => {
@@ -240,8 +240,8 @@
       // 누적 처치 카운터의 최대 수
       const MAX_ZOMBIE_COUNT = 999;
 
-      const SPAWN_INTERVAL_MS = 30_000;
-      const AUTO_DEATH_MS = 180_000;
+      const SPAWN_INTERVAL_MS = 6_000;
+      const AUTO_DEATH_MS = 60 * 60_000;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -302,6 +302,52 @@
       if (query.get("debug") === "1") {
         document.body.classList.add("debug");
       }
+
+      // iPhone/iPad Safari의 핀치 확대와 빠른 연속 탭 확대를 막습니다.
+      const preventZoomGesture = (event) => {
+        event.preventDefault();
+      };
+
+      document.addEventListener(
+        "gesturestart",
+        preventZoomGesture,
+        { passive: false }
+      );
+      document.addEventListener(
+        "gesturechange",
+        preventZoomGesture,
+        { passive: false }
+      );
+      document.addEventListener(
+        "gestureend",
+        preventZoomGesture,
+        { passive: false }
+      );
+
+      document.addEventListener(
+        "touchmove",
+        (event) => {
+          if (event.touches.length > 1) {
+            event.preventDefault();
+          }
+        },
+        { passive: false }
+      );
+
+      let lastTouchEndAt = 0;
+      document.addEventListener(
+        "touchend",
+        (event) => {
+          const now = Date.now();
+
+          if (now - lastTouchEndAt <= 300) {
+            event.preventDefault();
+          }
+
+          lastTouchEndAt = now;
+        },
+        { passive: false }
+      );
 
       let zombieCount = 0;
       let nextZombieId = 1;
@@ -1159,7 +1205,7 @@
         // 첫 좀비는 게임 시작과 동시에 생성합니다.
         createZombie();
 
-        // 이후에는 30초마다 확인하여 화면에 100마리 미만일 때만 생성합니다.
+        // 이후에는 6초마다 확인하여 화면에 100마리 미만일 때만 생성합니다.
         window.setInterval(() => {
           if (zombies.size < MAX_ACTIVE_ZOMBIES) {
             createZombie();
