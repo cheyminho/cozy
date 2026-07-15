@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Zombie Field Prototype</title>
+  <style>
+    :root {
+      --world-size: 2048px;
+      --zombie-width: 64px;
+      --zombie-height: 128px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #111;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      touch-action: manipulation;
+    }
+
+    #viewport {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #111;
+      touch-action: none;
+    }
+
+    #viewport.can-pan {
+      cursor: grab;
+    }
+
+    #viewport.is-panning {
+      cursor: grabbing;
+    }
+
+    #world {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: var(--world-size);
+      height: var(--world-size);
+      transform-origin: center center;
+      background-image: url("images/bg_field_default_day.png");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 2048px 2048px;
+      will-change: transform;
+    }
+
+    #entities {
+      position: absolute;
+      inset: 0;
+    }
+
+    #hud {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      left: 50%;
+      z-index: 100;
+      transform: translateX(-50%);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: 0.01em;
+      text-align: center;
+      white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+      pointer-events: none;
+    }
+
+    #versionLabel {
+      position: fixed;
+      left: max(10px, env(safe-area-inset-left));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      z-index: 100;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .zombie {
+      position: absolute;
+      width: var(--zombie-width);
+      height: var(--zombie-height);
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      will-change: left, top, opacity;
+      touch-action: manipulation;
+    }
+
+    /*
+      좀비 그림자 수정 위치
+      - width / height: 그림자의 가로·세로 크기
+      - left / bottom: 그림자 위치
+      - transform: 오른쪽으로 기울어진 정도와 납작한 정도
+      - opacity: 검정 투명도
+      - filter blur(): 블러 강도
+    */
+    .zombie::before {
+      content: "";
+      position: absolute;
+      left: 20px;
+      bottom: 25px;
+      width: 70px;
+      height: 16px;
+      background: #000;
+      border-radius: 50%;
+      opacity: 0.2;
+      filter: blur(5px);
+      transform: skewX(-28deg) scaleY(0.4);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .zombie.is-dead {
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .zombie-sprite {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      background-repeat: no-repeat;
+      background-size: 256px 256px;
+      background-position: 0 0;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: transform, opacity, background-position;
+    }
+
+    .zombie-sprite-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      background-repeat: no-repeat;
+      background-size: 256px 256px;
+      background-position: 0 0;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: transform, opacity, background-position;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    /* 주소 끝에 ?debug=1을 붙이면 안전 영역과 게임 영역을 확인할 수 있습니다. */
+    .debug-zone {
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      z-index: 90;
+    }
+
+    body.debug .debug-zone {
+      display: block;
+    }
+
+    #gameZone {
+      left: 512px;
+      top: 512px;
+      width: 1024px;
+      height: 1024px;
+      border: 2px solid rgba(80, 180, 255, 0.9);
+      background: rgba(80, 180, 255, 0.06);
+    }
+
+    #safeZone {
+      left: 768px;
+      top: 768px;
+      width: 512px;
+      height: 512px;
+      border: 2px solid rgba(255, 235, 80, 0.95);
+      background: rgba(255, 235, 80, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <div id="world">
+      <div id="entities"></div>
+      <div id="gameZone" class="debug-zone"></div>
+      <div id="safeZone" class="debug-zone"></div>
+    </div>
+  </div>
+
+  <div id="hud">Zombies: <span id="zombieCount">0</span></div>
+  <div id="versionLabel">v0.1</div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const WORLD_SIZE = 2048;
+
+      const GAME_ZONE = {
+        left: 512,
+        top: 512,
+        right: 1536,
+        bottom: 1536
+      };
+
+      const SAFE_ZONE = {
+        left: 768,
+        top: 768,
+        right: 1280,
+        bottom: 1280
+      };
+
+      const ZOMBIE_WIDTH = 64;
+      const ZOMBIE_HEIGHT = 128;
+      const HALF_W = ZOMBIE_WIDTH / 2;
+      const HALF_H = ZOMBIE_HEIGHT / 2;
+
+      // 화면에 동시에 표시되는 좀비의 최대 수
+      const MAX_ACTIVE_ZOMBIES = 100;
+
+      // 누적 처치 카운터의 최대 수
+      const MAX_ZOMBIE_COUNT = 999;
+
+      const SPAWN_INTERVAL_MS = 30_000;
+      const AUTO_DEATH_MS = 180_000;
+
+      // 기본 걷기 애니메이션: 2fps
+      const WALK_FPS = 2;
+
+      // 피격 첫 프레임과 전체 사망 모션: 프레임당 0.2초
+      const DEATH_FPS = 5;
+      const HIT_REACTION_MS = 200;
+
+      // 가능하면 기존 좀비의 중심에서 이 거리 이상 떨어져 생성합니다.
+      const MIN_SPAWN_DISTANCE = 160;
+
+      // 생성 모션 프레임별 유지 시간
+      // 1번 2초 / 2번 0.25초 / 3번 0.5초 / 4번 0.25초
+      const BIRTH_FRAME_DURATIONS_MS = [
+        2_000,
+        250,
+        500,
+        250
+      ];
+
+      // 생성 프레임 사이의 부드러운 전환 시간
+      const BIRTH_TRANSITION_MS = 300;
+
+      // 생성 첫 프레임의 처음 1초 동안 페이드인
+      const BIRTH_FADE_IN_MS = 1_000;
+
+      // 사망 모션 마지막 프레임과 추가 프레임 표시 시간
+      const DEATH_LAST_FRAME_HOLD_MS = 3_000;
+      const DEATH_EXTRA_FRAME_MS = 3_000;
+      const DEATH_TRANSITION_MS = 1_000;
+      const FADE_DURATION_MS = 3_000;
+
+      // 이동 속도: 2초에 1px
+      const MOVE_SPEED_PX_PER_MS = 1 / 2_000;
+
+      const WALK_SHEET = "images/zomebie_default_walk.png";
+      const DEAD_SHEET = "images/zomebie_default_dead.png";
+      const BIRTH_DEATH_SHEET =
+        "images/zomebie_default_birthdeath.png";
+
+      const HIT_SOUND = "sounds/sfx_zombie_hit_axe.wav";
+      const BIRTH_SOUND = "sounds/sfx_zombie_birth.wav";
+      const DEATH_SOUND = "sounds/sfx_zombie_death.wav";
+      const BGM_SOUND = "sounds/bgm_meadow.mp3";
+
+      // 기본 경로는 sounds이며, 파일이 없으면 요청문에 적힌 soundes 경로도 시도합니다.
+      const FALL_SOUND_CANDIDATES = [
+        "sounds/sfx_zomebe_fall.wav",
+        "soundes/sfx_zomebe_fall.wav"
+      ];
+
+      const viewport = document.getElementById("viewport");
+      const world = document.getElementById("world");
+      const entities = document.getElementById("entities");
+      const countElement = document.getElementById("zombieCount");
+
+      const query = new URLSearchParams(location.search);
+      if (query.get("debug") === "1") {
+        document.body.classList.add("debug");
+      }
+
+      let zombieCount = 0;
+      let nextZombieId = 1;
+      let lastFrameTime = performance.now();
+      const zombies = new Map();
+
+      const bgmAudio = new Audio(BGM_SOUND);
+      bgmAudio.loop = true;
+      let bgmStartScheduled = false;
+      let bgmStarted = false;
+
+      let worldScale = 1;
+      let panX = 0;
+      let panY = 0;
+      let maxPanX = 0;
+      let maxPanY = 0;
+
+      const dragState = {
+        active: false,
+        moved: false,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        startPanX: 0,
+        startPanY: 0
+      };
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function applyWorldTransform() {
+        world.style.left = `calc(50% + ${panX}px)`;
+        world.style.top = `calc(50% + ${panY}px)`;
+        world.style.transform =
+          `translate(-50%, -50%) scale(${worldScale})`;
+      }
+
+      function updatePanBounds() {
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const renderedWorldSize = WORLD_SIZE * worldScale;
+
+        /*
+          브라우저 내부 크기는 정사각형 창에서도 주소창·테두리 등의 영향으로
+          몇 px 차이가 날 수 있으므로, 긴 쪽 대비 1% 이내의 차이는 1:1로 봅니다.
+        */
+        const aspectDifference =
+          Math.abs(viewportWidth - viewportHeight);
+        const squareTolerance =
+          Math.max(viewportWidth, viewportHeight) * 0.01;
+        const isSquare =
+          aspectDifference <= squareTolerance;
+        const isWide =
+          !isSquare && viewportWidth > viewportHeight;
+        const isTall =
+          !isSquare && viewportHeight > viewportWidth;
+
+        /*
+          화면 비율에 따라 실제로 잘린 방향만 드래그합니다.
+
+          - 가로형 화면: 세로 방향만 드래그
+          - 세로형 화면: 가로 방향만 드래그
+          - 1:1에 가까운 화면: 드래그하지 않음
+
+          배경 끝이 화면 끝에 닿는 지점까지만 이동합니다.
+        */
+        maxPanX = 0;
+        maxPanY = 0;
+
+        if (isWide) {
+          /*
+            가로형 화면에서는 가로 길이와 같은 정사각형 영역까지만
+            위아래로 이동합니다.
+            예: 1600×900 화면 → 세로 이동 범위는 ±350px
+          */
+          maxPanY = Math.max(
+            0,
+            (viewportWidth - viewportHeight) / 2
+          );
+        } else if (isTall) {
+          /*
+            세로형 화면에서는 세로 길이와 같은 정사각형 영역까지만
+            좌우로 이동합니다.
+            예: 900×1600 화면 → 가로 이동 범위는 ±350px
+          */
+          maxPanX = Math.max(
+            0,
+            (viewportHeight - viewportWidth) / 2
+          );
+        }
+
+        panX = maxPanX > 0
+          ? clamp(panX, -maxPanX, maxPanX)
+          : 0;
+
+        panY = maxPanY > 0
+          ? clamp(panY, -maxPanY, maxPanY)
+          : 0;
+
+        viewport.classList.toggle(
+          "can-pan",
+          maxPanX > 0 || maxPanY > 0
+        );
+      }
+
+      function updateWorldScale() {
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        const baseWidth = clamp(viewportWidth, 1024, 2048);
+        const baseHeight = clamp(viewportHeight, 1024, 2048);
+
+        // 1024 미만과 2048 초과에서는 긴 쪽을 fit하고 반대쪽을 crop합니다.
+        worldScale = Math.max(
+          viewportWidth / baseWidth,
+          viewportHeight / baseHeight
+        );
+
+        updatePanBounds();
+        applyWorldTransform();
+      }
+
+      function startBackgroundDrag(event) {
+        if (event.button !== undefined && event.button !== 0) return;
+
+        if (
+          event.target instanceof Element &&
+          event.target.closest(".zombie")
+        ) {
+          return;
+        }
+
+        if (maxPanX <= 0 && maxPanY <= 0) return;
+
+        event.preventDefault();
+        dragState.active = true;
+        dragState.moved = false;
+        dragState.pointerId = event.pointerId;
+        dragState.startX = event.clientX;
+        dragState.startY = event.clientY;
+        dragState.startPanX = panX;
+        dragState.startPanY = panY;
+
+        viewport.setPointerCapture(event.pointerId);
+      }
+
+      function moveBackgroundDrag(event) {
+        if (
+          !dragState.active ||
+          event.pointerId !== dragState.pointerId
+        ) {
+          return;
+        }
+
+        const deltaX = event.clientX - dragState.startX;
+        const deltaY = event.clientY - dragState.startY;
+
+        if (!dragState.moved && Math.hypot(deltaX, deltaY) >= 4) {
+          dragState.moved = true;
+          viewport.classList.add("is-panning");
+        }
+
+        if (!dragState.moved) return;
+
+        panX = clamp(
+          dragState.startPanX + deltaX,
+          -maxPanX,
+          maxPanX
+        );
+
+        panY = clamp(
+          dragState.startPanY + deltaY,
+          -maxPanY,
+          maxPanY
+        );
+
+        applyWorldTransform();
+        event.preventDefault();
+      }
+
+      function endBackgroundDrag(event) {
+        if (
+          !dragState.active ||
+          event.pointerId !== dragState.pointerId
+        ) {
+          return;
+        }
+
+        if (viewport.hasPointerCapture(event.pointerId)) {
+          viewport.releasePointerCapture(event.pointerId);
+        }
+
+        dragState.active = false;
+        dragState.pointerId = null;
+        viewport.classList.remove("is-panning");
+      }
+
+      function framePosition(frameIndex) {
+        const col = frameIndex % 4;
+        const row = Math.floor(frameIndex / 4);
+        return `${-col * ZOMBIE_WIDTH}px ${-row * ZOMBIE_HEIGHT}px`;
+      }
+
+      function randomDirection() {
+        const angle = Math.random() * Math.PI * 2;
+        return {
+          x: Math.cos(angle),
+          y: Math.sin(angle)
+        };
+      }
+
+      function randomDeathStartFrame() {
+        return Math.random() < 0.5 ? 0 : 4;
+      }
+
+      function isInsideInflatedSafeZone(x, y) {
+        return (
+          x > SAFE_ZONE.left - HALF_W &&
+          x < SAFE_ZONE.right + HALF_W &&
+          y > SAFE_ZONE.top - HALF_H &&
+          y < SAFE_ZONE.bottom + HALF_H
+        );
+      }
+
+      function getRandomSpawnPosition() {
+        const minX = GAME_ZONE.left + HALF_W;
+        const maxX = GAME_ZONE.right - HALF_W;
+        const minY = GAME_ZONE.top + HALF_H;
+        const maxY = GAME_ZONE.bottom - HALF_H;
+
+        let bestCandidate = null;
+        let bestMinimumDistance = -1;
+
+        for (let attempt = 0; attempt < 500; attempt += 1) {
+          const x = minX + Math.random() * (maxX - minX);
+          const y = minY + Math.random() * (maxY - minY);
+
+          if (isInsideInflatedSafeZone(x, y)) {
+            continue;
+          }
+
+          let minimumDistance = Infinity;
+
+          for (const otherZombie of zombies.values()) {
+            if (otherZombie.state === "removed") continue;
+
+            const distance = Math.hypot(
+              x - otherZombie.x,
+              y - otherZombie.y
+            );
+
+            minimumDistance = Math.min(minimumDistance, distance);
+          }
+
+          // 다른 좀비가 없거나 충분히 멀리 떨어진 위치면 바로 사용합니다.
+          if (minimumDistance >= MIN_SPAWN_DISTANCE) {
+            return { x, y };
+          }
+
+          // 충분한 위치를 못 찾을 경우를 대비해 가장 멀었던 후보를 기억합니다.
+          if (minimumDistance > bestMinimumDistance) {
+            bestMinimumDistance = minimumDistance;
+            bestCandidate = { x, y };
+          }
+        }
+
+        if (bestCandidate) {
+          return bestCandidate;
+        }
+
+        // 극히 드문 예외 상황의 안전한 기본 위치
+        return {
+          x: GAME_ZONE.left + HALF_W + 8,
+          y: GAME_ZONE.top + HALF_H + 8
+        };
+      }
+
+      function playSound(path, volume = 1) {
+        try {
+          const audio = new Audio(path);
+          audio.volume = volume;
+          audio.play().catch(() => {});
+        } catch (_) {
+          // 오디오 재생 실패는 게임 진행에 영향을 주지 않습니다.
+        }
+      }
+
+      function scheduleBgmAfterFirstPlayerKill() {
+        if (bgmStartScheduled || bgmStarted) return;
+
+        bgmStartScheduled = true;
+
+        window.setTimeout(() => {
+          bgmAudio.currentTime = 0;
+          bgmAudio.play()
+            .then(() => {
+              bgmStarted = true;
+            })
+            .catch(() => {
+              // 브라우저가 차단한 경우 다음 사용자 입력에서 다시 시도합니다.
+              bgmStartScheduled = false;
+            });
+        }, 3_000);
+      }
+
+      function playFallSound() {
+        let candidateIndex = 0;
+
+        const tryNext = () => {
+          if (candidateIndex >= FALL_SOUND_CANDIDATES.length) return;
+
+          const audio = new Audio(FALL_SOUND_CANDIDATES[candidateIndex]);
+          candidateIndex += 1;
+          audio.volume = 1;
+
+          audio.addEventListener("error", tryNext, { once: true });
+          audio.play().catch(() => {});
+        };
+
+        tryNext();
+      }
+
+      function setFacing(zombie) {
+        if (zombie.direction.x > 0.000001) {
+          zombie.facing = 1;
+        } else if (zombie.direction.x < -0.000001) {
+          zombie.facing = -1;
+        }
+
+        // 원본은 왼쪽을 향하므로 오른쪽 이동 시에만 반전합니다.
+        const facingTransform =
+          zombie.facing === 1 ? "scaleX(-1)" : "scaleX(1)";
+
+        zombie.sprite.style.transform = facingTransform;
+        zombie.overlay.style.transform = facingTransform;
+      }
+
+      function renderZombie(zombie) {
+        zombie.element.style.left = `${zombie.x}px`;
+        zombie.element.style.top = `${zombie.y}px`;
+      }
+
+      function showSingleFrame(zombie, sheet, frameIndex) {
+        zombie.sprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.sprite.style.backgroundPosition =
+          framePosition(frameIndex);
+        zombie.sprite.style.opacity = "1";
+
+        zombie.overlay.style.opacity = "0";
+      }
+
+      function showCrossfade(
+        zombie,
+        fromSheet,
+        fromFrameIndex,
+        toSheet,
+        toFrameIndex,
+        progress
+      ) {
+        const clampedProgress = clamp(progress, 0, 1);
+
+        zombie.sprite.style.backgroundImage = `url("${fromSheet}")`;
+        zombie.sprite.style.backgroundPosition =
+          framePosition(fromFrameIndex);
+        zombie.sprite.style.opacity =
+          String(1 - clampedProgress);
+
+        zombie.overlay.style.backgroundImage = `url("${toSheet}")`;
+        zombie.overlay.style.backgroundPosition =
+          framePosition(toFrameIndex);
+        zombie.overlay.style.opacity =
+          String(clampedProgress);
+      }
+
+      function createZombie() {
+        // 생성·이동·사망·페이드 중인 개체를 모두 화면 표시 수에 포함합니다.
+        if (zombies.size >= MAX_ACTIVE_ZOMBIES) return;
+
+        const position = getRandomSpawnPosition();
+        const direction = randomDirection();
+
+        const element = document.createElement("div");
+        element.className = "zombie";
+        element.setAttribute("role", "button");
+        element.setAttribute("aria-label", "Zombie");
+        element.style.opacity = "0";
+
+        const sprite = document.createElement("div");
+        sprite.className = "zombie-sprite";
+        sprite.style.backgroundImage =
+          `url("${BIRTH_DEATH_SHEET}")`;
+
+        const overlay = document.createElement("div");
+        overlay.className = "zombie-sprite-overlay";
+
+        element.appendChild(sprite);
+        element.appendChild(overlay);
+        entities.appendChild(element);
+
+        const zombie = {
+          id: nextZombieId++,
+          element,
+          sprite,
+          overlay,
+          x: position.x,
+          y: position.y,
+          direction,
+          facing: Math.random() < 0.5 ? -1 : 1,
+          hitCount: 0,
+          state: "birthing",
+          birthStartedAt: performance.now(),
+          walkElapsed: 0,
+          walkFrame: Math.floor(Math.random() * 8),
+          hitReactionEnd: 0,
+          hitReactionFrame: 0,
+          deathStartFrame: randomDeathStartFrame(),
+          deathStartedAt: 0,
+          counted: false,
+          autoDeathTimer: null,
+          fallSoundTimer: null
+        };
+
+        zombies.set(zombie.id, zombie);
+
+        setFacing(zombie);
+        zombie.sprite.style.backgroundPosition = framePosition(0);
+        renderZombie(zombie);
+        playSound(BIRTH_SOUND, 0.5);
+
+        element.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          attackZombie(zombie);
+        });
+
+        zombie.autoDeathTimer = window.setTimeout(() => {
+          beginDeath(zombie, false);
+        }, AUTO_DEATH_MS);
+      }
+
+      function attackZombie(zombie) {
+        if (
+          zombie.state === "birthing" ||
+          zombie.state === "dying" ||
+          zombie.state === "removed"
+        ) {
+          return;
+        }
+
+        playSound(HIT_SOUND, 0.5);
+
+        zombie.hitCount += 1;
+
+        if (zombie.hitCount >= 3) {
+          beginDeath(zombie, true);
+          return;
+        }
+
+        zombie.state = "hit";
+        zombie.deathStartFrame = randomDeathStartFrame();
+        zombie.hitReactionFrame = zombie.deathStartFrame;
+        zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
+
+        showSingleFrame(
+          zombie,
+          DEAD_SHEET,
+          zombie.hitReactionFrame
+        );
+      }
+
+      function beginDeath(zombie, wasPlayerKill = false) {
+        if (zombie.state === "dying" || zombie.state === "removed") return;
+
+        zombie.state = "dying";
+        zombie.element.classList.add("is-dead");
+        zombie.deathStartFrame = randomDeathStartFrame();
+        zombie.deathStartedAt = performance.now();
+        playSound(DEATH_SOUND, 0.5);
+
+        if (wasPlayerKill) {
+          scheduleBgmAfterFirstPlayerKill();
+        }
+
+        if (zombie.autoDeathTimer !== null) {
+          clearTimeout(zombie.autoDeathTimer);
+          zombie.autoDeathTimer = null;
+        }
+
+        zombie.element.style.opacity = "1";
+        showSingleFrame(
+          zombie,
+          DEAD_SHEET,
+          zombie.deathStartFrame
+        );
+
+        if (wasPlayerKill && !zombie.counted) {
+          zombie.counted = true;
+          zombieCount = Math.min(
+            MAX_ZOMBIE_COUNT,
+            zombieCount + 1
+          );
+          countElement.textContent = String(zombieCount);
+        }
+
+        zombie.fallSoundTimer = window.setTimeout(() => {
+          playFallSound();
+        }, 500);
+      }
+
+      function removeZombie(zombie) {
+        if (zombie.state === "removed") return;
+
+        zombie.state = "removed";
+
+        if (zombie.autoDeathTimer !== null) {
+          clearTimeout(zombie.autoDeathTimer);
+        }
+
+        if (zombie.fallSoundTimer !== null) {
+          clearTimeout(zombie.fallSoundTimer);
+        }
+
+        zombie.element.remove();
+        zombies.delete(zombie.id);
+      }
+
+      function resolveOuterBounds(zombie) {
+        const minX = GAME_ZONE.left + HALF_W;
+        const maxX = GAME_ZONE.right - HALF_W;
+        const minY = GAME_ZONE.top + HALF_H;
+        const maxY = GAME_ZONE.bottom - HALF_H;
+
+        if (zombie.x < minX) {
+          zombie.x = minX;
+          zombie.direction.x = Math.abs(zombie.direction.x);
+        } else if (zombie.x > maxX) {
+          zombie.x = maxX;
+          zombie.direction.x = -Math.abs(zombie.direction.x);
+        }
+
+        if (zombie.y < minY) {
+          zombie.y = minY;
+          zombie.direction.y = Math.abs(zombie.direction.y);
+        } else if (zombie.y > maxY) {
+          zombie.y = maxY;
+          zombie.direction.y = -Math.abs(zombie.direction.y);
+        }
+      }
+
+      function resolveSafeZone(zombie, previousX, previousY) {
+        if (!isInsideInflatedSafeZone(zombie.x, zombie.y)) return;
+
+        const left = SAFE_ZONE.left - HALF_W;
+        const right = SAFE_ZONE.right + HALF_W;
+        const top = SAFE_ZONE.top - HALF_H;
+        const bottom = SAFE_ZONE.bottom + HALF_H;
+
+        const enteredFromLeft = previousX <= left;
+        const enteredFromRight = previousX >= right;
+        const enteredFromTop = previousY <= top;
+        const enteredFromBottom = previousY >= bottom;
+
+        if (enteredFromLeft) {
+          zombie.x = left;
+          zombie.direction.x = -Math.abs(zombie.direction.x);
+        } else if (enteredFromRight) {
+          zombie.x = right;
+          zombie.direction.x = Math.abs(zombie.direction.x);
+        } else if (enteredFromTop) {
+          zombie.y = top;
+          zombie.direction.y = -Math.abs(zombie.direction.y);
+        } else if (enteredFromBottom) {
+          zombie.y = bottom;
+          zombie.direction.y = Math.abs(zombie.direction.y);
+        } else {
+          // 모서리 진입 등 예외 상황에서는 가장 가까운 경계로 밀어냅니다.
+          const distances = [
+            { side: "left", value: Math.abs(zombie.x - left) },
+            { side: "right", value: Math.abs(right - zombie.x) },
+            { side: "top", value: Math.abs(zombie.y - top) },
+            { side: "bottom", value: Math.abs(bottom - zombie.y) }
+          ].sort((a, b) => a.value - b.value);
+
+          switch (distances[0].side) {
+            case "left":
+              zombie.x = left;
+              zombie.direction.x = -Math.abs(zombie.direction.x);
+              break;
+            case "right":
+              zombie.x = right;
+              zombie.direction.x = Math.abs(zombie.direction.x);
+              break;
+            case "top":
+              zombie.y = top;
+              zombie.direction.y = -Math.abs(zombie.direction.y);
+              break;
+            default:
+              zombie.y = bottom;
+              zombie.direction.y = Math.abs(zombie.direction.y);
+          }
+        }
+      }
+
+      function updateBirthing(zombie, now) {
+        const elapsed = now - zombie.birthStartedAt;
+
+        // 1번 프레임의 처음 1초 동안 좀비와 그림자를 함께 페이드인합니다.
+        zombie.element.style.opacity = String(
+          clamp(elapsed / BIRTH_FADE_IN_MS, 0, 1)
+        );
+
+        const birthFrameCount = BIRTH_FRAME_DURATIONS_MS.length;
+        let phaseStart = 0;
+
+        for (let index = 0; index < birthFrameCount; index += 1) {
+          const holdEnd =
+            phaseStart + BIRTH_FRAME_DURATIONS_MS[index];
+
+          if (elapsed < holdEnd) {
+            showSingleFrame(
+              zombie,
+              BIRTH_DEATH_SHEET,
+              index
+            );
+            return;
+          }
+
+          const isLastBirthFrame =
+            index === birthFrameCount - 1;
+          const transitionEnd =
+            holdEnd + BIRTH_TRANSITION_MS;
+
+          if (elapsed < transitionEnd) {
+            const progress =
+              (elapsed - holdEnd) / BIRTH_TRANSITION_MS;
+
+            if (isLastBirthFrame) {
+              showCrossfade(
+                zombie,
+                BIRTH_DEATH_SHEET,
+                index,
+                WALK_SHEET,
+                zombie.walkFrame,
+                progress
+              );
+            } else {
+              showCrossfade(
+                zombie,
+                BIRTH_DEATH_SHEET,
+                index,
+                BIRTH_DEATH_SHEET,
+                index + 1,
+                progress
+              );
+            }
+            return;
+          }
+
+          phaseStart = transitionEnd;
+        }
+
+        zombie.state = "walking";
+        zombie.walkElapsed = 0;
+        zombie.element.style.opacity = "1";
+        showSingleFrame(
+          zombie,
+          WALK_SHEET,
+          zombie.walkFrame
+        );
+      }
+
+      function updateWalking(zombie, deltaMs, now) {
+        if (zombie.state === "hit") {
+          if (now >= zombie.hitReactionEnd) {
+            zombie.state = "walking";
+            zombie.sprite.style.backgroundImage = `url("${WALK_SHEET}")`;
+            zombie.sprite.style.opacity = "1";
+            zombie.overlay.style.opacity = "0";
+          } else {
+            showSingleFrame(
+              zombie,
+              DEAD_SHEET,
+              zombie.hitReactionFrame
+            );
+            return;
+          }
+        }
+
+        const previousX = zombie.x;
+        const previousY = zombie.y;
+
+        zombie.x += zombie.direction.x * MOVE_SPEED_PX_PER_MS * deltaMs;
+        zombie.y += zombie.direction.y * MOVE_SPEED_PX_PER_MS * deltaMs;
+
+        resolveOuterBounds(zombie);
+        resolveSafeZone(zombie, previousX, previousY);
+        setFacing(zombie);
+
+        zombie.walkElapsed += deltaMs;
+        const frameDuration = 1000 / WALK_FPS;
+
+        if (zombie.walkElapsed >= frameDuration) {
+          const advancedFrames = Math.floor(zombie.walkElapsed / frameDuration);
+          zombie.walkElapsed %= frameDuration;
+          zombie.walkFrame = (zombie.walkFrame + advancedFrames) % 8;
+        }
+
+        showSingleFrame(
+          zombie,
+          WALK_SHEET,
+          zombie.walkFrame
+        );
+
+        renderZombie(zombie);
+      }
+
+      function updateDying(zombie, now) {
+        const elapsed = now - zombie.deathStartedAt;
+        const deathFrameDuration = 1000 / DEATH_FPS;
+        const deathAnimationEnd = 4 * deathFrameDuration;
+        const lastDeathFrameHoldEnd =
+          deathAnimationEnd + DEATH_LAST_FRAME_HOLD_MS;
+        const transitionOneEnd =
+          lastDeathFrameHoldEnd + DEATH_TRANSITION_MS;
+        const extraFrameOneHoldEnd =
+          transitionOneEnd + DEATH_EXTRA_FRAME_MS;
+        const transitionTwoEnd =
+          extraFrameOneHoldEnd + DEATH_TRANSITION_MS;
+        const extraFrameTwoHoldEnd =
+          transitionTwoEnd + DEATH_EXTRA_FRAME_MS;
+        const fadeEnd =
+          extraFrameTwoHoldEnd + FADE_DURATION_MS;
+
+        const isBackwardDeath = zombie.deathStartFrame === 0;
+        const deadLastFrame = zombie.deathStartFrame + 3;
+        const extraFrameOne = isBackwardDeath ? 4 : 6;
+        const extraFrameTwo = extraFrameOne + 1;
+
+        zombie.element.style.opacity = "1";
+
+        if (elapsed < deathAnimationEnd) {
+          const localFrame = Math.min(
+            3,
+            Math.floor(elapsed / deathFrameDuration)
+          );
+
+          showSingleFrame(
+            zombie,
+            DEAD_SHEET,
+            zombie.deathStartFrame + localFrame
+          );
+          return;
+        }
+
+        if (elapsed < lastDeathFrameHoldEnd) {
+          showSingleFrame(
+            zombie,
+            DEAD_SHEET,
+            deadLastFrame
+          );
+          return;
+        }
+
+        if (elapsed < transitionOneEnd) {
+          const progress =
+            (elapsed - lastDeathFrameHoldEnd) /
+            DEATH_TRANSITION_MS;
+
+          showCrossfade(
+            zombie,
+            DEAD_SHEET,
+            deadLastFrame,
+            BIRTH_DEATH_SHEET,
+            extraFrameOne,
+            progress
+          );
+          return;
+        }
+
+        if (elapsed < extraFrameOneHoldEnd) {
+          showSingleFrame(
+            zombie,
+            BIRTH_DEATH_SHEET,
+            extraFrameOne
+          );
+          return;
+        }
+
+        if (elapsed < transitionTwoEnd) {
+          const progress =
+            (elapsed - extraFrameOneHoldEnd) /
+            DEATH_TRANSITION_MS;
+
+          showCrossfade(
+            zombie,
+            BIRTH_DEATH_SHEET,
+            extraFrameOne,
+            BIRTH_DEATH_SHEET,
+            extraFrameTwo,
+            progress
+          );
+          return;
+        }
+
+        if (elapsed < extraFrameTwoHoldEnd) {
+          showSingleFrame(
+            zombie,
+            BIRTH_DEATH_SHEET,
+            extraFrameTwo
+          );
+          return;
+        }
+
+        if (elapsed < fadeEnd) {
+          const fadeProgress =
+            (elapsed - extraFrameTwoHoldEnd) /
+            FADE_DURATION_MS;
+
+          showSingleFrame(
+            zombie,
+            BIRTH_DEATH_SHEET,
+            extraFrameTwo
+          );
+
+          // 전체 요소의 투명도를 낮춰 그림자도 함께 사라지게 합니다.
+          zombie.element.style.opacity =
+            String(Math.max(0, 1 - fadeProgress));
+          return;
+        }
+
+        removeZombie(zombie);
+      }
+
+      function gameLoop(now) {
+        const deltaMs = Math.min(100, now - lastFrameTime);
+        lastFrameTime = now;
+
+        for (const zombie of zombies.values()) {
+          if (zombie.state === "birthing") {
+            updateBirthing(zombie, now);
+          } else if (
+            zombie.state === "walking" ||
+            zombie.state === "hit"
+          ) {
+            updateWalking(zombie, deltaMs, now);
+          } else if (zombie.state === "dying") {
+            updateDying(zombie, now);
+          }
+        }
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      function startSpawner() {
+        // 첫 좀비는 게임 시작과 동시에 생성합니다.
+        createZombie();
+
+        // 이후에는 30초마다 확인하여 화면에 100마리 미만일 때만 생성합니다.
+        window.setInterval(() => {
+          if (zombies.size < MAX_ACTIVE_ZOMBIES) {
+            createZombie();
+          }
+        }, SPAWN_INTERVAL_MS);
+      }
+
+      viewport.addEventListener("pointerdown", startBackgroundDrag);
+      viewport.addEventListener("pointermove", moveBackgroundDrag);
+      viewport.addEventListener("pointerup", endBackgroundDrag);
+      viewport.addEventListener("pointercancel", endBackgroundDrag);
+
+      window.addEventListener("resize", updateWorldScale);
+      updateWorldScale();
+      startSpawner();
+      requestAnimationFrame(gameLoop);
+    })();
+  </script>
+</body>
+</html>
