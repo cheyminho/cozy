@@ -266,7 +266,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.14</div>
+  <div id="versionLabel">v0.15</div>
 
   <script>
     (() => {
@@ -379,6 +379,14 @@
       // 실제 이미지보다 넉넉하게 간격을 두어 서로 겹치지 않게 합니다.
       const CLOUD_OVERLAP_PADDING = 32;
       const CLOUD_EXIT_MARGIN = 24;
+
+      // 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
+      // 0.10이면 그림자 면적이 약 10% 정도 침범하는 수준까지는 허용하는 느낌입니다.
+      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.10;
+
+      // 드래그할 때 실제 구름만 약간 덜 따라오게 하여
+      // 지면보다 더 높이 떠 있는 것처럼 느끼게 합니다.
+      const CLOUD_DRAG_PARALLAX_FACTOR = 0.18;
 
       // 기본 경로는 sounds이며, 파일이 없으면 요청문에 적힌 soundes 경로도 시도합니다.
       const FALL_SOUND_CANDIDATES = [
@@ -730,11 +738,36 @@
         });
       }
 
-      function getRandomCloudPosition(scale, group, initialInside) {
+      function lineIntersectsRectOnCloudPath(lineSum, rect) {
+        const minLineSum = rect.left + rect.top;
+        const maxLineSum = rect.right + rect.bottom;
+
+        return lineSum >= minLineSum && lineSum <= maxLineSum;
+      }
+
+      function wouldShadowPathIntrudeSafeZone(x, y, scale) {
+        const halfSize = getCloudHalfSize(scale);
+        const protectedMargin =
+          halfSize * (1 - CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO);
+
+        const protectedZone = {
+          left: SAFE_ZONE.left - protectedMargin,
+          top: SAFE_ZONE.top - protectedMargin,
+          right: SAFE_ZONE.right + protectedMargin,
+          bottom: SAFE_ZONE.bottom + protectedMargin
+        };
+
+        // 현재 구름 그림자의 이동 경로는 x + y 값이 일정한 대각선입니다.
+        // 이 선이 보호 구역을 통과하면 중앙 안전 구역을 지나갈 가능성이 높다고 판단합니다.
+        return lineIntersectsRectOnCloudPath(x + y, protectedZone);
+      }
+
+      function getRandomCloudPosition(kind, scale, group, initialInside) {
         const visibleBounds = getVisibleWorldBounds();
         const halfSize = getCloudHalfSize(scale);
         const centerX = (visibleBounds.left + visibleBounds.right) / 2;
         const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
+        const isShadow = kind === "shadow";
 
         for (let attempt = 0; attempt < 120; attempt += 1) {
           let x;
@@ -768,9 +801,15 @@
             y = visibleBounds.bottom + halfSize * 0.82;
           }
 
-          if (!overlapsCloudGroup(x, y, scale, group)) {
-            return { x, y };
+          if (overlapsCloudGroup(x, y, scale, group)) {
+            continue;
           }
+
+          if (isShadow && wouldShadowPathIntrudeSafeZone(x, y, scale)) {
+            continue;
+          }
+
+          return { x, y };
         }
 
         return null;
@@ -788,8 +827,16 @@
       }
 
       function renderCloud(cloud) {
-        cloud.element.style.left = `${cloud.x}px`;
-        cloud.element.style.top = `${cloud.y}px`;
+        let renderX = cloud.x;
+        let renderY = cloud.y;
+
+        if (cloud.kind === "sky") {
+          renderX += (-panX / worldScale) * CLOUD_DRAG_PARALLAX_FACTOR;
+          renderY += (-panY / worldScale) * CLOUD_DRAG_PARALLAX_FACTOR;
+        }
+
+        cloud.element.style.left = `${renderX}px`;
+        cloud.element.style.top = `${renderY}px`;
         cloud.element.style.transform =
           `translate(-50%, -50%) scale(${cloud.scale})`;
       }
@@ -808,6 +855,7 @@
               CLOUD_MAX_SCALE
             );
         const position = getRandomCloudPosition(
+          kind,
           scale,
           group,
           initialInside
