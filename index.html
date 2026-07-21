@@ -85,12 +85,12 @@
       z-index: 20;
     }
 
-    /* 새 떼는 카메라 이동과 무관하게 화면 기준으로 지나갑니다. */
+    /* 새 떼는 배경 위 상공 레이어에서 날아가며, 화면 드래그에도 함께 반응합니다. */
     #birds {
       position: absolute;
       inset: 0;
       z-index: 19;
-      overflow: hidden;
+      overflow: visible;
       pointer-events: none;
     }
 
@@ -98,13 +98,18 @@
       position: absolute;
       width: 42.6667px;
       height: 42.6667px;
-      background-image: url("images/bird_fly.png");
-      background-repeat: no-repeat;
-      background-size: 128px 128px;
-      background-position: 0 0;
+      background-color: #f1efe4;
+      -webkit-mask-image: url("images/bird_fly.png");
+      mask-image: url("images/bird_fly.png");
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-size: 128px 128px;
+      mask-size: 128px 128px;
+      -webkit-mask-position: 0 0;
+      mask-position: 0 0;
       transform-origin: center center;
       image-rendering: auto;
-      will-change: left, top, transform, opacity, background-position;
+      will-change: left, top, transform, opacity, -webkit-mask-position, mask-position;
       pointer-events: none;
     }
 
@@ -282,15 +287,15 @@
     <div id="world">
       <div id="cloudShadows"></div>
       <div id="entities"></div>
+      <div id="birds"></div>
       <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
       <div id="safeZone" class="debug-zone"></div>
     </div>
-    <div id="birds"></div>
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.174</div>
+  <div id="versionLabel">v0.175</div>
 
   <script>
     (() => {
@@ -435,7 +440,7 @@
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
-      const BIRD_PATH_VERTICAL_MARGIN_FACTOR = 0.25;
+      const BIRD_PATH_VERTICAL_MARGIN_FACTOR = 0.18;
 
       // 화면에서 보이는 새 크기 범위입니다.
       const BIRD_MIN_SCALE = 0.55;
@@ -1097,31 +1102,34 @@
         const row = Math.floor(
           normalizedFrame / BIRD_SHEET_COLUMNS
         );
+        const position = `${col * 50}% ${row * 50}%`;
 
         // 3×3 스프라이트 시트는 각 축의 0% / 50% / 100% 위치를 사용합니다.
-        bird.element.style.backgroundPosition =
-          `${col * 50}% ${row * 50}%`;
+        bird.element.style.webkitMaskPosition = position;
+        bird.element.style.maskPosition = position;
       }
 
       function createBirdFlock(count, isFirstKillFlock = false) {
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+        const visibleBounds = getVisibleWorldBounds();
+        const visibleWidth = visibleBounds.right - visibleBounds.left;
+        const visibleHeight = visibleBounds.bottom - visibleBounds.top;
         const margin = Math.max(
-          220,
-          Math.min(viewportWidth, viewportHeight) * 0.12
+          220 / worldScale,
+          Math.min(visibleWidth, visibleHeight) * 0.12
         );
 
-        // 모든 새는 화면 좌하단 바깥에서 우상단 바깥으로 이동합니다.
+        // 모든 새는 현재 화면 기준의 좌하단 바깥에서 우상단 바깥으로 이동합니다.
+        // birds 레이어가 world 내부에 있으므로, 드래그 시 배경과 함께 자연스럽게 이동합니다.
         const verticalMargin =
           margin * BIRD_PATH_VERTICAL_MARGIN_FACTOR;
 
         const baseStart = {
-          x: -margin,
-          y: viewportHeight + verticalMargin
+          x: visibleBounds.left - margin,
+          y: visibleBounds.bottom + verticalMargin
         };
         const baseEnd = {
-          x: viewportWidth + margin,
-          y: -verticalMargin
+          x: visibleBounds.right + margin,
+          y: visibleBounds.top - verticalMargin
         };
         const pathX = baseEnd.x - baseStart.x;
         const pathY = baseEnd.y - baseStart.y;
