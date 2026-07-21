@@ -61,9 +61,55 @@
       will-change: transform;
     }
 
+    #cloudShadows,
+    #clouds {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    /* 구름 그림자는 배경 위, 좀비 아래에 표시합니다. */
+    #cloudShadows {
+      z-index: 1;
+    }
+
     #entities {
       position: absolute;
       inset: 0;
+      z-index: 10;
+    }
+
+    /* 실제 구름은 좀비보다 높은 상공 레이어에 표시합니다. */
+    #clouds {
+      z-index: 20;
+    }
+
+    .cloud-visual {
+      position: absolute;
+      width: 512px;
+      height: 512px;
+      transform-origin: center center;
+      will-change: left, top, transform;
+      pointer-events: none;
+    }
+
+    .cloud-sprite {
+      background-image: url("images/bg_field_default_clouds.png");
+      background-repeat: no-repeat;
+      background-size: 1024px 1024px;
+    }
+
+    .cloud-shadow {
+      background: #414f9f;
+      opacity: 0.3;
+      mix-blend-mode: multiply;
+      -webkit-mask-image: url("images/bg_field_default_clouds.png");
+      -webkit-mask-repeat: no-repeat;
+      -webkit-mask-size: 1024px 1024px;
+      mask-image: url("images/bg_field_default_clouds.png");
+      mask-repeat: no-repeat;
+      mask-size: 1024px 1024px;
     }
 
     #hud {
@@ -200,14 +246,16 @@
 <body>
   <div id="viewport">
     <div id="world">
+      <div id="cloudShadows"></div>
       <div id="entities"></div>
+      <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
       <div id="safeZone" class="debug-zone"></div>
     </div>
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.12</div>
+  <div id="versionLabel">v0.13</div>
 
   <script>
     (() => {
@@ -287,6 +335,30 @@
       const DEATH_SOUND = "sounds/sfx_zombie_death.wav";
       const BGM_SOUND = "sounds/bgm_meadow.mp3";
 
+      // 구름 스프라이트 시트: 1024×1024 안에 2×2로 배치된 4종입니다.
+      const CLOUD_SHEET_COLUMNS = 2;
+      const CLOUD_SHEET_ROWS = 2;
+      const CLOUD_VARIANT_COUNT = 4;
+      const CLOUD_FRAME_SIZE = 512;
+      const CLOUD_MIN_SCALE = 1;
+      const CLOUD_MAX_SCALE = 2;
+
+      // 실제 구름과 그림자는 각각 한 화면에 1~2개를 유지합니다.
+      const CLOUD_MIN_COUNT = 1;
+      const CLOUD_MAX_COUNT = 2;
+
+      // 모든 구름과 그림자는 화면 기준 초당 5px로 같은 속도로 이동합니다.
+      const CLOUD_SPEED_SCREEN_PX_PER_MS = 1 / 200;
+      const CLOUD_DIRECTION_LENGTH = Math.hypot(1, -1);
+      const CLOUD_DIRECTION = {
+        x: 1 / CLOUD_DIRECTION_LENGTH,
+        y: -1 / CLOUD_DIRECTION_LENGTH
+      };
+
+      // 실제 이미지보다 넉넉하게 간격을 두어 서로 겹치지 않게 합니다.
+      const CLOUD_OVERLAP_PADDING = 32;
+      const CLOUD_EXIT_MARGIN = 24;
+
       // 기본 경로는 sounds이며, 파일이 없으면 요청문에 적힌 soundes 경로도 시도합니다.
       const FALL_SOUND_CANDIDATES = [
         "sounds/sfx_zomebe_fall.wav",
@@ -295,7 +367,9 @@
 
       const viewport = document.getElementById("viewport");
       const world = document.getElementById("world");
+      const cloudShadowsLayer = document.getElementById("cloudShadows");
       const entities = document.getElementById("entities");
+      const cloudsLayer = document.getElementById("clouds");
       const countElement = document.getElementById("zombieCount");
 
       const query = new URLSearchParams(location.search);
@@ -351,8 +425,20 @@
 
       let zombieCount = 0;
       let nextZombieId = 1;
+      let nextCloudId = 1;
       let lastFrameTime = performance.now();
       const zombies = new Map();
+
+      const skyClouds = [];
+      const shadowClouds = [];
+      const cloudTargetCounts = {
+        sky: CLOUD_MIN_COUNT,
+        shadow: CLOUD_MIN_COUNT
+      };
+      const nextCloudSpawnAt = {
+        sky: 0,
+        shadow: 0
+      };
 
       const bgmAudio = new Audio(BGM_SOUND);
       bgmAudio.loop = true;
@@ -550,6 +636,254 @@
         const col = frameIndex % 4;
         const row = Math.floor(frameIndex / 4);
         return `${-col * ZOMBIE_WIDTH}px ${-row * ZOMBIE_HEIGHT}px`;
+      }
+
+      function randomBetween(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function randomCloudCount() {
+        return Math.floor(
+          randomBetween(CLOUD_MIN_COUNT, CLOUD_MAX_COUNT + 1)
+        );
+      }
+
+      function getVisibleWorldBounds() {
+        const screenCenterX = window.innerWidth / 2 + panX;
+        const screenCenterY = window.innerHeight / 2 + panY;
+        const worldCenter = WORLD_SIZE / 2;
+
+        return {
+          left: worldCenter + (0 - screenCenterX) / worldScale,
+          top: worldCenter + (0 - screenCenterY) / worldScale,
+          right:
+            worldCenter +
+            (window.innerWidth - screenCenterX) / worldScale,
+          bottom:
+            worldCenter +
+            (window.innerHeight - screenCenterY) / worldScale
+        };
+      }
+
+      function getCloudHalfSize(scale) {
+        return (CLOUD_FRAME_SIZE * scale) / 2;
+      }
+
+      function getCloudBounds(x, y, scale, padding = 0) {
+        const halfSize = getCloudHalfSize(scale) + padding;
+
+        return {
+          left: x - halfSize,
+          top: y - halfSize,
+          right: x + halfSize,
+          bottom: y + halfSize
+        };
+      }
+
+      function doCloudBoundsOverlap(a, b) {
+        return !(
+          a.right <= b.left ||
+          a.left >= b.right ||
+          a.bottom <= b.top ||
+          a.top >= b.bottom
+        );
+      }
+
+      function overlapsCloudGroup(x, y, scale, group) {
+        const candidateBounds = getCloudBounds(
+          x,
+          y,
+          scale,
+          CLOUD_OVERLAP_PADDING
+        );
+
+        return group.some((otherCloud) => {
+          const otherBounds = getCloudBounds(
+            otherCloud.x,
+            otherCloud.y,
+            otherCloud.scale,
+            CLOUD_OVERLAP_PADDING
+          );
+
+          return doCloudBoundsOverlap(candidateBounds, otherBounds);
+        });
+      }
+
+      function getRandomCloudPosition(scale, group, initialInside) {
+        const visibleBounds = getVisibleWorldBounds();
+        const halfSize = getCloudHalfSize(scale);
+        const centerX = (visibleBounds.left + visibleBounds.right) / 2;
+        const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
+
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+          let x;
+          let y;
+
+          if (initialInside) {
+            const minX = visibleBounds.left + halfSize * 0.55;
+            const maxX = visibleBounds.right - halfSize * 0.55;
+            const minY = visibleBounds.top + halfSize * 0.55;
+            const maxY = visibleBounds.bottom - halfSize * 0.55;
+
+            x = minX <= maxX
+              ? randomBetween(minX, maxX)
+              : centerX;
+            y = minY <= maxY
+              ? randomBetween(minY, maxY)
+              : centerY;
+          } else if (Math.random() < 0.5) {
+            // 화면 왼쪽의 아래쪽 구간에서 들어옵니다.
+            x = visibleBounds.left - halfSize * 0.82;
+            y = randomBetween(
+              centerY,
+              visibleBounds.bottom + halfSize * 0.15
+            );
+          } else {
+            // 화면 아래쪽의 왼쪽 구간에서 들어옵니다.
+            x = randomBetween(
+              visibleBounds.left - halfSize * 0.15,
+              centerX
+            );
+            y = visibleBounds.bottom + halfSize * 0.82;
+          }
+
+          if (!overlapsCloudGroup(x, y, scale, group)) {
+            return { x, y };
+          }
+        }
+
+        return null;
+      }
+
+      function applyCloudVariant(element, variant, isShadow) {
+        const col = variant % CLOUD_SHEET_COLUMNS;
+        const row = Math.floor(variant / CLOUD_SHEET_COLUMNS);
+        const position =
+          `${-col * CLOUD_FRAME_SIZE}px ` +
+          `${-row * CLOUD_FRAME_SIZE}px`;
+
+        if (isShadow) {
+          element.style.webkitMaskPosition = position;
+          element.style.maskPosition = position;
+        } else {
+          element.style.backgroundPosition = position;
+        }
+      }
+
+      function renderCloud(cloud) {
+        cloud.element.style.left = `${cloud.x}px`;
+        cloud.element.style.top = `${cloud.y}px`;
+        cloud.element.style.transform =
+          `translate(-50%, -50%) scale(${cloud.scale})`;
+      }
+
+      function createCloud(kind, initialInside = false) {
+        const isShadow = kind === "shadow";
+        const group = isShadow ? shadowClouds : skyClouds;
+        const layer = isShadow ? cloudShadowsLayer : cloudsLayer;
+        const scale = randomBetween(
+          CLOUD_MIN_SCALE,
+          CLOUD_MAX_SCALE
+        );
+        const position = getRandomCloudPosition(
+          scale,
+          group,
+          initialInside
+        );
+
+        if (!position) return false;
+
+        const variant = Math.floor(
+          Math.random() * CLOUD_VARIANT_COUNT
+        );
+        const element = document.createElement("div");
+        element.className = isShadow
+          ? "cloud-visual cloud-shadow"
+          : "cloud-visual cloud-sprite";
+
+        applyCloudVariant(element, variant, isShadow);
+        layer.appendChild(element);
+
+        const cloud = {
+          id: nextCloudId++,
+          kind,
+          element,
+          x: position.x,
+          y: position.y,
+          scale,
+          variant
+        };
+
+        group.push(cloud);
+        renderCloud(cloud);
+        return true;
+      }
+
+      function removeCloud(cloud, group) {
+        cloud.element.remove();
+        const index = group.indexOf(cloud);
+
+        if (index >= 0) {
+          group.splice(index, 1);
+        }
+      }
+
+      function isCloudOutsideVisibleArea(cloud, visibleBounds) {
+        const halfSize = getCloudHalfSize(cloud.scale);
+
+        return (
+          cloud.x - halfSize > visibleBounds.right + CLOUD_EXIT_MARGIN ||
+          cloud.y + halfSize < visibleBounds.top - CLOUD_EXIT_MARGIN
+        );
+      }
+
+      function updateCloudGroup(kind, deltaMs, now) {
+        const isShadow = kind === "shadow";
+        const group = isShadow ? shadowClouds : skyClouds;
+        const visibleBounds = getVisibleWorldBounds();
+
+        // 화면에서 보이는 속도가 확대 배율과 관계없이 같도록 보정합니다.
+        const worldSpeed =
+          CLOUD_SPEED_SCREEN_PX_PER_MS / worldScale;
+
+        for (const cloud of [...group]) {
+          cloud.x += CLOUD_DIRECTION.x * worldSpeed * deltaMs;
+          cloud.y += CLOUD_DIRECTION.y * worldSpeed * deltaMs;
+          renderCloud(cloud);
+
+          if (isCloudOutsideVisibleArea(cloud, visibleBounds)) {
+            removeCloud(cloud, group);
+          }
+        }
+
+        if (
+          group.length < cloudTargetCounts[kind] &&
+          now >= nextCloudSpawnAt[kind]
+        ) {
+          const created = createCloud(kind, false);
+          nextCloudSpawnAt[kind] = now + (created ? 1_500 : 2_500);
+        }
+      }
+
+      function initializeClouds() {
+        cloudTargetCounts.sky = randomCloudCount();
+        cloudTargetCounts.shadow = randomCloudCount();
+
+        for (
+          let index = 0;
+          index < cloudTargetCounts.sky;
+          index += 1
+        ) {
+          createCloud("sky", true);
+        }
+
+        for (
+          let index = 0;
+          index < cloudTargetCounts.shadow;
+          index += 1
+        ) {
+          createCloud("shadow", true);
+        }
       }
 
       function randomDirection() {
@@ -1198,6 +1532,9 @@
           }
         }
 
+        updateCloudGroup("sky", deltaMs, now);
+        updateCloudGroup("shadow", deltaMs, now);
+
         requestAnimationFrame(gameLoop);
       }
 
@@ -1220,6 +1557,7 @@
 
       window.addEventListener("resize", updateWorldScale);
       updateWorldScale();
+      initializeClouds();
       startSpawner();
       requestAnimationFrame(gameLoop);
     })();
