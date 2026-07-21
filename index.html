@@ -266,7 +266,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.164</div>
+  <div id="versionLabel">v0.165</div>
 
   <script>
     (() => {
@@ -837,6 +837,33 @@
           }
 
           return { x, y };
+        }
+
+        // 최초 배치에서는 목표 개수를 반드시 화면 안에서 채웁니다.
+        // 그림자가 크거나 안전 구역·겹침 조건 때문에 정상 위치를 찾지 못한 경우,
+        // 마지막 수단으로 화면 내부의 위치를 사용합니다.
+        if (initialInside) {
+          const visibleWidth = visibleBounds.right - visibleBounds.left;
+          const visibleHeight = visibleBounds.bottom - visibleBounds.top;
+          const fallbackInsetX = Math.min(
+            halfSize * 0.55,
+            visibleWidth * 0.25
+          );
+          const fallbackInsetY = Math.min(
+            halfSize * 0.55,
+            visibleHeight * 0.25
+          );
+
+          return {
+            x: randomBetween(
+              visibleBounds.left + fallbackInsetX,
+              visibleBounds.right - fallbackInsetX
+            ),
+            y: randomBetween(
+              visibleBounds.top + fallbackInsetY,
+              visibleBounds.bottom - fallbackInsetY
+            )
+          };
         }
 
         return null;
