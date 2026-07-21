@@ -266,7 +266,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.163</div>
+  <div id="versionLabel">v0.164</div>
 
   <script>
     (() => {
@@ -380,9 +380,10 @@
       const CLOUD_OVERLAP_PADDING = 32;
       const CLOUD_EXIT_MARGIN = 24;
 
-      // 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
-      // 0.10이면 그림자 면적이 약 10% 정도 침범하는 수준까지는 허용하는 느낌입니다.
-      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.7;
+      // 실제 구름과 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
+      // 0.00 = 침범 불가 / 0.10 = 약 10% 침범 허용 / 1.00 = 제한 없음
+      const CLOUD_SAFE_ZONE_INTRUSION_RATIO = 0.90;
+      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.60;
 
       // 드래그할 때 실제 구름만 약간 덜 따라오게 하여
       // 지면보다 더 높이 떠 있는 것처럼 느끼게 합니다.
@@ -745,10 +746,25 @@
         return lineSum >= minLineSum && lineSum <= maxLineSum;
       }
 
-      function wouldShadowPathIntrudeSafeZone(x, y, scale) {
+      function wouldCloudPathIntrudeSafeZone(
+        x,
+        y,
+        scale,
+        intrusionRatio
+      ) {
         const halfSize = getCloudHalfSize(scale);
+        const clampedIntrusionRatio = clamp(
+          intrusionRatio,
+          0,
+          1
+        );
+        // 1 이상이면 safe zone 경로 제한을 사용하지 않습니다.
+        if (clampedIntrusionRatio >= 1) {
+          return false;
+        }
+
         const protectedMargin =
-          halfSize * (1 - CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO);
+          halfSize * (1 - clampedIntrusionRatio);
 
         const protectedZone = {
           left: SAFE_ZONE.left - protectedMargin,
@@ -757,8 +773,8 @@
           bottom: SAFE_ZONE.bottom + protectedMargin
         };
 
-        // 현재 구름 그림자의 이동 경로는 x + y 값이 일정한 대각선입니다.
-        // 이 선이 보호 구역을 통과하면 중앙 안전 구역을 지나갈 가능성이 높다고 판단합니다.
+        // 구름과 그림자는 x + y 값이 일정한 대각선 경로로 이동합니다.
+        // 이 경로가 보호 구역을 지나면 해당 생성 위치를 사용하지 않습니다.
         return lineIntersectsRectOnCloudPath(x + y, protectedZone);
       }
 
@@ -805,7 +821,18 @@
             continue;
           }
 
-          if (isShadow && wouldShadowPathIntrudeSafeZone(x, y, scale)) {
+          const safeZoneIntrusionRatio = isShadow
+            ? CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO
+            : CLOUD_SAFE_ZONE_INTRUSION_RATIO;
+
+          if (
+            wouldCloudPathIntrudeSafeZone(
+              x,
+              y,
+              scale,
+              safeZoneIntrusionRatio
+            )
+          ) {
             continue;
           }
 
