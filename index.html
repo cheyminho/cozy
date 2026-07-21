@@ -101,15 +101,26 @@
     }
 
     .cloud-shadow {
-      background: #414f9f;
-      opacity: 0.3;
+      background-image: url("images/bg_field_default_clouds.png");
+      background-repeat: no-repeat;
+      background-size: 1024px 1024px;
+      opacity: 0.4;
       mix-blend-mode: multiply;
-      -webkit-mask-image: url("images/bg_field_default_clouds.png");
-      -webkit-mask-repeat: no-repeat;
-      -webkit-mask-size: 1024px 1024px;
-      mask-image: url("images/bg_field_default_clouds.png");
-      mask-repeat: no-repeat;
-      mask-size: 1024px 1024px;
+
+      /*
+        원본 구름 PNG의 투명도를 그대로 사용하면서
+        그림자를 어두운 남청색(#303a72에 가까운 색)으로 변환합니다.
+        mask-image를 사용하지 않으므로 file:// 로 직접 열어도 CORS에 막히지 않습니다.
+      */
+      filter:
+        brightness(0)
+        saturate(100%)
+        invert(22%)
+        sepia(18%)
+        saturate(1780%)
+        hue-rotate(193deg)
+        brightness(88%)
+        contrast(88%);
     }
 
     #hud {
@@ -255,7 +266,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.13</div>
+  <div id="versionLabel">v0.14</div>
 
   <script>
     (() => {
@@ -340,12 +351,22 @@
       const CLOUD_SHEET_ROWS = 2;
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
-      const CLOUD_MIN_SCALE = 1;
-      const CLOUD_MAX_SCALE = 2;
 
-      // 실제 구름과 그림자는 각각 한 화면에 1~2개를 유지합니다.
+      // 실제 구름 크기: 기본 크기의 0.5~1.5배
+      const CLOUD_MIN_SCALE = 0.5;
+      const CLOUD_MAX_SCALE = 1.5;
+
+      // 지상 그림자 크기: 기본 크기의 1~3배
+      const CLOUD_SHADOW_MIN_SCALE = 1;
+      const CLOUD_SHADOW_MAX_SCALE = 3;
+
+      // 실제 구름은 한 화면에 1~3개를 유지합니다.
       const CLOUD_MIN_COUNT = 1;
-      const CLOUD_MAX_COUNT = 2;
+      const CLOUD_MAX_COUNT = 3;
+
+      // 구름 그림자는 기존 요청대로 한 화면에 1~2개를 유지합니다.
+      const CLOUD_SHADOW_MIN_COUNT = 1;
+      const CLOUD_SHADOW_MAX_COUNT = 2;
 
       // 모든 구름과 그림자는 화면 기준 초당 5px로 같은 속도로 이동합니다.
       const CLOUD_SPEED_SCREEN_PX_PER_MS = 1 / 200;
@@ -642,9 +663,9 @@
         return min + Math.random() * (max - min);
       }
 
-      function randomCloudCount() {
+      function randomCloudCount(minCount, maxCount) {
         return Math.floor(
-          randomBetween(CLOUD_MIN_COUNT, CLOUD_MAX_COUNT + 1)
+          randomBetween(minCount, maxCount + 1)
         );
       }
 
@@ -762,12 +783,8 @@
           `${-col * CLOUD_FRAME_SIZE}px ` +
           `${-row * CLOUD_FRAME_SIZE}px`;
 
-        if (isShadow) {
-          element.style.webkitMaskPosition = position;
-          element.style.maskPosition = position;
-        } else {
-          element.style.backgroundPosition = position;
-        }
+        // 실제 구름과 그림자 모두 같은 스프라이트 시트를 사용합니다.
+        element.style.backgroundPosition = position;
       }
 
       function renderCloud(cloud) {
@@ -781,10 +798,15 @@
         const isShadow = kind === "shadow";
         const group = isShadow ? shadowClouds : skyClouds;
         const layer = isShadow ? cloudShadowsLayer : cloudsLayer;
-        const scale = randomBetween(
-          CLOUD_MIN_SCALE,
-          CLOUD_MAX_SCALE
-        );
+        const scale = isShadow
+          ? randomBetween(
+              CLOUD_SHADOW_MIN_SCALE,
+              CLOUD_SHADOW_MAX_SCALE
+            )
+          : randomBetween(
+              CLOUD_MIN_SCALE,
+              CLOUD_MAX_SCALE
+            );
         const position = getRandomCloudPosition(
           scale,
           group,
@@ -866,8 +888,14 @@
       }
 
       function initializeClouds() {
-        cloudTargetCounts.sky = randomCloudCount();
-        cloudTargetCounts.shadow = randomCloudCount();
+        cloudTargetCounts.sky = randomCloudCount(
+          CLOUD_MIN_COUNT,
+          CLOUD_MAX_COUNT
+        );
+        cloudTargetCounts.shadow = randomCloudCount(
+          CLOUD_SHADOW_MIN_COUNT,
+          CLOUD_SHADOW_MAX_COUNT
+        );
 
         for (
           let index = 0;
