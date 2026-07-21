@@ -266,7 +266,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.162</div>
+  <div id="versionLabel">v0.163</div>
 
   <script>
     (() => {
@@ -364,7 +364,7 @@
       const CLOUD_MIN_COUNT = 1;
       const CLOUD_MAX_COUNT = 3;
 
-      // 구름 그림자는 기존 요청대로 한 화면에 1~2개를 유지합니다.
+      // 구름 그림자는 기존 요청대로 한 화면에 2~3개를 유지합니다.
       const CLOUD_SHADOW_MIN_COUNT = 2;
       const CLOUD_SHADOW_MAX_COUNT = 3;
 
@@ -382,11 +382,11 @@
 
       // 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
       // 0.10이면 그림자 면적이 약 10% 정도 침범하는 수준까지는 허용하는 느낌입니다.
-      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.75;
+      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.7;
 
       // 드래그할 때 실제 구름만 약간 덜 따라오게 하여
       // 지면보다 더 높이 떠 있는 것처럼 느끼게 합니다.
-      const CLOUD_DRAG_PARALLAX_FACTOR = 0.5;
+      const CLOUD_DRAG_PARALLAX_FACTOR = 0.3;
 
       // 기본 경로는 sounds이며, 파일이 없으면 요청문에 적힌 soundes 경로도 시도합니다.
       const FALL_SOUND_CANDIDATES = [
