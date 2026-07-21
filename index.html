@@ -85,6 +85,29 @@
       z-index: 20;
     }
 
+    /* 새 떼는 카메라 이동과 무관하게 화면 기준으로 지나갑니다. */
+    #birds {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .bird {
+      position: absolute;
+      width: 42.6667px;
+      height: 42.6667px;
+      background-image: url("images/bird_fly.png");
+      background-repeat: no-repeat;
+      background-size: 128px 128px;
+      background-position: 0 0;
+      transform-origin: center center;
+      image-rendering: auto;
+      will-change: left, top, transform, opacity, background-position;
+      pointer-events: none;
+    }
+
     .cloud-visual {
       position: absolute;
       width: 512px;
@@ -263,10 +286,11 @@
       <div id="gameZone" class="debug-zone"></div>
       <div id="safeZone" class="debug-zone"></div>
     </div>
+    <div id="birds"></div>
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.168</div>
+  <div id="versionLabel">v0.169</div>
 
   <script>
     (() => {
@@ -389,6 +413,34 @@
       // 지면보다 더 높이 떠 있는 것처럼 느끼게 합니다.
       const CLOUD_DRAG_PARALLAX_FACTOR = 0.3;
 
+      // 새 비행 스프라이트 시트: 128×128 안에 3×3, 총 9프레임입니다.
+      const BIRD_SHEET_COLUMNS = 3;
+      const BIRD_SHEET_ROWS = 3;
+      const BIRD_FRAME_COUNT = 9;
+      const BIRD_FPS = 12;
+
+      // 첫 좀비 처치 시에는 7마리가 빠르게 화면을 가로지릅니다.
+      const FIRST_KILL_BIRD_COUNT = 7;
+      const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 1.05;
+
+      // 이후에는 45~90초 간격으로 2~4마리가 가끔 지나갑니다.
+      const AMBIENT_BIRD_MIN_COUNT = 2;
+      const AMBIENT_BIRD_MAX_COUNT = 4;
+      const AMBIENT_BIRD_MIN_INTERVAL_MS = 45_000;
+      const AMBIENT_BIRD_MAX_INTERVAL_MS = 90_000;
+      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.62;
+
+      // 화면에서 보이는 새 크기 범위입니다.
+      const BIRD_MIN_SCALE = 0.55;
+      const BIRD_MAX_SCALE = 0.9;
+
+      // 새 떼 효과음은 요청대로 sound 폴더를 먼저 시도하고,
+      // 기존 프로젝트 구조 호환을 위해 sounds 폴더도 보조로 시도합니다.
+      const BIRD_FLY_SOUND_CANDIDATES = [
+        "sound/sfx_bird_fly.wav",
+        "sounds/sfx_bird_fly.wav"
+      ];
+
       // 기본 경로는 sounds이며, 파일이 없으면 요청문에 적힌 soundes 경로도 시도합니다.
       const FALL_SOUND_CANDIDATES = [
         "sounds/sfx_zomebe_fall.wav",
@@ -400,6 +452,7 @@
       const cloudShadowsLayer = document.getElementById("cloudShadows");
       const entities = document.getElementById("entities");
       const cloudsLayer = document.getElementById("clouds");
+      const birdsLayer = document.getElementById("birds");
       const countElement = document.getElementById("zombieCount");
 
       const query = new URLSearchParams(location.search);
@@ -469,6 +522,10 @@
         sky: 0,
         shadow: 0
       };
+
+      const birds = [];
+      let firstKillBirdFlockPlayed = false;
+      let ambientBirdTimer = null;
 
       const bgmAudio = new Audio(BGM_SOUND);
       bgmAudio.loop = true;
@@ -989,6 +1046,171 @@
         }
       }
 
+      function setBirdFrame(bird, frameIndex) {
+        const normalizedFrame =
+          frameIndex % BIRD_FRAME_COUNT;
+        const col =
+          normalizedFrame % BIRD_SHEET_COLUMNS;
+        const row = Math.floor(
+          normalizedFrame / BIRD_SHEET_COLUMNS
+        );
+
+        // 3×3 스프라이트 시트는 각 축의 0% / 50% / 100% 위치를 사용합니다.
+        bird.element.style.backgroundPosition =
+          `${col * 50}% ${row * 50}%`;
+      }
+
+      function createBirdFlock(count, isFirstKillFlock = false) {
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const margin = Math.max(
+          220,
+          Math.min(viewportWidth, viewportHeight) * 0.12
+        );
+
+        // 모든 새는 화면 좌하단 바깥에서 우상단 바깥으로 이동합니다.
+        const baseStart = {
+          x: -margin,
+          y: viewportHeight + margin
+        };
+        const baseEnd = {
+          x: viewportWidth + margin,
+          y: -margin
+        };
+        const pathX = baseEnd.x - baseStart.x;
+        const pathY = baseEnd.y - baseStart.y;
+        const pathLength = Math.hypot(pathX, pathY);
+        const direction = {
+          x: pathX / pathLength,
+          y: pathY / pathLength
+        };
+        const perpendicular = {
+          x: -direction.y,
+          y: direction.x
+        };
+        const speed = isFirstKillFlock
+          ? FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS
+          : AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS;
+        const baseDuration = pathLength / speed;
+        const now = performance.now();
+
+        for (let index = 0; index < count; index += 1) {
+          const element = document.createElement("div");
+          element.className = "bird";
+          birdsLayer.appendChild(element);
+
+          // 진행 방향 앞뒤 간격과 대각선에 수직인 간격을 섞어 자연스러운 무리를 만듭니다.
+          const trailOffset = randomBetween(-80, 130);
+          const lateralOffset = randomBetween(-72, 72);
+          const startX =
+            baseStart.x +
+            direction.x * trailOffset +
+            perpendicular.x * lateralOffset;
+          const startY =
+            baseStart.y +
+            direction.y * trailOffset +
+            perpendicular.y * lateralOffset;
+          const endX =
+            baseEnd.x +
+            direction.x * trailOffset +
+            perpendicular.x * lateralOffset;
+          const endY =
+            baseEnd.y +
+            direction.y * trailOffset +
+            perpendicular.y * lateralOffset;
+          const scale = randomBetween(
+            BIRD_MIN_SCALE,
+            BIRD_MAX_SCALE
+          );
+          const delay = randomBetween(0, isFirstKillFlock ? 240 : 180);
+          const duration = baseDuration * randomBetween(0.92, 1.08);
+          const frameOffset = Math.floor(
+            Math.random() * BIRD_FRAME_COUNT
+          );
+
+          const bird = {
+            element,
+            startX,
+            startY,
+            endX,
+            endY,
+            scale,
+            startedAt: now + delay,
+            duration,
+            frameOffset
+          };
+
+          birds.push(bird);
+          element.style.left = `${startX}px`;
+          element.style.top = `${startY}px`;
+          element.style.opacity = "0";
+          element.style.transform =
+            `translate(-50%, -50%) scale(${scale})`;
+          setBirdFrame(bird, frameOffset);
+        }
+      }
+
+      function updateBirds(now) {
+        const frameDuration = 1000 / BIRD_FPS;
+
+        for (let index = birds.length - 1; index >= 0; index -= 1) {
+          const bird = birds[index];
+          const elapsed = now - bird.startedAt;
+
+          if (elapsed < 0) {
+            continue;
+          }
+
+          const progress = clamp(elapsed / bird.duration, 0, 1);
+          const x = bird.startX + (bird.endX - bird.startX) * progress;
+          const y = bird.startY + (bird.endY - bird.startY) * progress;
+          const frameIndex =
+            bird.frameOffset + Math.floor(elapsed / frameDuration);
+
+          bird.element.style.left = `${x}px`;
+          bird.element.style.top = `${y}px`;
+          bird.element.style.opacity = "1";
+          setBirdFrame(bird, frameIndex);
+
+          if (progress >= 1) {
+            bird.element.remove();
+            birds.splice(index, 1);
+          }
+        }
+      }
+
+      function scheduleNextAmbientBirdFlock() {
+        if (ambientBirdTimer !== null) {
+          clearTimeout(ambientBirdTimer);
+        }
+
+        const delay = randomBetween(
+          AMBIENT_BIRD_MIN_INTERVAL_MS,
+          AMBIENT_BIRD_MAX_INTERVAL_MS
+        );
+
+        ambientBirdTimer = window.setTimeout(() => {
+          const count = Math.floor(
+            randomBetween(
+              AMBIENT_BIRD_MIN_COUNT,
+              AMBIENT_BIRD_MAX_COUNT + 1
+            )
+          );
+
+          createBirdFlock(count, false);
+          scheduleNextAmbientBirdFlock();
+        }, delay);
+      }
+
+      function triggerFirstKillBirdFlock() {
+        if (firstKillBirdFlockPlayed) return;
+
+        firstKillBirdFlockPlayed = true;
+        createBirdFlock(FIRST_KILL_BIRD_COUNT, true);
+        playBirdFlySound();
+        scheduleNextAmbientBirdFlock();
+      }
+
       function randomDirection() {
         const angle = Math.random() * Math.PI * 2;
         return {
@@ -1089,6 +1311,25 @@
               bgmStartScheduled = false;
             });
         }, 3_000);
+      }
+
+      function playBirdFlySound() {
+        let candidateIndex = 0;
+
+        const tryNext = () => {
+          if (candidateIndex >= BIRD_FLY_SOUND_CANDIDATES.length) return;
+
+          const audio = new Audio(
+            BIRD_FLY_SOUND_CANDIDATES[candidateIndex]
+          );
+          candidateIndex += 1;
+          audio.volume = 1;
+
+          audio.addEventListener("error", tryNext, { once: true });
+          audio.play().catch(() => {});
+        };
+
+        tryNext();
       }
 
       function playFallSound() {
@@ -1266,6 +1507,7 @@
 
         if (wasPlayerKill) {
           scheduleBgmAfterFirstPlayerKill();
+          triggerFirstKillBirdFlock();
         }
 
         if (zombie.autoDeathTimer !== null) {
@@ -1637,6 +1879,7 @@
 
         updateCloudGroup("sky", deltaMs, now);
         updateCloudGroup("shadow", deltaMs, now);
+        updateBirds(now);
 
         requestAnimationFrame(gameLoop);
       }
