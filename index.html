@@ -290,7 +290,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.173</div>
+  <div id="versionLabel">v0.174</div>
 
   <script>
     (() => {
@@ -324,7 +324,7 @@
       const MAX_ZOMBIE_COUNT = 999;
 
       const SPAWN_INTERVAL_MS = 60_000;
-      const AUTO_DEATH_MS = 10 * 60_000;
+      const AUTO_DEATH_MS = 12 * 60_000;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -364,6 +364,9 @@
       const DEAD_SHEET = "images/zomebie_default_dead.png";
       const BIRTH_DEATH_SHEET =
         "images/zomebie_default_birthdeath.png";
+
+      // 좀비 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
+      const PRELOADED_ZOMBIE_IMAGES = new Map();
 
       const HIT_SOUND = "sounds/sfx_zombie_hit_axe.wav";
       const BIRTH_SOUND = "sounds/sfx_zombie_birth.wav";
@@ -421,14 +424,14 @@
 
       // 첫 좀비 처치 시에는 5마리가 빠르게 화면을 가로지릅니다.
       const FIRST_KILL_BIRD_COUNT = 5;
-      const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 0.7;
+      const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 0.5;
 
-      // 이후에는 45~90초 간격으로 1~3마리가 가끔 지나갑니다.
+      // 이후에는 20~60초 간격으로 1~3마리가 가끔 지나갑니다.
       const AMBIENT_BIRD_MIN_COUNT = 1;
       const AMBIENT_BIRD_MAX_COUNT = 3;
-      const AMBIENT_BIRD_MIN_INTERVAL_MS = 45_000;
-      const AMBIENT_BIRD_MAX_INTERVAL_MS = 90_000;
-      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.16;
+      const AMBIENT_BIRD_MIN_INTERVAL_MS = 20_000;
+      const AMBIENT_BIRD_MAX_INTERVAL_MS = 60_000;
+      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -554,6 +557,42 @@
 
       function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
+      }
+
+      function preloadImage(path) {
+        return new Promise((resolve) => {
+          const image = new Image();
+          PRELOADED_ZOMBIE_IMAGES.set(path, image);
+
+          const finish = () => resolve();
+
+          image.addEventListener(
+            "load",
+            async () => {
+              try {
+                if (typeof image.decode === "function") {
+                  await image.decode();
+                }
+              } catch (_) {
+                // decode 실패 시에도 이미 로드된 이미지는 그대로 사용합니다.
+              }
+
+              finish();
+            },
+            { once: true }
+          );
+
+          image.addEventListener("error", finish, { once: true });
+          image.src = path;
+        });
+      }
+
+      function preloadZombieSprites() {
+        return Promise.all([
+          preloadImage(WALK_SHEET),
+          preloadImage(DEAD_SHEET),
+          preloadImage(BIRTH_DEATH_SHEET)
+        ]);
       }
 
       function applyWorldTransform() {
@@ -1909,10 +1948,19 @@
       viewport.addEventListener("pointercancel", endBackgroundDrag);
 
       window.addEventListener("resize", updateWorldScale);
-      updateWorldScale();
-      initializeClouds();
-      startSpawner();
-      requestAnimationFrame(gameLoop);
+
+      async function initializeGame() {
+        // 공격에 쓰이는 사망 스프라이트까지 디코딩된 뒤 좀비를 생성합니다.
+        await preloadZombieSprites();
+
+        updateWorldScale();
+        initializeClouds();
+        startSpawner();
+        lastFrameTime = performance.now();
+        requestAnimationFrame(gameLoop);
+      }
+
+      initializeGame();
     })();
   </script>
 </body>
