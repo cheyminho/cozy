@@ -290,7 +290,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.169</div>
+  <div id="versionLabel">v0.17</div>
 
   <script>
     (() => {
@@ -421,14 +421,14 @@
 
       // 첫 좀비 처치 시에는 7마리가 빠르게 화면을 가로지릅니다.
       const FIRST_KILL_BIRD_COUNT = 7;
-      const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 1.05;
+      const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 0.5;
 
       // 이후에는 45~90초 간격으로 2~4마리가 가끔 지나갑니다.
       const AMBIENT_BIRD_MIN_COUNT = 2;
       const AMBIENT_BIRD_MAX_COUNT = 4;
       const AMBIENT_BIRD_MIN_INTERVAL_MS = 45_000;
       const AMBIENT_BIRD_MAX_INTERVAL_MS = 90_000;
-      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.62;
+      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.3;
 
       // 화면에서 보이는 새 크기 범위입니다.
       const BIRD_MIN_SCALE = 0.55;
