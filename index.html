@@ -290,7 +290,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.172</div>
+  <div id="versionLabel">v0.173</div>
 
   <script>
     (() => {
@@ -419,16 +419,20 @@
       const BIRD_FRAME_COUNT = 9;
       const BIRD_FPS = 12;
 
-      // 첫 좀비 처치 시에는 7마리가 빠르게 화면을 가로지릅니다.
-      const FIRST_KILL_BIRD_COUNT = 7;
+      // 첫 좀비 처치 시에는 5마리가 빠르게 화면을 가로지릅니다.
+      const FIRST_KILL_BIRD_COUNT = 5;
       const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 0.7;
 
-      // 이후에는 45~90초 간격으로 2~4마리가 가끔 지나갑니다.
-      const AMBIENT_BIRD_MIN_COUNT = 2;
-      const AMBIENT_BIRD_MAX_COUNT = 4;
+      // 이후에는 45~90초 간격으로 1~3마리가 가끔 지나갑니다.
+      const AMBIENT_BIRD_MIN_COUNT = 1;
+      const AMBIENT_BIRD_MAX_COUNT = 3;
       const AMBIENT_BIRD_MIN_INTERVAL_MS = 45_000;
       const AMBIENT_BIRD_MAX_INTERVAL_MS = 90_000;
-      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.2;
+      const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.16;
+
+      // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
+      // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
+      const BIRD_PATH_VERTICAL_MARGIN_FACTOR = 0.25;
 
       // 화면에서 보이는 새 크기 범위입니다.
       const BIRD_MIN_SCALE = 0.55;
@@ -1069,13 +1073,16 @@
         );
 
         // 모든 새는 화면 좌하단 바깥에서 우상단 바깥으로 이동합니다.
+        const verticalMargin =
+          margin * BIRD_PATH_VERTICAL_MARGIN_FACTOR;
+
         const baseStart = {
           x: -margin,
-          y: viewportHeight + margin
+          y: viewportHeight + verticalMargin
         };
         const baseEnd = {
           x: viewportWidth + margin,
-          y: -margin
+          y: -verticalMargin
         };
         const pathX = baseEnd.x - baseStart.x;
         const pathY = baseEnd.y - baseStart.y;
