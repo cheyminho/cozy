@@ -207,7 +207,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.11</div>
+  <div id="versionLabel">v0.12</div>
 
   <script>
     (() => {
@@ -240,8 +240,8 @@
       // 누적 처치 카운터의 최대 수
       const MAX_ZOMBIE_COUNT = 999;
 
-      const SPAWN_INTERVAL_MS = 6_000;
-      const AUTO_DEATH_MS = 60 * 60_000;
+      const SPAWN_INTERVAL_MS = 60_000;
+      const AUTO_DEATH_MS = 10 * 60_000;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
