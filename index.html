@@ -266,7 +266,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.165</div>
+  <div id="versionLabel">v0.166</div>
 
   <script>
     (() => {
@@ -380,10 +380,15 @@
       const CLOUD_OVERLAP_PADDING = 32;
       const CLOUD_EXIT_MARGIN = 24;
 
+      // 최초 구름 그림자는 중심을 화면 밖에 두고 일부만 보이게 합니다.
+      // 값은 그림자 전체 크기 중 화면 안에 걸쳐 보이는 대략적인 비율입니다.
+      const INITIAL_SHADOW_VISIBLE_MIN_RATIO = 0.04;
+      const INITIAL_SHADOW_VISIBLE_MAX_RATIO = 0.12;
+
       // 실제 구름과 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
       // 0.00 = 침범 불가 / 0.10 = 약 10% 침범 허용 / 1.00 = 제한 없음
       const CLOUD_SAFE_ZONE_INTRUSION_RATIO = 0.90;
-      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.60;
+      const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.10;
 
       // 드래그할 때 실제 구름만 약간 덜 따라오게 하여
       // 지면보다 더 높이 떠 있는 것처럼 느끼게 합니다.
@@ -778,12 +783,201 @@
         return lineIntersectsRectOnCloudPath(x + y, protectedZone);
       }
 
+      function getVisibleCloudBounds(x, y, scale, visibleBounds) {
+        const cloudBounds = getCloudBounds(x, y, scale);
+        const clippedBounds = {
+          left: Math.max(cloudBounds.left, visibleBounds.left),
+          top: Math.max(cloudBounds.top, visibleBounds.top),
+          right: Math.min(cloudBounds.right, visibleBounds.right),
+          bottom: Math.min(cloudBounds.bottom, visibleBounds.bottom)
+        };
+
+        if (
+          clippedBounds.left >= clippedBounds.right ||
+          clippedBounds.top >= clippedBounds.bottom
+        ) {
+          return null;
+        }
+
+        return clippedBounds;
+      }
+
+      function getCloudOverlapArea(a, b) {
+        const overlapWidth = Math.max(
+          0,
+          Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        );
+        const overlapHeight = Math.max(
+          0,
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        );
+
+        return overlapWidth * overlapHeight;
+      }
+
+      function getVisibleCloudOverlapArea(
+        x,
+        y,
+        scale,
+        group,
+        visibleBounds
+      ) {
+        const candidateBounds = getVisibleCloudBounds(
+          x,
+          y,
+          scale,
+          visibleBounds
+        );
+
+        if (!candidateBounds) return Infinity;
+
+        const paddedCandidate = {
+          left: candidateBounds.left - CLOUD_OVERLAP_PADDING,
+          top: candidateBounds.top - CLOUD_OVERLAP_PADDING,
+          right: candidateBounds.right + CLOUD_OVERLAP_PADDING,
+          bottom: candidateBounds.bottom + CLOUD_OVERLAP_PADDING
+        };
+
+        let totalOverlapArea = 0;
+
+        for (const otherCloud of group) {
+          const otherBounds = getVisibleCloudBounds(
+            otherCloud.x,
+            otherCloud.y,
+            otherCloud.scale,
+            visibleBounds
+          );
+
+          if (!otherBounds) continue;
+
+          const paddedOther = {
+            left: otherBounds.left - CLOUD_OVERLAP_PADDING,
+            top: otherBounds.top - CLOUD_OVERLAP_PADDING,
+            right: otherBounds.right + CLOUD_OVERLAP_PADDING,
+            bottom: otherBounds.bottom + CLOUD_OVERLAP_PADDING
+          };
+
+          totalOverlapArea += getCloudOverlapArea(
+            paddedCandidate,
+            paddedOther
+          );
+        }
+
+        return totalOverlapArea;
+      }
+
+      function getInitialShadowEdgePosition(
+        scale,
+        group,
+        visibleBounds
+      ) {
+        const halfSize = getCloudHalfSize(scale);
+        const cloudSize = halfSize * 2;
+        const protectedMargin =
+          halfSize * (1 - CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO);
+        const safePathLow =
+          SAFE_ZONE.left + SAFE_ZONE.top - protectedMargin * 2;
+        const safePathHigh =
+          SAFE_ZONE.right + SAFE_ZONE.bottom + protectedMargin * 2;
+        const pathClearance = 12;
+        let bestPosition = null;
+        let bestOverlapArea = Infinity;
+
+        for (let attempt = 0; attempt < 600; attempt += 1) {
+          const visibleRatio = randomBetween(
+            INITIAL_SHADOW_VISIBLE_MIN_RATIO,
+            INITIAL_SHADOW_VISIBLE_MAX_RATIO
+          );
+          const visibleAmount = cloudSize * visibleRatio;
+          const route = Math.floor(Math.random() * 4);
+          let x;
+          let y;
+
+          if (route === 0) {
+            // 왼쪽 가장자리의 위쪽 구간: 좌상단으로 스쳐 지나갑니다.
+            x = visibleBounds.left - halfSize + visibleAmount;
+            const minY = visibleBounds.top - halfSize + visibleAmount;
+            const maxY = Math.min(
+              visibleBounds.bottom + halfSize - visibleAmount,
+              safePathLow - x - pathClearance
+            );
+
+            if (minY > maxY) continue;
+            y = randomBetween(minY, maxY);
+          } else if (route === 1) {
+            // 위쪽 가장자리의 왼쪽 구간: 좌상단에 일부만 보입니다.
+            y = visibleBounds.top - halfSize + visibleAmount;
+            const minX = visibleBounds.left - halfSize + visibleAmount;
+            const maxX = Math.min(
+              visibleBounds.right + halfSize - visibleAmount,
+              safePathLow - y - pathClearance
+            );
+
+            if (minX > maxX) continue;
+            x = randomBetween(minX, maxX);
+          } else if (route === 2) {
+            // 오른쪽 가장자리의 아래쪽 구간: 우하단으로 스쳐 지나갑니다.
+            x = visibleBounds.right + halfSize - visibleAmount;
+            const minY = Math.max(
+              visibleBounds.top - halfSize + visibleAmount,
+              safePathHigh - x + pathClearance
+            );
+            const maxY = visibleBounds.bottom + halfSize - visibleAmount;
+
+            if (minY > maxY) continue;
+            y = randomBetween(minY, maxY);
+          } else {
+            // 아래쪽 가장자리의 오른쪽 구간: 우하단에 일부만 보입니다.
+            y = visibleBounds.bottom + halfSize - visibleAmount;
+            const minX = Math.max(
+              visibleBounds.left - halfSize + visibleAmount,
+              safePathHigh - y + pathClearance
+            );
+            const maxX = visibleBounds.right + halfSize - visibleAmount;
+
+            if (minX > maxX) continue;
+            x = randomBetween(minX, maxX);
+          }
+
+          const overlapArea = getVisibleCloudOverlapArea(
+            x,
+            y,
+            scale,
+            group,
+            visibleBounds
+          );
+
+          if (overlapArea === 0) {
+            return { x, y };
+          }
+
+          if (overlapArea < bestOverlapArea) {
+            bestOverlapArea = overlapArea;
+            bestPosition = { x, y };
+          }
+        }
+
+        // 2~3개의 큰 그림자를 모두 배치해 완전한 비중첩이 불가능한 경우,
+        // safe zone을 피하는 후보 중 화면에 보이는 부분의 겹침이 가장 적은 곳을 씁니다.
+        return bestPosition;
+      }
+
       function getRandomCloudPosition(kind, scale, group, initialInside) {
         const visibleBounds = getVisibleWorldBounds();
         const halfSize = getCloudHalfSize(scale);
         const centerX = (visibleBounds.left + visibleBounds.right) / 2;
         const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
         const isShadow = kind === "shadow";
+
+        // 최초 그림자는 전체를 화면 안에 넣지 않고, 가장자리에서 일부만 보이게 합니다.
+        // 이때 화면에 보이는 부분끼리 겹치지 않고 safe zone 경로를 피하도록 합니다.
+        if (initialInside && isShadow) {
+          return getInitialShadowEdgePosition(
+            scale,
+            group,
+            visibleBounds
+          );
+        }
 
         for (let attempt = 0; attempt < 120; attempt += 1) {
           let x;
@@ -839,10 +1033,9 @@
           return { x, y };
         }
 
-        // 최초 배치에서는 목표 개수를 반드시 화면 안에서 채웁니다.
-        // 그림자가 크거나 안전 구역·겹침 조건 때문에 정상 위치를 찾지 못한 경우,
-        // 마지막 수단으로 화면 내부의 위치를 사용합니다.
-        if (initialInside) {
+        // 실제 구름만 기존처럼 최초 화면 내부 배치를 보완합니다.
+        // 그림자는 위의 가장자리 배치 규칙을 통과하지 못하면 생성하지 않습니다.
+        if (initialInside && !isShadow) {
           const visibleWidth = visibleBounds.right - visibleBounds.left;
           const visibleHeight = visibleBounds.bottom - visibleBounds.top;
           const fallbackInsetX = Math.min(
