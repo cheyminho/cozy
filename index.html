@@ -92,8 +92,8 @@
     #axeStump {
       position: absolute;
       /* 1024×1024 게임 영역 좌상단(512, 512)에서 +116px, +200px */
-      left: 628px;
-      top: 712px;
+      left: 658px;
+      top: 692px;
       width: 179.2px;
       height: 179.2px;
       background-image: url("images/bg_stump_axe.png");
@@ -215,7 +215,7 @@
 
     #toastLayer {
       position: fixed;
-      top: 25vh;
+      top: 20vh;
       left: 50%;
       z-index: 110;
       width: min(90vw, 420px);
@@ -236,7 +236,7 @@
       text-align: center;
       opacity: 0;
       will-change: transform, opacity;
-      animation: toast-rise-and-fade 1.6s ease-out forwards;
+      animation: toast-rise-and-fade 2s ease-out forwards;
     }
 
     @keyframes toast-rise-and-fade {
@@ -486,7 +486,7 @@
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const MAX_VISIBLE_TOASTS = 5;
-      const TOAST_DURATION_MS = 1_600;
+      const TOAST_DURATION_MS = 2_000;
 
       // 구름 스프라이트 시트: 1024×1024 안에 2×2로 배치된 4종입니다.
       const CLOUD_SHEET_COLUMNS = 2;
@@ -1764,7 +1764,6 @@
         }
 
         if (!hasAxe) {
-          playSound(BIRTH_SOUND, 0.5);
           showToast(UNARMED_TOAST_MESSAGE);
           return;
         }
