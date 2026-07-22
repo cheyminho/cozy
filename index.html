@@ -91,9 +91,9 @@
 
     #axeStump {
       position: absolute;
-      /* 1024×1024 게임 영역 좌상단(512, 512)에서 +106px, +210px */
-      left: 618px;
-      top: 722px;
+      /* 1024×1024 게임 영역 좌상단(512, 512)에서 +116px, +200px */
+      left: 628px;
+      top: 712px;
       width: 256px;
       height: 256px;
       background-image: url("images/bg_stump_axe.png");
@@ -121,6 +121,8 @@
       position: absolute;
       inset: 0;
       z-index: 10;
+      /* 빈 엔티티 레이어가 아래의 도끼 터치 영역을 가리지 않도록 합니다. */
+      pointer-events: none;
     }
 
     /* 실제 구름은 좀비보다 높은 상공 레이어에 표시합니다. */
@@ -175,7 +177,7 @@
       background-image: url("images/bg_field_default_clouds.png");
       background-repeat: no-repeat;
       background-size: 1024px 1024px;
-      opacity: 0.4;
+      opacity: 0.3;
       mix-blend-mode: multiply;
 
       /*
@@ -216,16 +218,16 @@
       top: max(48px, calc(env(safe-area-inset-top) + 48px));
       left: 50%;
       z-index: 110;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
       width: min(90vw, 420px);
+      height: 1px;
       transform: translateX(-50%);
       pointer-events: none;
     }
 
     .toast-message {
+      position: absolute;
+      left: 50%;
+      top: 0;
       color: #fff;
       font-size: 16px;
       font-weight: 500;
@@ -241,7 +243,7 @@
     @keyframes toast-rise-and-fade {
       0% {
         opacity: 0;
-        transform: translateY(18px);
+        transform: translate(-50%, 18px);
       }
       16% {
         opacity: 1;
@@ -251,7 +253,7 @@
       }
       100% {
         opacity: 0;
-        transform: translateY(-24px);
+        transform: translate(-50%, -24px);
       }
     }
 
@@ -277,6 +279,8 @@
       transform-origin: center center;
       will-change: left, top, opacity;
       touch-action: none;
+      /* 부모 엔티티 레이어는 클릭을 통과시키고 좀비만 직접 입력을 받습니다. */
+      pointer-events: auto;
     }
 
     /*
@@ -394,7 +398,7 @@
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
-  <div id="versionLabel">v0.177</div>
+  <div id="versionLabel">v0.178</div>
 
   <script>
     (() => {
@@ -481,7 +485,7 @@
       const STUMP_WITH_AXE_IMAGE = "images/bg_stump_axe.png";
       const STUMP_EMPTY_IMAGE = "images/bg_stump.png";
 
-      const UNARMED_TOAST_MESSAGE = "맨손으로는 안 돼.";
+      const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const MAX_VISIBLE_TOASTS = 5;
       const TOAST_DURATION_MS = 1_600;
 
