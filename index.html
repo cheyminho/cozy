@@ -81,6 +81,42 @@
       z-index: 1;
     }
 
+    /* 도끼가 꽂힌 나무 밑동은 배경 오브젝트로 좀비보다 아래에 표시합니다. */
+    #props {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #axeStump {
+      position: absolute;
+      /* 1024×1024 게임 영역 좌상단(512, 512)에서 +106px, +210px */
+      left: 618px;
+      top: 722px;
+      width: 256px;
+      height: 256px;
+      background-image: url("images/bg_stump_axe.png");
+      background-repeat: no-repeat;
+      background-position: left top;
+      background-size: 256px 256px;
+      transform-origin: left top;
+      pointer-events: none;
+    }
+
+    /* 이미지 정중앙의 128×128 영역만 도끼 획득 터치 영역입니다. */
+    #axePickupHitArea {
+      position: absolute;
+      left: 64px;
+      top: 64px;
+      width: 128px;
+      height: 128px;
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+      outline: none;
+    }
+
     #entities {
       position: absolute;
       inset: 0;
@@ -173,6 +209,50 @@
       white-space: nowrap;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
       pointer-events: none;
+    }
+
+    #toastLayer {
+      position: fixed;
+      top: max(48px, calc(env(safe-area-inset-top) + 48px));
+      left: 50%;
+      z-index: 110;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: min(90vw, 420px);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .toast-message {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 1.3;
+      white-space: nowrap;
+      text-align: center;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.72);
+      opacity: 0;
+      will-change: transform, opacity;
+      animation: toast-rise-and-fade 1.6s ease-out forwards;
+    }
+
+    @keyframes toast-rise-and-fade {
+      0% {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      16% {
+        opacity: 1;
+      }
+      68% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-24px);
+      }
     }
 
     #versionLabel {
@@ -293,6 +373,17 @@
   <div id="viewport">
     <div id="world">
       <div id="cloudShadows"></div>
+      <div id="props">
+        <div id="axeStump" aria-hidden="false">
+          <div
+            id="axePickupHitArea"
+            class="world-interactive"
+            role="button"
+            tabindex="0"
+            aria-label="도끼 얻기"
+          ></div>
+        </div>
+      </div>
       <div id="entities"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
@@ -302,7 +393,8 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.176</div>
+  <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
+  <div id="versionLabel">v0.177</div>
 
   <script>
     (() => {
@@ -383,7 +475,15 @@
       const HIT_SOUND = "sounds/sfx_zombie_hit_axe.wav";
       const BIRTH_SOUND = "sounds/sfx_zombie_birth.wav";
       const DEATH_SOUND = "sounds/sfx_zombie_death.wav";
+      const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
       const BGM_SOUND = "sounds/bgm_meadow.mp3";
+
+      const STUMP_WITH_AXE_IMAGE = "images/bg_stump_axe.png";
+      const STUMP_EMPTY_IMAGE = "images/bg_stump.png";
+
+      const UNARMED_TOAST_MESSAGE = "맨손으로는 안 돼.";
+      const MAX_VISIBLE_TOASTS = 5;
+      const TOAST_DURATION_MS = 1_600;
 
       // 구름 스프라이트 시트: 1024×1024 안에 2×2로 배치된 4종입니다.
       const CLOUD_SHEET_COLUMNS = 2;
@@ -473,6 +573,9 @@
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
       const countElement = document.getElementById("zombieCount");
+      const toastLayer = document.getElementById("toastLayer");
+      const axeStump = document.getElementById("axeStump");
+      const axePickupHitArea = document.getElementById("axePickupHitArea");
 
       const query = new URLSearchParams(location.search);
       if (query.get("debug") === "1") {
@@ -586,6 +689,8 @@
       );
 
       let zombieCount = 0;
+      let hasAxe = false;
+      const visibleToasts = [];
       let nextZombieId = 1;
       let nextCloudId = 1;
       let lastFrameTime = performance.now();
@@ -663,7 +768,9 @@
         return Promise.all([
           preloadImage(WALK_SHEET),
           preloadImage(DEAD_SHEET),
-          preloadImage(BIRTH_DEATH_SHEET)
+          preloadImage(BIRTH_DEATH_SHEET),
+          preloadImage(STUMP_WITH_AXE_IMAGE),
+          preloadImage(STUMP_EMPTY_IMAGE)
         ]);
       }
 
@@ -764,7 +871,7 @@
 
         if (
           event.target instanceof Element &&
-          event.target.closest(".zombie")
+          event.target.closest(".zombie, .world-interactive")
         ) {
           return;
         }
@@ -1416,6 +1523,64 @@
         }
       }
 
+      function removeToast(toast) {
+        const index = visibleToasts.indexOf(toast);
+
+        if (index >= 0) {
+          visibleToasts.splice(index, 1);
+        }
+
+        if (toast.removeTimer !== null) {
+          clearTimeout(toast.removeTimer);
+          toast.removeTimer = null;
+        }
+
+        toast.element.remove();
+      }
+
+      function showToast(message) {
+        const element = document.createElement("div");
+        element.className = "toast-message";
+        element.textContent = message;
+        toastLayer.appendChild(element);
+
+        const toast = {
+          element,
+          removeTimer: null
+        };
+
+        visibleToasts.push(toast);
+
+        while (visibleToasts.length > MAX_VISIBLE_TOASTS) {
+          removeToast(visibleToasts[0]);
+        }
+
+        toast.removeTimer = window.setTimeout(() => {
+          removeToast(toast);
+        }, TOAST_DURATION_MS + 100);
+      }
+
+      function collectAxe(event) {
+        if (hasAxe) return;
+
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        hasAxe = true;
+        axeStump.style.backgroundImage =
+          `url("${STUMP_EMPTY_IMAGE}")`;
+        axeStump.setAttribute("aria-hidden", "true");
+        axePickupHitArea.remove();
+        playSound(GET_AXE_SOUND);
+      }
+
+      function handleAxePickupKeydown(event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        collectAxe(event);
+      }
+
       function scheduleBgmAfterFirstPlayerKill() {
         if (bgmStartScheduled || bgmStarted) return;
 
@@ -1589,10 +1754,19 @@
 
       function attackZombie(zombie) {
         if (
-          zombie.state === "birthing" ||
           zombie.state === "dying" ||
           zombie.state === "removed"
         ) {
+          return;
+        }
+
+        if (!hasAxe) {
+          playSound(BIRTH_SOUND, 0.5);
+          showToast(UNARMED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (zombie.state === "birthing") {
           return;
         }
 
@@ -2016,6 +2190,9 @@
           }
         }, SPAWN_INTERVAL_MS);
       }
+
+      axePickupHitArea.addEventListener("pointerdown", collectAxe);
+      axePickupHitArea.addEventListener("keydown", handleAxePickupKeydown);
 
       viewport.addEventListener("pointerdown", startBackgroundDrag);
       viewport.addEventListener("pointermove", moveBackgroundDrag);
