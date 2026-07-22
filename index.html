@@ -546,7 +546,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.040</div>
+  <div id="versionLabel">v0.041</div>
 
   <script>
     (() => {
@@ -1418,6 +1418,9 @@
         applyCloudVariant(element, variant, isShadow);
         layer.appendChild(element);
 
+        const now = performance.now();
+        const initialOpacityFactor = initialInside ? 1 : 0;
+
         const cloud = {
           id: nextCloudId++,
           kind,
@@ -1427,8 +1430,15 @@
           scale,
           variant,
           baseOpacity: isShadow ? 0.3 : 1,
-          opacityFactor: 0,
-          createdAt: performance.now(),
+          opacityFactor: initialOpacityFactor,
+          /*
+            페이지 최초 로드 시 화면 안에 배치되는 구름과 그림자는
+            즉시 보이도록 페이드인 완료 상태로 시작합니다.
+            이후 새로 생성되는 구름만 1초 페이드인을 사용합니다.
+          */
+          createdAt: initialInside
+            ? now - CLOUD_FADE_DURATION_MS
+            : now,
           isFadingOut: false,
           fadeOutStartedAt: 0,
           fadeOutStartOpacity: 1
@@ -1436,7 +1446,7 @@
 
         group.push(cloud);
         renderCloud(cloud);
-        applyCloudOpacity(cloud, 0);
+        applyCloudOpacity(cloud, initialOpacityFactor);
         return true;
       }
 
