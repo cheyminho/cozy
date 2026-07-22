@@ -171,7 +171,7 @@
       width: 512px;
       height: 512px;
       transform-origin: center center;
-      will-change: left, top, transform;
+      will-change: left, top, transform, opacity;
       pointer-events: none;
     }
 
@@ -318,6 +318,9 @@
       padding: 0;
       border: 0;
       border-radius: 50%;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
       background: #000;
       box-shadow: none;
       cursor: pointer;
@@ -349,9 +352,10 @@
       transform: scale(0.94);
     }
 
+    #exploreButton:focus,
     #exploreButton:focus-visible {
-      outline: 2px solid rgba(255, 255, 255, 0.8);
-      outline-offset: 4px;
+      outline: none;
+      box-shadow: none;
     }
 
     #inventoryButton {
@@ -364,6 +368,9 @@
       padding: 0;
       border: 0;
       border-radius: 50%;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
       background: #000;
       box-shadow: none;
       cursor: pointer;
@@ -395,9 +402,10 @@
       transform: scale(0.94);
     }
 
+    #inventoryButton:focus,
     #inventoryButton:focus-visible {
-      outline: 2px solid rgba(255, 255, 255, 0.8);
-      outline-offset: 4px;
+      outline: none;
+      box-shadow: none;
     }
 
     .zombie {
@@ -538,7 +546,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.039</div>
+  <div id="versionLabel">v0.040</div>
 
   <script>
     (() => {
@@ -667,6 +675,9 @@
       // 실제 이미지보다 넉넉하게 간격을 두어 서로 겹치지 않게 합니다.
       const CLOUD_OVERLAP_PADDING = 32;
       const CLOUD_EXIT_MARGIN = 24;
+
+      // 구름과 구름 그림자는 생성·퇴장 시 각각 1초 동안 페이드합니다.
+      const CLOUD_FADE_DURATION_MS = 1_000;
 
       // 실제 구름과 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
       // 0.00 = 침범 불가 / 0.10 = 약 10% 침범 허용 / 1.00 = 제한 없음
@@ -1307,6 +1318,73 @@
           `translate(-50%, -50%) scale(${cloud.scale})`;
       }
 
+      function applyCloudOpacity(cloud, opacityFactor) {
+        cloud.opacityFactor = clamp(opacityFactor, 0, 1);
+        cloud.element.style.opacity = String(
+          cloud.baseOpacity * cloud.opacityFactor
+        );
+      }
+
+      function updateCloudOpacity(cloud, now) {
+        if (cloud.isFadingOut) {
+          const fadeProgress = clamp(
+            (now - cloud.fadeOutStartedAt) /
+              CLOUD_FADE_DURATION_MS,
+            0,
+            1
+          );
+
+          applyCloudOpacity(
+            cloud,
+            cloud.fadeOutStartOpacity * (1 - fadeProgress)
+          );
+          return;
+        }
+
+        const fadeInProgress = clamp(
+          (now - cloud.createdAt) / CLOUD_FADE_DURATION_MS,
+          0,
+          1
+        );
+
+        applyCloudOpacity(cloud, fadeInProgress);
+      }
+
+      function startCloudFadeOut(cloud, now) {
+        if (cloud.isFadingOut) return;
+
+        updateCloudOpacity(cloud, now);
+        cloud.isFadingOut = true;
+        cloud.fadeOutStartedAt = now;
+        cloud.fadeOutStartOpacity = cloud.opacityFactor;
+      }
+
+      function getCloudTimeUntilOutside(
+        cloud,
+        visibleBounds,
+        worldSpeed
+      ) {
+        const halfSize = getCloudHalfSize(cloud.scale);
+        const velocityX = CLOUD_DIRECTION.x * worldSpeed;
+        const velocityY = CLOUD_DIRECTION.y * worldSpeed;
+        const exitCenterX =
+          visibleBounds.right + CLOUD_EXIT_MARGIN + halfSize;
+        const exitCenterY =
+          visibleBounds.top - CLOUD_EXIT_MARGIN - halfSize;
+
+        const timeUntilRightExit = velocityX > 0
+          ? (exitCenterX - cloud.x) / velocityX
+          : Infinity;
+        const timeUntilTopExit = velocityY < 0
+          ? (cloud.y - exitCenterY) / -velocityY
+          : Infinity;
+
+        return Math.min(
+          timeUntilRightExit,
+          timeUntilTopExit
+        );
+      }
+
       function createCloud(kind, initialInside = false) {
         const isShadow = kind === "shadow";
         const group = isShadow ? shadowClouds : skyClouds;
@@ -1347,11 +1425,18 @@
           x: position.x,
           y: position.y,
           scale,
-          variant
+          variant,
+          baseOpacity: isShadow ? 0.3 : 1,
+          opacityFactor: 0,
+          createdAt: performance.now(),
+          isFadingOut: false,
+          fadeOutStartedAt: 0,
+          fadeOutStartOpacity: 1
         };
 
         group.push(cloud);
         renderCloud(cloud);
+        applyCloudOpacity(cloud, 0);
         return true;
       }
 
@@ -1387,7 +1472,32 @@
           cloud.y += CLOUD_DIRECTION.y * worldSpeed * deltaMs;
           renderCloud(cloud);
 
-          if (isCloudOutsideVisibleArea(cloud, visibleBounds)) {
+          if (!cloud.isFadingOut) {
+            const timeUntilOutside = getCloudTimeUntilOutside(
+              cloud,
+              visibleBounds,
+              worldSpeed
+            );
+
+            /*
+              완전히 화면 밖으로 나가기 약 1초 전부터 페이드아웃합니다.
+              화면 이동으로 이미 경계를 넘은 경우에도 즉시 제거하지 않고
+              같은 1초 페이드아웃을 적용합니다.
+            */
+            if (
+              timeUntilOutside <= CLOUD_FADE_DURATION_MS ||
+              isCloudOutsideVisibleArea(cloud, visibleBounds)
+            ) {
+              startCloudFadeOut(cloud, now);
+            }
+          }
+
+          updateCloudOpacity(cloud, now);
+
+          if (
+            cloud.isFadingOut &&
+            now - cloud.fadeOutStartedAt >= CLOUD_FADE_DURATION_MS
+          ) {
             removeCloud(cloud, group);
           }
         }
