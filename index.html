@@ -243,7 +243,7 @@
       text-align: center;
       opacity: 0;
       will-change: transform, opacity;
-      animation: toast-rise-and-fade 2s ease-out forwards;
+      animation: toast-rise-and-fade 3s linear forwards;
     }
 
     @keyframes toast-rise-and-fade {
@@ -251,10 +251,10 @@
         opacity: 0;
         transform: translate(-50%, 18px);
       }
-      25% {
+      16.6667% {
         opacity: 0.9;
       }
-      40% {
+      26.6667% {
         opacity: 0.9;
       }
       100% {
@@ -282,8 +282,8 @@
       left: max(24px, calc(env(safe-area-inset-left) + 16px));
       bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
       z-index: 120;
-      width: 128px;
-      height: 128px;
+      width: 80px;
+      height: 80px;
       padding: 0;
       border: 0;
       border-radius: 50%;
@@ -299,8 +299,8 @@
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 64px;
-      height: 64px;
+      width: 50px;
+      height: 50px;
       background: #faf7e5;
       transform: translate(-50%, -50%);
       -webkit-mask-image: url("images/icon_explore.png");
@@ -456,7 +456,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.034</div>
+  <div id="versionLabel">v0.035</div>
 
   <script>
     (() => {
@@ -549,7 +549,7 @@
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
         "I should clear this place out first.";
       const MAX_VISIBLE_TOASTS = 5;
-      const TOAST_DURATION_MS = 2_000;
+      const TOAST_DURATION_MS = 3_000;
 
       // 구름 스프라이트 시트: 1024×1024 안에 2×2로 배치된 4종입니다.
       const CLOUD_SHEET_COLUMNS = 2;
