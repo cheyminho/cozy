@@ -91,8 +91,8 @@
 
     #axeStump {
       position: absolute;
-      /* 1024×1024 게임 영역 좌상단(512, 512)에서 +116px, +200px */
-      left: 658px;
+      /* 기존 위치에서 오른쪽으로 25px 이동 */
+      left: 683px;
       top: 692px;
       width: 179.2px;
       height: 179.2px;
@@ -397,7 +397,7 @@
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
-  <div id="versionLabel">v0.029</div>
+  <div id="versionLabel">v0.031</div>
 
   <script>
     (() => {
@@ -1656,6 +1656,12 @@
       function renderZombie(zombie) {
         zombie.element.style.left = `${zombie.x}px`;
         zombie.element.style.top = `${zombie.y}px`;
+
+        // 화면 아래쪽에 있는 좀비일수록 앞에 보이도록
+        // 세로 위치(y)를 기준으로 개별 뎁스를 갱신합니다.
+        zombie.element.style.zIndex = String(
+          Math.round(zombie.y)
+        );
       }
 
       function showSingleFrame(zombie, sheet, frameIndex) {
