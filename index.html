@@ -215,7 +215,7 @@
 
     #toastLayer {
       position: fixed;
-      top: max(200px, calc(env(safe-area-inset-top) + 200px));
+      top: 25vh;
       left: 50%;
       z-index: 110;
       width: min(90vw, 420px);
@@ -245,10 +245,10 @@
         transform: translate(-50%, 18px);
       }
       16% {
-        opacity: 1;
+        opacity: 0.9;
       }
       42% {
-        opacity: 1;
+        opacity: 0.9;
       }
       100% {
         opacity: 0;
@@ -397,7 +397,7 @@
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
-  <div id="versionLabel">v0.181</div>
+  <div id="versionLabel">v0.029</div>
 
   <script>
     (() => {
@@ -1576,7 +1576,7 @@
           `url("${STUMP_EMPTY_IMAGE}")`;
         axeStump.setAttribute("aria-hidden", "true");
         axePickupHitArea.remove();
-        playSound(GET_AXE_SOUND);
+        playSound(GET_AXE_SOUND, 0.7);
       }
 
       function handleAxePickupKeydown(event) {
