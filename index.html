@@ -15,6 +15,9 @@
       box-sizing: border-box;
       -webkit-user-select: none;
       user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
     }
 
     html,
@@ -24,6 +27,10 @@
       margin: 0;
       overflow: hidden;
       background: #111;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      touch-action: none;
     }
 
     body {
@@ -295,7 +302,7 @@
   </div>
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
-  <div id="versionLabel">v0.175</div>
+  <div id="versionLabel">v0.176</div>
 
   <script>
     (() => {
@@ -472,9 +479,14 @@
         document.body.classList.add("debug");
       }
 
-      // iPhone/iPad Safari의 핀치 확대와 빠른 연속 탭 확대를 막습니다.
+      // iPhone/iPad Safari의 핀치 확대와 더블탭 확대를 막습니다.
+      // Safari는 기기·버전에 따라 두 번째 touchend가 아니라
+      // 두 번째 touchstart 또는 dblclick 단계에서 확대를 확정할 수 있으므로
+      // 세 경로를 모두 차단합니다.
       const preventZoomGesture = (event) => {
-        event.preventDefault();
+        if (event.cancelable) {
+          event.preventDefault();
+        }
       };
 
       document.addEventListener(
@@ -493,29 +505,84 @@
         { passive: false }
       );
 
+      // Safari가 합성하는 더블클릭 확대도 별도로 차단합니다.
+      document.addEventListener(
+        "dblclick",
+        preventZoomGesture,
+        { passive: false, capture: true }
+      );
+
       document.addEventListener(
         "touchmove",
         (event) => {
           if (event.touches.length > 1) {
-            event.preventDefault();
+            preventZoomGesture(event);
           }
         },
-        { passive: false }
+        { passive: false, capture: true }
       );
 
-      let lastTouchEndAt = 0;
+      const DOUBLE_TAP_BLOCK_MS = 500;
+      const DOUBLE_TAP_MAX_DISTANCE_PX = 80;
+      let lastTapStartedAt = -Infinity;
+      let lastTapX = 0;
+      let lastTapY = 0;
+      let blockCurrentTapZoom = false;
+
+      document.addEventListener(
+        "touchstart",
+        (event) => {
+          if (event.touches.length > 1) {
+            blockCurrentTapZoom = true;
+            preventZoomGesture(event);
+            return;
+          }
+
+          const touch = event.changedTouches[0];
+          if (!touch) return;
+
+          const now = performance.now();
+          const elapsed = now - lastTapStartedAt;
+          const distance = Math.hypot(
+            touch.clientX - lastTapX,
+            touch.clientY - lastTapY
+          );
+
+          blockCurrentTapZoom =
+            elapsed <= DOUBLE_TAP_BLOCK_MS &&
+            distance <= DOUBLE_TAP_MAX_DISTANCE_PX;
+
+          if (blockCurrentTapZoom) {
+            preventZoomGesture(event);
+          }
+
+          lastTapStartedAt = now;
+          lastTapX = touch.clientX;
+          lastTapY = touch.clientY;
+        },
+        { passive: false, capture: true }
+      );
+
       document.addEventListener(
         "touchend",
         (event) => {
-          const now = Date.now();
-
-          if (now - lastTouchEndAt <= 300) {
-            event.preventDefault();
+          if (blockCurrentTapZoom) {
+            preventZoomGesture(event);
           }
 
-          lastTouchEndAt = now;
+          if (event.touches.length === 0) {
+            blockCurrentTapZoom = false;
+          }
         },
-        { passive: false }
+        { passive: false, capture: true }
+      );
+
+      document.addEventListener(
+        "touchcancel",
+        () => {
+          blockCurrentTapZoom = false;
+        },
+        { passive: true, capture: true }
       );
 
       let zombieCount = 0;
