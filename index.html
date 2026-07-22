@@ -211,7 +211,7 @@
       z-index: 100;
       transform: translateX(-50%);
       color: #fff;
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 500;
       line-height: 1;
       letter-spacing: 0.01em;
@@ -282,8 +282,8 @@
       left: max(24px, calc(env(safe-area-inset-left) + 16px));
       bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
       z-index: 120;
-      width: 80px;
-      height: 80px;
+      width: 60px;
+      height: 60px;
       padding: 0;
       border: 0;
       border-radius: 50%;
@@ -299,8 +299,8 @@
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 50px;
-      height: 50px;
+      width: 40px;
+      height: 40px;
       background: #faf7e5;
       transform: translate(-50%, -50%);
       -webkit-mask-image: url("images/icon_explore.png");
@@ -456,7 +456,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.035</div>
+  <div id="versionLabel">v0.036</div>
 
   <script>
     (() => {
@@ -548,7 +548,6 @@
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
         "I should clear this place out first.";
-      const MAX_VISIBLE_TOASTS = 5;
       const TOAST_DURATION_MS = 3_000;
 
       // 구름 스프라이트 시트: 1024×1024 안에 2×2로 배치된 4종입니다.
@@ -766,7 +765,7 @@
 
       let zombieCount = 0;
       let hasAxe = false;
-      const visibleToasts = [];
+      let activeToast = null;
       let nextZombieId = 1;
       let nextCloudId = 1;
       let lastFrameTime = performance.now();
@@ -1654,11 +1653,7 @@
       }
 
       function removeToast(toast) {
-        const index = visibleToasts.indexOf(toast);
-
-        if (index >= 0) {
-          visibleToasts.splice(index, 1);
-        }
+        if (!toast) return;
 
         if (toast.removeTimer !== null) {
           clearTimeout(toast.removeTimer);
@@ -1666,9 +1661,18 @@
         }
 
         toast.element.remove();
+
+        if (activeToast === toast) {
+          activeToast = null;
+        }
       }
 
       function showToast(message) {
+        // 새 메시지가 출력되면 기존 토스트는 즉시 제거합니다.
+        if (activeToast !== null) {
+          removeToast(activeToast);
+        }
+
         const element = document.createElement("div");
         element.className = "toast-message";
         element.textContent = message;
@@ -1679,11 +1683,7 @@
           removeTimer: null
         };
 
-        visibleToasts.push(toast);
-
-        while (visibleToasts.length > MAX_VISIBLE_TOASTS) {
-          removeToast(visibleToasts[0]);
-        }
+        activeToast = toast;
 
         toast.removeTimer = window.setTimeout(() => {
           removeToast(toast);
