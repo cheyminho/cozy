@@ -397,7 +397,7 @@
 
   <div id="hud">Zombies: <span id="zombieCount">0</span></div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
-  <div id="versionLabel">v0.031</div>
+  <div id="versionLabel">v0.032</div>
 
   <script>
     (() => {
@@ -536,6 +536,7 @@
       const BIRD_SHEET_ROWS = 3;
       const BIRD_FRAME_COUNT = 9;
       const BIRD_FPS = 12;
+      const FIRST_KILL_BIRD_FPS = 24;
 
       // 첫 좀비 처치 시에는 5마리가 빠르게 화면을 가로지릅니다.
       const FIRST_KILL_BIRD_COUNT = 5;
@@ -547,6 +548,9 @@
       const AMBIENT_BIRD_MIN_INTERVAL_MS = 20_000;
       const AMBIENT_BIRD_MAX_INTERVAL_MS = 60_000;
       const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
+
+      // 간헐적 출현 새 떼 전체 경로를 위아래로 최대 300px 정도 이동시킵니다.
+      const AMBIENT_BIRD_FLOCK_VERTICAL_SHIFT_PX = 300;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -1300,13 +1304,22 @@
         const verticalMargin =
           margin * BIRD_PATH_VERTICAL_MARGIN_FACTOR;
 
+        // 간헐적 출현 무리는 전체 경로를 위아래로 조금씩 옮겨서
+        // 같은 높이에서만 지나가지 않도록 합니다.
+        const flockVerticalShift = isFirstKillFlock
+          ? 0
+          : randomBetween(
+              -AMBIENT_BIRD_FLOCK_VERTICAL_SHIFT_PX,
+              AMBIENT_BIRD_FLOCK_VERTICAL_SHIFT_PX
+            );
+
         const baseStart = {
           x: visibleBounds.left - margin,
-          y: visibleBounds.bottom + verticalMargin
+          y: visibleBounds.bottom + verticalMargin + flockVerticalShift
         };
         const baseEnd = {
           x: visibleBounds.right + margin,
-          y: visibleBounds.top - verticalMargin
+          y: visibleBounds.top - verticalMargin + flockVerticalShift
         };
         const pathX = baseEnd.x - baseStart.x;
         const pathY = baseEnd.y - baseStart.y;
@@ -1368,7 +1381,8 @@
             scale,
             startedAt: now + delay,
             duration,
-            frameOffset
+            frameOffset,
+            fps: isFirstKillFlock ? FIRST_KILL_BIRD_FPS : BIRD_FPS
           };
 
           birds.push(bird);
@@ -1382,8 +1396,6 @@
       }
 
       function updateBirds(now) {
-        const frameDuration = 1000 / BIRD_FPS;
-
         for (let index = birds.length - 1; index >= 0; index -= 1) {
           const bird = birds[index];
           const elapsed = now - bird.startedAt;
@@ -1395,6 +1407,7 @@
           const progress = clamp(elapsed / bird.duration, 0, 1);
           const x = bird.startX + (bird.endX - bird.startX) * progress;
           const y = bird.startY + (bird.endY - bird.startY) * progress;
+          const frameDuration = 1000 / bird.fps;
           const frameIndex =
             bird.frameOffset + Math.floor(elapsed / frameDuration);
 
