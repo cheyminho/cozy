@@ -497,8 +497,8 @@
       content: "";
       position: absolute;
       left: 27.4px;
-      bottom: 13px;
-      width: 65.6px;
+      bottom: 9px;
+      width: 78.4px;
       height: 14.4px;
       background: #000;
       border-radius: 50%;
@@ -549,8 +549,8 @@
       left: 50%;
       top: 50%;
       z-index: 3;
-      width: 51.2px;
-      height: 51.2px;
+      width: 100%;
+      height: 100%;
       transform: translate(-50%, -50%);
       cursor: pointer;
       pointer-events: auto;
@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.045</div>
+  <div id="versionLabel">v0.046</div>
 
   <script>
     (() => {
@@ -661,7 +661,7 @@
       const DEER_FRAME_SIZE = 128;
       const DEER_HALF_W = DEER_WIDTH / 2;
       const DEER_HALF_H = DEER_HEIGHT / 2;
-      const DEER_HITBOX_SIZE = 51.2;
+      const DEER_HITBOX_SIZE = DEER_WIDTH;
 
       // 화면에 동시에 표시되는 좀비의 최대 수
       const MAX_ACTIVE_ZOMBIES = 100;
@@ -687,16 +687,14 @@
       const MIN_DEER_SPAWN_DISTANCE = 180;
 
       // 생성 모션 프레임별 유지 시간
-      // 1번 2초 / 2번 0.25초 / 3번 0.5초 / 4번 0.25초
+      // 기존 유지 시간의 2배: 1번 4초 / 2번 0.5초 / 3번 1초 / 4번 0.5초
+      // 생성 프레임은 크로스페이드 없이 바로 전환합니다.
       const BIRTH_FRAME_DURATIONS_MS = [
-        2_000,
-        250,
+        4_000,
         500,
-        250
+        1_000,
+        500
       ];
-
-      // 생성 프레임 사이의 부드러운 전환 시간
-      const BIRTH_TRANSITION_MS = 300;
 
       // 생성 첫 프레임의 처음 1초 동안 페이드인
       const BIRTH_FADE_IN_MS = 1_000;
@@ -2007,6 +2005,15 @@
             continue;
           }
 
+          // 사슴은 좌우로 도망가므로, 수평 이동 경로가 중앙 안전 구역을
+          // 가로지르지 않도록 안전 구역과 같은 세로 높이에는 생성하지 않습니다.
+          const safePathTop = SAFE_ZONE.top - DEER_HALF_H;
+          const safePathBottom = SAFE_ZONE.bottom + DEER_HALF_H;
+
+          if (y > safePathTop && y < safePathBottom) {
+            continue;
+          }
+
           let minimumDistance = Infinity;
 
           for (const otherZombie of zombies.values()) {
@@ -2499,10 +2506,6 @@
           return;
         }
 
-        if (deer.state === "birthing") {
-          return;
-        }
-
         deer.hitCount += 1;
 
         if (deer.hitCount >= 3) {
@@ -2516,6 +2519,8 @@
 
       function updateDeerBirthing(deer, now) {
         const elapsed = now - deer.birthStartedAt;
+
+        // 생성 프레임은 57 → 58 → 59 → 1 순서로 크로스페이드 없이 전환합니다.
         const firstFrameEnd =
           DEER_BIRTH_FRAME_FADE_MS + DEER_BIRTH_FRAME_ONE_HOLD_MS;
         const secondFrameEnd =
@@ -2723,10 +2728,6 @@
           return;
         }
 
-        if (zombie.state === "birthing") {
-          return;
-        }
-
         playSound(HIT_SOUND, 0.5);
 
         zombie.hitCount += 1;
@@ -2891,10 +2892,13 @@
           clamp(elapsed / BIRTH_FADE_IN_MS, 0, 1)
         );
 
-        const birthFrameCount = BIRTH_FRAME_DURATIONS_MS.length;
         let phaseStart = 0;
 
-        for (let index = 0; index < birthFrameCount; index += 1) {
+        for (
+          let index = 0;
+          index < BIRTH_FRAME_DURATIONS_MS.length;
+          index += 1
+        ) {
           const holdEnd =
             phaseStart + BIRTH_FRAME_DURATIONS_MS[index];
 
@@ -2907,40 +2911,10 @@
             return;
           }
 
-          const isLastBirthFrame =
-            index === birthFrameCount - 1;
-          const transitionEnd =
-            holdEnd + BIRTH_TRANSITION_MS;
-
-          if (elapsed < transitionEnd) {
-            const progress =
-              (elapsed - holdEnd) / BIRTH_TRANSITION_MS;
-
-            if (isLastBirthFrame) {
-              showCrossfade(
-                zombie,
-                BIRTH_DEATH_SHEET,
-                index,
-                WALK_SHEET,
-                zombie.walkFrame,
-                progress
-              );
-            } else {
-              showCrossfade(
-                zombie,
-                BIRTH_DEATH_SHEET,
-                index,
-                BIRTH_DEATH_SHEET,
-                index + 1,
-                progress
-              );
-            }
-            return;
-          }
-
-          phaseStart = transitionEnd;
+          phaseStart = holdEnd;
         }
 
+        // 마지막 생성 프레임에서 걷기 프레임으로도 즉시 전환합니다.
         zombie.state = "walking";
         zombie.walkElapsed = 0;
         zombie.element.style.opacity = "1";
