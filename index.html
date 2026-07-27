@@ -497,7 +497,7 @@
       content: "";
       position: absolute;
       left: 27.4px;
-      bottom: 9px;
+      bottom: 0px;
       width: 78.4px;
       height: 14.4px;
       background: #000;
@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.046</div>
+  <div id="versionLabel">v0.047</div>
 
   <script>
     (() => {
@@ -685,6 +685,7 @@
       // 가능하면 기존 좀비의 중심에서 이 거리 이상 떨어져 생성합니다.
       const MIN_SPAWN_DISTANCE = 160;
       const MIN_DEER_SPAWN_DISTANCE = 180;
+      const FIRST_KILL_DEER_MIN_DISTANCE_FROM_KILL_PX = 360;
 
       // 생성 모션 프레임별 유지 시간
       // 기존 유지 시간의 2배: 1번 4초 / 2번 0.5초 / 3번 1초 / 4번 0.5초
@@ -738,12 +739,12 @@
       const DEER_BIRTH_FRAME_ONE_HOLD_MS = 2_000;
       const DEER_BIRTH_FRAME_TWO_MS = 200;
       const DEER_BIRTH_FRAME_THREE_MS = 200;
-      const DEER_DEATH_FRAME_ONE_MS = 200;
-      const DEER_DEATH_FRAME_TWO_HOLD_MS = 3_000;
+      const DEER_DEATH_FRAME_ONE_MS = 400;
+      const DEER_DEATH_FRAME_TWO_HOLD_MS = 6_000;
       const DEER_DEATH_TRANSITION_MS = 1_000;
-      const DEER_DEATH_FRAME_THREE_HOLD_MS = 3_000;
+      const DEER_DEATH_FRAME_THREE_HOLD_MS = 6_000;
       const DEER_DEATH_FADE_MS = 3_000;
-      const DEER_DEATH_SLIDE_DISTANCE_PX = 40;
+      const DEER_DEATH_SLIDE_DISTANCE_PX = 60;
       const DEER_DEATH_SLIDE_MS = 700;
       const DEER_IDLE_MIN_DELAY_MS = 2_500;
       const DEER_IDLE_MAX_DELAY_MS = 6_000;
@@ -1988,14 +1989,24 @@
         };
       }
 
-      function getRandomDeerSpawnPosition() {
+      function getRandomDeerSpawnPosition(options = {}) {
         const minX = GAME_ZONE.left + DEER_HALF_W;
         const maxX = GAME_ZONE.right - DEER_HALF_W;
         const minY = GAME_ZONE.top + DEER_HALF_H;
         const maxY = GAME_ZONE.bottom - DEER_HALF_H;
+        const avoidX = Number.isFinite(options.avoidX)
+          ? options.avoidX
+          : null;
+        const avoidY = Number.isFinite(options.avoidY)
+          ? options.avoidY
+          : null;
+        const minAvoidDistance = Number.isFinite(options.minAvoidDistance)
+          ? options.minAvoidDistance
+          : 0;
 
         let bestCandidate = null;
         let bestMinimumDistance = -1;
+        let bestAvoidDistance = -1;
 
         for (let attempt = 0; attempt < 500; attempt += 1) {
           const x = minX + Math.random() * (maxX - minX);
@@ -2038,11 +2049,27 @@
             minimumDistance = Math.min(minimumDistance, distance);
           }
 
-          if (minimumDistance >= MIN_DEER_SPAWN_DISTANCE) {
+          const avoidDistance =
+            avoidX !== null && avoidY !== null
+              ? Math.hypot(x - avoidX, y - avoidY)
+              : Infinity;
+
+          if (
+            minimumDistance >= MIN_DEER_SPAWN_DISTANCE &&
+            avoidDistance >= minAvoidDistance
+          ) {
             return { x, y };
           }
 
-          if (minimumDistance > bestMinimumDistance) {
+          const isBetterAvoidDistance = avoidDistance > bestAvoidDistance;
+          const isSameAvoidDistance =
+            Math.abs(avoidDistance - bestAvoidDistance) < 0.001;
+
+          if (
+            isBetterAvoidDistance ||
+            (isSameAvoidDistance && minimumDistance > bestMinimumDistance)
+          ) {
+            bestAvoidDistance = avoidDistance;
             bestMinimumDistance = minimumDistance;
             bestCandidate = { x, y };
           }
@@ -2402,10 +2429,10 @@
         );
       }
 
-      function createDeer() {
+      function createDeer(options = {}) {
         if (deerMap.size >= MAX_ACTIVE_DEER) return false;
 
-        const position = getRandomDeerSpawnPosition();
+        const position = getRandomDeerSpawnPosition(options);
         const now = performance.now();
 
         const element = document.createElement("div");
@@ -2761,7 +2788,11 @@
         if (wasPlayerKill) {
           scheduleBgmAfterFirstPlayerKill();
           triggerFirstKillBirdFlock();
-          createDeer();
+          createDeer({
+            avoidX: zombie.x,
+            avoidY: zombie.y,
+            minAvoidDistance: FIRST_KILL_DEER_MIN_DISTANCE_FROM_KILL_PX
+          });
         }
 
         if (zombie.autoDeathTimer !== null) {
