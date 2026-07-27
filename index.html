@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.043</div>
+  <div id="versionLabel">v0.044</div>
 
   <script>
     (() => {
@@ -658,6 +658,7 @@
 
       const DEER_WIDTH = 115.2;
       const DEER_HEIGHT = 115.2;
+      const DEER_FRAME_SIZE = 128;
       const DEER_HALF_W = DEER_WIDTH / 2;
       const DEER_HALF_H = DEER_HEIGHT / 2;
       const DEER_HITBOX_SIZE = 57.6;
@@ -1240,7 +1241,7 @@
         const normalizedIndex = Math.max(0, frameIndex);
         const col = normalizedIndex % 8;
         const row = Math.floor(normalizedIndex / 8);
-        return `${-col * DEER_WIDTH}px ${-row * DEER_HEIGHT}px`;
+        return `${-col * DEER_FRAME_SIZE}px ${-row * DEER_FRAME_SIZE}px`;
       }
 
       function getRandomDeerIdleDelay() {
