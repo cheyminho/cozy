@@ -17,8 +17,8 @@
       --world-size: 2048px;
       --zombie-width: 64px;
       --zombie-height: 128px;
-      --deer-width: 115.2px;
-      --deer-height: 115.2px;
+      --deer-width: 102.4px;
+      --deer-height: 102.4px;
     }
 
     * {
@@ -496,10 +496,10 @@
     .deer::before {
       content: "";
       position: absolute;
-      left: 25.2px;
-      bottom: 18px;
-      width: 73.8px;
-      height: 16.2px;
+      left: 27.4px;
+      bottom: 13px;
+      width: 65.6px;
+      height: 14.4px;
       background: #000;
       border-radius: 50%;
       opacity: 0.2;
@@ -549,8 +549,8 @@
       left: 50%;
       top: 50%;
       z-index: 3;
-      width: 57.6px;
-      height: 57.6px;
+      width: 51.2px;
+      height: 51.2px;
       transform: translate(-50%, -50%);
       cursor: pointer;
       pointer-events: auto;
@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.044</div>
+  <div id="versionLabel">v0.045</div>
 
   <script>
     (() => {
@@ -656,12 +656,12 @@
       const HALF_W = ZOMBIE_WIDTH / 2;
       const HALF_H = ZOMBIE_HEIGHT / 2;
 
-      const DEER_WIDTH = 115.2;
-      const DEER_HEIGHT = 115.2;
+      const DEER_WIDTH = 102.4;
+      const DEER_HEIGHT = 102.4;
       const DEER_FRAME_SIZE = 128;
       const DEER_HALF_W = DEER_WIDTH / 2;
       const DEER_HALF_H = DEER_HEIGHT / 2;
-      const DEER_HITBOX_SIZE = 57.6;
+      const DEER_HITBOX_SIZE = 51.2;
 
       // 화면에 동시에 표시되는 좀비의 최대 수
       const MAX_ACTIVE_ZOMBIES = 100;
@@ -736,15 +736,17 @@
       const DEER_RUN_FRAME_START = 3;
       const DEER_RUN_FRAME_COUNT = 5;
       const DEER_RUN_FPS = 15;
-      const DEER_BIRTH_FRAME_FADE_MS = 300;
-      const DEER_BIRTH_FRAME_ONE_HOLD_MS = 1_000;
-      const DEER_BIRTH_FRAME_TWO_MS = 100;
-      const DEER_BIRTH_FRAME_THREE_MS = 100;
+      const DEER_BIRTH_FRAME_FADE_MS = 500;
+      const DEER_BIRTH_FRAME_ONE_HOLD_MS = 2_000;
+      const DEER_BIRTH_FRAME_TWO_MS = 200;
+      const DEER_BIRTH_FRAME_THREE_MS = 200;
       const DEER_DEATH_FRAME_ONE_MS = 200;
       const DEER_DEATH_FRAME_TWO_HOLD_MS = 3_000;
       const DEER_DEATH_TRANSITION_MS = 1_000;
       const DEER_DEATH_FRAME_THREE_HOLD_MS = 3_000;
       const DEER_DEATH_FADE_MS = 3_000;
+      const DEER_DEATH_SLIDE_DISTANCE_PX = 40;
+      const DEER_DEATH_SLIDE_MS = 700;
       const DEER_IDLE_MIN_DELAY_MS = 2_500;
       const DEER_IDLE_MAX_DELAY_MS = 6_000;
 
@@ -1023,6 +1025,10 @@
 
       function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
+      }
+
+      function easeOutSine(progress) {
+        return Math.sin((clamp(progress, 0, 1) * Math.PI) / 2);
       }
 
       function preloadImage(path) {
@@ -2436,7 +2442,9 @@
           evadeDirection: 0,
           runElapsed: 0,
           runFrame: 0,
-          deathStartedAt: 0
+          deathStartedAt: 0,
+          deathStartX: 0,
+          deathSlideDirection: 0
         };
 
         deerMap.set(deer.id, deer);
@@ -2466,10 +2474,16 @@
       function beginDeerDeath(deer) {
         if (deer.state === "dying" || deer.state === "removed") return;
 
+        const slideDirection = deer.state === "evading"
+          ? deer.evadeDirection
+          : (deer.facing === "left" ? -1 : 1);
+
         deer.state = "dying";
         deer.element.classList.add("is-dead");
         deer.idleAnimation = null;
         deer.deathStartedAt = performance.now();
+        deer.deathStartX = deer.x;
+        deer.deathSlideDirection = slideDirection || 1;
         deer.element.style.opacity = "1";
         playSound(HIT_SOUND, 0.5);
         showSingleDeerFrame(deer, 61);
@@ -2582,6 +2596,12 @@
         const frameThreeHoldEnd =
           transitionEnd + DEER_DEATH_FRAME_THREE_HOLD_MS;
         const fadeEnd = frameThreeHoldEnd + DEER_DEATH_FADE_MS;
+        const slideProgress = easeOutSine(elapsed / DEER_DEATH_SLIDE_MS);
+
+        deer.x =
+          deer.deathStartX +
+          deer.deathSlideDirection *
+            DEER_DEATH_SLIDE_DISTANCE_PX * slideProgress;
 
         deer.element.style.opacity = "1";
 
