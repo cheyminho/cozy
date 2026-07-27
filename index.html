@@ -17,8 +17,8 @@
       --world-size: 2048px;
       --zombie-width: 64px;
       --zombie-height: 128px;
-      --deer-width: 128px;
-      --deer-height: 128px;
+      --deer-width: 115.2px;
+      --deer-height: 115.2px;
     }
 
     * {
@@ -496,10 +496,10 @@
     .deer::before {
       content: "";
       position: absolute;
-      left: 28px;
-      bottom: 20px;
-      width: 82px;
-      height: 18px;
+      left: 25.2px;
+      bottom: 18px;
+      width: 73.8px;
+      height: 16.2px;
       background: #000;
       border-radius: 50%;
       opacity: 0.2;
@@ -549,8 +549,8 @@
       left: 50%;
       top: 50%;
       z-index: 3;
-      width: 64px;
-      height: 64px;
+      width: 57.6px;
+      height: 57.6px;
       transform: translate(-50%, -50%);
       cursor: pointer;
       pointer-events: auto;
@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.042</div>
+  <div id="versionLabel">v0.043</div>
 
   <script>
     (() => {
@@ -656,11 +656,11 @@
       const HALF_W = ZOMBIE_WIDTH / 2;
       const HALF_H = ZOMBIE_HEIGHT / 2;
 
-      const DEER_WIDTH = 128;
-      const DEER_HEIGHT = 128;
+      const DEER_WIDTH = 115.2;
+      const DEER_HEIGHT = 115.2;
       const DEER_HALF_W = DEER_WIDTH / 2;
       const DEER_HALF_H = DEER_HEIGHT / 2;
-      const DEER_HITBOX_SIZE = 64;
+      const DEER_HITBOX_SIZE = 57.6;
 
       // 화면에 동시에 표시되는 좀비의 최대 수
       const MAX_ACTIVE_ZOMBIES = 100;
@@ -708,7 +708,7 @@
 
       // 이동 속도: 2초에 1px
       const MOVE_SPEED_PX_PER_MS = 1 / 2_000;
-      const DEER_EVADE_SPEED_PX_PER_MS = 0.45;
+      const DEER_EVADE_SPEED_PX_PER_MS = 0.3;
 
       const WALK_SHEET = "images/zomebie_default_walk.png";
       const DEAD_SHEET = "images/zomebie_default_dead.png";
@@ -729,7 +729,7 @@
 
       const DEER_IDLE_FRAME = 0;
       const DEER_LOOK_SEQUENCE = [0, 1, 2, 1, 0];
-      const DEER_LOOK_DURATIONS_MS = [100, 100, 500, 100, 100];
+      const DEER_LOOK_DURATIONS_MS = [100, 100, 3_000, 100, 100];
       const DEER_GRAZE_SEQUENCE = [0, 59, 60, 59, 0];
       const DEER_GRAZE_DURATIONS_MS = [200, 200, 1_500, 200, 200];
       const DEER_RUN_FRAME_START = 3;
