@@ -17,6 +17,8 @@
       --world-size: 2048px;
       --zombie-width: 64px;
       --zombie-height: 128px;
+      --deer-width: 128px;
+      --deer-height: 128px;
     }
 
     * {
@@ -480,6 +482,87 @@
       opacity: 0;
     }
 
+    .deer {
+      position: absolute;
+      width: var(--deer-width);
+      height: var(--deer-height);
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      will-change: left, top, opacity;
+      touch-action: none;
+      pointer-events: none;
+    }
+
+    .deer::before {
+      content: "";
+      position: absolute;
+      left: 28px;
+      bottom: 20px;
+      width: 82px;
+      height: 18px;
+      background: #000;
+      border-radius: 50%;
+      opacity: 0.2;
+      filter: blur(6px);
+      transform: skewX(-28deg) scaleY(0.42);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .deer.is-dead {
+      cursor: default;
+    }
+
+    .deer-sprite {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      background-repeat: no-repeat;
+      background-size: 1024px 1024px;
+      background-position: 0 0;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: transform, opacity, background-position;
+      pointer-events: none;
+    }
+
+    .deer-sprite-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      background-repeat: no-repeat;
+      background-size: 1024px 1024px;
+      background-position: 0 0;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: transform, opacity, background-position;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .deer-hitbox {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 3;
+      width: 64px;
+      height: 64px;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+      outline: none;
+    }
+
+    .deer.is-dead .deer-hitbox {
+      pointer-events: none;
+      cursor: default;
+    }
+
     /* 주소 끝에 ?debug=1을 붙이면 안전 영역과 게임 영역을 확인할 수 있습니다. */
     .debug-zone {
       position: absolute;
@@ -546,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.041</div>
+  <div id="versionLabel">v0.042</div>
 
   <script>
     (() => {
@@ -573,14 +656,22 @@
       const HALF_W = ZOMBIE_WIDTH / 2;
       const HALF_H = ZOMBIE_HEIGHT / 2;
 
+      const DEER_WIDTH = 128;
+      const DEER_HEIGHT = 128;
+      const DEER_HALF_W = DEER_WIDTH / 2;
+      const DEER_HALF_H = DEER_HEIGHT / 2;
+      const DEER_HITBOX_SIZE = 64;
+
       // 화면에 동시에 표시되는 좀비의 최대 수
       const MAX_ACTIVE_ZOMBIES = 100;
+      const MAX_ACTIVE_DEER = 10;
 
       // 누적 처치 카운터의 최대 수
       const MAX_ZOMBIE_COUNT = 999;
 
       // 좀비 출현 간격: 30초
       const SPAWN_INTERVAL_MS = 30_000;
+      const DEER_SPAWN_INTERVAL_MS = 60_000;
       const AUTO_DEATH_MS = 12 * 60_000;
 
       // 기본 걷기 애니메이션: 2fps
@@ -592,6 +683,7 @@
 
       // 가능하면 기존 좀비의 중심에서 이 거리 이상 떨어져 생성합니다.
       const MIN_SPAWN_DISTANCE = 160;
+      const MIN_DEER_SPAWN_DISTANCE = 180;
 
       // 생성 모션 프레임별 유지 시간
       // 1번 2초 / 2번 0.25초 / 3번 0.5초 / 4번 0.25초
@@ -616,21 +708,44 @@
 
       // 이동 속도: 2초에 1px
       const MOVE_SPEED_PX_PER_MS = 1 / 2_000;
+      const DEER_EVADE_SPEED_PX_PER_MS = 0.45;
 
       const WALK_SHEET = "images/zomebie_default_walk.png";
       const DEAD_SHEET = "images/zomebie_default_dead.png";
       const BIRTH_DEATH_SHEET =
         "images/zomebie_default_birthdeath.png";
+      const DEER_SHEET = "images/deer_default.png";
 
-      // 좀비 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
+      // 좀비와 사슴 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
       const PRELOADED_ZOMBIE_IMAGES = new Map();
 
       const HIT_SOUND = "sounds/sfx_zombie_hit_axe.wav";
       const BIRTH_SOUND = "sounds/sfx_zombie_birth.wav";
       const DEATH_SOUND = "sounds/sfx_zombie_death.wav";
+      const DEER_MISS_SOUND = "sounds/sfx_miss_axe.wav";
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const BGM_SOUND = "sounds/bgm_meadow.mp3";
+
+      const DEER_IDLE_FRAME = 0;
+      const DEER_LOOK_SEQUENCE = [0, 1, 2, 1, 0];
+      const DEER_LOOK_DURATIONS_MS = [100, 100, 500, 100, 100];
+      const DEER_GRAZE_SEQUENCE = [0, 59, 60, 59, 0];
+      const DEER_GRAZE_DURATIONS_MS = [200, 200, 1_500, 200, 200];
+      const DEER_RUN_FRAME_START = 3;
+      const DEER_RUN_FRAME_COUNT = 5;
+      const DEER_RUN_FPS = 15;
+      const DEER_BIRTH_FRAME_FADE_MS = 300;
+      const DEER_BIRTH_FRAME_ONE_HOLD_MS = 1_000;
+      const DEER_BIRTH_FRAME_TWO_MS = 100;
+      const DEER_BIRTH_FRAME_THREE_MS = 100;
+      const DEER_DEATH_FRAME_ONE_MS = 200;
+      const DEER_DEATH_FRAME_TWO_HOLD_MS = 3_000;
+      const DEER_DEATH_TRANSITION_MS = 1_000;
+      const DEER_DEATH_FRAME_THREE_HOLD_MS = 3_000;
+      const DEER_DEATH_FADE_MS = 3_000;
+      const DEER_IDLE_MIN_DELAY_MS = 2_500;
+      const DEER_IDLE_MAX_DELAY_MS = 6_000;
 
       const STUMP_WITH_AXE_IMAGE = "images/bg_stump_axe.png";
       const STUMP_EMPTY_IMAGE = "images/bg_stump.png";
@@ -863,9 +978,11 @@
       let hasAxe = false;
       let activeToast = null;
       let nextZombieId = 1;
+      let nextDeerId = 1;
       let nextCloudId = 1;
       let lastFrameTime = performance.now();
       const zombies = new Map();
+      const deerMap = new Map();
 
       const skyClouds = [];
       const shadowClouds = [];
@@ -935,11 +1052,12 @@
         });
       }
 
-      function preloadZombieSprites() {
+      function preloadGameSprites() {
         return Promise.all([
           preloadImage(WALK_SHEET),
           preloadImage(DEAD_SHEET),
           preloadImage(BIRTH_DEATH_SHEET),
+          preloadImage(DEER_SHEET),
           preloadImage(STUMP_WITH_AXE_IMAGE),
           preloadImage(STUMP_EMPTY_IMAGE)
         ]);
@@ -1042,7 +1160,7 @@
 
         if (
           event.target instanceof Element &&
-          event.target.closest(".zombie, .world-interactive")
+          event.target.closest(".zombie, .deer-hitbox, .world-interactive")
         ) {
           return;
         }
@@ -1116,6 +1234,20 @@
         const col = frameIndex % 4;
         const row = Math.floor(frameIndex / 4);
         return `${-col * ZOMBIE_WIDTH}px ${-row * ZOMBIE_HEIGHT}px`;
+      }
+
+      function deerFramePosition(frameIndex) {
+        const normalizedIndex = Math.max(0, frameIndex);
+        const col = normalizedIndex % 8;
+        const row = Math.floor(normalizedIndex / 8);
+        return `${-col * DEER_WIDTH}px ${-row * DEER_HEIGHT}px`;
+      }
+
+      function getRandomDeerIdleDelay() {
+        return randomBetween(
+          DEER_IDLE_MIN_DELAY_MS,
+          DEER_IDLE_MAX_DELAY_MS
+        );
       }
 
       function randomBetween(min, max) {
@@ -1785,13 +1917,17 @@
         return Math.random() < 0.5 ? 0 : 4;
       }
 
-      function isInsideInflatedSafeZone(x, y) {
+      function isInsideInflatedSafeZoneFor(x, y, halfWidth, halfHeight) {
         return (
-          x > SAFE_ZONE.left - HALF_W &&
-          x < SAFE_ZONE.right + HALF_W &&
-          y > SAFE_ZONE.top - HALF_H &&
-          y < SAFE_ZONE.bottom + HALF_H
+          x > SAFE_ZONE.left - halfWidth &&
+          x < SAFE_ZONE.right + halfWidth &&
+          y > SAFE_ZONE.top - halfHeight &&
+          y < SAFE_ZONE.bottom + halfHeight
         );
+      }
+
+      function isInsideInflatedSafeZone(x, y) {
+        return isInsideInflatedSafeZoneFor(x, y, HALF_W, HALF_H);
       }
 
       function getRandomSpawnPosition() {
@@ -1844,6 +1980,67 @@
         return {
           x: GAME_ZONE.left + HALF_W + 8,
           y: GAME_ZONE.top + HALF_H + 8
+        };
+      }
+
+      function getRandomDeerSpawnPosition() {
+        const minX = GAME_ZONE.left + DEER_HALF_W;
+        const maxX = GAME_ZONE.right - DEER_HALF_W;
+        const minY = GAME_ZONE.top + DEER_HALF_H;
+        const maxY = GAME_ZONE.bottom - DEER_HALF_H;
+
+        let bestCandidate = null;
+        let bestMinimumDistance = -1;
+
+        for (let attempt = 0; attempt < 500; attempt += 1) {
+          const x = minX + Math.random() * (maxX - minX);
+          const y = minY + Math.random() * (maxY - minY);
+
+          if (isInsideInflatedSafeZoneFor(x, y, DEER_HALF_W, DEER_HALF_H)) {
+            continue;
+          }
+
+          let minimumDistance = Infinity;
+
+          for (const otherZombie of zombies.values()) {
+            if (otherZombie.state === "removed") continue;
+
+            const distance = Math.hypot(
+              x - otherZombie.x,
+              y - otherZombie.y
+            );
+
+            minimumDistance = Math.min(minimumDistance, distance);
+          }
+
+          for (const otherDeer of deerMap.values()) {
+            if (otherDeer.state === "removed") continue;
+
+            const distance = Math.hypot(
+              x - otherDeer.x,
+              y - otherDeer.y
+            );
+
+            minimumDistance = Math.min(minimumDistance, distance);
+          }
+
+          if (minimumDistance >= MIN_DEER_SPAWN_DISTANCE) {
+            return { x, y };
+          }
+
+          if (minimumDistance > bestMinimumDistance) {
+            bestMinimumDistance = minimumDistance;
+            bestCandidate = { x, y };
+          }
+        }
+
+        if (bestCandidate) {
+          return bestCandidate;
+        }
+
+        return {
+          x: GAME_ZONE.left + DEER_HALF_W + 8,
+          y: GAME_ZONE.top + DEER_HALF_H + 8
         };
       }
 
@@ -2076,6 +2273,357 @@
           String(clampedProgress);
       }
 
+      function setDeerFacing(deer) {
+        const facingTransform =
+          deer.facing === "left" ? "scaleX(-1)" : "scaleX(1)";
+
+        deer.sprite.style.transform = facingTransform;
+        deer.overlay.style.transform = facingTransform;
+      }
+
+      function renderDeer(deer) {
+        deer.element.style.left = `${deer.x}px`;
+        deer.element.style.top = `${deer.y}px`;
+        deer.element.style.zIndex = String(Math.round(deer.y));
+      }
+
+      function showSingleDeerFrame(deer, frameIndex) {
+        deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.sprite.style.backgroundPosition =
+          deerFramePosition(frameIndex);
+        deer.sprite.style.opacity = "1";
+        deer.overlay.style.opacity = "0";
+      }
+
+      function showDeerCrossfade(
+        deer,
+        fromFrameIndex,
+        toFrameIndex,
+        progress
+      ) {
+        const clampedProgress = clamp(progress, 0, 1);
+
+        deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.sprite.style.backgroundPosition =
+          deerFramePosition(fromFrameIndex);
+        deer.sprite.style.opacity = String(1 - clampedProgress);
+
+        deer.overlay.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.overlay.style.backgroundPosition =
+          deerFramePosition(toFrameIndex);
+        deer.overlay.style.opacity = String(clampedProgress);
+      }
+
+      function scheduleNextDeerIdleAnimation(deer, now = performance.now()) {
+        deer.nextIdleAnimationAt = now + getRandomDeerIdleDelay();
+      }
+
+      function startDeerIdleAnimation(deer, sequence, durations, now) {
+        deer.idleAnimation = { sequence, durations };
+        deer.idleAnimationStartedAt = now;
+      }
+
+      function startRandomDeerIdleAnimation(deer, now) {
+        if (Math.random() < 0.5) {
+          startDeerIdleAnimation(
+            deer,
+            DEER_LOOK_SEQUENCE,
+            DEER_LOOK_DURATIONS_MS,
+            now
+          );
+        } else {
+          startDeerIdleAnimation(
+            deer,
+            DEER_GRAZE_SEQUENCE,
+            DEER_GRAZE_DURATIONS_MS,
+            now
+          );
+        }
+      }
+
+      function updateActiveDeerIdleAnimation(deer, now) {
+        if (!deer.idleAnimation) {
+          showSingleDeerFrame(deer, DEER_IDLE_FRAME);
+          return;
+        }
+
+        const elapsed = now - deer.idleAnimationStartedAt;
+        let phaseStart = 0;
+
+        for (let index = 0; index < deer.idleAnimation.sequence.length; index += 1) {
+          const holdEnd =
+            phaseStart + deer.idleAnimation.durations[index];
+
+          if (elapsed < holdEnd) {
+            showSingleDeerFrame(
+              deer,
+              deer.idleAnimation.sequence[index]
+            );
+            return;
+          }
+
+          phaseStart = holdEnd;
+        }
+
+        deer.idleAnimation = null;
+        scheduleNextDeerIdleAnimation(deer, now);
+        showSingleDeerFrame(deer, DEER_IDLE_FRAME);
+      }
+
+      function removeDeer(deer) {
+        if (deer.state === "removed") return;
+
+        deer.state = "removed";
+        deer.element.remove();
+        deerMap.delete(deer.id);
+      }
+
+      function isDeerOutsideVisibleArea(deer) {
+        const visibleBounds = getVisibleWorldBounds();
+        const margin = DEER_HALF_W + 16;
+
+        return (
+          deer.x + margin < visibleBounds.left ||
+          deer.x - margin > visibleBounds.right
+        );
+      }
+
+      function createDeer() {
+        if (deerMap.size >= MAX_ACTIVE_DEER) return false;
+
+        const position = getRandomDeerSpawnPosition();
+        const now = performance.now();
+
+        const element = document.createElement("div");
+        element.className = "deer";
+        element.setAttribute("role", "button");
+        element.setAttribute("aria-label", "Deer");
+        element.style.opacity = "0";
+
+        const sprite = document.createElement("div");
+        sprite.className = "deer-sprite";
+
+        const overlay = document.createElement("div");
+        overlay.className = "deer-sprite-overlay";
+
+        const hitbox = document.createElement("div");
+        hitbox.className = "deer-hitbox";
+        hitbox.setAttribute("role", "button");
+        hitbox.setAttribute("tabindex", "0");
+        hitbox.setAttribute("aria-label", "Attack deer");
+
+        element.appendChild(sprite);
+        element.appendChild(overlay);
+        element.appendChild(hitbox);
+        entities.appendChild(element);
+
+        const deer = {
+          id: nextDeerId++,
+          element,
+          sprite,
+          overlay,
+          hitbox,
+          x: position.x,
+          y: position.y,
+          facing: Math.random() < 0.5 ? "left" : "right",
+          state: "birthing",
+          birthStartedAt: now,
+          idleAnimation: null,
+          idleAnimationStartedAt: 0,
+          nextIdleAnimationAt: now + getRandomDeerIdleDelay(),
+          hitCount: 0,
+          evadeDirection: 0,
+          runElapsed: 0,
+          runFrame: 0,
+          deathStartedAt: 0
+        };
+
+        deerMap.set(deer.id, deer);
+        setDeerFacing(deer);
+        showSingleDeerFrame(deer, 56);
+        renderDeer(deer);
+
+        hitbox.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          attackDeer(deer);
+        });
+
+        return true;
+      }
+
+      function startDeerEvade(deer) {
+        deer.state = "evading";
+        deer.idleAnimation = null;
+        deer.evadeDirection = Math.random() < 0.5 ? -1 : 1;
+        deer.facing = deer.evadeDirection < 0 ? "left" : "right";
+        deer.runElapsed = 0;
+        deer.runFrame = 0;
+        setDeerFacing(deer);
+      }
+
+      function beginDeerDeath(deer) {
+        if (deer.state === "dying" || deer.state === "removed") return;
+
+        deer.state = "dying";
+        deer.element.classList.add("is-dead");
+        deer.idleAnimation = null;
+        deer.deathStartedAt = performance.now();
+        deer.element.style.opacity = "1";
+        playSound(HIT_SOUND, 0.5);
+        showSingleDeerFrame(deer, 61);
+      }
+
+      function attackDeer(deer) {
+        if (deer.state === "dying" || deer.state === "removed") {
+          return;
+        }
+
+        if (!hasAxe) {
+          showToast(UNARMED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (deer.state === "birthing") {
+          return;
+        }
+
+        deer.hitCount += 1;
+
+        if (deer.hitCount >= 3) {
+          beginDeerDeath(deer);
+          return;
+        }
+
+        playSound(DEER_MISS_SOUND, 0.7);
+        startDeerEvade(deer);
+      }
+
+      function updateDeerBirthing(deer, now) {
+        const elapsed = now - deer.birthStartedAt;
+        const firstFrameEnd =
+          DEER_BIRTH_FRAME_FADE_MS + DEER_BIRTH_FRAME_ONE_HOLD_MS;
+        const secondFrameEnd =
+          firstFrameEnd + DEER_BIRTH_FRAME_TWO_MS;
+        const thirdFrameEnd =
+          secondFrameEnd + DEER_BIRTH_FRAME_THREE_MS;
+
+        deer.element.style.opacity = String(
+          clamp(elapsed / DEER_BIRTH_FRAME_FADE_MS, 0, 1)
+        );
+
+        if (elapsed < firstFrameEnd) {
+          showSingleDeerFrame(deer, 56);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < secondFrameEnd) {
+          showSingleDeerFrame(deer, 57);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < thirdFrameEnd) {
+          showSingleDeerFrame(deer, 58);
+          renderDeer(deer);
+          return;
+        }
+
+        deer.state = "idle";
+        deer.element.style.opacity = "1";
+        deer.idleAnimation = null;
+        scheduleNextDeerIdleAnimation(deer, now);
+        showSingleDeerFrame(deer, DEER_IDLE_FRAME);
+        renderDeer(deer);
+      }
+
+      function updateDeerIdle(deer, now) {
+        if (!deer.idleAnimation && now >= deer.nextIdleAnimationAt) {
+          startRandomDeerIdleAnimation(deer, now);
+        }
+
+        updateActiveDeerIdleAnimation(deer, now);
+        deer.element.style.opacity = "1";
+        renderDeer(deer);
+      }
+
+      function updateDeerEvading(deer, deltaMs) {
+        deer.x += deer.evadeDirection * DEER_EVADE_SPEED_PX_PER_MS * deltaMs;
+        deer.runElapsed += deltaMs;
+
+        const frameDuration = 1000 / DEER_RUN_FPS;
+        if (deer.runElapsed >= frameDuration) {
+          const advancedFrames = Math.floor(deer.runElapsed / frameDuration);
+          deer.runElapsed %= frameDuration;
+          deer.runFrame =
+            (deer.runFrame + advancedFrames) % DEER_RUN_FRAME_COUNT;
+        }
+
+        showSingleDeerFrame(
+          deer,
+          DEER_RUN_FRAME_START + deer.runFrame
+        );
+        renderDeer(deer);
+
+        if (isDeerOutsideVisibleArea(deer)) {
+          removeDeer(deer);
+        }
+      }
+
+      function updateDeerDying(deer, now) {
+        const elapsed = now - deer.deathStartedAt;
+        const frameOneEnd = DEER_DEATH_FRAME_ONE_MS;
+        const frameTwoHoldEnd =
+          frameOneEnd + DEER_DEATH_FRAME_TWO_HOLD_MS;
+        const transitionEnd =
+          frameTwoHoldEnd + DEER_DEATH_TRANSITION_MS;
+        const frameThreeHoldEnd =
+          transitionEnd + DEER_DEATH_FRAME_THREE_HOLD_MS;
+        const fadeEnd = frameThreeHoldEnd + DEER_DEATH_FADE_MS;
+
+        deer.element.style.opacity = "1";
+
+        if (elapsed < frameOneEnd) {
+          showSingleDeerFrame(deer, 61);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < frameTwoHoldEnd) {
+          showSingleDeerFrame(deer, 62);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < transitionEnd) {
+          const progress =
+            (elapsed - frameTwoHoldEnd) /
+            DEER_DEATH_TRANSITION_MS;
+          showDeerCrossfade(deer, 62, 63, progress);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < frameThreeHoldEnd) {
+          showSingleDeerFrame(deer, 63);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < fadeEnd) {
+          const fadeProgress =
+            (elapsed - frameThreeHoldEnd) /
+            DEER_DEATH_FADE_MS;
+          showSingleDeerFrame(deer, 63);
+          deer.element.style.opacity = String(Math.max(0, 1 - fadeProgress));
+          renderDeer(deer);
+          return;
+        }
+
+        removeDeer(deer);
+      }
+
       function createZombie() {
         // 생성·이동·사망·페이드 중인 개체를 모두 화면 표시 수에 포함합니다.
         if (zombies.size >= MAX_ACTIVE_ZOMBIES) return;
@@ -2191,6 +2739,7 @@
         if (wasPlayerKill) {
           scheduleBgmAfterFirstPlayerKill();
           triggerFirstKillBirdFlock();
+          createDeer();
         }
 
         if (zombie.autoDeathTimer !== null) {
@@ -2560,6 +3109,18 @@
           }
         }
 
+        for (const deer of deerMap.values()) {
+          if (deer.state === "birthing") {
+            updateDeerBirthing(deer, now);
+          } else if (deer.state === "idle") {
+            updateDeerIdle(deer, now);
+          } else if (deer.state === "evading") {
+            updateDeerEvading(deer, deltaMs);
+          } else if (deer.state === "dying") {
+            updateDeerDying(deer, now);
+          }
+        }
+
         updateCloudGroup("sky", deltaMs, now);
         updateCloudGroup("shadow", deltaMs, now);
         updateBirds(now);
@@ -2577,6 +3138,13 @@
             createZombie();
           }
         }, SPAWN_INTERVAL_MS);
+
+        // 사슴은 1분마다 한 마리씩 생성합니다.
+        window.setInterval(() => {
+          if (deerMap.size < MAX_ACTIVE_DEER) {
+            createDeer();
+          }
+        }, DEER_SPAWN_INTERVAL_MS);
       }
 
       axePickupHitArea.addEventListener("pointerdown", collectAxe);
@@ -2592,8 +3160,8 @@
       window.addEventListener("resize", updateWorldScale);
 
       async function initializeGame() {
-        // 공격에 쓰이는 사망 스프라이트까지 디코딩된 뒤 좀비를 생성합니다.
-        await preloadZombieSprites();
+        // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
+        await preloadGameSprites();
 
         updateWorldScale();
         initializeClouds();
