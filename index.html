@@ -17,8 +17,8 @@
       --world-size: 2048px;
       --zombie-width: 64px;
       --zombie-height: 128px;
-      --deer-width: 102.4px;
-      --deer-height: 102.4px;
+      --deer-width: 85.3333px;
+      --deer-height: 85.3333px;
     }
 
     * {
@@ -496,14 +496,14 @@
     .deer::before {
       content: "";
       position: absolute;
-      left: 27.4px;
+      left: 22.8333px;
       bottom: 0px;
-      width: 78.4px;
-      height: 14.4px;
+      width: 65.3333px;
+      height: 12px;
       background: #000;
       border-radius: 50%;
       opacity: 0.2;
-      filter: blur(6px);
+      filter: blur(5px);
       transform: skewX(-28deg) scaleY(0.42);
       transform-origin: left center;
       pointer-events: none;
@@ -520,7 +520,7 @@
       width: 100%;
       height: 100%;
       background-repeat: no-repeat;
-      background-size: 1024px 1024px;
+      background-size: 512px 512px;
       background-position: 0 0;
       image-rendering: auto;
       transform-origin: center center;
@@ -535,7 +535,7 @@
       width: 100%;
       height: 100%;
       background-repeat: no-repeat;
-      background-size: 1024px 1024px;
+      background-size: 512px 512px;
       background-position: 0 0;
       image-rendering: auto;
       transform-origin: center center;
@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.047</div>
+  <div id="versionLabel">v0.048</div>
 
   <script>
     (() => {
@@ -656,9 +656,12 @@
       const HALF_W = ZOMBIE_WIDTH / 2;
       const HALF_H = ZOMBIE_HEIGHT / 2;
 
-      const DEER_WIDTH = 102.4;
-      const DEER_HEIGHT = 102.4;
-      const DEER_FRAME_SIZE = 128;
+      const DEER_SHEET_SIZE = 512;
+      const DEER_SHEET_COLUMNS = 6;
+      const DEER_SHEET_ROWS = 6;
+      const DEER_FRAME_SIZE = DEER_SHEET_SIZE / DEER_SHEET_COLUMNS;
+      const DEER_WIDTH = DEER_FRAME_SIZE;
+      const DEER_HEIGHT = DEER_FRAME_SIZE;
       const DEER_HALF_W = DEER_WIDTH / 2;
       const DEER_HALF_H = DEER_HEIGHT / 2;
       const DEER_HITBOX_SIZE = DEER_WIDTH;
@@ -727,22 +730,36 @@
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const BGM_SOUND = "sounds/bgm_meadow.mp3";
 
-      const DEER_IDLE_FRAME = 0;
-      const DEER_LOOK_SEQUENCE = [0, 1, 2, 1, 0];
+      // 프레임 번호는 코드 내부에서 0부터 시작합니다.
+      // 리소스 기준: 대기 13 / 보기 13→11→12→11→13 / 풀 뜯기 13→4→5→4→13
+      const DEER_IDLE_FRAME = 12;
+      const DEER_LOOK_SEQUENCE = [12, 10, 11, 10, 12];
       const DEER_LOOK_DURATIONS_MS = [100, 100, 3_000, 100, 100];
-      const DEER_GRAZE_SEQUENCE = [0, 59, 60, 59, 0];
+      const DEER_GRAZE_SEQUENCE = [12, 3, 4, 3, 12];
       const DEER_GRAZE_DURATIONS_MS = [200, 200, 1_500, 200, 200];
-      const DEER_RUN_FRAME_START = 3;
-      const DEER_RUN_FRAME_COUNT = 5;
+
+      // 달리기: 리소스 14~22를 한 번 재생한 뒤 23~29를 15fps로 반복합니다.
+      const DEER_RUN_INTRO_FRAME_START = 13;
+      const DEER_RUN_INTRO_FRAME_COUNT = 9;
+      const DEER_RUN_LOOP_FRAME_START = 22;
+      const DEER_RUN_LOOP_FRAME_COUNT = 7;
       const DEER_RUN_FPS = 15;
+
+      // 생성: 리소스 1→2→3→17, 크로스페이드 없이 재생합니다.
+      const DEER_BIRTH_FRAME_SEQUENCE = [0, 1, 2, 16];
       const DEER_BIRTH_FRAME_FADE_MS = 500;
       const DEER_BIRTH_FRAME_ONE_HOLD_MS = 2_000;
       const DEER_BIRTH_FRAME_TWO_MS = 200;
       const DEER_BIRTH_FRAME_THREE_MS = 200;
+      const DEER_BIRTH_FRAME_FOUR_MS = 200;
+
+      // 사망: 리소스 7→8→9→10. 마지막 전환과 페이드 시간은 기존 연출을 유지합니다.
+      const DEER_DEATH_FRAME_SEQUENCE = [6, 7, 8, 9];
       const DEER_DEATH_FRAME_ONE_MS = 400;
-      const DEER_DEATH_FRAME_TWO_HOLD_MS = 6_000;
-      const DEER_DEATH_TRANSITION_MS = 1_000;
+      const DEER_DEATH_FRAME_TWO_MS = 400;
       const DEER_DEATH_FRAME_THREE_HOLD_MS = 6_000;
+      const DEER_DEATH_TRANSITION_MS = 1_000;
+      const DEER_DEATH_FRAME_FOUR_HOLD_MS = 6_000;
       const DEER_DEATH_FADE_MS = 3_000;
       const DEER_DEATH_SLIDE_DISTANCE_PX = 60;
       const DEER_DEATH_SLIDE_MS = 700;
@@ -1244,8 +1261,8 @@
 
       function deerFramePosition(frameIndex) {
         const normalizedIndex = Math.max(0, frameIndex);
-        const col = normalizedIndex % 8;
-        const row = Math.floor(normalizedIndex / 8);
+        const col = normalizedIndex % DEER_SHEET_COLUMNS;
+        const row = Math.floor(normalizedIndex / DEER_SHEET_COLUMNS);
         return `${-col * DEER_FRAME_SIZE}px ${-row * DEER_FRAME_SIZE}px`;
       }
 
@@ -2476,6 +2493,7 @@
           evadeDirection: 0,
           runElapsed: 0,
           runFrame: 0,
+          runIntroComplete: false,
           deathStartedAt: 0,
           deathStartX: 0,
           deathSlideDirection: 0
@@ -2483,7 +2501,7 @@
 
         deerMap.set(deer.id, deer);
         setDeerFacing(deer);
-        showSingleDeerFrame(deer, 56);
+        showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[0]);
         renderDeer(deer);
 
         hitbox.addEventListener("pointerdown", (event) => {
@@ -2502,6 +2520,7 @@
         deer.facing = deer.evadeDirection < 0 ? "left" : "right";
         deer.runElapsed = 0;
         deer.runFrame = 0;
+        deer.runIntroComplete = false;
         setDeerFacing(deer);
       }
 
@@ -2520,7 +2539,7 @@
         deer.deathSlideDirection = slideDirection || 1;
         deer.element.style.opacity = "1";
         playSound(HIT_SOUND, 0.5);
-        showSingleDeerFrame(deer, 61);
+        showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[0]);
       }
 
       function attackDeer(deer) {
@@ -2547,32 +2566,40 @@
       function updateDeerBirthing(deer, now) {
         const elapsed = now - deer.birthStartedAt;
 
-        // 생성 프레임은 57 → 58 → 59 → 1 순서로 크로스페이드 없이 전환합니다.
+        // 생성 프레임은 1 → 2 → 3 → 17 순서로 크로스페이드 없이 전환합니다.
         const firstFrameEnd =
           DEER_BIRTH_FRAME_FADE_MS + DEER_BIRTH_FRAME_ONE_HOLD_MS;
         const secondFrameEnd =
           firstFrameEnd + DEER_BIRTH_FRAME_TWO_MS;
         const thirdFrameEnd =
           secondFrameEnd + DEER_BIRTH_FRAME_THREE_MS;
+        const fourthFrameEnd =
+          thirdFrameEnd + DEER_BIRTH_FRAME_FOUR_MS;
 
         deer.element.style.opacity = String(
           clamp(elapsed / DEER_BIRTH_FRAME_FADE_MS, 0, 1)
         );
 
         if (elapsed < firstFrameEnd) {
-          showSingleDeerFrame(deer, 56);
+          showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[0]);
           renderDeer(deer);
           return;
         }
 
         if (elapsed < secondFrameEnd) {
-          showSingleDeerFrame(deer, 57);
+          showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[1]);
           renderDeer(deer);
           return;
         }
 
         if (elapsed < thirdFrameEnd) {
-          showSingleDeerFrame(deer, 58);
+          showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[2]);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < fourthFrameEnd) {
+          showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[3]);
           renderDeer(deer);
           return;
         }
@@ -2603,14 +2630,24 @@
         if (deer.runElapsed >= frameDuration) {
           const advancedFrames = Math.floor(deer.runElapsed / frameDuration);
           deer.runElapsed %= frameDuration;
-          deer.runFrame =
-            (deer.runFrame + advancedFrames) % DEER_RUN_FRAME_COUNT;
+          deer.runFrame += advancedFrames;
+
+          if (!deer.runIntroComplete &&
+              deer.runFrame >= DEER_RUN_INTRO_FRAME_COUNT) {
+            deer.runIntroComplete = true;
+            deer.runFrame =
+              (deer.runFrame - DEER_RUN_INTRO_FRAME_COUNT) %
+              DEER_RUN_LOOP_FRAME_COUNT;
+          } else if (deer.runIntroComplete) {
+            deer.runFrame %= DEER_RUN_LOOP_FRAME_COUNT;
+          }
         }
 
-        showSingleDeerFrame(
-          deer,
-          DEER_RUN_FRAME_START + deer.runFrame
-        );
+        const currentRunFrame = deer.runIntroComplete
+          ? DEER_RUN_LOOP_FRAME_START + deer.runFrame
+          : DEER_RUN_INTRO_FRAME_START + deer.runFrame;
+
+        showSingleDeerFrame(deer, currentRunFrame);
         renderDeer(deer);
 
         if (isDeerOutsideVisibleArea(deer)) {
@@ -2621,13 +2658,14 @@
       function updateDeerDying(deer, now) {
         const elapsed = now - deer.deathStartedAt;
         const frameOneEnd = DEER_DEATH_FRAME_ONE_MS;
-        const frameTwoHoldEnd =
-          frameOneEnd + DEER_DEATH_FRAME_TWO_HOLD_MS;
-        const transitionEnd =
-          frameTwoHoldEnd + DEER_DEATH_TRANSITION_MS;
+        const frameTwoEnd = frameOneEnd + DEER_DEATH_FRAME_TWO_MS;
         const frameThreeHoldEnd =
-          transitionEnd + DEER_DEATH_FRAME_THREE_HOLD_MS;
-        const fadeEnd = frameThreeHoldEnd + DEER_DEATH_FADE_MS;
+          frameTwoEnd + DEER_DEATH_FRAME_THREE_HOLD_MS;
+        const transitionEnd =
+          frameThreeHoldEnd + DEER_DEATH_TRANSITION_MS;
+        const frameFourHoldEnd =
+          transitionEnd + DEER_DEATH_FRAME_FOUR_HOLD_MS;
+        const fadeEnd = frameFourHoldEnd + DEER_DEATH_FADE_MS;
         const slideProgress = easeOutSine(elapsed / DEER_DEATH_SLIDE_MS);
 
         deer.x =
@@ -2638,37 +2676,48 @@
         deer.element.style.opacity = "1";
 
         if (elapsed < frameOneEnd) {
-          showSingleDeerFrame(deer, 61);
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[0]);
           renderDeer(deer);
           return;
         }
 
-        if (elapsed < frameTwoHoldEnd) {
-          showSingleDeerFrame(deer, 62);
+        if (elapsed < frameTwoEnd) {
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[1]);
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < frameThreeHoldEnd) {
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[2]);
           renderDeer(deer);
           return;
         }
 
         if (elapsed < transitionEnd) {
           const progress =
-            (elapsed - frameTwoHoldEnd) /
+            (elapsed - frameThreeHoldEnd) /
             DEER_DEATH_TRANSITION_MS;
-          showDeerCrossfade(deer, 62, 63, progress);
+          showDeerCrossfade(
+            deer,
+            DEER_DEATH_FRAME_SEQUENCE[2],
+            DEER_DEATH_FRAME_SEQUENCE[3],
+            progress
+          );
           renderDeer(deer);
           return;
         }
 
-        if (elapsed < frameThreeHoldEnd) {
-          showSingleDeerFrame(deer, 63);
+        if (elapsed < frameFourHoldEnd) {
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[3]);
           renderDeer(deer);
           return;
         }
 
         if (elapsed < fadeEnd) {
           const fadeProgress =
-            (elapsed - frameThreeHoldEnd) /
+            (elapsed - frameFourHoldEnd) /
             DEER_DEATH_FADE_MS;
-          showSingleDeerFrame(deer, 63);
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[3]);
           deer.element.style.opacity = String(Math.max(0, 1 - fadeProgress));
           renderDeer(deer);
           return;
