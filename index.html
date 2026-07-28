@@ -496,9 +496,9 @@
     .deer::before {
       content: "";
       position: absolute;
-      left: 22.8333px;
-      bottom: 0px;
-      width: 65.3333px;
+      left: 17.8333px;
+      bottom: 15px;
+      width: 73.3333px;
       height: 12px;
       background: #000;
       border-radius: 50%;
@@ -629,7 +629,7 @@
     type="button"
     aria-label="Explore"
   ></button>
-  <div id="versionLabel">v0.048</div>
+  <div id="versionLabel">v0.049</div>
 
   <script>
     (() => {
@@ -744,22 +744,28 @@
       const DEER_RUN_LOOP_FRAME_START = 22;
       const DEER_RUN_LOOP_FRAME_COUNT = 7;
       const DEER_RUN_FPS = 15;
+      const DEER_TURN_FRAME_SEQUENCE = [30, 31, 32];
+      const DEER_TURN_FRAME_ONE_MS = 200;
+      const DEER_TURN_FRAME_TWO_MS = 100;
+      const DEER_TURN_FRAME_THREE_MS = 100;
+      const DEER_TURN_SLOWDOWN_MS = 300;
 
-      // 생성: 리소스 1→2→3→17, 크로스페이드 없이 재생합니다.
-      const DEER_BIRTH_FRAME_SEQUENCE = [0, 1, 2, 16];
+      // 생성: 리소스 1→2→3, 크로스페이드 없이 재생한 뒤 기본 대기로 전환합니다.
+      const DEER_BIRTH_FRAME_SEQUENCE = [0, 1, 2];
       const DEER_BIRTH_FRAME_FADE_MS = 500;
       const DEER_BIRTH_FRAME_ONE_HOLD_MS = 2_000;
       const DEER_BIRTH_FRAME_TWO_MS = 200;
       const DEER_BIRTH_FRAME_THREE_MS = 200;
-      const DEER_BIRTH_FRAME_FOUR_MS = 200;
 
       // 사망: 리소스 7→8→9→10. 마지막 전환과 페이드 시간은 기존 연출을 유지합니다.
-      const DEER_DEATH_FRAME_SEQUENCE = [6, 7, 8, 9];
+      const DEER_DEATH_FRAME_SEQUENCE = [6, 7, 8, 9, 5];
       const DEER_DEATH_FRAME_ONE_MS = 400;
       const DEER_DEATH_FRAME_TWO_MS = 400;
-      const DEER_DEATH_FRAME_THREE_HOLD_MS = 6_000;
-      const DEER_DEATH_TRANSITION_MS = 1_000;
-      const DEER_DEATH_FRAME_FOUR_HOLD_MS = 6_000;
+      const DEER_DEATH_FRAME_THREE_HOLD_MS = 3_000;
+      const DEER_DEATH_TRANSITION_ONE_MS = 1_000;
+      const DEER_DEATH_FRAME_FOUR_HOLD_MS = 3_000;
+      const DEER_DEATH_TRANSITION_TWO_MS = 1_000;
+      const DEER_DEATH_FRAME_FIVE_HOLD_MS = 3_000;
       const DEER_DEATH_FADE_MS = 3_000;
       const DEER_DEATH_SLIDE_DISTANCE_PX = 60;
       const DEER_DEATH_SLIDE_MS = 700;
@@ -787,7 +793,7 @@
       const CLOUD_MAX_SCALE = 1.5;
 
       // 지상 그림자 크기: 기본 크기의 1~2배
-      const CLOUD_SHADOW_MIN_SCALE = 1;
+      const CLOUD_SHADOW_MIN_SCALE = 1.7;
       const CLOUD_SHADOW_MAX_SCALE = 2;
 
       // 실제 구름은 한 화면에 1~3개를 유지합니다.
@@ -2494,6 +2500,9 @@
           runElapsed: 0,
           runFrame: 0,
           runIntroComplete: false,
+          turnStartedAt: 0,
+          turnDirection: 0,
+          turnNextDirection: 0,
           deathStartedAt: 0,
           deathStartX: 0,
           deathSlideDirection: 0
@@ -2513,14 +2522,35 @@
         return true;
       }
 
-      function startDeerEvade(deer) {
+      function beginDeerEvadeInDirection(deer, direction) {
         deer.state = "evading";
         deer.idleAnimation = null;
-        deer.evadeDirection = Math.random() < 0.5 ? -1 : 1;
+        deer.evadeDirection = direction < 0 ? -1 : 1;
         deer.facing = deer.evadeDirection < 0 ? "left" : "right";
         deer.runElapsed = 0;
         deer.runFrame = 0;
         deer.runIntroComplete = false;
+        setDeerFacing(deer);
+      }
+
+      function startDeerEvade(deer) {
+        const oppositeDirection = deer.facing === "left" ? 1 : -1;
+        beginDeerEvadeInDirection(deer, oppositeDirection);
+      }
+
+      function startDeerTurnaround(deer) {
+        const currentDirection = deer.state === "evading"
+          ? deer.evadeDirection
+          : (deer.state === "turning"
+            ? deer.turnDirection
+            : (deer.facing === "left" ? -1 : 1));
+
+        deer.state = "turning";
+        deer.idleAnimation = null;
+        deer.turnStartedAt = performance.now();
+        deer.turnDirection = currentDirection < 0 ? -1 : 1;
+        deer.turnNextDirection = deer.turnDirection * -1;
+        deer.facing = deer.turnDirection < 0 ? "left" : "right";
         setDeerFacing(deer);
       }
 
@@ -2529,7 +2559,9 @@
 
         const slideDirection = deer.state === "evading"
           ? deer.evadeDirection
-          : (deer.facing === "left" ? -1 : 1);
+          : (deer.state === "turning"
+            ? deer.turnDirection
+            : (deer.facing === "left" ? -1 : 1));
 
         deer.state = "dying";
         deer.element.classList.add("is-dead");
@@ -2560,21 +2592,27 @@
         }
 
         playSound(DEER_MISS_SOUND, 0.7);
-        startDeerEvade(deer);
+
+        if (deer.hitCount === 1) {
+          const currentDirection = deer.facing === "left" ? -1 : 1;
+          beginDeerEvadeInDirection(deer, currentDirection);
+          return;
+        }
+
+        startDeerTurnaround(deer);
       }
 
       function updateDeerBirthing(deer, now) {
         const elapsed = now - deer.birthStartedAt;
 
-        // 생성 프레임은 1 → 2 → 3 → 17 순서로 크로스페이드 없이 전환합니다.
+        // 생성 프레임은 1 → 2 → 3 순서로 크로스페이드 없이 전환하고,
+        // 이후 기본 대기 프레임 13으로 전환합니다.
         const firstFrameEnd =
           DEER_BIRTH_FRAME_FADE_MS + DEER_BIRTH_FRAME_ONE_HOLD_MS;
         const secondFrameEnd =
           firstFrameEnd + DEER_BIRTH_FRAME_TWO_MS;
         const thirdFrameEnd =
           secondFrameEnd + DEER_BIRTH_FRAME_THREE_MS;
-        const fourthFrameEnd =
-          thirdFrameEnd + DEER_BIRTH_FRAME_FOUR_MS;
 
         deer.element.style.opacity = String(
           clamp(elapsed / DEER_BIRTH_FRAME_FADE_MS, 0, 1)
@@ -2598,12 +2636,6 @@
           return;
         }
 
-        if (elapsed < fourthFrameEnd) {
-          showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[3]);
-          renderDeer(deer);
-          return;
-        }
-
         deer.state = "idle";
         deer.element.style.opacity = "1";
         deer.idleAnimation = null;
@@ -2620,6 +2652,42 @@
         updateActiveDeerIdleAnimation(deer, now);
         deer.element.style.opacity = "1";
         renderDeer(deer);
+      }
+
+      function updateDeerTurning(deer, deltaMs) {
+        const elapsed = performance.now() - deer.turnStartedAt;
+        const slowProgress = clamp(elapsed / DEER_TURN_SLOWDOWN_MS, 0, 1);
+        const speedFactor = 1 - slowProgress;
+
+        deer.x +=
+          deer.turnDirection *
+          DEER_EVADE_SPEED_PX_PER_MS *
+          deltaMs *
+          speedFactor;
+
+        const frameOneEnd = DEER_TURN_FRAME_ONE_MS;
+        const frameTwoEnd = frameOneEnd + DEER_TURN_FRAME_TWO_MS;
+        const turnEnd = frameTwoEnd + DEER_TURN_FRAME_THREE_MS;
+
+        if (elapsed < frameOneEnd) {
+          showSingleDeerFrame(deer, DEER_TURN_FRAME_SEQUENCE[0]);
+          renderDeer(deer);
+        } else if (elapsed < frameTwoEnd) {
+          showSingleDeerFrame(deer, DEER_TURN_FRAME_SEQUENCE[1]);
+          renderDeer(deer);
+        } else if (elapsed < turnEnd) {
+          showSingleDeerFrame(deer, DEER_TURN_FRAME_SEQUENCE[2]);
+          renderDeer(deer);
+        } else {
+          beginDeerEvadeInDirection(deer, deer.turnNextDirection);
+          showSingleDeerFrame(deer, DEER_RUN_INTRO_FRAME_START);
+          renderDeer(deer);
+          return;
+        }
+
+        if (isDeerOutsideVisibleArea(deer)) {
+          removeDeer(deer);
+        }
       }
 
       function updateDeerEvading(deer, deltaMs) {
@@ -2661,11 +2729,15 @@
         const frameTwoEnd = frameOneEnd + DEER_DEATH_FRAME_TWO_MS;
         const frameThreeHoldEnd =
           frameTwoEnd + DEER_DEATH_FRAME_THREE_HOLD_MS;
-        const transitionEnd =
-          frameThreeHoldEnd + DEER_DEATH_TRANSITION_MS;
+        const transitionOneEnd =
+          frameThreeHoldEnd + DEER_DEATH_TRANSITION_ONE_MS;
         const frameFourHoldEnd =
-          transitionEnd + DEER_DEATH_FRAME_FOUR_HOLD_MS;
-        const fadeEnd = frameFourHoldEnd + DEER_DEATH_FADE_MS;
+          transitionOneEnd + DEER_DEATH_FRAME_FOUR_HOLD_MS;
+        const transitionTwoEnd =
+          frameFourHoldEnd + DEER_DEATH_TRANSITION_TWO_MS;
+        const frameFiveHoldEnd =
+          transitionTwoEnd + DEER_DEATH_FRAME_FIVE_HOLD_MS;
+        const fadeEnd = frameFiveHoldEnd + DEER_DEATH_FADE_MS;
         const slideProgress = easeOutSine(elapsed / DEER_DEATH_SLIDE_MS);
 
         deer.x =
@@ -2693,10 +2765,10 @@
           return;
         }
 
-        if (elapsed < transitionEnd) {
+        if (elapsed < transitionOneEnd) {
           const progress =
             (elapsed - frameThreeHoldEnd) /
-            DEER_DEATH_TRANSITION_MS;
+            DEER_DEATH_TRANSITION_ONE_MS;
           showDeerCrossfade(
             deer,
             DEER_DEATH_FRAME_SEQUENCE[2],
@@ -2713,11 +2785,31 @@
           return;
         }
 
+        if (elapsed < transitionTwoEnd) {
+          const progress =
+            (elapsed - frameFourHoldEnd) /
+            DEER_DEATH_TRANSITION_TWO_MS;
+          showDeerCrossfade(
+            deer,
+            DEER_DEATH_FRAME_SEQUENCE[3],
+            DEER_DEATH_FRAME_SEQUENCE[4],
+            progress
+          );
+          renderDeer(deer);
+          return;
+        }
+
+        if (elapsed < frameFiveHoldEnd) {
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[4]);
+          renderDeer(deer);
+          return;
+        }
+
         if (elapsed < fadeEnd) {
           const fadeProgress =
-            (elapsed - frameFourHoldEnd) /
+            (elapsed - frameFiveHoldEnd) /
             DEER_DEATH_FADE_MS;
-          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[3]);
+          showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[4]);
           deer.element.style.opacity = String(Math.max(0, 1 - fadeProgress));
           renderDeer(deer);
           return;
@@ -3189,6 +3281,8 @@
             updateDeerBirthing(deer, now);
           } else if (deer.state === "idle") {
             updateDeerIdle(deer, now);
+          } else if (deer.state === "turning") {
+            updateDeerTurning(deer, deltaMs);
           } else if (deer.state === "evading") {
             updateDeerEvading(deer, deltaMs);
           } else if (deer.state === "dying") {
