@@ -760,19 +760,21 @@
       opacity: 0;
     }
 
-    /* 밤 전환에 맞춰 좀비와 사슴을 조금 어둡게 표시합니다. */
+    /* 밤 전환에 맞춰 좀비, 사슴, 새를 더 어둡게 표시합니다. */
     .zombie-sprite,
     .zombie-sprite-overlay,
     .deer-sprite,
-    .deer-sprite-overlay {
+    .deer-sprite-overlay,
+    .bird {
       transition: filter 3s ease;
     }
 
     body.is-night .zombie-sprite,
     body.is-night .zombie-sprite-overlay,
     body.is-night .deer-sprite,
-    body.is-night .deer-sprite-overlay {
-      filter: brightness(0.6);
+    body.is-night .deer-sprite-overlay,
+    body.is-night .bird {
+      filter: brightness(0.4);
     }
 
     .deer-hitbox {
@@ -912,7 +914,7 @@
     <div id="exploringLabel">Exploring</div>
     <div id="exploringTime">10m</div>
   </div>
-  <div id="versionLabel">v0.050</div>
+  <div id="versionLabel">v0.051</div>
 
   <script>
     (() => {
@@ -1024,7 +1026,10 @@
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
       const NIGHT_BGM_SOUND = "sounds/bgm_meadow_night.mp3";
-      const BGM_TRANSITION_MS = 3_000;
+      // 기존 곡이 먼저 줄어든 뒤 잠시 조용한 구간을 두고 새 곡이 올라옵니다.
+      const BGM_FADE_OUT_MS = 2_500;
+      const BGM_QUIET_HOLD_MS = 1_000;
+      const BGM_FADE_IN_MS = 2_500;
 
       // 프레임 번호는 코드 내부에서 0부터 시작합니다.
       // 리소스 기준: 대기 13 / 보기 13→11→12→11→13 / 풀 뜯기 13→4→5→4→13
@@ -1081,6 +1086,7 @@
       const FOREST_BLOCKED_TOAST_MESSAGE =
         "I shouldn't go without a compass.";
       const CITY_BLOCKED_TOAST_MESSAGE = "It's too far to walk.";
+      const EXPLORATION_COMPLETE_TOAST_MESSAGE = "Home sweet home.";
       const TOAST_DURATION_MS = 3_000;
       const TOAST_REPLACED_FADE_MS = 200;
 
@@ -1120,6 +1126,12 @@
 
       // 구름과 구름 그림자는 생성·퇴장 시 각각 1초 동안 페이드합니다.
       const CLOUD_FADE_DURATION_MS = 1_000;
+
+      // 구름 그림자는 낮에는 30%, 밤에는 70% 투명도로 표시합니다.
+      // 낮·밤 전환에 맞춰 3초 동안 부드럽게 변화합니다.
+      const CLOUD_SHADOW_DAY_OPACITY = 0.3;
+      const CLOUD_SHADOW_NIGHT_OPACITY = 0.7;
+      const CLOUD_SHADOW_NIGHT_TRANSITION_MS = 3_000;
 
       // 실제 구름과 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
       // 0.00 = 침범 불가 / 0.10 = 약 10% 침범 허용 / 1.00 = 제한 없음
@@ -1369,6 +1381,11 @@
         shadow: 0
       };
 
+      let cloudShadowBaseOpacity = CLOUD_SHADOW_DAY_OPACITY;
+      let cloudShadowOpacityStart = CLOUD_SHADOW_DAY_OPACITY;
+      let cloudShadowOpacityTarget = CLOUD_SHADOW_DAY_OPACITY;
+      let cloudShadowOpacityTransitionStartedAt = 0;
+
       const birds = [];
       let firstKillBirdFlockPlayed = false;
       let firstKillDeerSpawned = false;
@@ -1540,76 +1557,150 @@
         exploringTime.textContent = `${remainingMinutes}m`;
       }
 
-      function fadeBgmVolumes(
+      function animateBgmVolumes(
         targetDayVolume,
         targetNightVolume,
-        durationMs = BGM_TRANSITION_MS
+        durationMs,
+        transitionToken
       ) {
-        const fadeToken = ++bgmFadeToken;
-        const dayStartVolume = dayBgmAudio.volume;
-        const nightStartVolume = nightBgmAudio.volume;
-        const startedAt = performance.now();
+        return new Promise((resolve) => {
+          const dayStartVolume = dayBgmAudio.volume;
+          const nightStartVolume = nightBgmAudio.volume;
+          const startedAt = performance.now();
+
+          if (bgmFadeFrameId !== null) {
+            cancelAnimationFrame(bgmFadeFrameId);
+            bgmFadeFrameId = null;
+          }
+
+          const updateFade = (now) => {
+            if (transitionToken !== bgmFadeToken) {
+              resolve(false);
+              return;
+            }
+
+            const progress = clamp(
+              (now - startedAt) / Math.max(1, durationMs),
+              0,
+              1
+            );
+            const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+            dayBgmAudio.volume = clamp(
+              dayStartVolume +
+                (targetDayVolume - dayStartVolume) * easedProgress,
+              0,
+              1
+            );
+            nightBgmAudio.volume = clamp(
+              nightStartVolume +
+                (targetNightVolume - nightStartVolume) * easedProgress,
+              0,
+              1
+            );
+
+            if (progress < 1) {
+              bgmFadeFrameId = requestAnimationFrame(updateFade);
+            } else {
+              bgmFadeFrameId = null;
+              resolve(true);
+            }
+          };
+
+          bgmFadeFrameId = requestAnimationFrame(updateFade);
+        });
+      }
+
+      function waitForBgmTransition(durationMs, transitionToken) {
+        return new Promise((resolve) => {
+          window.setTimeout(() => {
+            resolve(transitionToken === bgmFadeToken);
+          }, durationMs);
+        });
+      }
+
+      async function transitionBgmForNightMode(enabled) {
+        if (!bgmStarted) return;
+
+        const transitionToken = ++bgmFadeToken;
+        const incomingAudio = enabled ? nightBgmAudio : dayBgmAudio;
+        const outgoingAudio = enabled ? dayBgmAudio : nightBgmAudio;
 
         if (bgmFadeFrameId !== null) {
           cancelAnimationFrame(bgmFadeFrameId);
           bgmFadeFrameId = null;
         }
 
-        const updateFade = (now) => {
-          if (fadeToken !== bgmFadeToken) return;
-
-          const progress = clamp(
-            (now - startedAt) / Math.max(1, durationMs),
-            0,
-            1
-          );
-
-          dayBgmAudio.volume = clamp(
-            dayStartVolume +
-              (targetDayVolume - dayStartVolume) * progress,
-            0,
-            1
-          );
-          nightBgmAudio.volume = clamp(
-            nightStartVolume +
-              (targetNightVolume - nightStartVolume) * progress,
-            0,
-            1
-          );
-
-          if (progress < 1) {
-            bgmFadeFrameId = requestAnimationFrame(updateFade);
-          } else {
-            bgmFadeFrameId = null;
+        try {
+          if (incomingAudio.paused) {
+            await incomingAudio.play();
           }
-        };
-
-        bgmFadeFrameId = requestAnimationFrame(updateFade);
-      }
-
-      function transitionBgmForNightMode(enabled) {
-        if (!bgmStarted) return;
-
-        if (enabled) {
-          const startNightTrack = nightBgmAudio.paused
-            ? nightBgmAudio.play()
-            : Promise.resolve();
-
-          startNightTrack
-            .then(() => {
-              fadeBgmVolumes(0, 1);
-            })
-            .catch(() => {
-              // 야간 트랙 재생이 차단되면 현재 낮 BGM을 유지합니다.
-            });
+        } catch (_) {
+          // 새 트랙 재생이 차단되면 현재 재생 상태를 유지합니다.
           return;
         }
 
-        fadeBgmVolumes(1, 0);
+        // 두 트랙을 먼저 0까지 낮춰 전환 중 조용한 여백을 만듭니다.
+        const fadedOut = await animateBgmVolumes(
+          0,
+          0,
+          BGM_FADE_OUT_MS,
+          transitionToken
+        );
+        if (!fadedOut) return;
+
+        const holdCompleted = await waitForBgmTransition(
+          BGM_QUIET_HOLD_MS,
+          transitionToken
+        );
+        if (!holdCompleted) return;
+
+        const fadedIn = await animateBgmVolumes(
+          enabled ? 0 : 1,
+          enabled ? 1 : 0,
+          BGM_FADE_IN_MS,
+          transitionToken
+        );
+        if (!fadedIn) return;
+
+        outgoingAudio.pause();
+      }
+
+      function getCloudShadowBaseOpacity(now = performance.now()) {
+        const elapsed = now - cloudShadowOpacityTransitionStartedAt;
+
+        if (elapsed >= CLOUD_SHADOW_NIGHT_TRANSITION_MS) {
+          cloudShadowBaseOpacity = cloudShadowOpacityTarget;
+          return cloudShadowBaseOpacity;
+        }
+
+        const progress = clamp(
+          elapsed / CLOUD_SHADOW_NIGHT_TRANSITION_MS,
+          0,
+          1
+        );
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+        cloudShadowBaseOpacity =
+          cloudShadowOpacityStart +
+          (cloudShadowOpacityTarget - cloudShadowOpacityStart) *
+            easedProgress;
+
+        return cloudShadowBaseOpacity;
+      }
+
+      function transitionCloudShadowOpacity(enabled) {
+        const now = performance.now();
+        cloudShadowOpacityStart = getCloudShadowBaseOpacity(now);
+        cloudShadowOpacityTarget = enabled
+          ? CLOUD_SHADOW_NIGHT_OPACITY
+          : CLOUD_SHADOW_DAY_OPACITY;
+        cloudShadowOpacityTransitionStartedAt = now;
       }
 
       function setNightMode(enabled) {
         document.body.classList.toggle("is-night", enabled);
+        transitionCloudShadowOpacity(enabled);
         transitionBgmForNightMode(enabled);
       }
 
@@ -1642,6 +1733,7 @@
         explorationEndsAt = 0;
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
+        showToast(EXPLORATION_COMPLETE_TOAST_MESSAGE);
 
         if (explorationTimerId !== null) {
           clearInterval(explorationTimerId);
@@ -2235,7 +2327,9 @@
           y: position.y,
           scale,
           variant,
-          baseOpacity: isShadow ? 0.3 : 1,
+          baseOpacity: isShadow
+            ? getCloudShadowBaseOpacity(now)
+            : 1,
           opacityFactor: initialOpacityFactor,
           /*
             페이지 최초 로드 시 화면 안에 배치되는 구름과 그림자는
@@ -2278,12 +2372,19 @@
         const isShadow = kind === "shadow";
         const group = isShadow ? shadowClouds : skyClouds;
         const visibleBounds = getVisibleWorldBounds();
+        const currentShadowOpacity = isShadow
+          ? getCloudShadowBaseOpacity(now)
+          : 1;
 
         // 화면에서 보이는 속도가 확대 배율과 관계없이 같도록 보정합니다.
         const worldSpeed =
           CLOUD_SPEED_SCREEN_PX_PER_MS / worldScale;
 
         for (const cloud of [...group]) {
+          if (isShadow) {
+            cloud.baseOpacity = currentShadowOpacity;
+          }
+
           cloud.x += CLOUD_DIRECTION.x * worldSpeed * deltaMs;
           cloud.y += CLOUD_DIRECTION.y * worldSpeed * deltaMs;
           renderCloud(cloud);
