@@ -78,6 +78,25 @@
       will-change: transform;
     }
 
+    /* 탐험 중에는 밤 배경을 3초 동안 페이드인하고, 귀환 시 반대로 전환합니다. */
+    #world::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: url("images/bg_field_default_nigth.png");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 2048px 2048px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 3s ease;
+    }
+
+    body.is-night #world::after {
+      opacity: 1;
+    }
+
     #cloudShadows,
     #clouds {
       position: absolute;
@@ -114,6 +133,25 @@
       pointer-events: none;
     }
 
+    /* 탐험 중 빈 그루터기도 3초 동안 밤 이미지로 전환합니다. */
+    #axeStump::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: url("images/bg_stump_night.png");
+      background-repeat: no-repeat;
+      background-position: left top;
+      background-size: 179.2px 179.2px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 3s ease;
+    }
+
+    body.is-night #axeStump::after {
+      opacity: 1;
+    }
+
     /* 이미지와 같은 70% 비율로 축소된 89.6×89.6 영역을 정중앙에 배치합니다. */
     #axePickupHitArea {
       position: absolute;
@@ -121,6 +159,7 @@
       top: 44.8px;
       width: 89.6px;
       height: 89.6px;
+      z-index: 1;
       cursor: pointer;
       pointer-events: auto;
       touch-action: none;
@@ -177,16 +216,37 @@
       pointer-events: none;
     }
 
-    .cloud-sprite {
-      background-image: url("images/bg_field_default_clouds.png");
+    .cloud-visual::before,
+    .cloud-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
       background-repeat: no-repeat;
+      background-position: var(--cloud-position, 0 0);
       background-size: 1024px 1024px;
+      pointer-events: none;
+      transition: opacity 3s ease;
+    }
+
+    .cloud-visual::before {
+      background-image: url("images/bg_field_default_clouds.png");
+      opacity: 1;
+    }
+
+    .cloud-visual::after {
+      background-image: url("images/bg_field_default_clouds_night.png");
+      opacity: 0;
+    }
+
+    body.is-night .cloud-visual::before {
+      opacity: 0;
+    }
+
+    body.is-night .cloud-visual::after {
+      opacity: 1;
     }
 
     .cloud-shadow {
-      background-image: url("images/bg_field_default_clouds.png");
-      background-repeat: no-repeat;
-      background-size: 1024px 1024px;
       opacity: 0.3;
       mix-blend-mode: multiply;
 
@@ -211,6 +271,9 @@
       top: max(30px, calc(env(safe-area-inset-top) + 16px));
       left: 50%;
       z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 100px;
       transform: translateX(-50%);
       color: #fff;
       font-size: 16px;
@@ -222,11 +285,24 @@
       pointer-events: none;
     }
 
+    .hud-resource {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+
+    @media (max-width: 560px) {
+      #hud {
+        gap: 55px;
+        font-size: 14px;
+      }
+    }
+
     #toastLayer {
       position: fixed;
       top: 20vh;
       left: 50%;
-      z-index: 110;
+      z-index: 140;
       width: min(90vw, 420px);
       height: 1px;
       transform: translateX(-50%);
@@ -300,7 +376,7 @@
       position: fixed;
       right: max(10px, env(safe-area-inset-right));
       bottom: max(10px, env(safe-area-inset-bottom));
-      z-index: 100;
+      z-index: 140;
       color: #fff;
       font-size: 11px;
       font-weight: 400;
@@ -310,16 +386,27 @@
       pointer-events: none;
     }
 
-    #exploreButton {
+    #versionLabel.is-test-active {
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    #exploreButton,
+    #inventoryButton,
+    #repairButton {
+      --collapsed-width: 56px;
+      --expanded-width: 120px;
       position: fixed;
       left: max(24px, calc(env(safe-area-inset-left) + 16px));
-      bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
       z-index: 120;
-      width: 56px;
+      display: flex;
+      align-items: center;
+      width: var(--collapsed-width);
       height: 56px;
-      padding: 0;
+      padding: 0 16px 0 12px;
+      overflow: hidden;
       border: 0;
-      border-radius: 50%;
+      border-radius: 28px;
       appearance: none;
       -webkit-appearance: none;
       outline: none;
@@ -327,87 +414,216 @@
       box-shadow: none;
       cursor: pointer;
       touch-action: manipulation;
-      transition: transform 90ms ease-out;
+      transform-origin: left center;
+      transition:
+        width 280ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        transform 90ms ease-out;
     }
 
-    #exploreButton::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 50%;
+    .hud-action-button__icon {
+      flex: 0 0 32px;
       width: 32px;
       height: 32px;
-      background: #fff;
-      transform: translate(-50%, -50%);
-      -webkit-mask-image: url("images/icon_explore.png");
-      mask-image: url("images/icon_explore.png");
-      -webkit-mask-repeat: no-repeat;
-      mask-repeat: no-repeat;
-      -webkit-mask-position: center;
-      mask-position: center;
-      -webkit-mask-size: contain;
-      mask-size: contain;
+      object-fit: contain;
       pointer-events: none;
     }
 
-    #exploreButton:active {
+    .hud-action-button__label {
+      flex: 0 0 auto;
+      margin-left: 10px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 1;
+      text-align: left;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateX(-6px);
+      pointer-events: none;
+      transition:
+        opacity 140ms ease-out,
+        transform 280ms cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      #exploreButton:hover,
+      #inventoryButton:hover,
+      #repairButton:hover {
+        width: var(--expanded-width);
+      }
+
+      #exploreButton:hover .hud-action-button__label,
+      #inventoryButton:hover .hud-action-button__label,
+      #repairButton:hover .hud-action-button__label {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    #exploreButton:focus-visible,
+    #inventoryButton:focus-visible,
+    #repairButton:focus-visible {
+      width: var(--expanded-width);
+    }
+
+    #exploreButton:focus-visible .hud-action-button__label,
+    #inventoryButton:focus-visible .hud-action-button__label,
+    #repairButton:focus-visible .hud-action-button__label {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    #exploreButton.is-menu-open {
+      z-index: 140;
+      width: var(--expanded-width);
+    }
+
+    #exploreButton.is-menu-open .hud-action-button__label {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    #exploreButton {
+      bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
+    }
+
+    #inventoryButton {
+      bottom: max(92px, calc(env(safe-area-inset-bottom) + 84px));
+    }
+
+    #repairButton {
+      bottom: max(160px, calc(env(safe-area-inset-bottom) + 152px));
+    }
+
+    #exploreButton:active,
+    #inventoryButton:active,
+    #repairButton:active {
       transform: scale(0.94);
     }
 
     #exploreButton:focus,
-    #exploreButton:focus-visible {
+    #inventoryButton:focus,
+    #repairButton:focus {
       outline: none;
       box-shadow: none;
     }
 
-    #inventoryButton {
+    #explorationOverlay {
       position: fixed;
-      left: max(24px, calc(env(safe-area-inset-left) + 16px));
-      bottom: max(92px, calc(env(safe-area-inset-bottom) + 84px));
-      z-index: 120;
-      width: 56px;
-      height: 56px;
-      padding: 0;
+      inset: 0;
+      z-index: 130;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.52);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition:
+        opacity 180ms ease-out,
+        visibility 0s linear 180ms;
+    }
+
+    #explorationOverlay.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition-delay: 0s;
+    }
+
+    #explorationMenu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 42px;
+    }
+
+    .exploration-destination {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .exploration-option {
+      padding: 4px 12px;
       border: 0;
-      border-radius: 50%;
       appearance: none;
       -webkit-appearance: none;
       outline: none;
-      background: #000;
-      box-shadow: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 24px;
+      font-weight: 350;
+      line-height: 1;
       cursor: pointer;
-      touch-action: manipulation;
-      transition: transform 90ms ease-out;
+      transform: scale(1);
+      transition:
+        transform 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        font-weight 160ms cubic-bezier(0.215, 0.61, 0.355, 1);
     }
 
-    #inventoryButton::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 32px;
-      height: 32px;
-      background: #fff;
-      transform: translate(-50%, -50%);
-      -webkit-mask-image: url("images/icon_inventory.png");
-      mask-image: url("images/icon_inventory.png");
-      -webkit-mask-repeat: no-repeat;
-      mask-repeat: no-repeat;
-      -webkit-mask-position: center;
-      mask-position: center;
-      -webkit-mask-size: contain;
-      mask-size: contain;
+    .exploration-requirement {
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 12px;
+      font-weight: 350;
+      line-height: 1.45;
+      text-align: center;
       pointer-events: none;
     }
 
-    #inventoryButton:active {
-      transform: scale(0.94);
+    @media (hover: hover) and (pointer: fine) {
+      .exploration-option:hover {
+        font-weight: 500;
+        transform: scale(1.07);
+      }
     }
 
-    #inventoryButton:focus,
-    #inventoryButton:focus-visible {
-      outline: none;
-      box-shadow: none;
+    .exploration-option:active {
+      transform: scale(0.94);
+      transition-duration: 70ms;
+    }
+
+    .exploration-option:focus-visible {
+      font-weight: 500;
+      transform: scale(1.07);
+    }
+
+    #exploringStatus {
+      position: fixed;
+      right: max(24px, calc(env(safe-area-inset-right) + 16px));
+      bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px));
+      z-index: 120;
+      display: none;
+      color: #fff;
+      text-align: right;
+      pointer-events: none;
+    }
+
+    #exploringStatus.is-visible {
+      display: block;
+    }
+
+    #exploringLabel {
+      margin-bottom: 10px;
+      font-size: 19px;
+      font-weight: 450;
+      line-height: 1;
+    }
+
+    #exploringTime {
+      font-size: 59px;
+      font-weight: 500;
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+    }
+
+    #exploringTime.is-test-active {
+      cursor: pointer;
+      pointer-events: auto;
     }
 
     .zombie {
@@ -544,6 +760,21 @@
       opacity: 0;
     }
 
+    /* 밤 전환에 맞춰 좀비와 사슴을 조금 어둡게 표시합니다. */
+    .zombie-sprite,
+    .zombie-sprite-overlay,
+    .deer-sprite,
+    .deer-sprite-overlay {
+      transition: filter 3s ease;
+    }
+
+    body.is-night .zombie-sprite,
+    body.is-night .zombie-sprite-overlay,
+    body.is-night .deer-sprite,
+    body.is-night .deer-sprite-overlay {
+      filter: brightness(0.6);
+    }
+
     .deer-hitbox {
       position: absolute;
       left: 50%;
@@ -617,19 +848,71 @@
     </div>
   </div>
 
-  <div id="hud">Zombies: <span id="zombieCount">0</span></div>
+  <div id="hud">
+    <span class="hud-resource">Zombies <span><span id="zombieCount">0</span>/10</span></span>
+    <span class="hud-resource">Food <span><span id="foodCount">0</span>/5</span></span>
+    <span class="hud-resource">Wood <span><span id="woodCount">0</span>/15</span></span>
+  </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
+  <div id="explorationOverlay" aria-hidden="true">
+    <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
+      <div class="exploration-destination">
+        <button class="exploration-option" type="button" data-destination="village" role="menuitem">Village</button>
+      </div>
+      <div class="exploration-destination">
+        <button class="exploration-option" type="button" data-destination="forest" role="menuitem">Forest</button>
+        <div class="exploration-requirement">Compass 0/1</div>
+      </div>
+      <div class="exploration-destination">
+        <button class="exploration-option" type="button" data-destination="city" role="menuitem">City</button>
+        <div class="exploration-requirement">Fuel 0/1<br />Repair Kit 0/1</div>
+      </div>
+    </div>
+  </div>
+  <button
+    id="repairButton"
+    type="button"
+    aria-label="Repair"
+  >
+    <img
+      class="hud-action-button__icon"
+      src="images/icon_repair.png"
+      alt=""
+      draggable="false"
+    />
+    <span class="hud-action-button__label">Repair</span>
+  </button>
   <button
     id="inventoryButton"
     type="button"
-    aria-label="Inventory"
-  ></button>
+    aria-label="Bag"
+  >
+    <img
+      class="hud-action-button__icon"
+      src="images/icon_inventory.png"
+      alt=""
+      draggable="false"
+    />
+    <span class="hud-action-button__label">Bag</span>
+  </button>
   <button
     id="exploreButton"
     type="button"
     aria-label="Explore"
-  ></button>
-  <div id="versionLabel">v0.049</div>
+  >
+    <img
+      class="hud-action-button__icon"
+      src="images/icon_explore.png"
+      alt=""
+      draggable="false"
+    />
+    <span class="hud-action-button__label">Explore</span>
+  </button>
+  <div id="exploringStatus" aria-live="polite">
+    <div id="exploringLabel">Exploring</div>
+    <div id="exploringTime">10m</div>
+  </div>
+  <div id="versionLabel">v0.050</div>
 
   <script>
     (() => {
@@ -666,17 +949,23 @@
       const DEER_HALF_H = DEER_HEIGHT / 2;
       const DEER_HITBOX_SIZE = DEER_WIDTH;
 
-      // 화면에 동시에 표시되는 좀비의 최대 수
-      const MAX_ACTIVE_ZOMBIES = 100;
-      const MAX_ACTIVE_DEER = 10;
+      // 화면에 동시에 표시되는 개체 수 제한
+      const MAX_ACTIVE_ZOMBIES = 10;
+      const MAX_ACTIVE_DEER = 3;
 
-      // 누적 처치 카운터의 최대 수
-      const MAX_ZOMBIE_COUNT = 999;
+      // 저장되는 자원의 최대 수
+      const MAX_ZOMBIE_COUNT = 10;
+      const MAX_FOOD_COUNT = 5;
+      const MAX_WOOD_COUNT = 15;
 
-      // 좀비 출현 간격: 30초
-      const SPAWN_INTERVAL_MS = 30_000;
-      const DEER_SPAWN_INTERVAL_MS = 60_000;
+      // 생성 간격: 좀비 1분 / 사슴 3분
+      const SPAWN_INTERVAL_MS = 60_000;
+      const DEER_SPAWN_INTERVAL_MS = 3 * 60_000;
       const AUTO_DEATH_MS = 12 * 60_000;
+
+      const EXPLORATION_DURATION_MS = 10 * 60_000;
+      const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
+      const TEST_MODE = true;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -718,6 +1007,11 @@
       const BIRTH_DEATH_SHEET =
         "images/zomebie_default_birthdeath.png";
       const DEER_SHEET = "images/deer_default.png";
+      const NIGHT_BACKGROUND_IMAGE =
+        "images/bg_field_default_nigth.png";
+      const NIGHT_CLOUD_SHEET =
+        "images/bg_field_default_clouds_night.png";
+      const NIGHT_STUMP_IMAGE = "images/bg_stump_night.png";
 
       // 좀비와 사슴 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
       const PRELOADED_ZOMBIE_IMAGES = new Map();
@@ -728,7 +1022,9 @@
       const DEER_MISS_SOUND = "sounds/sfx_miss_axe.wav";
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
-      const BGM_SOUND = "sounds/bgm_meadow.mp3";
+      const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
+      const NIGHT_BGM_SOUND = "sounds/bgm_meadow_night.mp3";
+      const BGM_TRANSITION_MS = 3_000;
 
       // 프레임 번호는 코드 내부에서 0부터 시작합니다.
       // 리소스 기준: 대기 13 / 보기 13→11→12→11→13 / 풀 뜯기 13→4→5→4→13
@@ -779,6 +1075,12 @@
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
         "I should clear this place out first.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
+      const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
+      const CARRY_FULL_TOAST_MESSAGE = "I can't carry any more.";
+      const EXPLORING_BUSY_TOAST_MESSAGE = "I'm already out there.";
+      const FOREST_BLOCKED_TOAST_MESSAGE =
+        "I shouldn't go without a compass.";
+      const CITY_BLOCKED_TOAST_MESSAGE = "It's too far to walk.";
       const TOAST_DURATION_MS = 3_000;
       const TOAST_REPLACED_FADE_MS = 200;
 
@@ -882,11 +1184,52 @@
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
       const countElement = document.getElementById("zombieCount");
+      const foodCountElement = document.getElementById("foodCount");
+      const woodCountElement = document.getElementById("woodCount");
       const toastLayer = document.getElementById("toastLayer");
+      const explorationOverlay = document.getElementById("explorationOverlay");
+      const explorationMenu = document.getElementById("explorationMenu");
+      const explorationOptions = Array.from(
+        document.querySelectorAll(".exploration-option")
+      );
+      const exploringStatus = document.getElementById("exploringStatus");
+      const exploringTime = document.getElementById("exploringTime");
+      const versionLabel = document.getElementById("versionLabel");
       const axeStump = document.getElementById("axeStump");
       const axePickupHitArea = document.getElementById("axePickupHitArea");
+      const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
+      const hudActionButtons = [
+        repairButton,
+        inventoryButton,
+        exploreButton
+      ];
+
+      function updateHudActionButtonWidths() {
+        for (const button of hudActionButtons) {
+          const label = button.querySelector(
+            ".hud-action-button__label"
+          );
+
+          if (!label) continue;
+
+          // 왼쪽 여백 12 + 아이콘 32 + 간격 10 + 텍스트 + 오른쪽 여백 16
+          const expandedWidth =
+            12 + 32 + 10 + label.getBoundingClientRect().width + 16;
+
+          button.style.setProperty(
+            "--expanded-width",
+            `${Math.ceil(expandedWidth)}px`
+          );
+        }
+      }
+
+      updateHudActionButtonWidths();
+
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(updateHudActionButtonWidths);
+      }
 
       const query = new URLSearchParams(location.search);
       if (query.get("debug") === "1") {
@@ -1000,7 +1343,13 @@
       );
 
       let zombieCount = 0;
+      let foodCount = 0;
+      let woodCount = 0;
       let hasAxe = false;
+      let isExplorationMenuOpen = false;
+      let isExploring = false;
+      let explorationEndsAt = 0;
+      let explorationTimerId = null;
       let activeToast = null;
       let nextZombieId = 1;
       let nextDeerId = 1;
@@ -1022,12 +1371,21 @@
 
       const birds = [];
       let firstKillBirdFlockPlayed = false;
+      let firstKillDeerSpawned = false;
       let ambientBirdTimer = null;
 
-      const bgmAudio = new Audio(BGM_SOUND);
-      bgmAudio.loop = true;
+      const dayBgmAudio = new Audio(DAY_BGM_SOUND);
+      const nightBgmAudio = new Audio(NIGHT_BGM_SOUND);
+      dayBgmAudio.loop = true;
+      nightBgmAudio.loop = true;
+      dayBgmAudio.volume = 1;
+      nightBgmAudio.volume = 0;
+      dayBgmAudio.preload = "auto";
+      nightBgmAudio.preload = "auto";
       let bgmStartScheduled = false;
       let bgmStarted = false;
+      let bgmFadeFrameId = null;
+      let bgmFadeToken = 0;
 
       let worldScale = 1;
       let panX = 0;
@@ -1047,6 +1405,290 @@
 
       function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
+      }
+
+      function normalizeStoredCount(value, maxValue) {
+        const number = Number(value);
+        return Number.isFinite(number)
+          ? Math.round(clamp(number, 0, maxValue))
+          : 0;
+      }
+
+      function loadResourceState() {
+        try {
+          const saved = localStorage.getItem(RESOURCE_STORAGE_KEY);
+          if (!saved) {
+            updateResourceHud();
+            return;
+          }
+
+          const parsed = JSON.parse(saved);
+          zombieCount = normalizeStoredCount(
+            parsed.zombies,
+            MAX_ZOMBIE_COUNT
+          );
+          foodCount = normalizeStoredCount(parsed.food, MAX_FOOD_COUNT);
+          woodCount = normalizeStoredCount(parsed.wood, MAX_WOOD_COUNT);
+        } catch (_) {
+          // file:// 환경 등에서 저장소를 사용할 수 없어도 게임은 계속 동작합니다.
+        }
+
+        updateResourceHud();
+      }
+
+      function saveResourceState() {
+        try {
+          localStorage.setItem(
+            RESOURCE_STORAGE_KEY,
+            JSON.stringify({
+              zombies: zombieCount,
+              food: foodCount,
+              wood: woodCount
+            })
+          );
+        } catch (_) {
+          // 저장 실패는 게임 진행에 영향을 주지 않습니다.
+        }
+      }
+
+      function updateResourceHud() {
+        countElement.textContent = String(zombieCount);
+        foodCountElement.textContent = String(foodCount);
+        woodCountElement.textContent = String(woodCount);
+      }
+
+      function commitResourceState() {
+        updateResourceHud();
+        saveResourceState();
+      }
+
+      function getLivingZombieCount() {
+        let count = 0;
+
+        for (const zombie of zombies.values()) {
+          if (
+            zombie.state !== "dying" &&
+            zombie.state !== "removed"
+          ) {
+            count += 1;
+          }
+        }
+
+        return count;
+      }
+
+      function canCreateZombie() {
+        return (
+          !isExploring &&
+          zombies.size < MAX_ACTIVE_ZOMBIES &&
+          zombieCount + getLivingZombieCount() < MAX_ZOMBIE_COUNT
+        );
+      }
+
+      function showExploringBusyToast(event) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        showToast(EXPLORING_BUSY_TOAST_MESSAGE);
+      }
+
+      function closeExplorationMenu() {
+        if (!isExplorationMenuOpen) return;
+
+        isExplorationMenuOpen = false;
+        explorationOverlay.classList.remove("is-open");
+        explorationOverlay.setAttribute("aria-hidden", "true");
+        exploreButton.classList.remove("is-menu-open");
+      }
+
+      function openExplorationMenu() {
+        if (isExplorationMenuOpen || isExploring) return;
+
+        isExplorationMenuOpen = true;
+        explorationOverlay.classList.add("is-open");
+        explorationOverlay.setAttribute("aria-hidden", "false");
+        exploreButton.classList.add("is-menu-open");
+
+        const firstOption = explorationOptions[0];
+        if (firstOption) {
+          window.setTimeout(() => firstOption.focus(), 0);
+        }
+      }
+
+      function updateExploringCountdown() {
+        if (!isExploring) return;
+
+        const remainingMs = Math.max(0, explorationEndsAt - Date.now());
+
+        if (remainingMs <= 0) {
+          finishExploration();
+          return;
+        }
+
+        if (remainingMs <= 60_000) {
+          const remainingSeconds = Math.max(
+            1,
+            Math.ceil(remainingMs / 1_000)
+          );
+          exploringTime.textContent = `${remainingSeconds}s`;
+          return;
+        }
+
+        const remainingMinutes = Math.ceil(remainingMs / 60_000);
+        exploringTime.textContent = `${remainingMinutes}m`;
+      }
+
+      function fadeBgmVolumes(
+        targetDayVolume,
+        targetNightVolume,
+        durationMs = BGM_TRANSITION_MS
+      ) {
+        const fadeToken = ++bgmFadeToken;
+        const dayStartVolume = dayBgmAudio.volume;
+        const nightStartVolume = nightBgmAudio.volume;
+        const startedAt = performance.now();
+
+        if (bgmFadeFrameId !== null) {
+          cancelAnimationFrame(bgmFadeFrameId);
+          bgmFadeFrameId = null;
+        }
+
+        const updateFade = (now) => {
+          if (fadeToken !== bgmFadeToken) return;
+
+          const progress = clamp(
+            (now - startedAt) / Math.max(1, durationMs),
+            0,
+            1
+          );
+
+          dayBgmAudio.volume = clamp(
+            dayStartVolume +
+              (targetDayVolume - dayStartVolume) * progress,
+            0,
+            1
+          );
+          nightBgmAudio.volume = clamp(
+            nightStartVolume +
+              (targetNightVolume - nightStartVolume) * progress,
+            0,
+            1
+          );
+
+          if (progress < 1) {
+            bgmFadeFrameId = requestAnimationFrame(updateFade);
+          } else {
+            bgmFadeFrameId = null;
+          }
+        };
+
+        bgmFadeFrameId = requestAnimationFrame(updateFade);
+      }
+
+      function transitionBgmForNightMode(enabled) {
+        if (!bgmStarted) return;
+
+        if (enabled) {
+          const startNightTrack = nightBgmAudio.paused
+            ? nightBgmAudio.play()
+            : Promise.resolve();
+
+          startNightTrack
+            .then(() => {
+              fadeBgmVolumes(0, 1);
+            })
+            .catch(() => {
+              // 야간 트랙 재생이 차단되면 현재 낮 BGM을 유지합니다.
+            });
+          return;
+        }
+
+        fadeBgmVolumes(1, 0);
+      }
+
+      function setNightMode(enabled) {
+        document.body.classList.toggle("is-night", enabled);
+        transitionBgmForNightMode(enabled);
+      }
+
+      function startVillageExploration() {
+        closeExplorationMenu();
+
+        zombieCount = 0;
+        commitResourceState();
+
+        isExploring = true;
+        explorationEndsAt = Date.now() + EXPLORATION_DURATION_MS;
+        setNightMode(true);
+        exploringStatus.classList.add("is-visible");
+        updateExploringCountdown();
+
+        if (explorationTimerId !== null) {
+          clearInterval(explorationTimerId);
+        }
+
+        explorationTimerId = window.setInterval(
+          updateExploringCountdown,
+          1_000
+        );
+      }
+
+      function finishExploration() {
+        if (!isExploring) return;
+
+        isExploring = false;
+        explorationEndsAt = 0;
+        setNightMode(false);
+        exploringStatus.classList.remove("is-visible");
+
+        if (explorationTimerId !== null) {
+          clearInterval(explorationTimerId);
+          explorationTimerId = null;
+        }
+
+        // 귀환 직후 다음 라운드의 첫 좀비를 바로 생성합니다.
+        if (canCreateZombie()) {
+          createZombie();
+        }
+      }
+
+      function handleExplorationDestination(destination) {
+        if (destination === "village") {
+          startVillageExploration();
+          return;
+        }
+
+        // Forest와 City는 탐험 화면을 유지한 채 안내 토스트만 표시합니다.
+        if (destination === "forest") {
+          showToast(FOREST_BLOCKED_TOAST_MESSAGE);
+        } else if (destination === "city") {
+          showToast(CITY_BLOCKED_TOAST_MESSAGE);
+        }
+      }
+
+      function toggleResourcesForTest() {
+        if (!TEST_MODE) return;
+
+        const allResourcesAreFull =
+          zombieCount >= MAX_ZOMBIE_COUNT &&
+          foodCount >= MAX_FOOD_COUNT &&
+          woodCount >= MAX_WOOD_COUNT;
+
+        zombieCount = allResourcesAreFull ? 0 : MAX_ZOMBIE_COUNT;
+        foodCount = allResourcesAreFull ? 0 : MAX_FOOD_COUNT;
+        woodCount = allResourcesAreFull ? 0 : MAX_WOOD_COUNT;
+        commitResourceState();
+      }
+
+      function shortenExplorationForTest(event) {
+        if (!TEST_MODE || !isExploring) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        explorationEndsAt = Date.now() + 3_000;
+        updateExploringCountdown();
       }
 
       function easeOutSine(progress) {
@@ -1088,7 +1730,10 @@
           preloadImage(BIRTH_DEATH_SHEET),
           preloadImage(DEER_SHEET),
           preloadImage(STUMP_WITH_AXE_IMAGE),
-          preloadImage(STUMP_EMPTY_IMAGE)
+          preloadImage(STUMP_EMPTY_IMAGE),
+          preloadImage(NIGHT_BACKGROUND_IMAGE),
+          preloadImage(NIGHT_CLOUD_SHEET),
+          preloadImage(NIGHT_STUMP_IMAGE)
         ]);
       }
 
@@ -1460,8 +2105,8 @@
           `${-col * CLOUD_FRAME_SIZE}px ` +
           `${-row * CLOUD_FRAME_SIZE}px`;
 
-        // 실제 구름과 그림자 모두 같은 스프라이트 시트를 사용합니다.
-        element.style.backgroundPosition = position;
+        // 낮/밤 구름 레이어가 동일한 스프라이트 위치를 사용합니다.
+        element.style.setProperty("--cloud-position", position);
       }
 
       function renderCloud(cloud) {
@@ -2194,17 +2839,55 @@
         }, TOAST_DURATION_MS + 100);
       }
 
-      function handleInventoryButton() {
+      function handleRepairButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
+
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return;
+        }
+
+        showToast(REPAIR_BLOCKED_TOAST_MESSAGE);
+      }
+
+      function handleInventoryButton(event) {
+        playSound(EXPLORE_BUTTON_SOUND);
+
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return;
+        }
+
         showToast(INVENTORY_EMPTY_TOAST_MESSAGE);
       }
 
-      function handleExploreButton() {
+      function handleExploreButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
-        showToast(EXPLORE_BLOCKED_TOAST_MESSAGE);
+
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return;
+        }
+
+        if (isExplorationMenuOpen) {
+          closeExplorationMenu();
+          return;
+        }
+
+        if (zombieCount < MAX_ZOMBIE_COUNT) {
+          showToast(EXPLORE_BLOCKED_TOAST_MESSAGE);
+          return;
+        }
+
+        openExplorationMenu();
       }
 
       function collectAxe(event) {
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return;
+        }
+
         if (hasAxe) return;
 
         if (event) {
@@ -2231,16 +2914,38 @@
         bgmStartScheduled = true;
 
         window.setTimeout(() => {
-          bgmAudio.currentTime = 0;
-          bgmAudio.play()
+          dayBgmAudio.currentTime = 0;
+          dayBgmAudio.volume = 1;
+          nightBgmAudio.volume = 0;
+
+          dayBgmAudio.play()
             .then(() => {
               bgmStarted = true;
+              bgmStartScheduled = false;
+
+              if (document.body.classList.contains("is-night")) {
+                transitionBgmForNightMode(true);
+              }
             })
             .catch(() => {
               // 브라우저가 차단한 경우 다음 사용자 입력에서 다시 시도합니다.
               bgmStartScheduled = false;
             });
         }, 3_000);
+      }
+
+      function triggerFirstKillDeer(zombie) {
+        if (firstKillDeerSpawned) return;
+
+        const created = createDeer({
+          avoidX: zombie.x,
+          avoidY: zombie.y,
+          minAvoidDistance: FIRST_KILL_DEER_MIN_DISTANCE_FROM_KILL_PX
+        });
+
+        if (created) {
+          firstKillDeerSpawned = true;
+        }
       }
 
       function playBirdFlySound() {
@@ -2453,7 +3158,7 @@
       }
 
       function createDeer(options = {}) {
-        if (deerMap.size >= MAX_ACTIVE_DEER) return false;
+        if (isExploring || deerMap.size >= MAX_ACTIVE_DEER) return false;
 
         const position = getRandomDeerSpawnPosition(options);
         const now = performance.now();
@@ -2505,7 +3210,8 @@
           turnNextDirection: 0,
           deathStartedAt: 0,
           deathStartX: 0,
-          deathSlideDirection: 0
+          deathSlideDirection: 0,
+          counted: false
         };
 
         deerMap.set(deer.id, deer);
@@ -2572,10 +3278,26 @@
         deer.element.style.opacity = "1";
         playSound(HIT_SOUND, 0.5);
         showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[0]);
+
+        if (!deer.counted) {
+          deer.counted = true;
+          foodCount = Math.min(MAX_FOOD_COUNT, foodCount + 1);
+          commitResourceState();
+        }
       }
 
       function attackDeer(deer) {
+        if (isExploring) {
+          showExploringBusyToast();
+          return;
+        }
+
         if (deer.state === "dying" || deer.state === "removed") {
+          return;
+        }
+
+        if (foodCount >= MAX_FOOD_COUNT) {
+          showToast(CARRY_FULL_TOAST_MESSAGE);
           return;
         }
 
@@ -2819,8 +3541,8 @@
       }
 
       function createZombie() {
-        // 생성·이동·사망·페이드 중인 개체를 모두 화면 표시 수에 포함합니다.
-        if (zombies.size >= MAX_ACTIVE_ZOMBIES) return;
+        // 처치 수와 살아 있는 좀비 수의 합이 최대값을 넘지 않게 합니다.
+        if (!canCreateZombie()) return false;
 
         const position = getRandomSpawnPosition();
         const direction = randomDirection();
@@ -2875,15 +3597,23 @@
 
         element.addEventListener("pointerdown", (event) => {
           event.preventDefault();
+          event.stopPropagation();
           attackZombie(zombie);
         });
 
         zombie.autoDeathTimer = window.setTimeout(() => {
           beginDeath(zombie, false);
         }, AUTO_DEATH_MS);
+
+        return true;
       }
 
       function attackZombie(zombie) {
+        if (isExploring) {
+          showExploringBusyToast();
+          return;
+        }
+
         if (
           zombie.state === "dying" ||
           zombie.state === "removed"
@@ -2929,11 +3659,7 @@
         if (wasPlayerKill) {
           scheduleBgmAfterFirstPlayerKill();
           triggerFirstKillBirdFlock();
-          createDeer({
-            avoidX: zombie.x,
-            avoidY: zombie.y,
-            minAvoidDistance: FIRST_KILL_DEER_MIN_DISTANCE_FROM_KILL_PX
-          });
+          triggerFirstKillDeer(zombie);
         }
 
         if (zombie.autoDeathTimer !== null) {
@@ -2954,7 +3680,7 @@
             MAX_ZOMBIE_COUNT,
             zombieCount + 1
           );
-          countElement.textContent = String(zombieCount);
+          commitResourceState();
         }
 
         zombie.fallSoundTimer = window.setTimeout(() => {
@@ -3299,18 +4025,20 @@
 
       function startSpawner() {
         // 첫 좀비는 게임 시작과 동시에 생성합니다.
-        createZombie();
+        if (canCreateZombie()) {
+          createZombie();
+        }
 
-        // 이후에는 30초마다 확인하여 화면에 100마리 미만일 때만 생성합니다.
+        // 이후에는 1분마다 필요한 수만큼 한 마리씩 생성합니다.
         window.setInterval(() => {
-          if (zombies.size < MAX_ACTIVE_ZOMBIES) {
+          if (canCreateZombie()) {
             createZombie();
           }
         }, SPAWN_INTERVAL_MS);
 
-        // 사슴은 1분마다 한 마리씩 생성합니다.
+        // 사슴은 Food 수치와 관계없이 3분마다 생성하되 화면에는 최대 3마리만 둡니다.
         window.setInterval(() => {
-          if (deerMap.size < MAX_ACTIVE_DEER) {
+          if (!isExploring && deerMap.size < MAX_ACTIVE_DEER) {
             createDeer();
           }
         }, DEER_SPAWN_INTERVAL_MS);
@@ -3318,8 +4046,30 @@
 
       axePickupHitArea.addEventListener("pointerdown", collectAxe);
       axePickupHitArea.addEventListener("keydown", handleAxePickupKeydown);
+      repairButton.addEventListener("click", handleRepairButton);
       inventoryButton.addEventListener("click", handleInventoryButton);
       exploreButton.addEventListener("click", handleExploreButton);
+
+      explorationOverlay.addEventListener("pointerdown", (event) => {
+        if (event.target === explorationOverlay) {
+          closeExplorationMenu();
+        }
+      });
+
+      explorationMenu.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
+
+      for (const option of explorationOptions) {
+        option.addEventListener("click", () => {
+          handleExplorationDestination(option.dataset.destination);
+        });
+      }
+
+      versionLabel.classList.toggle("is-test-active", TEST_MODE);
+      versionLabel.addEventListener("click", toggleResourcesForTest);
+      exploringTime.classList.toggle("is-test-active", TEST_MODE);
+      exploringTime.addEventListener("click", shortenExplorationForTest);
 
       viewport.addEventListener("pointerdown", startBackgroundDrag);
       viewport.addEventListener("pointermove", moveBackgroundDrag);
@@ -3332,6 +4082,7 @@
         // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
         await preloadGameSprites();
 
+        loadResourceState();
         updateWorldScale();
         initializeClouds();
         startSpawner();
