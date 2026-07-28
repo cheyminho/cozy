@@ -108,6 +108,11 @@
     /* 구름 그림자는 배경 위, 좀비 아래에 표시합니다. */
     #cloudShadows {
       z-index: 1;
+      /*
+        자식 그림자 요소가 아니라 레이어 전체를 배경과 곱합니다.
+        z-index로 생성된 별도 합성 레이어 안에서 blend가 갇히는 문제를 방지합니다.
+      */
+      mix-blend-mode: multiply;
     }
 
     /* 도끼가 꽂힌 나무 밑동은 배경 오브젝트로 좀비보다 아래에 표시합니다. */
@@ -248,7 +253,8 @@
 
     .cloud-shadow {
       opacity: 0.3;
-      mix-blend-mode: multiply;
+      /* 실제 multiply 합성은 부모 #cloudShadows 레이어에서 처리합니다. */
+      mix-blend-mode: normal;
 
       /*
         원본 구름 PNG의 투명도를 그대로 사용하면서
@@ -760,21 +766,28 @@
       opacity: 0;
     }
 
-    /* 밤 전환에 맞춰 좀비, 사슴, 새를 더 어둡게 표시합니다. */
+    /* 밤 전환에 맞춰 좀비와 사슴만 어둡게 표시합니다. */
     .zombie-sprite,
     .zombie-sprite-overlay,
     .deer-sprite,
-    .deer-sprite-overlay,
-    .bird {
+    .deer-sprite-overlay {
       transition: filter 3s ease;
     }
 
     body.is-night .zombie-sprite,
     body.is-night .zombie-sprite-overlay,
     body.is-night .deer-sprite,
-    body.is-night .deer-sprite-overlay,
-    body.is-night .bird {
+    body.is-night .deer-sprite-overlay {
       filter: brightness(0.4);
+    }
+
+    /* 새는 밤에 밝기를 낮추지 않고 지정한 푸른색으로 전환합니다. */
+    .bird {
+      transition: background-color 3s ease;
+    }
+
+    body.is-night .bird {
+      background-color: #7198bd;
     }
 
     .deer-hitbox {
@@ -914,7 +927,7 @@
     <div id="exploringLabel">Exploring</div>
     <div id="exploringTime">10m</div>
   </div>
-  <div id="versionLabel">v0.051</div>
+  <div id="versionLabel">v0.052</div>
 
   <script>
     (() => {
@@ -1130,7 +1143,7 @@
       // 구름 그림자는 낮에는 30%, 밤에는 70% 투명도로 표시합니다.
       // 낮·밤 전환에 맞춰 3초 동안 부드럽게 변화합니다.
       const CLOUD_SHADOW_DAY_OPACITY = 0.3;
-      const CLOUD_SHADOW_NIGHT_OPACITY = 0.7;
+      const CLOUD_SHADOW_NIGHT_OPACITY = 0.5;
       const CLOUD_SHADOW_NIGHT_TRANSITION_MS = 3_000;
 
       // 실제 구름과 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
