@@ -299,7 +299,7 @@
 
     @media (max-width: 560px) {
       #hud {
-        gap: 55px;
+        gap: 28px;
         font-size: 14px;
       }
     }
@@ -479,12 +479,14 @@
       transform: translateX(0);
     }
 
-    #exploreButton.is-menu-open {
+    #exploreButton.is-menu-open,
+    #inventoryButton.is-menu-open {
       z-index: 140;
       width: var(--expanded-width);
     }
 
-    #exploreButton.is-menu-open .hud-action-button__label {
+    #exploreButton.is-menu-open .hud-action-button__label,
+    #inventoryButton.is-menu-open .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
     }
@@ -514,7 +516,8 @@
       box-shadow: none;
     }
 
-    #explorationOverlay {
+    #explorationOverlay,
+    #inventoryOverlay {
       position: fixed;
       inset: 0;
       z-index: 130;
@@ -532,7 +535,8 @@
         visibility 0s linear 180ms;
     }
 
-    #explorationOverlay.is-open {
+    #explorationOverlay.is-open,
+    #inventoryOverlay.is-open {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
@@ -544,6 +548,87 @@
       flex-direction: column;
       align-items: center;
       gap: 42px;
+    }
+
+    #inventoryMenu {
+      width: min(82vw, 420px);
+      max-height: calc(100vh - 160px);
+      padding: 18px 8px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+
+    #inventoryList {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      width: min(100%, 240px);
+      margin: 0 auto;
+    }
+
+    .inventory-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      padding: 6px 4px;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 350;
+      line-height: 1.2;
+      cursor: pointer;
+    }
+
+    .inventory-item__name {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .inventory-item__equipped {
+      display: inline-block;
+      flex: 0 0 20px;
+      width: 20px;
+      margin-right: 6px;
+      text-align: left;
+    }
+
+    .inventory-item__label {
+      display: inline-block;
+      transform: scale(1);
+      transform-origin: left center;
+      transition: transform 120ms ease-out;
+    }
+
+    .inventory-item__quantity {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .inventory-item:hover .inventory-item__label {
+        transform: scale(1.045);
+      }
+    }
+
+    .inventory-item:active .inventory-item__label {
+      transform: scale(0.95);
+      transition-duration: 70ms;
+    }
+
+    .inventory-item:focus-visible .inventory-item__label {
+      transform: scale(1.045);
     }
 
     .exploration-destination {
@@ -581,6 +666,27 @@
       pointer-events: none;
     }
 
+    .exploration-requirement-item {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: baseline;
+      gap: 4px;
+      width: max-content;
+      margin: 0 auto;
+      white-space: nowrap;
+    }
+
+    .exploration-requirement-item::before {
+      content: "";
+      flex: 0 0 12px;
+      width: 12px;
+      text-align: center;
+    }
+
+    .exploration-requirement-item.is-complete::before {
+      content: "✓";
+    }
+
     @media (hover: hover) and (pointer: fine) {
       .exploration-option:hover {
         font-weight: 500;
@@ -615,7 +721,7 @@
 
     #exploringLabel {
       margin-bottom: 10px;
-      font-size: 19px;
+      font-size: 16px;
       font-weight: 450;
       line-height: 1;
     }
@@ -809,6 +915,19 @@
       cursor: default;
     }
 
+    /* 저장된 탐험 상태로 다시 열 때는 첫 화면부터 즉시 밤 색상으로 표시합니다. */
+    body.is-restored-night #world::after,
+    body.is-restored-night #axeStump::after,
+    body.is-restored-night .cloud-visual::before,
+    body.is-restored-night .cloud-visual::after,
+    body.is-restored-night .zombie-sprite,
+    body.is-restored-night .zombie-sprite-overlay,
+    body.is-restored-night .deer-sprite,
+    body.is-restored-night .deer-sprite-overlay,
+    body.is-restored-night .bird {
+      transition: none !important;
+    }
+
     /* 주소 끝에 ?debug=1을 붙이면 안전 영역과 게임 영역을 확인할 수 있습니다. */
     .debug-zone {
       position: absolute;
@@ -841,6 +960,26 @@
   </style>
 </head>
 <body>
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem("cozy.resources.v1");
+        if (!saved) return;
+
+        const parsed = JSON.parse(saved);
+        const savedExplorationEndsAt = Number(parsed.explorationEndsAt);
+
+        if (
+          Number.isFinite(savedExplorationEndsAt) &&
+          savedExplorationEndsAt > Date.now()
+        ) {
+          document.body.classList.add("is-night", "is-restored-night");
+        }
+      } catch (_) {
+        // 저장소를 읽을 수 없어도 기본 낮 화면으로 계속 실행합니다.
+      }
+    })();
+  </script>
   <div id="viewport">
     <div id="world">
       <div id="cloudShadows"></div>
@@ -866,21 +1005,41 @@
   <div id="hud">
     <span class="hud-resource">Zombies <span><span id="zombieCount">0</span>/10</span></span>
     <span class="hud-resource">Food <span><span id="foodCount">0</span>/5</span></span>
-    <span class="hud-resource">Wood <span><span id="woodCount">0</span>/15</span></span>
+    <span class="hud-resource">Wood <span><span id="woodCount">0</span>/20</span></span>
   </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="village" role="menuitem">Village</button>
+        <div class="exploration-requirement">
+          <span class="exploration-requirement-item" data-requirement="food" data-required="3">Food <span class="exploration-requirement-current">0</span>/3</span>
+        </div>
       </div>
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="forest" role="menuitem">Forest</button>
-        <div class="exploration-requirement">Compass 0/1</div>
+        <div class="exploration-requirement">
+          <span class="exploration-requirement-item" data-requirement="compass" data-required="1">Compass <span class="exploration-requirement-current">0</span>/1</span>
+          <span class="exploration-requirement-item" data-requirement="food" data-required="5">Food <span class="exploration-requirement-current">0</span>/5</span>
+        </div>
       </div>
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="city" role="menuitem">City</button>
-        <div class="exploration-requirement">Fuel 0/1<br />Repair Kit 0/1</div>
+        <div class="exploration-requirement">
+          <span class="exploration-requirement-item" data-requirement="fuel" data-required="1">Fuel <span class="exploration-requirement-current">0</span>/1</span>
+          <span class="exploration-requirement-item" data-requirement="repairKit" data-required="1">Repair Kit <span class="exploration-requirement-current">0</span>/1</span>
+          <span class="exploration-requirement-item" data-requirement="food" data-required="10">Food <span class="exploration-requirement-current">0</span>/10</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="inventoryOverlay" aria-hidden="true">
+    <div id="inventoryMenu" role="menu" aria-label="Bag items">
+      <div id="inventoryList">
+        <button class="inventory-item" type="button" role="menuitem" data-item="axe">
+          <span class="inventory-item__name"><span class="inventory-item__equipped" aria-label="Equipped">✓</span><span class="inventory-item__label">Axe</span></span>
+          <span class="inventory-item__quantity">×1</span>
+        </button>
       </div>
     </div>
   </div>
@@ -927,7 +1086,7 @@
     <div id="exploringLabel">Exploring</div>
     <div id="exploringTime">10m</div>
   </div>
-  <div id="versionLabel">v0.053</div>
+  <div id="versionLabel">v0.054</div>
 
   <script>
     (() => {
@@ -971,7 +1130,7 @@
       // 저장되는 자원의 최대 수
       const MAX_ZOMBIE_COUNT = 10;
       const MAX_FOOD_COUNT = 5;
-      const MAX_WOOD_COUNT = 15;
+      const MAX_WOOD_COUNT = 20;
 
       // 생성 간격: 좀비 1분 / 사슴 3분
       const SPAWN_INTERVAL_MS = 60_000;
@@ -1093,8 +1252,11 @@
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
         "I should clear this place out first.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
+      const AXE_SELECTED_TOAST_MESSAGE = "Problem solver.";
       const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
       const CARRY_FULL_TOAST_MESSAGE = "I can't carry any more.";
+      const DEER_FOOD_FULL_TOAST_MESSAGE = "I’ve got enough.";
+      const NO_FOOD_TOAST_MESSAGE = "No food, no adventure.";
       const EXPLORING_BUSY_TOAST_MESSAGE = "I'm already out there.";
       const FOREST_BLOCKED_TOAST_MESSAGE =
         "I shouldn't go without a compass.";
@@ -1216,6 +1378,14 @@
       const explorationMenu = document.getElementById("explorationMenu");
       const explorationOptions = Array.from(
         document.querySelectorAll(".exploration-option")
+      );
+      const explorationRequirementItems = Array.from(
+        document.querySelectorAll(".exploration-requirement-item")
+      );
+      const inventoryOverlay = document.getElementById("inventoryOverlay");
+      const inventoryMenu = document.getElementById("inventoryMenu");
+      const inventoryItems = Array.from(
+        document.querySelectorAll(".inventory-item")
       );
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
@@ -1371,8 +1541,13 @@
       let foodCount = 0;
       let woodCount = 0;
       let hasAxe = false;
+      let hasCompass = false;
+      let fuelCount = 0;
+      let repairKitCount = 0;
       let isExplorationMenuOpen = false;
+      let isInventoryOpen = false;
       let isExploring = false;
+      let explorationDestination = "";
       let explorationEndsAt = 0;
       let explorationTimerId = null;
       let explorationCompleteToastTimerId = null;
@@ -1462,11 +1637,23 @@
           );
           foodCount = normalizeStoredCount(parsed.food, MAX_FOOD_COUNT);
           woodCount = normalizeStoredCount(parsed.wood, MAX_WOOD_COUNT);
+          hasAxe = parsed.hasAxe === true;
+          hasCompass = parsed.hasCompass === true;
+          fuelCount = normalizeStoredCount(parsed.fuel, 1);
+          repairKitCount = normalizeStoredCount(parsed.repairKit, 1);
+          explorationDestination = typeof parsed.explorationDestination === "string"
+            ? parsed.explorationDestination
+            : "";
+          explorationEndsAt = Number.isFinite(Number(parsed.explorationEndsAt))
+            ? Math.max(0, Number(parsed.explorationEndsAt))
+            : 0;
         } catch (_) {
           // file:// 환경 등에서 저장소를 사용할 수 없어도 게임은 계속 동작합니다.
         }
 
+        applyAxeState();
         updateResourceHud();
+        restoreExplorationState();
       }
 
       function saveResourceState() {
@@ -1476,7 +1663,13 @@
             JSON.stringify({
               zombies: zombieCount,
               food: foodCount,
-              wood: woodCount
+              wood: woodCount,
+              hasAxe,
+              hasCompass,
+              fuel: fuelCount,
+              repairKit: repairKitCount,
+              explorationDestination,
+              explorationEndsAt: isExploring ? explorationEndsAt : 0
             })
           );
         } catch (_) {
@@ -1484,10 +1677,36 @@
         }
       }
 
+      function getRequirementValue(requirement) {
+        if (requirement === "food") return foodCount;
+        if (requirement === "compass") return hasCompass ? 1 : 0;
+        if (requirement === "fuel") return fuelCount;
+        if (requirement === "repairKit") return repairKitCount;
+        return 0;
+      }
+
+      function updateExplorationRequirements() {
+        for (const item of explorationRequirementItems) {
+          const requirement = item.dataset.requirement || "";
+          const required = Math.max(0, Number(item.dataset.required) || 0);
+          const current = getRequirementValue(requirement);
+          const currentElement = item.querySelector(
+            ".exploration-requirement-current"
+          );
+
+          if (currentElement) {
+            currentElement.textContent = String(current);
+          }
+
+          item.classList.toggle("is-complete", current >= required);
+        }
+      }
+
       function updateResourceHud() {
         countElement.textContent = String(zombieCount);
         foodCountElement.textContent = String(foodCount);
         woodCountElement.textContent = String(woodCount);
+        updateExplorationRequirements();
       }
 
       function commitResourceState() {
@@ -1535,6 +1754,30 @@
         explorationOverlay.classList.remove("is-open");
         explorationOverlay.setAttribute("aria-hidden", "true");
         exploreButton.classList.remove("is-menu-open");
+      }
+
+      function closeInventory() {
+        if (!isInventoryOpen) return;
+
+        isInventoryOpen = false;
+        inventoryOverlay.classList.remove("is-open");
+        inventoryOverlay.setAttribute("aria-hidden", "true");
+        inventoryButton.classList.remove("is-menu-open");
+      }
+
+      function openInventory() {
+        if (isInventoryOpen || !hasAxe) return;
+
+        closeExplorationMenu();
+        isInventoryOpen = true;
+        inventoryOverlay.classList.add("is-open");
+        inventoryOverlay.setAttribute("aria-hidden", "false");
+        inventoryButton.classList.add("is-menu-open");
+
+        const firstItem = inventoryItems[0];
+        if (firstItem) {
+          window.setTimeout(() => firstItem.focus(), 0);
+        }
       }
 
       function openExplorationMenu() {
@@ -1721,8 +1964,9 @@
         transitionBgmForNightMode(enabled);
       }
 
-      function startVillageExploration() {
+      function startExploration(destination) {
         closeExplorationMenu();
+        closeInventory();
 
         if (explorationCompleteToastTimerId !== null) {
           clearTimeout(explorationCompleteToastTimerId);
@@ -1734,11 +1978,38 @@
           returnZombieSpawnTimerId = null;
         }
 
+        const requiredFood = getDestinationFoodRequirement(destination);
+        foodCount = Math.max(0, foodCount - requiredFood);
         zombieCount = 0;
+        isExploring = true;
+        explorationDestination = destination;
+        explorationEndsAt = Date.now() + EXPLORATION_DURATION_MS;
         commitResourceState();
+        setNightMode(true);
+        exploringStatus.classList.add("is-visible");
+        updateExploringCountdown();
+
+        if (explorationTimerId !== null) {
+          clearInterval(explorationTimerId);
+        }
+
+        explorationTimerId = window.setInterval(
+          updateExploringCountdown,
+          1_000
+        );
+      }
+
+      function restoreExplorationState() {
+        if (explorationEndsAt <= Date.now()) {
+          isExploring = false;
+          explorationDestination = "";
+          explorationEndsAt = 0;
+          setNightMode(false);
+          saveResourceState();
+          return;
+        }
 
         isExploring = true;
-        explorationEndsAt = Date.now() + EXPLORATION_DURATION_MS;
         setNightMode(true);
         exploringStatus.classList.add("is-visible");
         updateExploringCountdown();
@@ -1757,7 +2028,9 @@
         if (!isExploring) return;
 
         isExploring = false;
+        explorationDestination = "";
         explorationEndsAt = 0;
+        saveResourceState();
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
 
@@ -1776,8 +2049,8 @@
           showToast(EXPLORATION_COMPLETE_TOAST_MESSAGE);
         }, 2_000);
 
-        // 정기 생성 타이머도 귀환 후 5초 동안 좀비를 생성하지 못하게 합니다.
-        zombieSpawnBlockedUntil = Date.now() + 5_000;
+        // 정기 생성 타이머도 귀환 후 7초 동안 좀비를 생성하지 못하게 합니다.
+        zombieSpawnBlockedUntil = Date.now() + 7_000;
 
         if (returnZombieSpawnTimerId !== null) {
           clearTimeout(returnZombieSpawnTimerId);
@@ -1789,21 +2062,45 @@
           if (canCreateZombie()) {
             createZombie();
           }
-        }, 5_000);
+        }, 7_000);
+      }
+
+      function hasDestinationItems(destination) {
+        if (destination === "forest") {
+          return hasCompass;
+        }
+
+        if (destination === "city") {
+          return fuelCount >= 1 && repairKitCount >= 1;
+        }
+
+        return true;
+      }
+
+      function getDestinationFoodRequirement(destination) {
+        if (destination === "village") return 3;
+        if (destination === "forest") return 5;
+        if (destination === "city") return 10;
+        return 0;
       }
 
       function handleExplorationDestination(destination) {
-        if (destination === "village") {
-          startVillageExploration();
+        if (!hasDestinationItems(destination)) {
+          if (destination === "forest") {
+            showToast(FOREST_BLOCKED_TOAST_MESSAGE);
+          } else if (destination === "city") {
+            showToast(CITY_BLOCKED_TOAST_MESSAGE);
+          }
           return;
         }
 
-        // Forest와 City는 탐험 화면을 유지한 채 안내 토스트만 표시합니다.
-        if (destination === "forest") {
-          showToast(FOREST_BLOCKED_TOAST_MESSAGE);
-        } else if (destination === "city") {
-          showToast(CITY_BLOCKED_TOAST_MESSAGE);
+        const requiredFood = getDestinationFoodRequirement(destination);
+        if (foodCount < requiredFood) {
+          showToast(NO_FOOD_TOAST_MESSAGE);
+          return;
         }
+
+        startExploration(destination);
       }
 
       function toggleResourcesForTest() {
@@ -1813,10 +2110,18 @@
           zombieCount >= MAX_ZOMBIE_COUNT &&
           foodCount >= MAX_FOOD_COUNT &&
           woodCount >= MAX_WOOD_COUNT;
+        const shouldResetResources = allResourcesAreFull;
 
-        zombieCount = allResourcesAreFull ? 0 : MAX_ZOMBIE_COUNT;
-        foodCount = allResourcesAreFull ? 0 : MAX_FOOD_COUNT;
-        woodCount = allResourcesAreFull ? 0 : MAX_WOOD_COUNT;
+        zombieCount = shouldResetResources ? 0 : MAX_ZOMBIE_COUNT;
+        foodCount = shouldResetResources ? 0 : MAX_FOOD_COUNT;
+        woodCount = shouldResetResources ? 0 : MAX_WOOD_COUNT;
+
+        if (shouldResetResources) {
+          hasAxe = false;
+          closeInventory();
+          applyAxeState();
+        }
+
         commitResourceState();
       }
 
@@ -3000,12 +3305,17 @@
       function handleInventoryButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
 
-        if (isExploring) {
-          showExploringBusyToast(event);
+        if (!hasAxe) {
+          showToast(INVENTORY_EMPTY_TOAST_MESSAGE);
           return;
         }
 
-        showToast(INVENTORY_EMPTY_TOAST_MESSAGE);
+        if (isInventoryOpen) {
+          closeInventory();
+          return;
+        }
+
+        openInventory();
       }
 
       function handleExploreButton(event) {
@@ -3029,6 +3339,16 @@
         openExplorationMenu();
       }
 
+      function applyAxeState() {
+        axeStump.style.backgroundImage = hasAxe
+          ? `url("${STUMP_EMPTY_IMAGE}")`
+          : `url("${STUMP_WITH_AXE_IMAGE}")`;
+        axeStump.setAttribute("aria-hidden", hasAxe ? "true" : "false");
+        axePickupHitArea.hidden = hasAxe;
+        axePickupHitArea.style.pointerEvents = hasAxe ? "none" : "auto";
+        axePickupHitArea.tabIndex = hasAxe ? -1 : 0;
+      }
+
       function collectAxe(event) {
         if (isExploring) {
           showExploringBusyToast(event);
@@ -3043,10 +3363,8 @@
         }
 
         hasAxe = true;
-        axeStump.style.backgroundImage =
-          `url("${STUMP_EMPTY_IMAGE}")`;
-        axeStump.setAttribute("aria-hidden", "true");
-        axePickupHitArea.remove();
+        applyAxeState();
+        saveResourceState();
         playSound(GET_AXE_SOUND, 0.7);
       }
 
@@ -3444,7 +3762,7 @@
         }
 
         if (foodCount >= MAX_FOOD_COUNT) {
-          showToast(CARRY_FULL_TOAST_MESSAGE);
+          showToast(DEER_FOOD_FULL_TOAST_MESSAGE);
           return;
         }
 
@@ -4207,6 +4525,31 @@
         event.stopPropagation();
       });
 
+      inventoryOverlay.addEventListener("pointerdown", (event) => {
+        if (event.target === inventoryOverlay) {
+          closeInventory();
+        }
+      });
+
+      inventoryMenu.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
+
+      for (const item of inventoryItems) {
+        item.addEventListener("click", () => {
+          // 현재 장착 중인 Axe를 다시 눌러도 장착 해제하지 않습니다.
+          if (item.dataset.item === "axe") {
+            showToast(AXE_SELECTED_TOAST_MESSAGE);
+          }
+        });
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        closeExplorationMenu();
+        closeInventory();
+      });
+
       for (const option of explorationOptions) {
         option.addEventListener("click", () => {
           handleExplorationDestination(option.dataset.destination);
@@ -4233,6 +4576,15 @@
         updateWorldScale();
         initializeClouds();
         startSpawner();
+
+        if (document.body.classList.contains("is-restored-night")) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              document.body.classList.remove("is-restored-night");
+            });
+          });
+        }
+
         lastFrameTime = performance.now();
         requestAnimationFrame(gameLoop);
       }
