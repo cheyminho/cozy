@@ -125,9 +125,9 @@
 
     #axeStump {
       position: absolute;
-      /* 이전 버전에서 오른쪽으로 20px 추가 이동 */
       left: 733px;
-      top: 672px;
+      /* 기존 위치(672px)에서 아래로 400px 이동 */
+      top: 1072px;
       width: 179.2px;
       height: 179.2px;
       background-image: url("images/bg_stump_axe.png");
@@ -169,6 +169,121 @@
       pointer-events: auto;
       touch-action: none;
       outline: none;
+    }
+
+
+    /* 나무와 터치 영역 전체를 원본의 60% 크기로 표시합니다. */
+    #tree {
+      position: absolute;
+      /* 이전 위치에서 아래로 60px 이동 */
+      left: 1103px;
+      top: 562px;
+      width: 512px;
+      height: 512px;
+      transform: scale(0.6);
+      transform-origin: left top;
+      pointer-events: none;
+    }
+
+    #treeDayVisual,
+    #treeNightVisual,
+    #treeCanopyDay,
+    #treeCanopyNight {
+      position: absolute;
+      inset: 0;
+      background-repeat: no-repeat;
+      pointer-events: none;
+    }
+
+    #treeDayVisual {
+      z-index: 0;
+      background-image: url("images/bg_tree.png");
+      background-position: -512px 0;
+      background-size: 1024px 1024px;
+      opacity: 1;
+      transition: opacity 3s ease;
+      will-change: background-position, opacity;
+    }
+
+    #treeNightVisual {
+      z-index: 1;
+      background-image: url("images/bg_tree_night.png");
+      background-position: left top;
+      background-size: 512px 512px;
+      opacity: 0;
+      transition: opacity 3s ease;
+    }
+
+    body.is-night #treeDayVisual {
+      opacity: 0;
+    }
+
+    body.is-night #treeNightVisual {
+      opacity: 1;
+    }
+
+    /* 원본 왼쪽 절반 영역도 나무와 함께 60%로 축소됩니다. */
+    #treeHitArea {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 2;
+      width: 256px;
+      height: 512px;
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+      outline: none;
+    }
+
+    body.is-night #treeHitArea {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    /* 나무 위쪽 3/4는 엔티티보다 앞에 표시해 위쪽 영역의 좀비/사슴이 나무 뒤로 지나가게 합니다. */
+    #treeCanopyOverlay {
+      position: absolute;
+      left: 1103px;
+      top: 562px;
+      z-index: 15;
+      width: 512px;
+      height: 384px;
+      overflow: hidden;
+      transform: scale(0.6);
+      transform-origin: left top;
+      pointer-events: none;
+    }
+
+    #treeCanopyDay,
+    #treeCanopyNight {
+      width: 512px;
+      height: 512px;
+    }
+
+    #treeCanopyDay {
+      background-image: url("images/bg_tree.png");
+      background-position: -512px 0;
+      background-size: 1024px 1024px;
+      opacity: 1;
+      transition: opacity 3s ease;
+      will-change: background-position, opacity;
+    }
+
+    #treeCanopyNight {
+      background-image: url("images/bg_tree_night.png");
+      background-position: left top;
+      background-size: 512px 512px;
+      opacity: 0;
+      transition: opacity 3s ease;
+    }
+
+    body.is-night #treeCanopyDay {
+      opacity: 0;
+    }
+
+    body.is-night #treeCanopyNight {
+      opacity: 1;
     }
 
     #entities {
@@ -392,7 +507,29 @@
       pointer-events: none;
     }
 
-    #versionLabel.is-test-active {
+    #versionTestButton {
+      display: inline;
+      min-width: 0;
+      width: auto;
+      height: auto;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+      letter-spacing: inherit;
+      text-align: inherit;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    /* 테스트 모드에서도 실제 v 글자 크기만 클릭 영역으로 사용합니다. */
+    #versionTestButton.is-test-active {
       cursor: pointer;
       pointer-events: auto;
     }
@@ -1031,6 +1168,10 @@
     /* 저장된 탐험 상태로 다시 열 때는 첫 화면부터 즉시 밤 색상으로 표시합니다. */
     body.is-restored-night #world::after,
     body.is-restored-night #axeStump::after,
+    body.is-restored-night #treeDayVisual,
+    body.is-restored-night #treeNightVisual,
+    body.is-restored-night #treeCanopyDay,
+    body.is-restored-night #treeCanopyNight,
     body.is-restored-night .cloud-visual::before,
     body.is-restored-night .cloud-visual::after,
     body.is-restored-night .zombie-sprite,
@@ -1106,8 +1247,23 @@
             aria-label="도끼 얻기"
           ></div>
         </div>
+        <div id="tree" aria-hidden="false">
+          <div id="treeDayVisual" aria-hidden="true"></div>
+          <div id="treeNightVisual" aria-hidden="true"></div>
+          <div
+            id="treeHitArea"
+            class="world-interactive"
+            role="button"
+            tabindex="0"
+            aria-label="나무 베기"
+          ></div>
+        </div>
       </div>
       <div id="entities"></div>
+      <div id="treeCanopyOverlay" aria-hidden="true">
+        <div id="treeCanopyDay"></div>
+        <div id="treeCanopyNight"></div>
+      </div>
       <div id="birds"></div>
       <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
@@ -1222,7 +1378,7 @@
     <div id="weatherLabel">Sunny</div>
     <div id="dayNumber">DAY 1</div>
   </div>
-  <div id="versionLabel">v0.056</div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.057</span></div>
 
   <script>
     (() => {
@@ -1335,6 +1491,8 @@
       const NIGHT_CLOUD_SHEET =
         "images/bg_field_default_clouds_night.png";
       const NIGHT_STUMP_IMAGE = "images/bg_stump_night.png";
+      const TREE_DAY_SHEET = "images/bg_tree.png";
+      const TREE_NIGHT_IMAGE = "images/bg_tree_night.png";
 
       // 좀비와 사슴 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
       const PRELOADED_ZOMBIE_IMAGES = new Map();
@@ -1347,6 +1505,7 @@
       const HANDGUN_EQUIP_SOUND = "sounds/sfx_handgun_equip.wav";
       const HANDGUN_NO_AMMO_SOUND = "sounds/sfx_handgun_noammo.wav";
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
+      const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
@@ -1400,6 +1559,15 @@
 
       const STUMP_WITH_AXE_IMAGE = "images/bg_stump_axe.png";
       const STUMP_EMPTY_IMAGE = "images/bg_stump.png";
+
+
+      // 나무 스프라이트: 1024×1024 안에 2×2, 프레임당 512×512입니다.
+      // 리소스 번호 2가 기본 상태이며, 클릭하면 3→4→3→2→1→2를 재생합니다.
+      const TREE_SHEET_COLUMNS = 2;
+      const TREE_FRAME_SIZE = 512;
+      const TREE_DEFAULT_FRAME = 1;
+      const TREE_CHOP_SEQUENCE = [2, 3, 2, 1, 0, 1];
+      const TREE_CHOP_FRAME_MS = 100;
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
@@ -1571,9 +1739,16 @@
       const exploringTime = document.getElementById("exploringTime");
       const dayStatus = document.getElementById("dayStatus");
       const dayNumber = document.getElementById("dayNumber");
-      const versionLabel = document.getElementById("versionLabel");
+      const versionTestButton = document.getElementById("versionTestButton");
       const axeStump = document.getElementById("axeStump");
       const axePickupHitArea = document.getElementById("axePickupHitArea");
+      const tree = document.getElementById("tree");
+      const treeDayVisual = document.getElementById("treeDayVisual");
+      const treeNightVisual = document.getElementById("treeNightVisual");
+      const treeCanopyOverlay = document.getElementById("treeCanopyOverlay");
+      const treeCanopyDay = document.getElementById("treeCanopyDay");
+      const treeCanopyNight = document.getElementById("treeCanopyNight");
+      const treeHitArea = document.getElementById("treeHitArea");
       const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
@@ -1746,6 +1921,7 @@
       let explorationCompleteToastTimerId = null;
       let returnZombieSpawnTimerId = null;
       let zombieSpawnBlockedUntil = 0;
+      let treeAnimationTimerId = null;
       let activeToast = null;
       let nextZombieId = 1;
       let nextDeerId = 1;
@@ -1937,8 +2113,6 @@
             }
           }
 
-          // v0.057 저장 데이터에는 아이템별 NEW 정보가 없으므로,
-          // 가방 NEW가 남아 있다면 보유한 탐험 보상 항목에 표시합니다.
           if (
             newInventoryItemTypes.size === 0 &&
             hasNewInventoryItem
@@ -2419,8 +2593,25 @@
         cloudShadowOpacityTransitionStartedAt = now;
       }
 
+      function updateTreeInteractivity() {
+        const isTreeInteractive = !isExploring;
+
+        treeHitArea.tabIndex = isTreeInteractive ? 0 : -1;
+        treeHitArea.setAttribute(
+          "aria-disabled",
+          isTreeInteractive ? "false" : "true"
+        );
+
+        if (!isTreeInteractive && treeAnimationTimerId !== null) {
+          clearTimeout(treeAnimationTimerId);
+          treeAnimationTimerId = null;
+          setTreeFrame(TREE_DEFAULT_FRAME);
+        }
+      }
+
       function setNightMode(enabled) {
         document.body.classList.toggle("is-night", enabled);
+        updateTreeInteractivity();
         transitionCloudShadowOpacity(enabled);
         transitionBgmForNightMode(enabled);
       }
@@ -2696,7 +2887,9 @@
           preloadImage(STUMP_EMPTY_IMAGE),
           preloadImage(NIGHT_BACKGROUND_IMAGE),
           preloadImage(NIGHT_CLOUD_SHEET),
-          preloadImage(NIGHT_STUMP_IMAGE)
+          preloadImage(NIGHT_STUMP_IMAGE),
+          preloadImage(TREE_DAY_SHEET),
+          preloadImage(TREE_NIGHT_IMAGE)
         ]);
       }
 
@@ -4061,6 +4254,69 @@
         collectAxe(event);
       }
 
+
+      function setTreeFrame(frameIndex) {
+        const normalizedFrame = clamp(
+          Math.round(Number(frameIndex) || 0),
+          0,
+          TREE_SHEET_COLUMNS * TREE_SHEET_COLUMNS - 1
+        );
+        const column = normalizedFrame % TREE_SHEET_COLUMNS;
+        const row = Math.floor(normalizedFrame / TREE_SHEET_COLUMNS);
+        const backgroundPosition =
+          `${-column * TREE_FRAME_SIZE}px ${-row * TREE_FRAME_SIZE}px`;
+
+        treeDayVisual.style.backgroundPosition = backgroundPosition;
+        treeCanopyDay.style.backgroundPosition = backgroundPosition;
+      }
+
+      function playTreeChopAnimation(event) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        if (isExploring || document.body.classList.contains("is-night")) {
+          return;
+        }
+
+        playSound(TREE_CHOP_SOUND);
+
+        if (treeAnimationTimerId !== null) {
+          clearTimeout(treeAnimationTimerId);
+          treeAnimationTimerId = null;
+        }
+
+        let sequenceIndex = 0;
+        setTreeFrame(TREE_CHOP_SEQUENCE[sequenceIndex]);
+
+        const advanceFrame = () => {
+          sequenceIndex += 1;
+
+          if (sequenceIndex >= TREE_CHOP_SEQUENCE.length) {
+            treeAnimationTimerId = null;
+            setTreeFrame(TREE_DEFAULT_FRAME);
+            return;
+          }
+
+          setTreeFrame(TREE_CHOP_SEQUENCE[sequenceIndex]);
+          treeAnimationTimerId = window.setTimeout(
+            advanceFrame,
+            TREE_CHOP_FRAME_MS
+          );
+        };
+
+        treeAnimationTimerId = window.setTimeout(
+          advanceFrame,
+          TREE_CHOP_FRAME_MS
+        );
+      }
+
+      function handleTreeKeydown(event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        playTreeChopAnimation(event);
+      }
+
       function scheduleBgmAfterFirstPlayerKill() {
         if (
           !hasMusicBox ||
@@ -5292,6 +5548,8 @@
 
       axePickupHitArea.addEventListener("pointerdown", collectAxe);
       axePickupHitArea.addEventListener("keydown", handleAxePickupKeydown);
+      treeHitArea.addEventListener("pointerdown", playTreeChopAnimation);
+      treeHitArea.addEventListener("keydown", handleTreeKeydown);
       repairButton.addEventListener("click", handleRepairButton);
       inventoryButton.addEventListener("click", handleInventoryButton);
       exploreButton.addEventListener("click", handleExploreButton);
@@ -5488,8 +5746,9 @@
         });
       }
 
-      versionLabel.classList.toggle("is-test-active", TEST_MODE);
-      versionLabel.addEventListener("click", handleVersionLabelTestAction);
+      versionTestButton.classList.toggle("is-test-active", TEST_MODE);
+      versionTestButton.tabIndex = TEST_MODE ? 0 : -1;
+      versionTestButton.addEventListener("click", handleVersionLabelTestAction);
 
       viewport.addEventListener("pointerdown", startBackgroundDrag);
       viewport.addEventListener("pointermove", moveBackgroundDrag);
