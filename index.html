@@ -1378,7 +1378,7 @@
     <div id="weatherLabel">Sunny</div>
     <div id="dayNumber">DAY 1</div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.057</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.058</span></div>
 
   <script>
     (() => {
@@ -1570,6 +1570,7 @@
       const TREE_CHOP_FRAME_MS = 100;
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
+      const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
         "I should clear this place out first.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
@@ -4277,6 +4278,11 @@
         }
 
         if (isExploring || document.body.classList.contains("is-night")) {
+          return;
+        }
+
+        if (!hasAxe || !isAxeEquipped) {
+          showToast(TREE_NEEDS_AXE_TOAST_MESSAGE);
           return;
         }
 
