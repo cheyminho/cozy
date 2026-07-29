@@ -416,7 +416,7 @@
       appearance: none;
       -webkit-appearance: none;
       outline: none;
-      background: #000;
+      background: #181818;
       box-shadow: none;
       cursor: pointer;
       touch-action: manipulation;
@@ -604,11 +604,18 @@
       text-align: left;
     }
 
+    .inventory-item[hidden] {
+      display: none;
+    }
+
     .inventory-item__label {
       display: inline-block;
+      font-weight: 350;
       transform: scale(1);
       transform-origin: left center;
-      transition: transform 120ms ease-out;
+      transition:
+        font-weight 120ms ease-out,
+        transform 120ms ease-out;
     }
 
     .inventory-item__quantity {
@@ -618,7 +625,7 @@
 
     @media (hover: hover) and (pointer: fine) {
       .inventory-item:hover .inventory-item__label {
-        transform: scale(1.045);
+        font-weight: 600;
       }
     }
 
@@ -628,7 +635,7 @@
     }
 
     .inventory-item:focus-visible .inventory-item__label {
-      transform: scale(1.045);
+      font-weight: 600;
     }
 
     .exploration-destination {
@@ -1003,9 +1010,9 @@
   </div>
 
   <div id="hud">
-    <span class="hud-resource">Zombies <span><span id="zombieCount">0</span>/10</span></span>
-    <span class="hud-resource">Food <span><span id="foodCount">0</span>/5</span></span>
-    <span class="hud-resource">Wood <span><span id="woodCount">0</span>/20</span></span>
+    <span class="hud-resource">Zombies <span><span id="zombieCount">0</span>/<span id="zombieGoal">1</span></span></span>
+    <span class="hud-resource">Food <span><span id="foodCount">0</span>/3</span></span>
+    <span class="hud-resource">Wood <span><span id="woodCount">0</span>/10</span></span>
   </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   <div id="explorationOverlay" aria-hidden="true">
@@ -1013,14 +1020,14 @@
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="village" role="menuitem">Village</button>
         <div class="exploration-requirement">
-          <span class="exploration-requirement-item" data-requirement="food" data-required="3">Food <span class="exploration-requirement-current">0</span>/3</span>
+          <span class="exploration-requirement-item" data-requirement="food" data-required="1">Food <span class="exploration-requirement-current">0</span>/1</span>
         </div>
       </div>
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="forest" role="menuitem">Forest</button>
         <div class="exploration-requirement">
           <span class="exploration-requirement-item" data-requirement="compass" data-required="1">Compass <span class="exploration-requirement-current">0</span>/1</span>
-          <span class="exploration-requirement-item" data-requirement="food" data-required="5">Food <span class="exploration-requirement-current">0</span>/5</span>
+          <span class="exploration-requirement-item" data-requirement="food" data-required="3">Food <span class="exploration-requirement-current">0</span>/3</span>
         </div>
       </div>
       <div class="exploration-destination">
@@ -1028,7 +1035,7 @@
         <div class="exploration-requirement">
           <span class="exploration-requirement-item" data-requirement="fuel" data-required="1">Fuel <span class="exploration-requirement-current">0</span>/1</span>
           <span class="exploration-requirement-item" data-requirement="repairKit" data-required="1">Repair Kit <span class="exploration-requirement-current">0</span>/1</span>
-          <span class="exploration-requirement-item" data-requirement="food" data-required="10">Food <span class="exploration-requirement-current">0</span>/10</span>
+          <span class="exploration-requirement-item" data-requirement="food" data-required="5">Food <span class="exploration-requirement-current">0</span>/5</span>
         </div>
       </div>
     </div>
@@ -1038,6 +1045,10 @@
       <div id="inventoryList">
         <button class="inventory-item" type="button" role="menuitem" data-item="axe">
           <span class="inventory-item__name"><span class="inventory-item__equipped" aria-label="Equipped">✓</span><span class="inventory-item__label">Axe</span></span>
+          <span class="inventory-item__quantity">×1</span>
+        </button>
+        <button class="inventory-item" type="button" role="menuitem" data-item="musicBox" hidden>
+          <span class="inventory-item__name"><span class="inventory-item__equipped" aria-label="Music on"></span><span class="inventory-item__label">Music Box</span></span>
           <span class="inventory-item__quantity">×1</span>
         </button>
       </div>
@@ -1086,7 +1097,7 @@
     <div id="exploringLabel">Exploring</div>
     <div id="exploringTime">10m</div>
   </div>
-  <div id="versionLabel">v0.054</div>
+  <div id="versionLabel">v0.055</div>
 
   <script>
     (() => {
@@ -1127,10 +1138,12 @@
       const MAX_ACTIVE_ZOMBIES = 10;
       const MAX_ACTIVE_DEER = 3;
 
-      // 저장되는 자원의 최대 수
+      // 탐험에 필요한 좀비 처치 수는 1부터 시작해 귀환할 때마다 1씩 증가하며,
+      // 저장 및 표시 가능한 최대치는 기존과 동일하게 10입니다.
       const MAX_ZOMBIE_COUNT = 10;
-      const MAX_FOOD_COUNT = 5;
-      const MAX_WOOD_COUNT = 20;
+      const INITIAL_ZOMBIE_KILL_REQUIREMENT = 1;
+      const MAX_FOOD_COUNT = 3;
+      const MAX_WOOD_COUNT = 10;
 
       // 생성 간격: 좀비 1분 / 사슴 3분
       const SPAWN_INTERVAL_MS = 60_000;
@@ -1139,7 +1152,7 @@
 
       const EXPLORATION_DURATION_MS = 10 * 60_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
-      const TEST_MODE = false;
+      const TEST_MODE = true;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -1195,6 +1208,7 @@
       const DEATH_SOUND = "sounds/sfx_zombie_death.wav";
       const DEER_MISS_SOUND = "sounds/sfx_miss_axe.wav";
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
+      const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
       const NIGHT_BGM_SOUND = "sounds/bgm_meadow_night.mp3";
@@ -1253,6 +1267,9 @@
         "I should clear this place out first.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
       const AXE_SELECTED_TOAST_MESSAGE = "Problem solver.";
+      const MUSIC_BOX_FOUND_TOAST_MESSAGE = "A music box...?";
+      const MUSIC_BOX_SELECTED_TOAST_MESSAGE =
+        "Found on the first zombie. It still works.";
       const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
       const CARRY_FULL_TOAST_MESSAGE = "I can't carry any more.";
       const DEER_FOOD_FULL_TOAST_MESSAGE = "I’ve got enough.";
@@ -1264,6 +1281,8 @@
       const EXPLORATION_COMPLETE_TOAST_MESSAGE = "Home sweet home.";
       const TOAST_DURATION_MS = 3_000;
       const TOAST_REPLACED_FADE_MS = 200;
+      const MUSIC_BOX_FOUND_TOAST_DELAY_MS = 2_000;
+      const FIRST_KILL_BGM_DELAY_MS = 5_000;
 
       // 구름 스프라이트 시트: 1024×1024 안에 2×2로 배치된 4종입니다.
       const CLOUD_SHEET_COLUMNS = 2;
@@ -1371,6 +1390,7 @@
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
       const countElement = document.getElementById("zombieCount");
+      const zombieGoalElement = document.getElementById("zombieGoal");
       const foodCountElement = document.getElementById("foodCount");
       const woodCountElement = document.getElementById("woodCount");
       const toastLayer = document.getElementById("toastLayer");
@@ -1386,6 +1406,12 @@
       const inventoryMenu = document.getElementById("inventoryMenu");
       const inventoryItems = Array.from(
         document.querySelectorAll(".inventory-item")
+      );
+      const axeInventoryItem = document.querySelector(
+        '.inventory-item[data-item="axe"]'
+      );
+      const musicBoxInventoryItem = document.querySelector(
+        '.inventory-item[data-item="musicBox"]'
       );
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
@@ -1538,9 +1564,13 @@
       );
 
       let zombieCount = 0;
+      let zombieKillRequirement = INITIAL_ZOMBIE_KILL_REQUIREMENT;
       let foodCount = 0;
       let woodCount = 0;
       let hasAxe = false;
+      let isAxeEquipped = false;
+      let hasMusicBox = false;
+      let isMusicOn = false;
       let hasCompass = false;
       let fuelCount = 0;
       let repairKitCount = 0;
@@ -1580,6 +1610,7 @@
       const birds = [];
       let firstKillBirdFlockPlayed = false;
       let firstKillDeerSpawned = false;
+      let skipFirstStartSequence = false;
       let ambientBirdTimer = null;
 
       const dayBgmAudio = new Audio(DAY_BGM_SOUND);
@@ -1592,6 +1623,7 @@
       nightBgmAudio.preload = "auto";
       let bgmStartScheduled = false;
       let bgmStarted = false;
+      let bgmStartTimerId = null;
       let bgmFadeFrameId = null;
       let bgmFadeToken = 0;
 
@@ -1622,6 +1654,19 @@
           : 0;
       }
 
+      function normalizeZombieKillRequirement(value) {
+        const number = Number(value);
+        return Number.isFinite(number)
+          ? Math.round(
+              clamp(
+                number,
+                INITIAL_ZOMBIE_KILL_REQUIREMENT,
+                MAX_ZOMBIE_COUNT
+              )
+            )
+          : INITIAL_ZOMBIE_KILL_REQUIREMENT;
+      }
+
       function loadResourceState() {
         try {
           const saved = localStorage.getItem(RESOURCE_STORAGE_KEY);
@@ -1631,13 +1676,19 @@
           }
 
           const parsed = JSON.parse(saved);
-          zombieCount = normalizeStoredCount(
-            parsed.zombies,
-            MAX_ZOMBIE_COUNT
+          zombieKillRequirement = normalizeZombieKillRequirement(
+            parsed.zombieKillRequirement
+          );
+          zombieCount = Math.min(
+            normalizeStoredCount(parsed.zombies, MAX_ZOMBIE_COUNT),
+            zombieKillRequirement
           );
           foodCount = normalizeStoredCount(parsed.food, MAX_FOOD_COUNT);
           woodCount = normalizeStoredCount(parsed.wood, MAX_WOOD_COUNT);
           hasAxe = parsed.hasAxe === true;
+          isAxeEquipped = hasAxe && parsed.isAxeEquipped !== false;
+          hasMusicBox = parsed.hasMusicBox === true;
+          isMusicOn = hasMusicBox && parsed.isMusicOn !== false;
           hasCompass = parsed.hasCompass === true;
           fuelCount = normalizeStoredCount(parsed.fuel, 1);
           repairKitCount = normalizeStoredCount(parsed.repairKit, 1);
@@ -1651,7 +1702,14 @@
           // file:// 환경 등에서 저장소를 사용할 수 없어도 게임은 계속 동작합니다.
         }
 
+        // 페이지를 처음 열 때 이미 Axe를 보유하고 있었다면 튜토리얼성 첫 연출은 건너뜁니다.
+        // 같은 세션에서 방금 Axe를 얻은 경우에는 첫 처치 연출이 정상적으로 재생됩니다.
+        skipFirstStartSequence = hasAxe;
+        firstKillBirdFlockPlayed = skipFirstStartSequence;
+        firstKillDeerSpawned = skipFirstStartSequence;
+
         applyAxeState();
+        applyInventoryState();
         updateResourceHud();
         restoreExplorationState();
       }
@@ -1662,9 +1720,13 @@
             RESOURCE_STORAGE_KEY,
             JSON.stringify({
               zombies: zombieCount,
+              zombieKillRequirement,
               food: foodCount,
               wood: woodCount,
               hasAxe,
+              isAxeEquipped,
+              hasMusicBox,
+              isMusicOn,
               hasCompass,
               fuel: fuelCount,
               repairKit: repairKitCount,
@@ -1704,6 +1766,7 @@
 
       function updateResourceHud() {
         countElement.textContent = String(zombieCount);
+        zombieGoalElement.textContent = String(zombieKillRequirement);
         foodCountElement.textContent = String(foodCount);
         woodCountElement.textContent = String(woodCount);
         updateExplorationRequirements();
@@ -1734,7 +1797,7 @@
           !isExploring &&
           Date.now() >= zombieSpawnBlockedUntil &&
           zombies.size < MAX_ACTIVE_ZOMBIES &&
-          zombieCount + getLivingZombieCount() < MAX_ZOMBIE_COUNT
+          zombieCount + getLivingZombieCount() < zombieKillRequirement
         );
       }
 
@@ -1765,8 +1828,16 @@
         inventoryButton.classList.remove("is-menu-open");
       }
 
+      function hasAnyInventoryItem() {
+        return hasAxe || hasMusicBox;
+      }
+
+      function getFirstVisibleInventoryItem() {
+        return inventoryItems.find((item) => !item.hidden) || null;
+      }
+
       function openInventory() {
-        if (isInventoryOpen || !hasAxe) return;
+        if (isInventoryOpen || !hasAnyInventoryItem()) return;
 
         closeExplorationMenu();
         isInventoryOpen = true;
@@ -1774,7 +1845,7 @@
         inventoryOverlay.setAttribute("aria-hidden", "false");
         inventoryButton.classList.add("is-menu-open");
 
-        const firstItem = inventoryItems[0];
+        const firstItem = getFirstVisibleInventoryItem();
         if (firstItem) {
           window.setTimeout(() => firstItem.focus(), 0);
         }
@@ -1880,7 +1951,7 @@
       }
 
       async function transitionBgmForNightMode(enabled) {
-        if (!bgmStarted) return;
+        if (!isMusicOn || !bgmStarted) return;
 
         const transitionToken = ++bgmFadeToken;
         const incomingAudio = enabled ? nightBgmAudio : dayBgmAudio;
@@ -2001,6 +2072,13 @@
 
       function restoreExplorationState() {
         if (explorationEndsAt <= Date.now()) {
+          if (explorationEndsAt > 0) {
+            // 페이지가 닫혀 있는 동안 탐험이 끝난 경우에도 귀환 1회로 처리합니다.
+            isExploring = true;
+            finishExploration();
+            return;
+          }
+
           isExploring = false;
           explorationDestination = "";
           explorationEndsAt = 0;
@@ -2030,7 +2108,11 @@
         isExploring = false;
         explorationDestination = "";
         explorationEndsAt = 0;
-        saveResourceState();
+        zombieKillRequirement = Math.min(
+          MAX_ZOMBIE_COUNT,
+          zombieKillRequirement + 1
+        );
+        commitResourceState();
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
 
@@ -2078,9 +2160,9 @@
       }
 
       function getDestinationFoodRequirement(destination) {
-        if (destination === "village") return 3;
-        if (destination === "forest") return 5;
-        if (destination === "city") return 10;
+        if (destination === "village") return 1;
+        if (destination === "forest") return 3;
+        if (destination === "city") return 5;
         return 0;
       }
 
@@ -2103,26 +2185,24 @@
         startExploration(destination);
       }
 
-      function toggleResourcesForTest() {
+      function resetAllSavedStateForTest(event) {
         if (!TEST_MODE) return;
 
-        const allResourcesAreFull =
-          zombieCount >= MAX_ZOMBIE_COUNT &&
-          foodCount >= MAX_FOOD_COUNT &&
-          woodCount >= MAX_WOOD_COUNT;
-        const shouldResetResources = allResourcesAreFull;
-
-        zombieCount = shouldResetResources ? 0 : MAX_ZOMBIE_COUNT;
-        foodCount = shouldResetResources ? 0 : MAX_FOOD_COUNT;
-        woodCount = shouldResetResources ? 0 : MAX_WOOD_COUNT;
-
-        if (shouldResetResources) {
-          hasAxe = false;
-          closeInventory();
-          applyAxeState();
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
         }
 
-        commitResourceState();
+        try {
+          // 이 게임에서 저장하는 모든 진행 상태를 제거합니다.
+          localStorage.removeItem(RESOURCE_STORAGE_KEY);
+        } catch (_) {
+          // 저장소 접근이 막힌 환경에서도 새로고침은 계속 진행합니다.
+        }
+
+        // 실행 중인 개체·타이머·첫 연출 플래그까지 모두 처음 상태로 만들기 위해
+        // 저장 데이터를 지운 뒤 페이지를 새로 불러옵니다.
+        location.reload();
       }
 
       function shortenExplorationForTest(event) {
@@ -3305,7 +3385,7 @@
       function handleInventoryButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
 
-        if (!hasAxe) {
+        if (!hasAnyInventoryItem()) {
           showToast(INVENTORY_EMPTY_TOAST_MESSAGE);
           return;
         }
@@ -3331,7 +3411,7 @@
           return;
         }
 
-        if (zombieCount < MAX_ZOMBIE_COUNT) {
+        if (zombieCount < zombieKillRequirement) {
           showToast(EXPLORE_BLOCKED_TOAST_MESSAGE);
           return;
         }
@@ -3349,6 +3429,117 @@
         axePickupHitArea.tabIndex = hasAxe ? -1 : 0;
       }
 
+      function setInventoryCheck(item, checked, ariaLabel) {
+        if (!item) return;
+
+        const check = item.querySelector(".inventory-item__equipped");
+        if (!check) return;
+
+        check.textContent = checked ? "✓" : "";
+        check.setAttribute("aria-label", ariaLabel);
+      }
+
+      function applyInventoryState() {
+        if (axeInventoryItem) {
+          axeInventoryItem.hidden = !hasAxe;
+          setInventoryCheck(
+            axeInventoryItem,
+            hasAxe && isAxeEquipped,
+            isAxeEquipped ? "Equipped" : "Unequipped"
+          );
+        }
+
+        if (musicBoxInventoryItem) {
+          musicBoxInventoryItem.hidden = !hasMusicBox;
+          setInventoryCheck(
+            musicBoxInventoryItem,
+            hasMusicBox && isMusicOn,
+            isMusicOn ? "Music on" : "Music off"
+          );
+        }
+      }
+
+      function stopBgmPlayback() {
+        bgmFadeToken += 1;
+
+        if (bgmStartTimerId !== null) {
+          clearTimeout(bgmStartTimerId);
+          bgmStartTimerId = null;
+        }
+
+        if (bgmFadeFrameId !== null) {
+          cancelAnimationFrame(bgmFadeFrameId);
+          bgmFadeFrameId = null;
+        }
+
+        dayBgmAudio.pause();
+        nightBgmAudio.pause();
+        dayBgmAudio.volume = document.body.classList.contains("is-night")
+          ? 0
+          : 1;
+        nightBgmAudio.volume = document.body.classList.contains("is-night")
+          ? 1
+          : 0;
+        bgmStartScheduled = false;
+        bgmStarted = false;
+      }
+
+      async function startBgmPlayback() {
+        if (
+          !hasMusicBox ||
+          !isMusicOn ||
+          bgmStarted ||
+          bgmStartScheduled
+        ) {
+          return;
+        }
+
+        bgmStartScheduled = true;
+        const isNight = document.body.classList.contains("is-night");
+        const incomingAudio = isNight ? nightBgmAudio : dayBgmAudio;
+        const outgoingAudio = isNight ? dayBgmAudio : nightBgmAudio;
+
+        dayBgmAudio.volume = isNight ? 0 : 1;
+        nightBgmAudio.volume = isNight ? 1 : 0;
+        outgoingAudio.pause();
+
+        try {
+          await incomingAudio.play();
+          bgmStarted = true;
+        } catch (_) {
+          // 저장 상태가 On이어도 자동 재생이 차단될 수 있습니다.
+          // 이후 사용자 클릭에서 다시 재생을 시도합니다.
+          bgmStarted = false;
+        } finally {
+          bgmStartScheduled = false;
+        }
+      }
+
+      function setMusicOn(enabled) {
+        isMusicOn = hasMusicBox && enabled;
+        applyInventoryState();
+        saveResourceState();
+
+        if (isMusicOn) {
+          startBgmPlayback();
+        } else {
+          stopBgmPlayback();
+        }
+      }
+
+      function awardMusicBox() {
+        if (hasMusicBox) return;
+
+        hasMusicBox = true;
+        isMusicOn = true;
+        applyInventoryState();
+        saveResourceState();
+        window.setTimeout(() => {
+          showToast(MUSIC_BOX_FOUND_TOAST_MESSAGE);
+        }, MUSIC_BOX_FOUND_TOAST_DELAY_MS);
+        scheduleBgmAfterFirstPlayerKill();
+      }
+
       function collectAxe(event) {
         if (isExploring) {
           showExploringBusyToast(event);
@@ -3363,7 +3554,9 @@
         }
 
         hasAxe = true;
+        isAxeEquipped = true;
         applyAxeState();
+        applyInventoryState();
         saveResourceState();
         playSound(GET_AXE_SOUND, 0.7);
       }
@@ -3374,29 +3567,24 @@
       }
 
       function scheduleBgmAfterFirstPlayerKill() {
-        if (bgmStartScheduled || bgmStarted) return;
+        if (
+          !hasMusicBox ||
+          !isMusicOn ||
+          bgmStartScheduled ||
+          bgmStarted ||
+          bgmStartTimerId !== null
+        ) {
+          return;
+        }
 
         bgmStartScheduled = true;
-
-        window.setTimeout(() => {
+        bgmStartTimerId = window.setTimeout(() => {
+          bgmStartTimerId = null;
+          bgmStartScheduled = false;
           dayBgmAudio.currentTime = 0;
-          dayBgmAudio.volume = 1;
-          nightBgmAudio.volume = 0;
-
-          dayBgmAudio.play()
-            .then(() => {
-              bgmStarted = true;
-              bgmStartScheduled = false;
-
-              if (document.body.classList.contains("is-night")) {
-                transitionBgmForNightMode(true);
-              }
-            })
-            .catch(() => {
-              // 브라우저가 차단한 경우 다음 사용자 입력에서 다시 시도합니다.
-              bgmStartScheduled = false;
-            });
-        }, 3_000);
+          nightBgmAudio.currentTime = 0;
+          startBgmPlayback();
+        }, FIRST_KILL_BGM_DELAY_MS);
       }
 
       function triggerFirstKillDeer(zombie) {
@@ -3766,7 +3954,7 @@
           return;
         }
 
-        if (!hasAxe) {
+        if (!hasAxe || !isAxeEquipped) {
           showToast(UNARMED_TOAST_MESSAGE);
           return;
         }
@@ -4086,7 +4274,7 @@
           return;
         }
 
-        if (!hasAxe) {
+        if (!hasAxe || !isAxeEquipped) {
           showToast(UNARMED_TOAST_MESSAGE);
           return;
         }
@@ -4122,9 +4310,12 @@
         playSound(DEATH_SOUND, 0.5);
 
         if (wasPlayerKill) {
-          scheduleBgmAfterFirstPlayerKill();
-          triggerFirstKillBirdFlock();
-          triggerFirstKillDeer(zombie);
+          awardMusicBox();
+
+          if (!skipFirstStartSequence) {
+            triggerFirstKillBirdFlock();
+            triggerFirstKillDeer(zombie);
+          }
         }
 
         if (zombie.autoDeathTimer !== null) {
@@ -4489,9 +4680,14 @@
       }
 
       function startSpawner() {
-        // 첫 좀비는 게임 시작과 동시에 생성합니다.
-        if (canCreateZombie()) {
+        // 새 게임에서만 첫 좀비를 즉시 생성합니다.
+        // 페이지를 열 때 이미 Axe를 보유했다면 첫 시작용 즉시 생성은 건너뜁니다.
+        if (!skipFirstStartSequence && canCreateZombie()) {
           createZombie();
+        }
+
+        if (skipFirstStartSequence) {
+          scheduleNextAmbientBirdFlock();
         }
 
         // 이후에는 1분마다 필요한 수만큼 한 마리씩 생성합니다.
@@ -4536,13 +4732,105 @@
       });
 
       for (const item of inventoryItems) {
-        item.addEventListener("click", () => {
-          // 현재 장착 중인 Axe를 다시 눌러도 장착 해제하지 않습니다.
-          if (item.dataset.item === "axe") {
-            showToast(AXE_SELECTED_TOAST_MESSAGE);
+        let inventoryPointerStartX = 0;
+        let inventoryPointerStartY = 0;
+        let inventoryPointerStartedChecked = false;
+        let inventoryPointerDragged = false;
+
+        const isInventoryItemChecked = () => {
+          const check = item.querySelector(".inventory-item__equipped");
+          return Boolean(check && check.textContent.trim() === "✓");
+        };
+
+        item.addEventListener("pointerdown", (event) => {
+          inventoryPointerStartX = event.clientX;
+          inventoryPointerStartY = event.clientY;
+          inventoryPointerStartedChecked = isInventoryItemChecked();
+          inventoryPointerDragged = false;
+
+          if (typeof item.setPointerCapture === "function") {
+            item.setPointerCapture(event.pointerId);
+          }
+        });
+
+        item.addEventListener("pointermove", (event) => {
+          if (!inventoryPointerStartedChecked || inventoryPointerDragged) {
+            return;
+          }
+
+          const dragDistance = Math.hypot(
+            event.clientX - inventoryPointerStartX,
+            event.clientY - inventoryPointerStartY
+          );
+
+          if (dragDistance >= 4) {
+            inventoryPointerDragged = true;
+          }
+        });
+
+        item.addEventListener("pointerup", (event) => {
+          if (
+            typeof item.hasPointerCapture === "function" &&
+            item.hasPointerCapture(event.pointerId)
+          ) {
+            item.releasePointerCapture(event.pointerId);
+          }
+        });
+
+        item.addEventListener("pointercancel", () => {
+          inventoryPointerStartedChecked = false;
+          inventoryPointerDragged = false;
+        });
+
+        item.addEventListener("click", (event) => {
+          if (
+            inventoryPointerStartedChecked &&
+            inventoryPointerDragged
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            inventoryPointerStartedChecked = false;
+            inventoryPointerDragged = false;
+            return;
+          }
+
+          const wasChecked = inventoryPointerStartedChecked ||
+            isInventoryItemChecked();
+
+          inventoryPointerStartedChecked = false;
+          inventoryPointerDragged = false;
+          playSound(INVENTORY_SET_SOUND);
+
+          if (item.dataset.item === "axe" && hasAxe) {
+            isAxeEquipped = !isAxeEquipped;
+            applyInventoryState();
+            saveResourceState();
+
+            if (!wasChecked && isAxeEquipped) {
+              showToast(AXE_SELECTED_TOAST_MESSAGE);
+            }
+            return;
+          }
+
+          if (item.dataset.item === "musicBox" && hasMusicBox) {
+            const nextMusicOn = !isMusicOn;
+
+            if (!wasChecked && nextMusicOn) {
+              showToast(MUSIC_BOX_SELECTED_TOAST_MESSAGE);
+            }
+
+            setMusicOn(nextMusicOn);
           }
         });
       }
+
+      // 저장된 Music Box가 On인데 브라우저가 자동 재생을 막은 경우,
+      // 다음 일반 클릭에서 현재 낮/밤 트랙 재생을 다시 시도합니다.
+      document.addEventListener("click", () => {
+        if (hasMusicBox && isMusicOn && !bgmStarted) {
+          startBgmPlayback();
+        }
+      });
 
       document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
@@ -4557,7 +4845,7 @@
       }
 
       versionLabel.classList.toggle("is-test-active", TEST_MODE);
-      versionLabel.addEventListener("click", toggleResourcesForTest);
+      versionLabel.addEventListener("click", resetAllSavedStateForTest);
       exploringTime.classList.toggle("is-test-active", TEST_MODE);
       exploringTime.addEventListener("click", shortenExplorationForTest);
 
@@ -4576,6 +4864,10 @@
         updateWorldScale();
         initializeClouds();
         startSpawner();
+
+        if (hasMusicBox && isMusicOn) {
+          startBgmPlayback();
+        }
 
         if (document.body.classList.contains("is-restored-night")) {
           requestAnimationFrame(() => {
