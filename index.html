@@ -1509,7 +1509,7 @@
       </span>
     </div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.061</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.062</span></div>
 
   <script>
     (() => {
@@ -6363,7 +6363,7 @@
 
       versionTestButton.classList.toggle("is-test-active", TEST_MODE);
       versionTestButton.tabIndex = TEST_MODE ? 0 : -1;
-      versionTestButton.addEventListener("click", handleVersionLabelTestAction);
+      versionTestButton.addEventListener("pointerdown", handleVersionLabelTestAction);
 
       viewport.addEventListener("pointerdown", startBackgroundDrag);
       viewport.addEventListener("pointermove", moveBackgroundDrag);
