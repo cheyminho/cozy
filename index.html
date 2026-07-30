@@ -454,10 +454,10 @@
 
     /*
       새 토스트가 나타날 때 기존 토스트는 이동을 계속하면서
-      현재 위치에서 0.2초 동안 빠르게 사라집니다.
+      남은 표시 시간이 충분한 경우 현재 투명도에서 0.5초 동안 사라집니다.
     */
     .toast-message.is-replaced .toast-message-text {
-      animation: toast-replaced-fade 0.2s linear forwards;
+      animation: toast-replaced-fade 0.5s linear forwards;
     }
 
     @keyframes toast-rise {
@@ -895,20 +895,22 @@
     }
 
     .exploration-requirement-item {
-      display: flex;
-      flex-wrap: nowrap;
-      align-items: baseline;
-      gap: 4px;
+      position: relative;
+      display: block;
       width: max-content;
       margin: 0 auto;
       white-space: nowrap;
     }
 
-    /* 충족한 조건은 체크 표시 대신 텍스트 가운데 취소선으로 표시합니다. */
-    .exploration-requirement-item.is-complete {
-      text-decoration-line: line-through;
-      text-decoration-thickness: 1px;
-      text-decoration-color: currentColor;
+    /* 충족한 조건은 공백까지 끊기지 않는 한 줄로 표시합니다. */
+    .exploration-requirement-item.is-complete::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      border-top: 1px solid currentColor;
+      pointer-events: none;
     }
 
     /* Compass와 Map은 수량 없이 텍스트 자체가 가운데에 오도록 합니다. */
@@ -1282,12 +1284,14 @@
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="village" role="menuitem">Village</button>
         <div class="exploration-requirement">
+          <span class="exploration-requirement-item" data-requirement="zombies" data-required="2">Zombies <span class="exploration-requirement-current">0</span>/<span class="exploration-requirement-total">2</span></span>
           <span class="exploration-requirement-item" data-requirement="food" data-required="1">Food <span class="exploration-requirement-current">0</span>/1</span>
         </div>
       </div>
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="forest" role="menuitem">Forest</button>
         <div class="exploration-requirement">
+          <span class="exploration-requirement-item" data-requirement="zombies" data-required="2">Zombies <span class="exploration-requirement-current">0</span>/<span class="exploration-requirement-total">2</span></span>
           <span class="exploration-requirement-item" data-requirement="food" data-required="3">Food <span class="exploration-requirement-current">0</span>/3</span>
           <span class="exploration-requirement-item is-label-only" data-requirement="compass" data-required="1">Compass</span>
         </div>
@@ -1295,6 +1299,7 @@
       <div class="exploration-destination">
         <button class="exploration-option" type="button" data-destination="city" role="menuitem">City</button>
         <div class="exploration-requirement">
+          <span class="exploration-requirement-item" data-requirement="zombies" data-required="2">Zombies <span class="exploration-requirement-current">0</span>/<span class="exploration-requirement-total">2</span></span>
           <span class="exploration-requirement-item" data-requirement="food" data-required="5">Food <span class="exploration-requirement-current">0</span>/5</span>
           <span class="exploration-requirement-item" data-requirement="fuel" data-required="10">Fuel <span class="exploration-requirement-current">0</span>/10</span>
           <span class="exploration-requirement-item is-label-only" data-requirement="map" data-required="1">Map</span>
@@ -1378,7 +1383,7 @@
     <div id="weatherLabel">Sunny</div>
     <div id="dayNumber">DAY 1</div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.059</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.060</span></div>
 
   <script>
     (() => {
@@ -1445,6 +1450,7 @@
       const EXPLORATION_DURATION_MS = 10 * 60_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
       const TEST_MODE = true;
+      const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -1592,7 +1598,8 @@
       const FIELD_CLEAR_TOAST_MESSAGE = "Looks clear.";
       const FIELD_CLEAR_TOAST_DELAY_MS = 1_000;
       const TOAST_DURATION_MS = 3_000;
-      const TOAST_REPLACED_FADE_MS = 200;
+      const TOAST_REPLACED_FADE_MS = 500;
+      const MAX_VISIBLE_TOASTS = 2;
       const MUSIC_BOX_FOUND_TOAST_DELAY_MS = 2_000;
       const FIRST_KILL_BGM_DELAY_MS = 5_000;
 
@@ -1923,13 +1930,21 @@
       let returnZombieSpawnTimerId = null;
       let zombieSpawnBlockedUntil = 0;
       let treeAnimationTimerId = null;
-      let activeToast = null;
+      const activeToasts = [];
       let nextZombieId = 1;
       let nextDeerId = 1;
       let nextCloudId = 1;
       let lastFrameTime = performance.now();
       const zombies = new Map();
       const deerMap = new Map();
+      let storedPopulationSnapshot = null;
+      let lastZombieSpawnAt = Date.now();
+      let lastDeerSpawnAt = Date.now();
+      let zombieSpawnTimerId = null;
+      let deerSpawnTimerId = null;
+      let versionTestClickCount = 0;
+      let versionTestLastClickAt = -Infinity;
+      let isStateSaveSuppressed = false;
 
       const skyClouds = [];
       const shadowClouds = [];
@@ -2135,6 +2150,29 @@
           explorationEndsAt = Number.isFinite(Number(parsed.explorationEndsAt))
             ? Math.max(0, Number(parsed.explorationEndsAt))
             : 0;
+
+          const savedAt = Number.isFinite(Number(parsed.savedAt))
+            ? Math.max(0, Number(parsed.savedAt))
+            : Date.now();
+          lastZombieSpawnAt = Number.isFinite(Number(parsed.lastZombieSpawnAt))
+            ? Math.max(0, Number(parsed.lastZombieSpawnAt))
+            : savedAt;
+          lastDeerSpawnAt = Number.isFinite(Number(parsed.lastDeerSpawnAt))
+            ? Math.max(0, Number(parsed.lastDeerSpawnAt))
+            : savedAt;
+          storedPopulationSnapshot = {
+            savedAt,
+            explorationEndsAt,
+            activeZombies: normalizeStoredCount(
+              parsed.activeZombies,
+              MAX_ACTIVE_ZOMBIES
+            ),
+            activeDeer: normalizeStoredCount(
+              parsed.activeDeer,
+              MAX_ACTIVE_DEER
+            )
+          };
+
           // 첫 좀비 처치 새 떼 연출은 별도 저장해 게임 초기화 전까지 한 번만 재생합니다.
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
@@ -2156,6 +2194,8 @@
       }
 
       function saveResourceState() {
+        if (isStateSaveSuppressed) return;
+
         try {
           localStorage.setItem(
             RESOURCE_STORAGE_KEY,
@@ -2180,7 +2220,12 @@
               hasMap,
               firstKillBirdFlockPlayed,
               explorationDestination,
-              explorationEndsAt: isExploring ? explorationEndsAt : 0
+              explorationEndsAt: isExploring ? explorationEndsAt : 0,
+              activeZombies: getLivingZombieCount(),
+              activeDeer: getLivingDeerCount(),
+              lastZombieSpawnAt,
+              lastDeerSpawnAt,
+              savedAt: Date.now()
             })
           );
         } catch (_) {
@@ -2189,6 +2234,7 @@
       }
 
       function getRequirementValue(requirement) {
+        if (requirement === "zombies") return zombieCount;
         if (requirement === "food") return foodCount;
         if (requirement === "compass") return hasCompass ? 1 : 0;
         if (requirement === "fuel") return fuelCount;
@@ -2199,14 +2245,23 @@
       function updateExplorationRequirements() {
         for (const item of explorationRequirementItems) {
           const requirement = item.dataset.requirement || "";
-          const required = Math.max(0, Number(item.dataset.required) || 0);
+          const required = requirement === "zombies"
+            ? zombieKillRequirement
+            : Math.max(0, Number(item.dataset.required) || 0);
           const current = getRequirementValue(requirement);
           const currentElement = item.querySelector(
             ".exploration-requirement-current"
           );
+          const totalElement = item.querySelector(
+            ".exploration-requirement-total"
+          );
 
           if (currentElement) {
             currentElement.textContent = String(current);
+          }
+
+          if (totalElement) {
+            totalElement.textContent = String(required);
           }
 
           item.classList.toggle("is-complete", current >= required);
@@ -2245,6 +2300,111 @@
         }
 
         return count;
+      }
+
+      function getLivingDeerCount() {
+        let count = 0;
+
+        for (const deer of deerMap.values()) {
+          if (
+            deer.state !== "dying" &&
+            deer.state !== "removed"
+          ) {
+            count += 1;
+          }
+        }
+
+        return count;
+      }
+
+      function restoreStoredPopulation() {
+        if (!storedPopulationSnapshot) return;
+
+        const now = Date.now();
+        const snapshot = storedPopulationSnapshot;
+        let targetZombieCount = snapshot.activeZombies;
+        let targetDeerCount = snapshot.activeDeer;
+
+        if (isExploring) {
+          // 탐험 중 닫았다가 다시 열면 기존 개체 수만 복원하고,
+          // 탐험 중 경과 시간은 필드 생성 시간으로 계산하지 않습니다.
+          lastZombieSpawnAt = now;
+          lastDeerSpawnAt = now;
+        } else {
+          const explorationFinishedWhileClosed =
+            snapshot.explorationEndsAt > snapshot.savedAt;
+          const zombieSpawnEligibleAt = explorationFinishedWhileClosed
+            ? Math.max(
+                lastZombieSpawnAt,
+                snapshot.explorationEndsAt + 7_000
+              )
+            : lastZombieSpawnAt;
+          const deerSpawnEligibleAt = explorationFinishedWhileClosed
+            ? Math.max(lastDeerSpawnAt, snapshot.explorationEndsAt)
+            : lastDeerSpawnAt;
+          const elapsedZombieTicks = Math.max(
+            0,
+            Math.floor(
+              (now - zombieSpawnEligibleAt) / SPAWN_INTERVAL_MS
+            )
+          );
+          const elapsedDeerTicks = Math.max(
+            0,
+            Math.floor(
+              (now - deerSpawnEligibleAt) / DEER_SPAWN_INTERVAL_MS
+            )
+          );
+          const remainingZombieCapacity = Math.max(
+            0,
+            Math.min(
+              MAX_ACTIVE_ZOMBIES,
+              zombieKillRequirement - zombieCount
+            )
+          );
+
+          targetZombieCount = Math.min(
+            remainingZombieCapacity,
+            targetZombieCount + elapsedZombieTicks
+          );
+          targetDeerCount = Math.min(
+            MAX_ACTIVE_DEER,
+            targetDeerCount + elapsedDeerTicks
+          );
+          lastZombieSpawnAt = Math.min(
+            now,
+            zombieSpawnEligibleAt +
+              elapsedZombieTicks * SPAWN_INTERVAL_MS
+          );
+          lastDeerSpawnAt = Math.min(
+            now,
+            deerSpawnEligibleAt +
+              elapsedDeerTicks * DEER_SPAWN_INTERVAL_MS
+          );
+        }
+
+        for (let index = 0; index < targetZombieCount; index += 1) {
+          if (!createZombie({
+            force: true,
+            silent: true,
+            persist: false,
+            skipBirth: true
+          })) {
+            break;
+          }
+        }
+
+        for (let index = 0; index < targetDeerCount; index += 1) {
+          if (!createDeer({
+            force: true,
+            persist: false,
+            skipBirth: true
+          })) {
+            break;
+          }
+        }
+
+        storedPopulationSnapshot = null;
+        saveResourceState();
       }
 
       function canCreateZombie() {
@@ -2786,6 +2946,11 @@
       }
 
       function handleExplorationDestination(destination) {
+        if (zombieCount < zombieKillRequirement) {
+          showToast(EXPLORE_BLOCKED_TOAST_MESSAGE);
+          return;
+        }
+
         if (!hasDestinationItems(destination)) {
           if (destination === "forest") {
             showToast(FOREST_BLOCKED_TOAST_MESSAGE);
@@ -2811,6 +2976,8 @@
           event.preventDefault();
           event.stopPropagation();
         }
+
+        isStateSaveSuppressed = true;
 
         try {
           // 이 게임에서 저장하는 모든 진행 상태를 제거합니다.
@@ -2838,12 +3005,33 @@
       function handleVersionLabelTestAction(event) {
         if (!TEST_MODE) return;
 
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        const now = performance.now();
+        if (
+          now - versionTestLastClickAt >
+          TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS
+        ) {
+          versionTestClickCount = 0;
+        }
+
+        versionTestLastClickAt = now;
+        versionTestClickCount += 1;
+
+        if (versionTestClickCount < 3) return;
+
+        versionTestClickCount = 0;
+        versionTestLastClickAt = -Infinity;
+
         if (isExploring) {
-          shortenExplorationForTest(event);
+          shortenExplorationForTest();
           return;
         }
 
-        resetAllSavedStateForTest(event);
+        resetAllSavedStateForTest();
       }
 
       function easeOutSine(progress) {
@@ -3945,13 +4133,23 @@
 
         toast.element.remove();
 
-        if (activeToast === toast) {
-          activeToast = null;
+        const toastIndex = activeToasts.indexOf(toast);
+        if (toastIndex >= 0) {
+          activeToasts.splice(toastIndex, 1);
         }
       }
 
-      function fadeOutReplacedToast(toast) {
+      function fadeOutReplacedToast(toast, now = performance.now()) {
         if (!toast || !toast.element.isConnected) return;
+        if (toast.element.classList.contains("is-replaced")) return;
+
+        const remainingDisplayMs = toast.expiresAt - now;
+
+        // 원래 표시 시간이 0.5초 이하로 남았다면 기존 페이드 애니메이션으로
+        // 자연스럽게 사라지도록 별도의 교체 처리를 하지 않습니다.
+        if (remainingDisplayMs <= TOAST_REPLACED_FADE_MS) {
+          return;
+        }
 
         if (toast.removeTimer !== null) {
           clearTimeout(toast.removeTimer);
@@ -3974,12 +4172,24 @@
       }
 
       function showToast(message) {
-        // 새 메시지가 출력되면 기존 토스트는 이동을 유지한 채
-        // 현재 투명도에서 0.2초 동안 빠르게 사라집니다.
-        if (activeToast !== null) {
-          const previousToast = activeToast;
-          activeToast = null;
-          fadeOutReplacedToast(previousToast);
+        const now = performance.now();
+
+        // 이미 제거된 토스트가 배열에 남지 않도록 정리합니다.
+        for (let index = activeToasts.length - 1; index >= 0; index -= 1) {
+          if (!activeToasts[index].element.isConnected) {
+            activeToasts.splice(index, 1);
+          }
+        }
+
+        // 새 토스트까지 포함해 3개 이상이 되는 순간 가장 오래된 것을 즉시 제거합니다.
+        while (activeToasts.length >= MAX_VISIBLE_TOASTS) {
+          removeToast(activeToasts[0]);
+        }
+
+        // 직전에 표시된 토스트는 남은 시간이 충분할 때만 0.5초 교체 페이드를 적용합니다.
+        const previousToast = activeToasts[activeToasts.length - 1] || null;
+        if (previousToast) {
+          fadeOutReplacedToast(previousToast, now);
         }
 
         const element = document.createElement("div");
@@ -3995,11 +4205,13 @@
         const toast = {
           element,
           textElement,
+          createdAt: now,
+          expiresAt: now + TOAST_DURATION_MS,
           removeTimer: null,
           replacedRemoveTimer: null
         };
 
-        activeToast = toast;
+        activeToasts.push(toast);
 
         toast.removeTimer = window.setTimeout(() => {
           removeToast(toast);
@@ -4049,11 +4261,6 @@
 
         if (isExplorationMenuOpen) {
           closeExplorationMenu();
-          return;
-        }
-
-        if (zombieCount < zombieKillRequirement) {
-          showToast(EXPLORE_BLOCKED_TOAST_MESSAGE);
           return;
         }
 
@@ -4555,6 +4762,7 @@
         deer.state = "removed";
         deer.element.remove();
         deerMap.delete(deer.id);
+        saveResourceState();
       }
 
       function isDeerOutsideVisibleArea(deer) {
@@ -4568,7 +4776,13 @@
       }
 
       function createDeer(options = {}) {
-        if (isExploring || deerMap.size >= MAX_ACTIVE_DEER) return false;
+        const force = options.force === true;
+        if (
+          (!force && isExploring) ||
+          deerMap.size >= MAX_ACTIVE_DEER
+        ) {
+          return false;
+        }
 
         const position = getRandomDeerSpawnPosition(options);
         const now = performance.now();
@@ -4596,6 +4810,7 @@
         element.appendChild(hitbox);
         entities.appendChild(element);
 
+        const skipBirth = options.skipBirth === true;
         const deer = {
           id: nextDeerId++,
           element,
@@ -4605,7 +4820,7 @@
           x: position.x,
           y: position.y,
           facing: Math.random() < 0.5 ? "left" : "right",
-          state: "birthing",
+          state: skipBirth ? "idle" : "birthing",
           birthStartedAt: now,
           idleAnimation: null,
           idleAnimationStartedAt: 0,
@@ -4628,7 +4843,15 @@
 
         deerMap.set(deer.id, deer);
         setDeerFacing(deer);
-        showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[0]);
+
+        if (skipBirth) {
+          deer.element.style.opacity = "1";
+          scheduleNextDeerIdleAnimation(deer, now);
+          showSingleDeerFrame(deer, DEER_IDLE_FRAME);
+        } else {
+          showSingleDeerFrame(deer, DEER_BIRTH_FRAME_SEQUENCE[0]);
+        }
+
         renderDeer(deer);
 
         hitbox.addEventListener("pointerdown", (event) => {
@@ -4636,6 +4859,10 @@
           event.stopPropagation();
           attackDeer(deer);
         });
+
+        if (options.persist !== false) {
+          saveResourceState();
+        }
 
         return true;
       }
@@ -4992,9 +5219,19 @@
         removeDeer(deer);
       }
 
-      function createZombie() {
+      function createZombie(options = {}) {
         // 처치 수와 살아 있는 좀비 수의 합이 최대값을 넘지 않게 합니다.
-        if (!canCreateZombie()) return false;
+        const force = options.force === true;
+        if (force) {
+          if (
+            zombies.size >= MAX_ACTIVE_ZOMBIES ||
+            zombieCount + getLivingZombieCount() >= zombieKillRequirement
+          ) {
+            return false;
+          }
+        } else if (!canCreateZombie()) {
+          return false;
+        }
 
         const position = getRandomSpawnPosition();
         const direction = randomDirection();
@@ -5017,6 +5254,7 @@
         element.appendChild(overlay);
         entities.appendChild(element);
 
+        const skipBirth = options.skipBirth === true;
         const zombie = {
           id: nextZombieId++,
           element,
@@ -5027,7 +5265,7 @@
           direction,
           facing: Math.random() < 0.5 ? -1 : 1,
           health: ZOMBIE_MAX_HEALTH,
-          state: "birthing",
+          state: skipBirth ? "walking" : "birthing",
           birthStartedAt: performance.now(),
           walkElapsed: 0,
           walkFrame: Math.floor(Math.random() * 8),
@@ -5043,9 +5281,18 @@
         zombies.set(zombie.id, zombie);
 
         setFacing(zombie);
-        zombie.sprite.style.backgroundPosition = framePosition(0);
+
+        if (skipBirth) {
+          zombie.element.style.opacity = "1";
+          showSingleFrame(zombie, WALK_SHEET, zombie.walkFrame);
+        } else {
+          zombie.sprite.style.backgroundPosition = framePosition(0);
+        }
+
         renderZombie(zombie);
-        playSound(BIRTH_SOUND, 0.5);
+        if (!skipBirth && !options.silent) {
+          playSound(BIRTH_SOUND, 0.5);
+        }
 
         element.addEventListener("pointerdown", (event) => {
           event.preventDefault();
@@ -5056,6 +5303,10 @@
         zombie.autoDeathTimer = window.setTimeout(() => {
           beginDeath(zombie, false);
         }, AUTO_DEATH_MS);
+
+        if (options.persist !== false) {
+          saveResourceState();
+        }
 
         return true;
       }
@@ -5207,6 +5458,7 @@
 
         zombie.element.remove();
         zombies.delete(zombie.id);
+        saveResourceState();
       }
 
       function resolveOuterBounds(zombie) {
@@ -5527,6 +5779,50 @@
         requestAnimationFrame(gameLoop);
       }
 
+      function scheduleNextZombieSpawnTick() {
+        if (zombieSpawnTimerId !== null) {
+          clearTimeout(zombieSpawnTimerId);
+        }
+
+        const elapsed = Math.max(0, Date.now() - lastZombieSpawnAt);
+        const delay = Math.max(0, SPAWN_INTERVAL_MS - elapsed);
+
+        zombieSpawnTimerId = window.setTimeout(() => {
+          zombieSpawnTimerId = null;
+          lastZombieSpawnAt = Date.now();
+
+          if (canCreateZombie()) {
+            createZombie();
+          } else {
+            saveResourceState();
+          }
+
+          scheduleNextZombieSpawnTick();
+        }, delay);
+      }
+
+      function scheduleNextDeerSpawnTick() {
+        if (deerSpawnTimerId !== null) {
+          clearTimeout(deerSpawnTimerId);
+        }
+
+        const elapsed = Math.max(0, Date.now() - lastDeerSpawnAt);
+        const delay = Math.max(0, DEER_SPAWN_INTERVAL_MS - elapsed);
+
+        deerSpawnTimerId = window.setTimeout(() => {
+          deerSpawnTimerId = null;
+          lastDeerSpawnAt = Date.now();
+
+          if (!isExploring && deerMap.size < MAX_ACTIVE_DEER) {
+            createDeer();
+          } else {
+            saveResourceState();
+          }
+
+          scheduleNextDeerSpawnTick();
+        }, delay);
+      }
+
       function startSpawner() {
         // 새 게임에서만 첫 좀비를 즉시 생성합니다.
         // 페이지를 열 때 이미 Axe를 보유했다면 첫 시작용 즉시 생성은 건너뜁니다.
@@ -5536,20 +5832,8 @@
 
         // 간헐적으로 지나가는 새는 첫 처치 연출 여부와 관계없이 항상 유지합니다.
         scheduleNextAmbientBirdFlock();
-
-        // 이후에는 1분마다 필요한 수만큼 한 마리씩 생성합니다.
-        window.setInterval(() => {
-          if (canCreateZombie()) {
-            createZombie();
-          }
-        }, SPAWN_INTERVAL_MS);
-
-        // 사슴은 Food 수치와 관계없이 3분마다 생성하되 화면에는 최대 3마리만 둡니다.
-        window.setInterval(() => {
-          if (!isExploring && deerMap.size < MAX_ACTIVE_DEER) {
-            createDeer();
-          }
-        }, DEER_SPAWN_INTERVAL_MS);
+        scheduleNextZombieSpawnTick();
+        scheduleNextDeerSpawnTick();
       }
 
       axePickupHitArea.addEventListener("pointerdown", collectAxe);
@@ -5766,11 +6050,19 @@
         updateInventoryPagePosition(false);
       });
 
+      window.addEventListener("pagehide", saveResourceState);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          saveResourceState();
+        }
+      });
+
       async function initializeGame() {
         // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
         await preloadGameSprites();
 
         loadResourceState();
+        restoreStoredPopulation();
         updateWorldScale();
         initializeClouds();
         startSpawner();
