@@ -186,8 +186,10 @@
     }
 
     #treeDayVisual,
+    #treeDayFadeVisual,
     #treeNightVisual,
     #treeCanopyDay,
+    #treeCanopyDayFade,
     #treeCanopyNight {
       position: absolute;
       inset: 0;
@@ -205,16 +207,27 @@
       will-change: background-position, opacity;
     }
 
-    #treeNightVisual {
+    #treeDayFadeVisual {
       z-index: 1;
+      background-image: url("images/bg_tree.png");
+      background-position: -512px 0;
+      background-size: 1024px 1024px;
+      opacity: 0;
+      transition: opacity 3s ease;
+      will-change: background-position, opacity;
+    }
+
+    #treeNightVisual {
+      z-index: 2;
       background-image: url("images/bg_tree_night.png");
       background-position: left top;
-      background-size: 512px 512px;
+      background-size: 1024px 1024px;
       opacity: 0;
       transition: opacity 3s ease;
     }
 
-    body.is-night #treeDayVisual {
+    body.is-night #treeDayVisual,
+    body.is-night #treeDayFadeVisual {
       opacity: 0;
     }
 
@@ -227,7 +240,7 @@
       position: absolute;
       left: 0;
       top: 0;
-      z-index: 2;
+      z-index: 3;
       width: 256px;
       height: 512px;
       cursor: pointer;
@@ -255,6 +268,28 @@
       pointer-events: none;
     }
 
+    /* 나무를 칠 때 떨어지는 파츠는 나무 위에 겹쳐서 표시합니다. */
+    #treePartLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 16;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .tree-falling-part {
+      position: absolute;
+      width: 256px;
+      height: 256px;
+      background-image: url("images/bg_tree_part.png");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 256px 256px;
+      transform-origin: center center;
+      will-change: transform, opacity;
+      pointer-events: none;
+    }
+
     #treeCanopyDay,
     #treeCanopyNight {
       width: 512px;
@@ -270,15 +305,25 @@
       will-change: background-position, opacity;
     }
 
+    #treeCanopyDayFade {
+      background-image: url("images/bg_tree.png");
+      background-position: -512px 0;
+      background-size: 1024px 1024px;
+      opacity: 0;
+      transition: opacity 3s ease;
+      will-change: background-position, opacity;
+    }
+
     #treeCanopyNight {
       background-image: url("images/bg_tree_night.png");
       background-position: left top;
-      background-size: 512px 512px;
+      background-size: 1024px 1024px;
       opacity: 0;
       transition: opacity 3s ease;
     }
 
-    body.is-night #treeCanopyDay {
+    body.is-night #treeCanopyDay,
+    body.is-night #treeCanopyDayFade {
       opacity: 0;
     }
 
@@ -556,7 +601,7 @@
       background: #181818;
       box-shadow: none;
       cursor: pointer;
-      touch-action: manipulation;
+      touch-action: none;
       transform-origin: left center;
       transition:
         width 280ms cubic-bezier(0.215, 0.61, 0.355, 1),
@@ -617,13 +662,15 @@
     }
 
     #exploreButton.is-menu-open,
-    #inventoryButton.is-menu-open {
+    #inventoryButton.is-menu-open,
+    #repairButton.is-menu-open {
       z-index: 140;
       width: var(--expanded-width);
     }
 
     #exploreButton.is-menu-open .hud-action-button__label,
-    #inventoryButton.is-menu-open .hud-action-button__label {
+    #inventoryButton.is-menu-open .hud-action-button__label,
+    #repairButton.is-menu-open .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
     }
@@ -689,7 +736,8 @@
     }
 
     #explorationOverlay,
-    #inventoryOverlay {
+    #inventoryOverlay,
+    #repairOverlay {
       position: fixed;
       inset: 0;
       z-index: 130;
@@ -708,7 +756,8 @@
     }
 
     #explorationOverlay.is-open,
-    #inventoryOverlay.is-open {
+    #inventoryOverlay.is-open,
+    #repairOverlay.is-open {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
@@ -726,6 +775,401 @@
       width: min(82vw, 420px);
       padding: 18px 8px;
       overflow: hidden;
+    }
+
+    #repairMenu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: min(90vw, 520px);
+      padding: 20px 18px 18px;
+      color: #fff;
+    }
+
+    #repairCategories {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      min-height: 43px;
+      margin-bottom: 34px;
+    }
+
+    .repair-category-separator {
+      align-self: end;
+      padding-bottom: 5px;
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 15px;
+      font-weight: 350;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    /*
+      각 카테고리 버튼의 실제 너비는 처음 열 때와 카테고리를 바꿀 때만
+      선택 글자의 확대 폭을 반영해 JavaScript에서 갱신합니다.
+      호버 중에는 너비가 고정되어 주변 항목이 흔들리지 않습니다.
+    */
+    .repair-category {
+      position: relative;
+      display: flex;
+      flex: 0 0 auto;
+      align-items: flex-end;
+      justify-content: center;
+      min-width: 0;
+      width: auto;
+      height: 39px;
+      padding: 8px 1px 4px;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 350;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .repair-category-label {
+      display: inline-block;
+      transform: scale(1);
+      transform-origin: center bottom;
+      transition:
+        font-weight 150ms ease-out,
+        transform 150ms cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+
+    .repair-category.is-selected .repair-category-label {
+      font-weight: 500;
+      transform: scale(1.55);
+    }
+
+    .repair-category:active .repair-category-label {
+      transform: scale(0.92);
+      transition-duration: 70ms;
+    }
+
+    .repair-category.is-selected:active .repair-category-label {
+      transform: scale(1.4);
+    }
+
+    .repair-category:focus-visible .repair-category-label {
+      font-weight: 650;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .repair-category:hover .repair-category-label {
+        font-weight: 650;
+      }
+    }
+
+    .repair-category-new-badge {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 3px);
+      padding: 2px 3px 1px;
+      background: #f6c062;
+      color: #000;
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateX(-50%);
+    }
+
+    .repair-category-new-badge[hidden] {
+      display: none;
+    }
+
+    /*
+      보이는 네모는 20×20px로 유지하고 버튼 입력 영역은 28×28px로 넓힙니다.
+      버튼 영역끼리 맞닿게 배치해 네모 사이의 8px 여백도 클릭할 수 있습니다.
+    */
+    #repairGrid {
+      display: grid;
+      grid-template-columns: repeat(5, 28px);
+      grid-auto-rows: 28px;
+      gap: 0;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .repair-grid-item {
+      position: relative;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .repair-grid-item::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 20px;
+      height: 20px;
+      border: 1px solid #fff;
+      border-radius: 3px;
+      background: transparent;
+      transform: translate(-50%, -50%) scale(1);
+      transition:
+        background-color 120ms ease-out,
+        border-color 120ms ease-out,
+        opacity 120ms ease-out,
+        transform 90ms ease-out,
+        box-shadow 120ms ease-out;
+    }
+
+    .repair-grid-item.is-selected::before {
+      background: #fff;
+    }
+
+    .repair-grid-item.is-new::before {
+      border-color: #f6c062;
+      background: #f6c062;
+    }
+
+    .repair-grid-item.is-disabled::before {
+      border-color: transparent;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /*
+      현재 적용 중인 설계도는 네모 외곽선 끝까지 닿는 X로 표시합니다.
+      X도 네모와 같은 비율로 확대·축소되어 호버와 클릭 반응을 함께합니다.
+    */
+    .repair-grid-item.is-applied::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 1;
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      background:
+        linear-gradient(
+          45deg,
+          transparent calc(50% - 0.3px),
+          rgba(255, 255, 255, 1) calc(50% - 0.3px),
+          rgba(255, 255, 255, 1) calc(50% + 0.3px),
+          transparent calc(50% + 0.3px)
+        ),
+        linear-gradient(
+          -45deg,
+          transparent calc(50% - 0.3px),
+          rgba(255, 255, 255, 1) calc(50% - 0.3px),
+          rgba(255, 255, 255, 1) calc(50% + 0.3px),
+          transparent calc(50% + 0.3px)
+        );
+      transform: translate(-50%, -50%) scale(1);
+      transition: transform 90ms ease-out;
+      pointer-events: none;
+    }
+
+    .repair-grid-item.is-applied.is-selected::after {
+      width: 22px;
+      height: 22px;
+      background:
+        linear-gradient(
+          45deg,
+          transparent calc(50% - 0.4px),
+          rgba(24, 24, 24, 1) calc(50% - 0.4px),
+          rgba(24, 24, 24, 1) calc(50% + 0.4px),
+          transparent calc(50% + 0.4px)
+        ),
+        linear-gradient(
+          -45deg,
+          transparent calc(50% - 0.4px),
+          rgba(24, 24, 24, 1) calc(50% - 0.4px),
+          rgba(24, 24, 24, 1) calc(50% + 0.4px),
+          transparent calc(50% + 0.4px)
+        );
+    }
+
+    .repair-grid-item:active::before,
+    .repair-grid-item:active::after {
+      transform: translate(-50%, -50%) scale(0.82);
+    }
+
+    .repair-grid-item:focus-visible::before {
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .repair-grid-item:hover::before,
+      .repair-grid-item:hover::after {
+        transform: translate(-50%, -50%) scale(1.38);
+      }
+
+      /* 선택된 검은색 X는 호버 중에만 흰색 X와 같은 0.6px 굵기로 표시합니다. */
+      .repair-grid-item.is-applied.is-selected:hover::after {
+        background:
+          linear-gradient(
+            45deg,
+            transparent calc(50% - 0.3px),
+            rgba(24, 24, 24, 1) calc(50% - 0.3px),
+            rgba(24, 24, 24, 1) calc(50% + 0.3px),
+            transparent calc(50% + 0.3px)
+          ),
+          linear-gradient(
+            -45deg,
+            transparent calc(50% - 0.3px),
+            rgba(24, 24, 24, 1) calc(50% - 0.3px),
+            rgba(24, 24, 24, 1) calc(50% + 0.3px),
+            transparent calc(50% + 0.3px)
+          );
+      }
+
+      .repair-grid-item:active::before,
+      .repair-grid-item:active::after {
+        transform: translate(-50%, -50%) scale(0.82);
+      }
+    }
+
+    #repairItemInfo {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: center;
+      row-gap: 8px;
+      width: min(100%, 280px);
+      min-height: 22px;
+      margin-top: 22px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 350;
+      line-height: 1.2;
+    }
+
+    #repairItemName {
+      overflow: hidden;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #repairItemMeta {
+      position: absolute;
+      top: 0;
+      right: 0;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    #repairItemDescription {
+      width: 100%;
+      min-height: calc(1.45em * 5);
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 12px;
+      font-weight: 350;
+      line-height: 1.45;
+      text-align: center;
+      white-space: pre-line;
+    }
+
+    /* 재료 충족 표시는 탐험 조건 항목과 동일하게 텍스트 중앙을 가로지릅니다. */
+    .repair-material-line {
+      position: relative;
+      display: block;
+      width: max-content;
+      margin: 0 auto;
+      white-space: nowrap;
+    }
+
+    .repair-material-line.is-complete::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      border-top: 1px solid currentColor;
+      pointer-events: none;
+    }
+
+    /* Craft / Apply / Applied는 탐험 목적지 이름과 같은 기본 스타일을 사용합니다. */
+    #repairActionButton {
+      margin-top: -18px;
+      padding: 4px 12px;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 24px;
+      font-weight: 350;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        transform 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        font-weight 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        opacity 120ms ease-out;
+    }
+
+    #repairActionButton:disabled {
+      cursor: default;
+      opacity: 0.3;
+    }
+
+    #repairActionButton:active:not(:disabled) {
+      transform: scale(0.94);
+      transition-duration: 70ms;
+    }
+
+    #repairActionButton:focus-visible:not(:disabled) {
+      font-weight: 500;
+      transform: scale(1.07);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      #repairActionButton:hover:not(:disabled) {
+        font-weight: 500;
+        transform: scale(1.07);
+      }
+    }
+
+    @media (max-width: 420px) {
+      #repairCategories {
+        gap: 5px;
+      }
+
+      .repair-category {
+        font-size: 13px;
+      }
+
+      .repair-category.is-selected .repair-category-label {
+        transform: scale(1.55);
+      }
+
+      .repair-category.is-selected:active .repair-category-label {
+        transform: scale(1.4);
+      }
+
+      .repair-category-separator {
+        padding-bottom: 5px;
+        font-size: 13px;
+      }
+
+      #repairItemInfo {
+        width: min(100%, 240px);
+      }
     }
 
     #inventoryViewport {
@@ -1289,8 +1733,10 @@
     body.is-restored-night #world::after,
     body.is-restored-night #axeStump::after,
     body.is-restored-night #treeDayVisual,
+    body.is-restored-night #treeDayFadeVisual,
     body.is-restored-night #treeNightVisual,
     body.is-restored-night #treeCanopyDay,
+    body.is-restored-night #treeCanopyDayFade,
     body.is-restored-night #treeCanopyNight,
     body.is-restored-night .cloud-visual::before,
     body.is-restored-night .cloud-visual::after,
@@ -1369,6 +1815,7 @@
         </div>
         <div id="tree" aria-hidden="false">
           <div id="treeDayVisual" aria-hidden="true"></div>
+          <div id="treeDayFadeVisual" aria-hidden="true"></div>
           <div id="treeNightVisual" aria-hidden="true"></div>
           <div
             id="treeHitArea"
@@ -1382,8 +1829,10 @@
       <div id="entities"></div>
       <div id="treeCanopyOverlay" aria-hidden="true">
         <div id="treeCanopyDay"></div>
+        <div id="treeCanopyDayFade"></div>
         <div id="treeCanopyNight"></div>
       </div>
+      <div id="treePartLayer" aria-hidden="true"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
@@ -1454,6 +1903,43 @@
       <div id="inventoryPagination" class="inventory-pagination" aria-label="Bag pages" hidden></div>
     </div>
   </div>
+  <div id="repairOverlay" aria-hidden="true">
+    <div id="repairMenu" role="dialog" aria-modal="true" aria-label="Repair">
+      <div id="repairCategories" role="tablist" aria-label="Repair categories">
+        <button class="repair-category is-selected" type="button" role="tab" aria-selected="true" data-repair-category="fence">
+          <span class="repair-category-new-badge" hidden>NEW</span>
+          <span class="repair-category-label">Fence</span>
+        </button>
+        <span class="repair-category-separator" aria-hidden="true">/</span>
+        <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="shed">
+          <span class="repair-category-new-badge" hidden>NEW</span>
+          <span class="repair-category-label">Shed</span>
+        </button>
+        <span class="repair-category-separator" aria-hidden="true">/</span>
+        <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="roof">
+          <span class="repair-category-new-badge" hidden>NEW</span>
+          <span class="repair-category-label">Roof</span>
+        </button>
+        <span class="repair-category-separator" aria-hidden="true">/</span>
+        <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="walls">
+          <span class="repair-category-new-badge" hidden>NEW</span>
+          <span class="repair-category-label">Walls</span>
+        </button>
+        <span class="repair-category-separator" aria-hidden="true">/</span>
+        <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="house">
+          <span class="repair-category-new-badge" hidden>NEW</span>
+          <span class="repair-category-label">House</span>
+        </button>
+      </div>
+      <div id="repairGrid" role="grid" aria-label="Repair options"></div>
+      <div id="repairItemInfo" aria-live="polite">
+        <span id="repairItemName">None</span>
+        <span id="repairItemMeta"></span>
+        <div id="repairItemDescription"></div>
+      </div>
+      <button id="repairActionButton" type="button" disabled>Applied</button>
+    </div>
+  </div>
   <button
     id="repairButton"
     type="button"
@@ -1509,7 +1995,7 @@
       </span>
     </div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.062</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.063</span></div>
 
   <script>
     (() => {
@@ -1571,7 +2057,6 @@
       // 생성 간격: 좀비 1분 / 사슴 3분
       const SPAWN_INTERVAL_MS = 60_000;
       const DEER_SPAWN_INTERVAL_MS = 3 * 60_000;
-      const AUTO_DEATH_MS = 12 * 60_000;
 
       const EXPLORATION_DURATION_MS = 10 * 60_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
@@ -1626,7 +2111,10 @@
         "images/bg_field_default_clouds_night.png";
       const NIGHT_STUMP_IMAGE = "images/bg_stump_night.png";
       const TREE_DAY_SHEET = "images/bg_tree.png";
+      const TREE_DAY_STAGE_TWO_IMAGE = "images/bg_tree_2.png";
+      const TREE_DAY_STAGE_THREE_IMAGE = "images/bg_tree_3.png";
       const TREE_NIGHT_IMAGE = "images/bg_tree_night.png";
+      const TREE_PART_IMAGE = "images/bg_tree_part.png";
 
       // 좀비와 사슴 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
       const PRELOADED_ZOMBIE_IMAGES = new Map();
@@ -1641,6 +2129,7 @@
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
       const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
+      const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const EXPLORING_FOOTSTEPS_SOUND =
         "sounds/sfx_exploringfootsteps.wav";
@@ -1704,9 +2193,42 @@
       const TREE_DEFAULT_FRAME = 1;
       const TREE_CHOP_SEQUENCE = [2, 3, 2, 1, 0, 1];
       const TREE_CHOP_FRAME_MS = 100;
+      // 나무 단계 이미지는 히트 순간 투명도 전환 없이 즉시 교체합니다.
+      const TREE_PART_START_X_RATIO = 0.54;
+      const TREE_PART_START_Y_RATIO = 0.14;
+      // 1·2·3번째 히트별 파츠 생성 오프셋입니다.
+      // 각 항목의 x/y 값을 바꾸면 해당 히트의 생성 위치만 조정할 수 있습니다.
+      const TREE_PART_HIT_OFFSETS = [
+        { x: -25, y: 150 },
+        { x: -25, y: 165 },
+        { x: -25, y: 180 }
+      ];
+      // 1·2·3번째 히트별 파츠 크기입니다.
+      // 나무가 다시 자라면 다음 히트는 다시 첫 번째 크기부터 사용됩니다.
+      const TREE_PART_HIT_SCALES = [0.5, 0.46, 0.42];
+      const TREE_PART_GROUND_CONTACT_X = 134;
+      const TREE_PART_GROUND_CONTACT_Y = 210;
+      const TREE_PART_DROP_X = 2;
+      // 아래 값은 첫 번째 히트 기준 낙하/전도 위치입니다.
+      // 이후 히트는 시작 위치가 내려간 만큼 자동으로 보정되어 바닥 높이는 동일하게 유지됩니다.
+      const TREE_PART_DROP_Y = 54;
+      const TREE_PART_DROP_END_ROTATION = 12;
+      const TREE_PART_TOPPLE_X = 12;
+      const TREE_PART_TOPPLE_Y = 57;
+      const TREE_PART_TOPPLE_ROTATION = 90;
+      const TREE_PART_DROP_MS = 520;
+      const TREE_PART_TOPPLE_MS = 240;
+      const TREE_PART_HOLD_MS = 1000;
+      const TREE_PART_FADE_MS = 2000;
+      const TREE_PART_FADE_END_SCALE_MULTIPLIER = 0.94;
+      const TREE_MAX_CHOPS_PER_GROWTH = 3;
+      const TREE_GROWTH_READY = "ready";
+      const TREE_GROWTH_DEPLETED = "depleted";
+      const TREE_GROWTH_REGROWING = "regrowing";
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
+      const TREE_GROW_TOAST_MESSAGE = "Let it grow.";
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
         "I should clear this place out first.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
@@ -1717,6 +2239,51 @@
       const HANDGUN_AMMO_SELECTED_TOAST_MESSAGE = "Every bullet counts.";
       const HANDGUN_EMPTY_TOAST_MESSAGE = "Empty.";
       const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
+      const REPAIR_MATERIALS_TOAST_MESSAGE = "I need more materials.";
+      const REPAIR_GRID_ITEM_COUNT = 25;
+      const REPAIR_CATEGORY_ORDER = [
+        "fence",
+        "shed",
+        "roof",
+        "walls",
+        "house"
+      ];
+      const REPAIR_CATEGORY_DEFINITIONS = {
+        fence: {
+          label: "Fence",
+          initialItemName: "None",
+          initialItemDescription: "No fence, no repairs."
+        },
+        shed: {
+          label: "Shed",
+          initialItemName: "None",
+          initialItemDescription: "Less to take care of."
+        },
+        roof: {
+          label: "Roof",
+          initialItemName: "Basic",
+          initialItemDescription: "It keeps the rain out."
+        },
+        walls: {
+          label: "Walls",
+          initialItemName: "Basic",
+          initialItemDescription: "Old, but still standing."
+        },
+        house: {
+          label: "House",
+          initialItemName: "Basic",
+          initialItemDescription: "Small, simple, and mine."
+        }
+      };
+      const REPAIR_DEFAULT_BLUEPRINTS = {
+        fence: {
+          1: {
+            name: "Wooden Fence",
+            materials: { wood: 5 },
+            builtDescription: "It makes the place feel like home."
+          }
+        }
+      };
       const CARRY_FULL_TOAST_MESSAGE = "I can't carry any more.";
       const DEER_FOOD_FULL_TOAST_MESSAGE = "I’ve got enough.";
       const NO_FOOD_TOAST_MESSAGE = "No food, no adventure.";
@@ -1873,6 +2440,20 @@
         '.inventory-item[data-item="musicBox"]'
       );
       const inventoryNewBadge = document.getElementById("inventoryNewBadge");
+      const repairOverlay = document.getElementById("repairOverlay");
+      const repairMenu = document.getElementById("repairMenu");
+      const repairCategories = Array.from(
+        document.querySelectorAll(".repair-category")
+      );
+      const repairGrid = document.getElementById("repairGrid");
+      const repairItemName = document.getElementById("repairItemName");
+      const repairItemMeta = document.getElementById("repairItemMeta");
+      const repairItemDescription = document.getElementById(
+        "repairItemDescription"
+      );
+      const repairActionButton = document.getElementById(
+        "repairActionButton"
+      );
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
       const dayStatus = document.getElementById("dayStatus");
@@ -1886,10 +2467,13 @@
       const axePickupHitArea = document.getElementById("axePickupHitArea");
       const tree = document.getElementById("tree");
       const treeDayVisual = document.getElementById("treeDayVisual");
+      const treeDayFadeVisual = document.getElementById("treeDayFadeVisual");
       const treeNightVisual = document.getElementById("treeNightVisual");
       const treeCanopyOverlay = document.getElementById("treeCanopyOverlay");
       const treeCanopyDay = document.getElementById("treeCanopyDay");
+      const treeCanopyDayFade = document.getElementById("treeCanopyDayFade");
       const treeCanopyNight = document.getElementById("treeCanopyNight");
+      const treePartLayer = document.getElementById("treePartLayer");
       const treeHitArea = document.getElementById("treeHitArea");
       const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
@@ -1922,7 +2506,10 @@
       updateHudActionButtonWidths();
 
       if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(updateHudActionButtonWidths);
+        document.fonts.ready.then(() => {
+          updateHudActionButtonWidths();
+          updateRepairCategoryLayout();
+        });
       }
 
       const query = new URLSearchParams(location.search);
@@ -1973,23 +2560,34 @@
         { passive: false, capture: true }
       );
 
-      const DOUBLE_TAP_BLOCK_MS = 500;
-      const DOUBLE_TAP_MAX_DISTANCE_PX = 80;
+      const DOUBLE_TAP_BLOCK_MS = 550;
+      const DOUBLE_TAP_MAX_DISTANCE_PX = 110;
+      const POINTERDOWN_TOUCH_TARGET_SELECTOR =
+        "#versionTestButton, .world-interactive, .zombie, .deer-hitbox";
       let lastTapStartedAt = -Infinity;
       let lastTapX = 0;
       let lastTapY = 0;
-      let blockCurrentTapZoom = false;
+      const blockedTouchIdentifiers = new Set();
+
+      function isPointerdownTouchTarget(target) {
+        return target instanceof Element &&
+          Boolean(target.closest(POINTERDOWN_TOUCH_TARGET_SELECTOR));
+      }
 
       document.addEventListener(
         "touchstart",
         (event) => {
+          const changedTouches = Array.from(event.changedTouches || []);
+
           if (event.touches.length > 1) {
-            blockCurrentTapZoom = true;
+            for (const touch of changedTouches) {
+              blockedTouchIdentifiers.add(touch.identifier);
+            }
             preventZoomGesture(event);
             return;
           }
 
-          const touch = event.changedTouches[0];
+          const touch = changedTouches[0];
           if (!touch) return;
 
           const now = performance.now();
@@ -1998,12 +2596,14 @@
             touch.clientX - lastTapX,
             touch.clientY - lastTapY
           );
-
-          blockCurrentTapZoom =
+          const shouldBlockDoubleTap =
             elapsed <= DOUBLE_TAP_BLOCK_MS &&
             distance <= DOUBLE_TAP_MAX_DISTANCE_PX;
+          const shouldBlockNativeTouch =
+            shouldBlockDoubleTap || isPointerdownTouchTarget(event.target);
 
-          if (blockCurrentTapZoom) {
+          if (shouldBlockNativeTouch) {
+            blockedTouchIdentifiers.add(touch.identifier);
             preventZoomGesture(event);
           }
 
@@ -2017,12 +2617,16 @@
       document.addEventListener(
         "touchend",
         (event) => {
-          if (blockCurrentTapZoom) {
-            preventZoomGesture(event);
+          let shouldPrevent = false;
+
+          for (const touch of Array.from(event.changedTouches || [])) {
+            if (!blockedTouchIdentifiers.has(touch.identifier)) continue;
+            blockedTouchIdentifiers.delete(touch.identifier);
+            shouldPrevent = true;
           }
 
-          if (event.touches.length === 0) {
-            blockCurrentTapZoom = false;
+          if (shouldPrevent) {
+            preventZoomGesture(event);
           }
         },
         { passive: false, capture: true }
@@ -2030,8 +2634,10 @@
 
       document.addEventListener(
         "touchcancel",
-        () => {
-          blockCurrentTapZoom = false;
+        (event) => {
+          for (const touch of Array.from(event.changedTouches || [])) {
+            blockedTouchIdentifiers.delete(touch.identifier);
+          }
         },
         { passive: true, capture: true }
       );
@@ -2056,6 +2662,40 @@
       let hasMap = false;
       let isExplorationMenuOpen = false;
       let isInventoryOpen = false;
+      let isRepairOpen = false;
+      let repairSelectedCategory = "fence";
+      const repairSelectedItemByCategory = Object.fromEntries(
+        REPAIR_CATEGORY_ORDER.map((category) => [category, 0])
+      );
+      const repairAppliedItemByCategory = Object.fromEntries(
+        REPAIR_CATEGORY_ORDER.map((category) => [category, 0])
+      );
+      const repairItemsByCategory = Object.fromEntries(
+        REPAIR_CATEGORY_ORDER.map((category) => {
+          const definition = REPAIR_CATEGORY_DEFINITIONS[category];
+          const items = Array.from(
+            { length: REPAIR_GRID_ITEM_COUNT },
+            (_, index) => {
+              const defaultBlueprint =
+                REPAIR_DEFAULT_BLUEPRINTS[category]?.[index];
+
+              return {
+                name:
+                  index === 0
+                    ? definition.initialItemName
+                    : defaultBlueprint?.name || "",
+                unlocked: index === 0 || Boolean(defaultBlueprint),
+                built: index === 0,
+                isNew: false,
+                materials: defaultBlueprint
+                  ? { ...defaultBlueprint.materials }
+                  : {}
+              };
+            }
+          );
+          return [category, items];
+        })
+      );
       let isExploring = false;
       let explorationDestination = "";
       let explorationEndsAt = 0;
@@ -2064,6 +2704,9 @@
       let returnZombieSpawnTimerId = null;
       let zombieSpawnBlockedUntil = 0;
       let treeAnimationTimerId = null;
+      let isTreeAnimating = false;
+      let treeChopCount = 0;
+      let treeGrowthState = TREE_GROWTH_READY;
       const activeToasts = [];
       let nextZombieId = 1;
       let nextDeerId = 1;
@@ -2213,6 +2856,392 @@
           : 1;
       }
 
+      function isRepairCategory(value) {
+        return REPAIR_CATEGORY_ORDER.includes(value);
+      }
+
+      function normalizeRepairItemIndex(value) {
+        const number = Math.round(Number(value));
+        return Number.isFinite(number)
+          ? clamp(number, 0, REPAIR_GRID_ITEM_COUNT - 1)
+          : 0;
+      }
+
+      function normalizeRepairMaterials(value) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          return {};
+        }
+
+        const normalized = {};
+        for (const [resource, amount] of Object.entries(value)) {
+          const normalizedAmount = Math.max(0, Math.round(Number(amount) || 0));
+          if (normalizedAmount > 0) {
+            normalized[resource] = normalizedAmount;
+          }
+        }
+        return normalized;
+      }
+
+      function loadRepairState(value) {
+        if (!value || typeof value !== "object") return;
+
+        if (isRepairCategory(value.selectedCategory)) {
+          repairSelectedCategory = value.selectedCategory;
+        }
+
+        const selectedItems = value.selectedItemByCategory;
+        const appliedItems = value.appliedItemByCategory;
+        const storedItems = value.itemsByCategory;
+
+        for (const category of REPAIR_CATEGORY_ORDER) {
+          if (selectedItems && typeof selectedItems === "object") {
+            repairSelectedItemByCategory[category] =
+              normalizeRepairItemIndex(selectedItems[category]);
+          }
+
+          if (appliedItems && typeof appliedItems === "object") {
+            repairAppliedItemByCategory[category] =
+              normalizeRepairItemIndex(appliedItems[category]);
+          }
+
+          const categoryItems = storedItems && storedItems[category];
+          if (!Array.isArray(categoryItems)) continue;
+
+          const targetItems = repairItemsByCategory[category];
+          for (
+            let index = 0;
+            index < Math.min(categoryItems.length, targetItems.length);
+            index += 1
+          ) {
+            const storedItem = categoryItems[index];
+            if (!storedItem || typeof storedItem !== "object") continue;
+
+            const targetItem = targetItems[index];
+            if (typeof storedItem.name === "string") {
+              targetItem.name = storedItem.name;
+            }
+            targetItem.unlocked = storedItem.unlocked === true;
+            targetItem.built = targetItem.unlocked && storedItem.built === true;
+            targetItem.isNew = targetItem.unlocked && storedItem.isNew === true;
+            targetItem.materials = normalizeRepairMaterials(
+              storedItem.materials
+            );
+          }
+
+          // Each category must always retain its initial built option.
+          targetItems[0].name =
+            REPAIR_CATEGORY_DEFINITIONS[category].initialItemName;
+          targetItems[0].unlocked = true;
+          targetItems[0].built = true;
+          targetItems[0].isNew = false;
+
+          const defaultBlueprints =
+            REPAIR_DEFAULT_BLUEPRINTS[category] || {};
+          for (const [indexValue, blueprint] of Object.entries(
+            defaultBlueprints
+          )) {
+            const index = normalizeRepairItemIndex(indexValue);
+            const targetItem = targetItems[index];
+            if (!targetItem) continue;
+
+            targetItem.name = blueprint.name;
+            targetItem.unlocked = true;
+            targetItem.isNew = false;
+            targetItem.materials = { ...blueprint.materials };
+          }
+
+          const selectedIndex = repairSelectedItemByCategory[category];
+          if (!targetItems[selectedIndex].unlocked) {
+            repairSelectedItemByCategory[category] = 0;
+          }
+
+          const appliedIndex = repairAppliedItemByCategory[category];
+          if (
+            !targetItems[appliedIndex].unlocked ||
+            !targetItems[appliedIndex].built
+          ) {
+            repairAppliedItemByCategory[category] = 0;
+          }
+        }
+      }
+
+      function serializeRepairState() {
+        return {
+          selectedCategory: repairSelectedCategory,
+          selectedItemByCategory: { ...repairSelectedItemByCategory },
+          appliedItemByCategory: { ...repairAppliedItemByCategory },
+          itemsByCategory: Object.fromEntries(
+            REPAIR_CATEGORY_ORDER.map((category) => [
+              category,
+              repairItemsByCategory[category].map((item) => ({
+                name: item.name,
+                unlocked: item.unlocked,
+                built: item.built,
+                isNew: item.isNew,
+                materials: { ...item.materials }
+              }))
+            ])
+          )
+        };
+      }
+
+      function getSelectedRepairItem() {
+        const selectedIndex =
+          repairSelectedItemByCategory[repairSelectedCategory] || 0;
+        return repairItemsByCategory[repairSelectedCategory][selectedIndex];
+      }
+
+      function getRepairResourceAmount(resource) {
+        if (resource === "wood") return woodCount;
+        if (resource === "food") return foodCount;
+        return 0;
+      }
+
+      function setRepairResourceAmount(resource, amount) {
+        if (resource === "wood") woodCount = Math.max(0, amount);
+        if (resource === "food") foodCount = Math.max(0, amount);
+      }
+
+      function canAffordRepairMaterials(materials) {
+        return Object.entries(materials).every(
+          ([resource, amount]) => getRepairResourceAmount(resource) >= amount
+        );
+      }
+
+      function consumeRepairMaterials(materials) {
+        for (const [resource, amount] of Object.entries(materials)) {
+          setRepairResourceAmount(
+            resource,
+            getRepairResourceAmount(resource) - amount
+          );
+        }
+      }
+
+      function formatRepairMaterials(materials) {
+        const labels = {
+          wood: "Wood",
+          food: "Food"
+        };
+        const entries = Object.entries(materials);
+        if (entries.length === 0) return "—";
+
+        return entries
+          .map(
+            ([resource, amount]) =>
+              `${labels[resource] || resource} ${getRepairResourceAmount(
+                resource
+              )}/${amount}`
+          )
+          .join("\n");
+      }
+
+      function clearRepairItemNewState(category, index) {
+        const item = repairItemsByCategory[category][index];
+        if (!item || !item.isNew) return false;
+
+        item.isNew = false;
+        return true;
+      }
+
+      const REPAIR_SELECTED_CATEGORY_SCALE = 1.55;
+
+      function updateRepairCategoryLayout() {
+        // 먼저 이전에 지정한 폭을 풀어 현재 폰트와 선택 상태의 자연 너비를 측정합니다.
+        for (const categoryButton of repairCategories) {
+          categoryButton.style.width = "auto";
+        }
+
+        for (const categoryButton of repairCategories) {
+          const label = categoryButton.querySelector(".repair-category-label");
+          if (!label) continue;
+
+          const isSelected = categoryButton.classList.contains("is-selected");
+          const labelWidth = label.offsetWidth;
+          const visualWidth = isSelected
+            ? labelWidth * REPAIR_SELECTED_CATEGORY_SCALE
+            : labelWidth;
+
+          // 좌우 1px 패딩을 포함해 확대된 글자가 슬래시와 겹치지 않게 합니다.
+          categoryButton.style.width = `${Math.ceil(visualWidth + 2)}px`;
+        }
+      }
+
+      function renderRepairCategories() {
+        for (const categoryButton of repairCategories) {
+          const category = categoryButton.dataset.repairCategory || "";
+          const isSelected = category === repairSelectedCategory;
+          const hasNewItem = repairItemsByCategory[category].some(
+            (item) => item.unlocked && item.isNew
+          );
+          const badge = categoryButton.querySelector(
+            ".repair-category-new-badge"
+          );
+
+          categoryButton.classList.toggle("is-selected", isSelected);
+          categoryButton.setAttribute(
+            "aria-selected",
+            isSelected ? "true" : "false"
+          );
+          if (badge) badge.hidden = !hasNewItem;
+        }
+      }
+
+      function renderRepairGrid() {
+        repairGrid.replaceChildren();
+
+        const selectedIndex =
+          repairSelectedItemByCategory[repairSelectedCategory] || 0;
+        const items = repairItemsByCategory[repairSelectedCategory];
+
+        items.forEach((item, index) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "repair-grid-item";
+          button.dataset.repairItemIndex = String(index);
+          button.setAttribute("role", "gridcell");
+          button.setAttribute(
+            "aria-label",
+            item.unlocked
+              ? item.name || `Option ${index + 1}`
+              : `Locked option ${index + 1}`
+          );
+          button.classList.toggle(
+            "is-selected",
+            item.unlocked && index === selectedIndex
+          );
+          button.classList.toggle("is-disabled", !item.unlocked);
+          button.classList.toggle("is-new", item.unlocked && item.isNew);
+          button.classList.toggle(
+            "is-applied",
+            item.unlocked && item.built && index ===
+              (repairAppliedItemByCategory[repairSelectedCategory] || 0)
+          );
+          button.setAttribute(
+            "aria-disabled",
+            item.unlocked ? "false" : "true"
+          );
+          repairGrid.append(button);
+        });
+      }
+
+      function renderRepairItemInfo() {
+        const selectedIndex =
+          repairSelectedItemByCategory[repairSelectedCategory] || 0;
+        const appliedIndex =
+          repairAppliedItemByCategory[repairSelectedCategory] || 0;
+        const item = getSelectedRepairItem();
+
+        const defaultBlueprint =
+          REPAIR_DEFAULT_BLUEPRINTS[repairSelectedCategory]?.[selectedIndex];
+
+        repairItemName.textContent = item.name || "Unnamed";
+        repairItemMeta.textContent = "";
+        repairItemMeta.removeAttribute("aria-label");
+        repairItemDescription.replaceChildren();
+
+        if (item.built) {
+          repairItemDescription.textContent = selectedIndex === 0
+            ? REPAIR_CATEGORY_DEFINITIONS[repairSelectedCategory]
+                .initialItemDescription
+            : defaultBlueprint?.builtDescription || "";
+        } else {
+          const labels = {
+            wood: "Wood",
+            food: "Food"
+          };
+          const materialEntries = Object.entries(item.materials);
+
+          if (materialEntries.length === 0) {
+            repairItemDescription.textContent = "—";
+          } else {
+            for (const [resource, required] of materialEntries) {
+              const current = getRepairResourceAmount(resource);
+              const line = document.createElement("span");
+              line.className = "repair-material-line";
+              line.textContent = `${labels[resource] || resource} ${current}/${required}`;
+              line.classList.toggle("is-complete", current >= required);
+              repairItemDescription.append(line);
+            }
+          }
+        }
+
+        if (!item.built) {
+          repairActionButton.textContent = "Craft";
+          repairActionButton.disabled = false;
+          return;
+        }
+        if (selectedIndex === appliedIndex) {
+          repairActionButton.textContent = "Applied";
+          repairActionButton.disabled = true;
+        } else {
+          repairActionButton.textContent = "Apply";
+          repairActionButton.disabled = false;
+        }
+      }
+
+      function applyRepairState() {
+        renderRepairCategories();
+        renderRepairGrid();
+        renderRepairItemInfo();
+      }
+
+      function selectRepairCategory(category) {
+        if (!isRepairCategory(category)) return;
+
+        repairSelectedCategory = category;
+        applyRepairState();
+        updateRepairCategoryLayout();
+        saveResourceState();
+      }
+
+      function selectRepairItem(index) {
+        const normalizedIndex = normalizeRepairItemIndex(index);
+        const item = repairItemsByCategory[repairSelectedCategory][normalizedIndex];
+
+        if (!item.unlocked) {
+          showToast(REPAIR_BLOCKED_TOAST_MESSAGE);
+          return;
+        }
+
+        repairSelectedItemByCategory[repairSelectedCategory] = normalizedIndex;
+        clearRepairItemNewState(repairSelectedCategory, normalizedIndex);
+        applyRepairState();
+        saveResourceState();
+      }
+
+      function handleRepairAction() {
+        const selectedIndex =
+          repairSelectedItemByCategory[repairSelectedCategory] || 0;
+        const item = getSelectedRepairItem();
+
+        if (!item.built) {
+          if (!canAffordRepairMaterials(item.materials)) {
+            showToast(REPAIR_MATERIALS_TOAST_MESSAGE);
+            return;
+          }
+
+          playSound(CRAFTING_SOUND);
+          consumeRepairMaterials(item.materials);
+          item.built = true;
+          item.isNew = false;
+          updateResourceHud();
+          applyRepairState();
+          saveResourceState();
+          return;
+        }
+
+        if (
+          repairAppliedItemByCategory[repairSelectedCategory] === selectedIndex
+        ) {
+          return;
+        }
+
+        playSound(CRAFTING_SOUND);
+        repairAppliedItemByCategory[repairSelectedCategory] = selectedIndex;
+        applyRepairState();
+        saveResourceState();
+      }
+
       function loadResourceState() {
         try {
           const saved = localStorage.getItem(RESOURCE_STORAGE_KEY);
@@ -2220,6 +3249,8 @@
             applyAxeState();
             applyInventoryState();
             applyInventoryNewBadgeState();
+            applyRepairState();
+            applyTreeVisualState();
             updateResourceHud();
             updateDayStatus();
             restoreExplorationState();
@@ -2237,6 +3268,23 @@
           dayCount = normalizeDayCount(parsed.dayCount);
           foodCount = normalizeStoredCount(parsed.food, MAX_FOOD_COUNT);
           woodCount = normalizeStoredCount(parsed.wood, MAX_WOOD_COUNT);
+          treeChopCount = clamp(
+            Math.round(Number(parsed.treeChopCount) || 0),
+            0,
+            TREE_MAX_CHOPS_PER_GROWTH
+          );
+          treeGrowthState = [
+            TREE_GROWTH_READY,
+            TREE_GROWTH_DEPLETED,
+            TREE_GROWTH_REGROWING
+          ].includes(parsed.treeGrowthState)
+            ? parsed.treeGrowthState
+            : (treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH
+              ? TREE_GROWTH_DEPLETED
+              : TREE_GROWTH_READY);
+          if (treeGrowthState !== TREE_GROWTH_READY) {
+            treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
+          }
           hasAxe = parsed.hasAxe === true;
           hasHandgun = parsed.hasHandgun === true;
           hasHandgunAmmo = parsed.hasHandgunAmmo === true ||
@@ -2314,6 +3362,7 @@
           // 첫 좀비 처치 새 떼 연출은 별도 저장해 게임 초기화 전까지 한 번만 재생합니다.
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
+          loadRepairState(parsed.repairState);
         } catch (_) {
           // file:// 환경 등에서 저장소를 사용할 수 없어도 게임은 계속 동작합니다.
         }
@@ -2326,6 +3375,8 @@
         applyAxeState();
         applyInventoryState();
         applyInventoryNewBadgeState();
+        applyRepairState();
+        applyTreeVisualState();
         updateResourceHud();
         updateDayStatus();
         restoreExplorationState();
@@ -2343,6 +3394,8 @@
               dayCount,
               food: foodCount,
               wood: woodCount,
+              treeChopCount,
+              treeGrowthState,
               hasAxe,
               isAxeEquipped,
               hasHandgun,
@@ -2356,6 +3409,7 @@
               hasCompass,
               fuel: fuelCount,
               hasMap,
+              repairState: serializeRepairState(),
               firstKillBirdFlockPlayed,
               explorationDestination,
               explorationEndsAt: isExploring ? explorationEndsAt : 0,
@@ -2679,6 +3733,15 @@
         inventoryButton.classList.remove("is-menu-open");
       }
 
+      function closeRepair() {
+        if (!isRepairOpen) return;
+
+        isRepairOpen = false;
+        repairOverlay.classList.remove("is-open");
+        repairOverlay.setAttribute("aria-hidden", "true");
+        repairButton.classList.remove("is-menu-open");
+      }
+
       function hasAnyInventoryItem() {
         return hasAxe || hasHandgun || hasHandgunAmmo || hasMusicBox;
       }
@@ -2787,6 +3850,7 @@
         if (isInventoryOpen || !hasAnyInventoryItem()) return;
 
         closeExplorationMenu();
+        closeRepair();
         inventoryCurrentPage = 0;
         rebuildInventoryPages();
         isInventoryOpen = true;
@@ -2807,6 +3871,8 @@
       function openExplorationMenu() {
         if (isExplorationMenuOpen || isExploring) return;
 
+        closeInventory();
+        closeRepair();
         isExplorationMenuOpen = true;
         explorationOverlay.classList.add("is-open");
         explorationOverlay.setAttribute("aria-hidden", "false");
@@ -2815,6 +3881,27 @@
         const firstOption = explorationOptions[0];
         if (firstOption) {
           window.setTimeout(() => firstOption.focus(), 0);
+        }
+      }
+
+      function openRepair() {
+        if (isRepairOpen || isExploring) return;
+
+        closeExplorationMenu();
+        closeInventory();
+        isRepairOpen = true;
+        repairOverlay.classList.add("is-open");
+        repairOverlay.setAttribute("aria-hidden", "false");
+        repairButton.classList.add("is-menu-open");
+        applyRepairState();
+        updateRepairCategoryLayout();
+
+        const selectedCategoryButton = repairCategories.find(
+          (button) =>
+            button.dataset.repairCategory === repairSelectedCategory
+        );
+        if (selectedCategoryButton) {
+          window.setTimeout(() => selectedCategoryButton.focus(), 0);
         }
       }
 
@@ -3002,7 +4089,8 @@
         if (!isTreeInteractive && treeAnimationTimerId !== null) {
           clearTimeout(treeAnimationTimerId);
           treeAnimationTimerId = null;
-          setTreeFrame(TREE_DEFAULT_FRAME);
+          isTreeAnimating = false;
+          applyTreeVisualState();
         }
       }
 
@@ -3160,6 +4248,21 @@
         explorationEndsAt = 0;
         dayCount += 1;
         zombieKillRequirement = getNextPrime(zombieKillRequirement);
+
+        if (treeGrowthState === TREE_GROWTH_DEPLETED) {
+          // 세 번 벤 나무는 첫 귀환에서 3단계 → 2단계로 한 번만 자랍니다.
+          treeGrowthState = TREE_GROWTH_REGROWING;
+          treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
+        } else if (
+          treeGrowthState === TREE_GROWTH_REGROWING ||
+          (treeGrowthState === TREE_GROWTH_READY && treeChopCount >= 1)
+        ) {
+          // 2단계 나무는 다음 귀환에서 기본 상태로 돌아오고 다시 벨 수 있습니다.
+          treeGrowthState = TREE_GROWTH_READY;
+          treeChopCount = 0;
+        }
+        applyTreeVisualState();
+
         awardRandomExplorationItem();
         commitResourceState({ animateDay: true });
         setNightMode(false);
@@ -3170,7 +4273,7 @@
           explorationTimerId = null;
         }
 
-        // 귀환 메시지는 화면이 낮으로 돌아오기 시작한 뒤 4.5초 후 표시합니다.
+        // 귀환 메시지는 화면이 낮으로 돌아오기 시작한 뒤 4.2초 후 표시합니다.
         if (explorationCompleteToastTimerId !== null) {
           clearTimeout(explorationCompleteToastTimerId);
         }
@@ -3178,7 +4281,7 @@
         explorationCompleteToastTimerId = window.setTimeout(() => {
           explorationCompleteToastTimerId = null;
           showToast(EXPLORATION_COMPLETE_TOAST_MESSAGE);
-        }, 4_500);
+        }, 4_200);
 
         // 정기 생성 타이머도 귀환 후 7초 동안 좀비를 생성하지 못하게 합니다.
         zombieSpawnBlockedUntil = Date.now() + 7_000;
@@ -3368,7 +4471,10 @@
           preloadImage(NIGHT_CLOUD_SHEET),
           preloadImage(NIGHT_STUMP_IMAGE),
           preloadImage(TREE_DAY_SHEET),
-          preloadImage(TREE_NIGHT_IMAGE)
+          preloadImage(TREE_DAY_STAGE_TWO_IMAGE),
+          preloadImage(TREE_DAY_STAGE_THREE_IMAGE),
+          preloadImage(TREE_NIGHT_IMAGE),
+          preloadImage(TREE_PART_IMAGE)
         ]);
       }
 
@@ -3557,10 +4663,6 @@
           DEER_IDLE_MIN_DELAY_MS,
           DEER_IDLE_MAX_DELAY_MS
         );
-      }
-
-      function randomBetween(min, max) {
-        return min + Math.random() * (max - min);
       }
 
       function randomCloudCount(minCount, maxCount) {
@@ -4516,11 +5618,17 @@
           return;
         }
 
-        showToast(REPAIR_BLOCKED_TOAST_MESSAGE);
+        if (isRepairOpen) {
+          closeRepair();
+          return;
+        }
+
+        openRepair();
       }
 
       function handleInventoryButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
+        closeRepair();
 
         if (hasNewInventoryItem) {
           hasNewInventoryItem = false;
@@ -4543,6 +5651,7 @@
 
       function handleExploreButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
+        closeRepair();
 
         if (isExploring) {
           showExploringBusyToast(event);
@@ -4771,7 +5880,32 @@
       }
 
 
-      function setTreeFrame(frameIndex) {
+      function getTreePersistentVisualStage() {
+        if (treeGrowthState === TREE_GROWTH_DEPLETED) return 3;
+        if (treeGrowthState === TREE_GROWTH_REGROWING) return 2;
+        if (treeChopCount >= 2) return 3;
+        if (treeChopCount >= 1) return 2;
+        return 1;
+      }
+
+      function setTreeNightFrame(stage) {
+        const frameIndex = stage === 3 ? 2 : (stage === 2 ? 1 : 0);
+        const column = frameIndex % TREE_SHEET_COLUMNS;
+        const row = Math.floor(frameIndex / TREE_SHEET_COLUMNS);
+        const backgroundPosition =
+          `${-column * TREE_FRAME_SIZE}px ${-row * TREE_FRAME_SIZE}px`;
+
+        treeNightVisual.style.backgroundPosition = backgroundPosition;
+        treeCanopyNight.style.backgroundPosition = backgroundPosition;
+      }
+
+      function getTreeDaySheetForStage(stage) {
+        if (stage === 2) return TREE_DAY_STAGE_TWO_IMAGE;
+        if (stage === 3) return TREE_DAY_STAGE_THREE_IMAGE;
+        return TREE_DAY_SHEET;
+      }
+
+      function applyTreeFrameToVisuals(visuals, image, frameIndex) {
         const normalizedFrame = clamp(
           Math.round(Number(frameIndex) || 0),
           0,
@@ -4782,8 +5916,171 @@
         const backgroundPosition =
           `${-column * TREE_FRAME_SIZE}px ${-row * TREE_FRAME_SIZE}px`;
 
-        treeDayVisual.style.backgroundPosition = backgroundPosition;
-        treeCanopyDay.style.backgroundPosition = backgroundPosition;
+        for (const visual of visuals) {
+          visual.style.backgroundImage = `url("${image}")`;
+          visual.style.backgroundSize = "1024px 1024px";
+          visual.style.backgroundPosition = backgroundPosition;
+        }
+      }
+
+      function applyTreeDayFrame(image, frameIndex) {
+        applyTreeFrameToVisuals(
+          [treeDayVisual, treeCanopyDay],
+          image,
+          frameIndex
+        );
+      }
+
+      function applyTreeVisualState() {
+        const stage = getTreePersistentVisualStage();
+        const image = getTreeDaySheetForStage(stage);
+        applyTreeDayFrame(image, TREE_DEFAULT_FRAME);
+        setTreeNightFrame(stage);
+      }
+
+      function setTreeAnimationFrameForStage(frameIndex, stage) {
+        applyTreeDayFrame(getTreeDaySheetForStage(stage), frameIndex);
+      }
+
+      function setTreeAnimationFrame(frameIndex) {
+        const stage = getTreePersistentVisualStage();
+        setTreeAnimationFrameForStage(frameIndex, stage);
+      }
+
+      function randomBetween(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function easeInCubic(progress) {
+        const normalized = clamp(progress, 0, 1);
+        return normalized * normalized * normalized;
+      }
+
+      function spawnTreeFallingPart(hitNumber) {
+        if (!treePartLayer) return;
+
+        const part = document.createElement("div");
+        part.className = "tree-falling-part";
+        part.setAttribute("aria-hidden", "true");
+        part.style.backgroundImage = `url("${TREE_PART_IMAGE}")`;
+
+        const treeLeft = 1103;
+        const treeTop = 562;
+        const treeScale = 0.6;
+        const treeWidth = 512 * treeScale;
+        const treeHeight = 512 * treeScale;
+        const startAnchorX = treeLeft + treeWidth * TREE_PART_START_X_RATIO;
+        const startAnchorY = treeTop + treeHeight * TREE_PART_START_Y_RATIO;
+        const offsetIndex = clamp(
+          Math.round(Number(hitNumber) || 1) - 1,
+          0,
+          TREE_PART_HIT_OFFSETS.length - 1
+        );
+        const hitOffset = TREE_PART_HIT_OFFSETS[offsetIndex];
+        const hitScale = TREE_PART_HIT_SCALES[
+          Math.min(offsetIndex, TREE_PART_HIT_SCALES.length - 1)
+        ];
+        const baseHitOffset = TREE_PART_HIT_OFFSETS[0] || { x: 0, y: 0 };
+        const groundOffsetX = hitOffset.x - baseHitOffset.x;
+        const groundOffsetY = hitOffset.y - baseHitOffset.y;
+        const dropX = TREE_PART_DROP_X - groundOffsetX;
+        const dropY = TREE_PART_DROP_Y - groundOffsetY;
+        const toppleX = TREE_PART_TOPPLE_X - groundOffsetX;
+        const toppleY = TREE_PART_TOPPLE_Y - groundOffsetY;
+        const startLeft =
+          startAnchorX - TREE_PART_GROUND_CONTACT_X + hitOffset.x;
+        const startTop =
+          startAnchorY - TREE_PART_GROUND_CONTACT_Y + hitOffset.y;
+
+        part.style.left = `${startLeft}px`;
+        part.style.top = `${startTop}px`;
+        part.style.transformOrigin =
+          `${TREE_PART_GROUND_CONTACT_X}px ${TREE_PART_GROUND_CONTACT_Y}px`;
+        part.style.opacity = "1";
+        part.style.transform =
+          `translate3d(0, 0, 0) rotate(0deg) scale(${hitScale})`;
+
+        treePartLayer.appendChild(part);
+
+        const startTime = performance.now();
+        const dropEndTime = startTime + TREE_PART_DROP_MS;
+        const toppleEndTime = dropEndTime + TREE_PART_TOPPLE_MS;
+        const holdEndTime = toppleEndTime + TREE_PART_HOLD_MS;
+        const fadeEndTime = holdEndTime + TREE_PART_FADE_MS;
+
+        const step = (now) => {
+          if (now < dropEndTime) {
+            const rawProgress = clamp(
+              (now - startTime) / TREE_PART_DROP_MS,
+              0,
+              1
+            );
+            const easedProgress = easeInCubic(rawProgress);
+            const currentX = dropX * easedProgress;
+            const currentY = dropY * easedProgress;
+            const currentRotation =
+              TREE_PART_DROP_END_ROTATION * easedProgress;
+
+            part.style.transform =
+              `translate3d(${currentX}px, ${currentY}px, 0) rotate(${currentRotation}deg) scale(${hitScale})`;
+            part.style.opacity = "1";
+            window.requestAnimationFrame(step);
+            return;
+          }
+
+          if (now < toppleEndTime) {
+            const rawProgress = clamp(
+              (now - dropEndTime) / TREE_PART_TOPPLE_MS,
+              0,
+              1
+            );
+            const currentX =
+              dropX +
+              (toppleX - dropX) * rawProgress;
+            const currentY =
+              dropY +
+              (toppleY - dropY) * rawProgress;
+            const currentRotation =
+              TREE_PART_DROP_END_ROTATION +
+              (TREE_PART_TOPPLE_ROTATION - TREE_PART_DROP_END_ROTATION) * rawProgress;
+
+            part.style.transform =
+              `translate3d(${currentX}px, ${currentY}px, 0) rotate(${currentRotation}deg) scale(${hitScale})`;
+            part.style.opacity = "1";
+            window.requestAnimationFrame(step);
+            return;
+          }
+
+          if (now < holdEndTime) {
+            part.style.transform =
+              `translate3d(${toppleX}px, ${toppleY}px, 0) rotate(${TREE_PART_TOPPLE_ROTATION}deg) scale(${hitScale})`;
+            part.style.opacity = "1";
+            window.requestAnimationFrame(step);
+            return;
+          }
+
+          if (now < fadeEndTime) {
+            const rawProgress = clamp(
+              (now - holdEndTime) / TREE_PART_FADE_MS,
+              0,
+              1
+            );
+            const opacity = 1 - rawProgress;
+            const currentScale =
+              hitScale *
+              (1 - (1 - TREE_PART_FADE_END_SCALE_MULTIPLIER) * rawProgress);
+
+            part.style.transform =
+              `translate3d(${toppleX}px, ${toppleY}px, 0) rotate(${TREE_PART_TOPPLE_ROTATION}deg) scale(${currentScale})`;
+            part.style.opacity = `${opacity}`;
+            window.requestAnimationFrame(step);
+            return;
+          }
+
+          part.remove();
+        };
+
+        window.requestAnimationFrame(step);
       }
 
       function playTreeChopAnimation(event) {
@@ -4796,12 +6093,40 @@
           return;
         }
 
+        if (
+          treeGrowthState !== TREE_GROWTH_READY ||
+          treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH
+        ) {
+          showToast(TREE_GROW_TOAST_MESSAGE);
+          return;
+        }
+
         if (!hasAxe || !isAxeEquipped) {
           showToast(TREE_NEEDS_AXE_TOAST_MESSAGE);
           return;
         }
 
+        if (woodCount >= MAX_WOOD_COUNT) {
+          showToast(CARRY_FULL_TOAST_MESSAGE);
+          return;
+        }
+
+        if (isTreeAnimating) return;
+
+        isTreeAnimating = true;
+        treeChopCount += 1;
+        woodCount = Math.min(MAX_WOOD_COUNT, woodCount + 1);
+
+        if (treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH) {
+          treeGrowthState = TREE_GROWTH_DEPLETED;
+        }
+
+        const nextStage = getTreePersistentVisualStage();
+
+        updateResourceHud();
+        saveResourceState();
         playSound(TREE_CHOP_SOUND);
+        spawnTreeFallingPart(treeChopCount);
 
         if (treeAnimationTimerId !== null) {
           clearTimeout(treeAnimationTimerId);
@@ -4809,18 +6134,25 @@
         }
 
         let sequenceIndex = 0;
-        setTreeFrame(TREE_CHOP_SEQUENCE[sequenceIndex]);
+        const firstFrameIndex = TREE_CHOP_SEQUENCE[sequenceIndex];
+
+        // 새 단계 이미지의 첫 흔들림 프레임으로 즉시 교체합니다.
+        setTreeAnimationFrameForStage(firstFrameIndex, nextStage);
+        setTreeNightFrame(nextStage);
 
         const advanceFrame = () => {
           sequenceIndex += 1;
 
           if (sequenceIndex >= TREE_CHOP_SEQUENCE.length) {
             treeAnimationTimerId = null;
-            setTreeFrame(TREE_DEFAULT_FRAME);
+            isTreeAnimating = false;
+            applyTreeVisualState();
             return;
           }
 
-          setTreeFrame(TREE_CHOP_SEQUENCE[sequenceIndex]);
+          const frameIndex = TREE_CHOP_SEQUENCE[sequenceIndex];
+          setTreeAnimationFrameForStage(frameIndex, nextStage);
+
           treeAnimationTimerId = window.setTimeout(
             advanceFrame,
             TREE_CHOP_FRAME_MS
@@ -5596,7 +6928,6 @@
           deathStartFrame: randomDeathStartFrame(),
           deathStartedAt: 0,
           counted: false,
-          autoDeathTimer: null,
           fallSoundTimer: null
         };
 
@@ -5621,10 +6952,6 @@
           event.stopPropagation();
           attackZombie(zombie);
         });
-
-        zombie.autoDeathTimer = window.setTimeout(() => {
-          beginDeath(zombie, false);
-        }, AUTO_DEATH_MS);
 
         if (options.persist !== false) {
           saveResourceState();
@@ -5724,11 +7051,6 @@
           }
         }
 
-        if (zombie.autoDeathTimer !== null) {
-          clearTimeout(zombie.autoDeathTimer);
-          zombie.autoDeathTimer = null;
-        }
-
         zombie.element.style.opacity = "1";
         showSingleFrame(
           zombie,
@@ -5769,10 +7091,6 @@
         if (zombie.state === "removed") return;
 
         zombie.state = "removed";
-
-        if (zombie.autoDeathTimer !== null) {
-          clearTimeout(zombie.autoDeathTimer);
-        }
 
         if (zombie.fallSoundTimer !== null) {
           clearTimeout(zombie.fallSoundTimer);
@@ -6189,6 +7507,34 @@
         event.stopPropagation();
       });
 
+      repairOverlay.addEventListener("pointerdown", (event) => {
+        if (event.target === repairOverlay) {
+          closeRepair();
+        }
+      });
+
+      repairMenu.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
+
+      for (const categoryButton of repairCategories) {
+        categoryButton.addEventListener("click", () => {
+          selectRepairCategory(
+            categoryButton.dataset.repairCategory || "fence"
+          );
+        });
+      }
+
+      repairGrid.addEventListener("click", (event) => {
+        const target = event.target.closest(".repair-grid-item");
+        if (!target || !repairGrid.contains(target)) return;
+
+        playSound(INVENTORY_SET_SOUND);
+        selectRepairItem(target.dataset.repairItemIndex);
+      });
+
+      repairActionButton.addEventListener("click", handleRepairAction);
+
       function startInventoryPageDrag(event) {
         if (
           inventoryPageCount <= 1 ||
@@ -6353,6 +7699,7 @@
         if (event.key !== "Escape") return;
         closeExplorationMenu();
         closeInventory();
+        closeRepair();
       });
 
       for (const option of explorationOptions) {
@@ -6373,6 +7720,7 @@
       window.addEventListener("resize", () => {
         updateWorldScale();
         updateInventoryPagePosition(false);
+        if (isRepairOpen) applyRepairState();
       });
 
       window.addEventListener("pagehide", saveResourceState);
