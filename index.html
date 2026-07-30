@@ -652,6 +652,23 @@
       text-align: left;
       white-space: nowrap;
       pointer-events: none;
+      transform: scale(1);
+      transform-origin: left center;
+    }
+
+    /* 버튼 NEW 배지는 왼쪽을 기준으로 짧게 튀어나오듯 나타납니다. */
+    .inventory-new-badge.is-appearing {
+      animation: inventory-new-badge-pop 320ms
+        cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes inventory-new-badge-pop {
+      from {
+        transform: scale(0);
+      }
+      to {
+        transform: scale(1);
+      }
     }
 
     #repairButton {
@@ -942,14 +959,20 @@
       right: max(24px, calc(env(safe-area-inset-right) + 16px));
       bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px));
       z-index: 120;
-      display: none;
+      display: block;
       color: #fff;
       text-align: right;
+      opacity: 0;
+      visibility: hidden;
       pointer-events: none;
+      transition: none;
     }
 
+    /* 탐험 정보는 나타날 때만 2초 동안 페이드인하고, 사라질 때는 즉시 숨깁니다. */
     #exploringStatus.is-visible {
-      display: block;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 2s ease-out;
     }
 
     #exploringLabel,
@@ -976,18 +999,113 @@
       display: block;
       color: #fff;
       text-align: right;
+      opacity: 1;
+      visibility: visible;
       pointer-events: none;
+      transition: opacity 2s ease-out;
     }
 
+    /* DAY 정보는 숨길 때 즉시 사라지고, 다시 나타날 때만 2초 동안 페이드인합니다. */
     #dayStatus.is-hidden {
-      display: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: none;
+    }
+
+    /* 최초 로드와 새로고침에서는 현재 우하단 상태를 애니메이션 없이 바로 표시합니다. */
+    body.is-initializing-status #exploringStatus,
+    body.is-initializing-status #dayStatus {
+      transition: none !important;
     }
 
     #dayNumber {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      height: 0.9em;
+      overflow: visible;
       font-size: 59px;
       font-weight: 500;
       line-height: 0.9;
       letter-spacing: -0.03em;
+    }
+
+    .day-number-prefix {
+      flex: 0 0 auto;
+      margin-right: 0.22em;
+    }
+
+    /* 숫자 한 줄 높이만 보이도록 마스킹하고, 이전/다음 숫자를 세로로 굴립니다. */
+    .day-number-viewport {
+      display: inline-flex;
+      flex: 0 0 auto;
+      justify-content: flex-end;
+      height: 0.9em;
+      overflow: hidden;
+      will-change: width;
+    }
+
+    /* 자릿수 폭이 바뀔 때 DAY 위치도 숫자 롤링과 동시에 부드럽게 이동합니다. */
+    .day-number-viewport.is-resizing {
+      transition: width 1000ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .day-number-track {
+      display: inline-grid;
+      flex: 0 0 auto;
+      height: 0.9em;
+      align-items: start;
+      justify-items: end;
+    }
+
+    .day-number-value {
+      display: block;
+      grid-area: 1 / 1;
+      height: 0.9em;
+      line-height: 0.9;
+      white-space: nowrap;
+      transform: translate3d(0, 0, 0);
+      will-change: transform;
+    }
+
+    /*
+      롤링 시작을 기다리는 동안 다음 숫자를 마스크 아래에 미리 둡니다.
+      애니메이션 클래스가 붙기 전 두 숫자가 같은 위치에 겹쳐 보이는 현상을 방지합니다.
+    */
+    .day-number-track .day-number-value:last-child:not(:first-child) {
+      transform: translate3d(0, 100%, 0);
+    }
+
+    /*
+      트랙 전체를 절반만 이동시키지 않고 이전/다음 숫자를 각각 움직입니다.
+      두 숫자가 동일한 속도로 위로 이동하며 자연스럽게 교체됩니다.
+    */
+    .day-number-track.is-rolling .day-number-value:first-child:not(:last-child) {
+      animation: day-number-roll-out 1000ms
+        cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    .day-number-track.is-rolling .day-number-value:last-child:not(:first-child) {
+      animation: day-number-roll-in 1000ms
+        cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @keyframes day-number-roll-out {
+      from {
+        transform: translate3d(0, 0, 0);
+      }
+      to {
+        transform: translate3d(0, -100%, 0);
+      }
+    }
+
+    @keyframes day-number-roll-in {
+      from {
+        transform: translate3d(0, 100%, 0);
+      }
+      to {
+        transform: translate3d(0, 0, 0);
+      }
     }
 
     .zombie {
@@ -1215,7 +1333,7 @@
     }
   </style>
 </head>
-<body>
+<body class="is-initializing-status">
   <script>
     (() => {
       try {
@@ -1303,6 +1421,7 @@
           <span class="exploration-requirement-item" data-requirement="food" data-required="5">Food <span class="exploration-requirement-current">0</span>/5</span>
           <span class="exploration-requirement-item" data-requirement="fuel" data-required="10">Fuel <span class="exploration-requirement-current">0</span>/10</span>
           <span class="exploration-requirement-item is-label-only" data-requirement="map" data-required="1">Map</span>
+          <span class="exploration-requirement-item is-label-only" data-requirement="car" data-required="1">Car</span>
         </div>
       </div>
     </div>
@@ -1381,9 +1500,16 @@
   </div>
   <div id="dayStatus" aria-live="polite">
     <div id="weatherLabel">Sunny</div>
-    <div id="dayNumber">DAY 1</div>
+    <div id="dayNumber" aria-label="DAY 1">
+      <span class="day-number-prefix">DAY</span>
+      <span class="day-number-viewport" aria-hidden="true">
+        <span id="dayNumberTrack" class="day-number-track">
+          <span class="day-number-value">1</span>
+        </span>
+      </span>
+    </div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.060</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.061</span></div>
 
   <script>
     (() => {
@@ -1451,6 +1577,8 @@
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
       const TEST_MODE = true;
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
+      const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
+      const DAY_NUMBER_ROLL_FALLBACK_MS = 1_100;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -1514,6 +1642,8 @@
       const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
+      const EXPLORING_FOOTSTEPS_SOUND =
+        "sounds/sfx_exploringfootsteps.wav";
       const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
       const NIGHT_BGM_SOUND = "sounds/bgm_meadow_night.mp3";
       // 기존 곡이 먼저 줄어든 뒤 잠시 조용한 구간을 두고 새 곡이 올라옵니다.
@@ -1747,6 +1877,10 @@
       const exploringTime = document.getElementById("exploringTime");
       const dayStatus = document.getElementById("dayStatus");
       const dayNumber = document.getElementById("dayNumber");
+      const dayNumberViewport = dayNumber.querySelector(
+        ".day-number-viewport"
+      );
+      const dayNumberTrack = document.getElementById("dayNumberTrack");
       const versionTestButton = document.getElementById("versionTestButton");
       const axeStump = document.getElementById("axeStump");
       const axePickupHitArea = document.getElementById("axePickupHitArea");
@@ -2001,6 +2135,10 @@
       let inventoryCurrentPage = 0;
       let inventoryPageCount = 1;
       let suppressInventoryClickUntil = 0;
+      let inventoryNewBadgeStateInitialized = false;
+      let renderedDayCount = 1;
+      let dayNumberAnimationToken = 0;
+      let dayNumberAnimationTimerId = null;
       const inventoryPageDragState = {
         active: false,
         moved: false,
@@ -2276,14 +2414,111 @@
         updateExplorationRequirements();
       }
 
-      function updateDayStatus() {
-        dayNumber.textContent = `DAY ${dayCount}`;
-        dayStatus.classList.toggle("is-hidden", isExploring);
+      function createDayNumberValue(value) {
+        const element = document.createElement("span");
+        element.className = "day-number-value";
+        element.textContent = String(value);
+        return element;
       }
 
-      function commitResourceState() {
+      function setDayNumberImmediately(value) {
+        dayNumberAnimationToken += 1;
+
+        if (dayNumberAnimationTimerId !== null) {
+          clearTimeout(dayNumberAnimationTimerId);
+          dayNumberAnimationTimerId = null;
+        }
+
+        dayNumberTrack.classList.remove("is-rolling");
+        dayNumberViewport.classList.remove("is-resizing");
+        dayNumberTrack.replaceChildren(createDayNumberValue(value));
+        dayNumberViewport.style.width = `${dayNumberTrack.scrollWidth}px`;
+        renderedDayCount = value;
+        dayNumber.setAttribute("aria-label", `DAY ${value}`);
+      }
+
+      function animateDayNumberTo(value) {
+        if (value === renderedDayCount) {
+          setDayNumberImmediately(value);
+          return;
+        }
+
+        const animationToken = ++dayNumberAnimationToken;
+        const previousValue = renderedDayCount;
+
+        if (dayNumberAnimationTimerId !== null) {
+          clearTimeout(dayNumberAnimationTimerId);
+          dayNumberAnimationTimerId = null;
+        }
+
+        const previousValueElement = createDayNumberValue(previousValue);
+        const nextValueElement = createDayNumberValue(value);
+
+        dayNumberTrack.classList.remove("is-rolling");
+        dayNumberViewport.classList.remove("is-resizing");
+        dayNumberTrack.replaceChildren(
+          previousValueElement,
+          nextValueElement
+        );
+
+        const previousNumberWidth = previousValueElement.getBoundingClientRect().width;
+        const nextNumberWidth = nextValueElement.getBoundingClientRect().width;
+        dayNumberViewport.style.width = `${previousNumberWidth}px`;
+        dayNumber.setAttribute("aria-label", `DAY ${value}`);
+
+        const finishAnimation = () => {
+          if (animationToken !== dayNumberAnimationToken) return;
+
+          if (dayNumberAnimationTimerId !== null) {
+            clearTimeout(dayNumberAnimationTimerId);
+            dayNumberAnimationTimerId = null;
+          }
+
+          dayNumberTrack.classList.remove("is-rolling");
+          dayNumberViewport.classList.remove("is-resizing");
+          dayNumberTrack.replaceChildren(createDayNumberValue(value));
+          dayNumberViewport.style.width = `${nextNumberWidth}px`;
+          renderedDayCount = value;
+        };
+
+        nextValueElement.addEventListener("animationend", finishAnimation, {
+          once: true
+        });
+
+        // 귀환 후 3초 대기한 다음 롤링을 시작합니다.
+        dayNumberAnimationTimerId = window.setTimeout(() => {
+          if (animationToken !== dayNumberAnimationToken) return;
+
+          // 내용을 교체한 뒤에도 애니메이션이 확실히 재시작되게 합니다.
+          void dayNumberTrack.offsetHeight;
+          dayNumberViewport.classList.add("is-resizing");
+          dayNumberTrack.classList.add("is-rolling");
+          dayNumberViewport.style.width = `${nextNumberWidth}px`;
+
+          dayNumberAnimationTimerId = window.setTimeout(
+            finishAnimation,
+            DAY_NUMBER_ROLL_FALLBACK_MS
+          );
+        }, DAY_NUMBER_ROLL_DELAY_MS);
+      }
+
+      function updateDayStatus(options = {}) {
+        dayStatus.classList.toggle("is-hidden", isExploring);
+
+        if (
+          options.animateDay === true &&
+          !isExploring &&
+          dayCount !== renderedDayCount
+        ) {
+          animateDayNumberTo(dayCount);
+        } else {
+          setDayNumberImmediately(dayCount);
+        }
+      }
+
+      function commitResourceState(options = {}) {
         updateResourceHud();
-        updateDayStatus();
+        updateDayStatus(options);
         saveResourceState();
       }
 
@@ -2308,6 +2543,7 @@
         for (const deer of deerMap.values()) {
           if (
             deer.state !== "dying" &&
+            deer.state !== "leaving" &&
             deer.state !== "removed"
           ) {
             count += 1;
@@ -2770,7 +3006,38 @@
         }
       }
 
+      function startOneDeerLeavingForLightChange() {
+        const candidates = Array.from(deerMap.values()).filter(
+          (deer) =>
+            deer.state !== "dying" &&
+            deer.state !== "leaving" &&
+            deer.state !== "removed"
+        );
+
+        if (candidates.length === 0) return false;
+
+        const deer = candidates[
+          Math.floor(Math.random() * candidates.length)
+        ];
+        const direction = deer.facing === "left" ? -1 : 1;
+
+        beginDeerRunInDirection(deer, direction, "leaving");
+        deer.element.style.opacity = "1";
+        deer.hitbox.style.pointerEvents = "none";
+        deer.hitbox.tabIndex = -1;
+        showSingleDeerFrame(deer, DEER_RUN_INTRO_FRAME_START);
+        renderDeer(deer);
+        saveResourceState();
+        return true;
+      }
+
       function setNightMode(enabled) {
+        const wasNight = document.body.classList.contains("is-night");
+
+        if (wasNight !== enabled) {
+          startOneDeerLeavingForLightChange();
+        }
+
         document.body.classList.toggle("is-night", enabled);
         updateTreeInteractivity();
         transitionCloudShadowOpacity(enabled);
@@ -2790,6 +3057,8 @@
           clearTimeout(returnZombieSpawnTimerId);
           returnZombieSpawnTimerId = null;
         }
+
+        playSound(EXPLORING_FOOTSTEPS_SOUND);
 
         const requiredFood = getDestinationFoodRequirement(destination);
         foodCount = Math.max(0, foodCount - requiredFood);
@@ -2884,23 +3153,24 @@
       function finishExploration() {
         if (!isExploring) return;
 
+        playSound(EXPLORING_FOOTSTEPS_SOUND);
+
         isExploring = false;
         explorationDestination = "";
         explorationEndsAt = 0;
         dayCount += 1;
         zombieKillRequirement = getNextPrime(zombieKillRequirement);
         awardRandomExplorationItem();
-        commitResourceState();
+        commitResourceState({ animateDay: true });
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
-        updateDayStatus();
 
         if (explorationTimerId !== null) {
           clearInterval(explorationTimerId);
           explorationTimerId = null;
         }
 
-        // 귀환 메시지는 화면이 낮으로 돌아오기 시작한 뒤 2초 후 표시합니다.
+        // 귀환 메시지는 화면이 낮으로 돌아오기 시작한 뒤 4.5초 후 표시합니다.
         if (explorationCompleteToastTimerId !== null) {
           clearTimeout(explorationCompleteToastTimerId);
         }
@@ -2908,7 +3178,7 @@
         explorationCompleteToastTimerId = window.setTimeout(() => {
           explorationCompleteToastTimerId = null;
           showToast(EXPLORATION_COMPLETE_TOAST_MESSAGE);
-        }, 2_000);
+        }, 4_500);
 
         // 정기 생성 타이머도 귀환 후 7초 동안 좀비를 생성하지 못하게 합니다.
         zombieSpawnBlockedUntil = Date.now() + 7_000;
@@ -3002,6 +3272,21 @@
         updateExploringCountdown();
       }
 
+      function areTestResourcesFull() {
+        return zombieCount >= zombieKillRequirement &&
+          foodCount >= MAX_FOOD_COUNT &&
+          woodCount >= MAX_WOOD_COUNT;
+      }
+
+      function fillResourcesForTest() {
+        if (!TEST_MODE || isExploring) return;
+
+        zombieCount = zombieKillRequirement;
+        foodCount = MAX_FOOD_COUNT;
+        woodCount = MAX_WOOD_COUNT;
+        commitResourceState();
+      }
+
       function handleVersionLabelTestAction(event) {
         if (!TEST_MODE) return;
 
@@ -3031,7 +3316,12 @@
           return;
         }
 
-        resetAllSavedStateForTest();
+        if (areTestResourcesFull()) {
+          resetAllSavedStateForTest();
+          return;
+        }
+
+        fillResourcesForTest();
       }
 
       function easeOutSine(progress) {
@@ -4343,7 +4633,25 @@
 
       function applyInventoryNewBadgeState() {
         if (!inventoryNewBadge) return;
-        inventoryNewBadge.hidden = !hasNewInventoryItem;
+
+        const shouldShow = hasNewInventoryItem;
+        const wasHidden = inventoryNewBadge.hidden;
+        inventoryNewBadge.hidden = !shouldShow;
+
+        // 저장 상태를 처음 반영할 때는 기존 배지를 정적으로 표시하고,
+        // 플레이 중 새로 생기는 순간에만 등장 애니메이션을 재생합니다.
+        if (!inventoryNewBadgeStateInitialized) {
+          inventoryNewBadgeStateInitialized = true;
+          return;
+        }
+
+        if (shouldShow && wasHidden) {
+          inventoryNewBadge.classList.remove("is-appearing");
+          void inventoryNewBadge.offsetWidth;
+          inventoryNewBadge.classList.add("is-appearing");
+        } else if (!shouldShow) {
+          inventoryNewBadge.classList.remove("is-appearing");
+        }
       }
 
       function stopBgmPlayback() {
@@ -4867,8 +5175,12 @@
         return true;
       }
 
-      function beginDeerEvadeInDirection(deer, direction) {
-        deer.state = "evading";
+      function beginDeerRunInDirection(
+        deer,
+        direction,
+        state = "evading"
+      ) {
+        deer.state = state;
         deer.idleAnimation = null;
         deer.evadeDirection = direction < 0 ? -1 : 1;
         deer.facing = deer.evadeDirection < 0 ? "left" : "right";
@@ -4876,6 +5188,10 @@
         deer.runFrame = 0;
         deer.runIntroComplete = false;
         setDeerFacing(deer);
+      }
+
+      function beginDeerEvadeInDirection(deer, direction) {
+        beginDeerRunInDirection(deer, direction, "evading");
       }
 
       function startDeerEvade(deer) {
@@ -4902,7 +5218,9 @@
       function beginDeerDeath(deer) {
         if (deer.state === "dying" || deer.state === "removed") return;
 
-        const slideDirection = deer.state === "evading"
+        const slideDirection = (
+          deer.state === "evading" || deer.state === "leaving"
+        )
           ? deer.evadeDirection
           : (deer.state === "turning"
             ? deer.turnDirection
@@ -4942,7 +5260,11 @@
           return;
         }
 
-        if (deer.state === "dying" || deer.state === "removed") {
+        if (
+          deer.state === "dying" ||
+          deer.state === "leaving" ||
+          deer.state === "removed"
+        ) {
           return;
         }
 
@@ -5765,7 +6087,10 @@
             updateDeerIdle(deer, now);
           } else if (deer.state === "turning") {
             updateDeerTurning(deer, deltaMs);
-          } else if (deer.state === "evading") {
+          } else if (
+            deer.state === "evading" ||
+            deer.state === "leaving"
+          ) {
             updateDeerEvading(deer, deltaMs);
           } else if (deer.state === "dying") {
             updateDeerDying(deer, now);
@@ -6078,6 +6403,13 @@
             });
           });
         }
+
+        // 초기 저장 상태가 화면에 적용된 다음부터만 우하단 등장 페이드를 허용합니다.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            document.body.classList.remove("is-initializing-status");
+          });
+        });
 
         lastFrameTime = performance.now();
         requestAnimationFrame(gameLoop);
