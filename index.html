@@ -2377,7 +2377,7 @@
       </span>
     </div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.065</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.066</span></div>
 
   <script>
     (() => {
@@ -2401,8 +2401,8 @@
       };
 
       // 자동차와 창고의 표시 영역 중앙에도 각각 128×128 크기의
-      // 사슴 전용 안전 구역을 둡니다.
-      const DEER_STRUCTURE_SAFE_ZONE_SIZE = 128;
+      // 좀비·사슴 공용 안전 구역을 둡니다.
+      const STRUCTURE_SAFE_ZONE_SIZE = 128;
 
       const ZOMBIE_WIDTH = 64;
       const ZOMBIE_HEIGHT = 128;
@@ -6007,7 +6007,7 @@
       }
 
       function getCenteredStructureSafeZone(element) {
-        const halfSafeSize = DEER_STRUCTURE_SAFE_ZONE_SIZE / 2;
+        const halfSafeSize = STRUCTURE_SAFE_ZONE_SIZE / 2;
         const centerX = element.offsetLeft + element.offsetWidth / 2;
         const centerY = element.offsetTop + element.offsetHeight / 2;
 
@@ -6019,12 +6019,19 @@
         };
       }
 
-      function getDeerSafeZones() {
+      function getStructureSafeZones() {
         return [
-          SAFE_ZONE,
           getCenteredStructureSafeZone(shedObject),
           getCenteredStructureSafeZone(carObject)
         ];
+      }
+
+      function getZombieSafeZones() {
+        return [SAFE_ZONE, ...getStructureSafeZones()];
+      }
+
+      function getDeerSafeZones() {
+        return [SAFE_ZONE, ...getStructureSafeZones()];
       }
 
       function doesDeerHorizontalPathCrossZone(y, zone) {
@@ -6042,12 +6049,17 @@
 
         let bestCandidate = null;
         let bestMinimumDistance = -1;
+        const zombieSafeZones = getZombieSafeZones();
 
         for (let attempt = 0; attempt < 500; attempt += 1) {
           const x = minX + Math.random() * (maxX - minX);
           const y = minY + Math.random() * (maxY - minY);
 
-          if (isInsideInflatedSafeZone(x, y)) {
+          const overlapsSafeZone = zombieSafeZones.some((zone) =>
+            isInsideInflatedZoneFor(zone, x, y, HALF_W, HALF_H)
+          );
+
+          if (overlapsSafeZone) {
             continue;
           }
 
@@ -6080,9 +6092,10 @@
           return bestCandidate;
         }
 
-        // 극히 드문 예외 상황의 안전한 기본 위치
+        // 극히 드문 예외 상황에도 구조물 안전 구역과 겹치지 않는
+        // 게임 영역 우측 상단을 기본 위치로 사용합니다.
         return {
-          x: GAME_ZONE.left + HALF_W + 8,
+          x: GAME_ZONE.right - HALF_W - 8,
           y: GAME_ZONE.top + HALF_H + 8
         };
       }
@@ -8020,13 +8033,28 @@
         }
       }
 
-      function resolveSafeZone(zombie, previousX, previousY) {
-        if (!isInsideInflatedSafeZone(zombie.x, zombie.y)) return;
+      function resolveSafeZoneFor(
+        zombie,
+        zone,
+        previousX,
+        previousY
+      ) {
+        if (
+          !isInsideInflatedZoneFor(
+            zone,
+            zombie.x,
+            zombie.y,
+            HALF_W,
+            HALF_H
+          )
+        ) {
+          return false;
+        }
 
-        const left = SAFE_ZONE.left - HALF_W;
-        const right = SAFE_ZONE.right + HALF_W;
-        const top = SAFE_ZONE.top - HALF_H;
-        const bottom = SAFE_ZONE.bottom + HALF_H;
+        const left = zone.left - HALF_W;
+        const right = zone.right + HALF_W;
+        const top = zone.top - HALF_H;
+        const bottom = zone.bottom + HALF_H;
 
         const enteredFromLeft = previousX <= left;
         const enteredFromRight = previousX >= right;
@@ -8070,6 +8098,156 @@
             default:
               zombie.y = bottom;
               zombie.direction.y = Math.abs(zombie.direction.y);
+          }
+        }
+
+        return true;
+      }
+
+      function resolveSafeZones(zombie, previousX, previousY) {
+        const safeZones = getZombieSafeZones();
+        const previousWasSafe = !safeZones.some((zone) =>
+          isInsideInflatedZoneFor(
+            zone,
+            previousX,
+            previousY,
+            HALF_W,
+            HALF_H
+          )
+        );
+        const attemptedX = zombie.x;
+        const attemptedY = zombie.y;
+
+        // 중앙과 자동차 안전 구역처럼 확장 판정이 일부 겹치는 경우에도
+        // 어느 안전 구역 안에도 남지 않도록 여러 번 확인합니다.
+        for (let pass = 0; pass <= safeZones.length; pass += 1) {
+          let resolved = false;
+
+          for (const zone of safeZones) {
+            if (
+              resolveSafeZoneFor(
+                zombie,
+                zone,
+                previousX,
+                previousY
+              )
+            ) {
+              resolved = true;
+            }
+          }
+
+          if (!resolved) return;
+        }
+
+        const stillInsideSafeZone = safeZones.some((zone) =>
+          isInsideInflatedZoneFor(
+            zone,
+            zombie.x,
+            zombie.y,
+            HALF_W,
+            HALF_H
+          )
+        );
+
+        // 겹친 경계의 드문 예외에서는 진입 전 위치로 되돌려
+        // 안전 구역 안에 머무르는 상황을 확실히 방지합니다.
+        if (stillInsideSafeZone && previousWasSafe) {
+          zombie.x = previousX;
+          zombie.y = previousY;
+
+          const movedX = attemptedX - previousX;
+          const movedY = attemptedY - previousY;
+
+          if (Math.abs(movedX) >= Math.abs(movedY)) {
+            zombie.direction.x = movedX >= 0
+              ? -Math.abs(zombie.direction.x)
+              : Math.abs(zombie.direction.x);
+          } else {
+            zombie.direction.y = movedY >= 0
+              ? -Math.abs(zombie.direction.y)
+              : Math.abs(zombie.direction.y);
+          }
+
+          return;
+        }
+
+        // 수정 전에 이미 구조물과 겹쳐 있던 좀비도 다음 이동 프레임에
+        // 모든 안전 구역 밖의 가장 가까운 경계점으로 밀어냅니다.
+        if (stillInsideSafeZone) {
+          const minX = GAME_ZONE.left + HALF_W;
+          const maxX = GAME_ZONE.right - HALF_W;
+          const minY = GAME_ZONE.top + HALF_H;
+          const maxY = GAME_ZONE.bottom - HALF_H;
+          const xCandidates = [zombie.x];
+          const yCandidates = [zombie.y];
+
+          for (const zone of safeZones) {
+            xCandidates.push(
+              zone.left - HALF_W,
+              zone.right + HALF_W
+            );
+            yCandidates.push(
+              zone.top - HALF_H,
+              zone.bottom + HALF_H
+            );
+          }
+
+          let nearestCandidate = null;
+          let nearestDistance = Infinity;
+
+          for (const candidateX of xCandidates) {
+            for (const candidateY of yCandidates) {
+              if (
+                candidateX < minX ||
+                candidateX > maxX ||
+                candidateY < minY ||
+                candidateY > maxY
+              ) {
+                continue;
+              }
+
+              const candidateIsBlocked = safeZones.some((zone) =>
+                isInsideInflatedZoneFor(
+                  zone,
+                  candidateX,
+                  candidateY,
+                  HALF_W,
+                  HALF_H
+                )
+              );
+
+              if (candidateIsBlocked) continue;
+
+              const distance = Math.hypot(
+                candidateX - zombie.x,
+                candidateY - zombie.y
+              );
+
+              if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestCandidate = {
+                  x: candidateX,
+                  y: candidateY
+                };
+              }
+            }
+          }
+
+          if (nearestCandidate) {
+            const pushedX = nearestCandidate.x - zombie.x;
+            const pushedY = nearestCandidate.y - zombie.y;
+            zombie.x = nearestCandidate.x;
+            zombie.y = nearestCandidate.y;
+
+            if (Math.abs(pushedX) >= Math.abs(pushedY)) {
+              zombie.direction.x = pushedX >= 0
+                ? Math.abs(zombie.direction.x)
+                : -Math.abs(zombie.direction.x);
+            } else {
+              zombie.direction.y = pushedY >= 0
+                ? Math.abs(zombie.direction.y)
+                : -Math.abs(zombie.direction.y);
+            }
           }
         }
       }
@@ -8139,7 +8317,7 @@
         zombie.y += zombie.direction.y * MOVE_SPEED_PX_PER_MS * deltaMs;
 
         resolveOuterBounds(zombie);
-        resolveSafeZone(zombie, previousX, previousY);
+        resolveSafeZones(zombie, previousX, previousY);
         setFacing(zombie);
 
         zombie.walkElapsed += deltaMs;
