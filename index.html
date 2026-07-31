@@ -19,6 +19,28 @@
       --zombie-height: 128px;
       --deer-width: 85.3333px;
       --deer-height: 85.3333px;
+
+      /*
+        집 / 창고 / 울타리 / 차 위치와 크기 수정 위치
+        - left: 오른쪽으로 갈수록 증가
+        - top: 아래로 갈수록 증가
+        - size: 표시 크기(정사각형)
+      */
+      --house-left: 814px;
+      --house-top: 730px;
+      --house-size: 490px;
+
+      --shed-left: 520px;
+      --shed-top: 560px;
+      --shed-size: 190px;
+
+      --fence-left: 782px;
+      --fence-top: 792px;
+      --fence-size: 490px;
+
+      --car-left: 1140px;
+      --car-top: 1160px;
+      --car-size: 256px;
     }
 
     * {
@@ -123,11 +145,184 @@
       pointer-events: none;
     }
 
+    /*
+      집 / 창고 / 울타리 / 차 레이어입니다.
+      실제 위치와 크기는 위쪽 :root의 --house-*, --shed-*, --fence-*, --car-* 값으로 조정합니다.
+    */
+    #structures {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .world-structure {
+      position: absolute;
+      background-repeat: no-repeat;
+      background-position: 0 0;
+      image-rendering: auto;
+      pointer-events: none;
+      transform-origin: left top;
+      transition: filter 3s ease;
+      will-change: filter;
+    }
+
+    /*
+      house_1.png은 1024×1024 2×2 스프라이트 시트입니다.
+      - 낮: 첫 번째 이미지(좌상단)
+      - 밤: 두 번째 이미지(상단 오른쪽)
+      집의 밤 이미지는 이미 어두운 버전이므로 별도 brightness 처리는 하지 않습니다.
+    */
+    #houseObject {
+      left: var(--house-left);
+      top: var(--house-top);
+      z-index: 3;
+      width: var(--house-size);
+      height: var(--house-size);
+      overflow: hidden;
+    }
+
+    #houseObject::before,
+    #houseObject::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url("images/house_1.png");
+      background-repeat: no-repeat;
+      background-size: 200% 200%;
+      pointer-events: none;
+      transition: opacity 3s ease;
+    }
+
+    /* 첫 번째 이미지(좌상단) */
+    #houseObject::before {
+      background-position: 0 0;
+      opacity: 1;
+    }
+
+    /* 두 번째 이미지(상단 오른쪽) */
+    #houseObject::after {
+      background-position: 100% 0;
+      opacity: 0;
+    }
+
+    body.is-night #houseObject::before {
+      opacity: 0;
+    }
+
+    body.is-night #houseObject::after {
+      opacity: 1;
+    }
+
+    /*
+      창고 / 울타리 / 차는 낮 이미지와 밤 컬러 이미지를 겹쳐 놓고
+      집·나무·배경처럼 3초 동안 크로스페이드합니다.
+      filter 자체는 보간하지 않고 밤 레이어의 opacity만 전환해 색이 튀는 현상을 방지합니다.
+    */
+    #shedObject {
+      left: var(--shed-left);
+      top: var(--shed-top);
+      z-index: 2;
+      width: var(--shed-size);
+      height: var(--shed-size);
+    }
+
+    #fenceObject {
+      left: var(--fence-left);
+      top: var(--fence-top);
+      z-index: 4;
+      width: var(--fence-size);
+      height: var(--fence-size);
+    }
+
+    #carObject {
+      left: var(--car-left);
+      top: var(--car-top);
+      /* 자동차는 집(z-index: 3)과 울타리(z-index: 4)보다 앞에 표시합니다. */
+      z-index: 5;
+      width: var(--car-size);
+      height: var(--car-size);
+    }
+
+    /* 수리가 필요한 창고와 자동차만 필드에서 직접 선택할 수 있습니다. */
+    #shedObject,
+    #carObject {
+      pointer-events: auto;
+      cursor: pointer;
+      touch-action: none;
+      outline: none;
+    }
+
+    /* 밤에는 나무와 동일하게 창고와 자동차 입력을 받지 않습니다. */
+    body.is-night #shedObject,
+    body.is-night #carObject {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    #shedObject::before,
+    #shedObject::after,
+    #fenceObject::before,
+    #fenceObject::after,
+    #carObject::before,
+    #carObject::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-repeat: no-repeat;
+      background-position: 0 0;
+      background-size: 200% 200%;
+      pointer-events: none;
+      transition: opacity 3s ease;
+      will-change: opacity;
+    }
+
+    #shedObject::before,
+    #shedObject::after {
+      background-image: url("images/shed_1.png");
+    }
+
+    #fenceObject::before,
+    #fenceObject::after {
+      background-image: url("images/fence_1.png");
+    }
+
+    #carObject::before,
+    #carObject::after {
+      background-image: url("images/car.png");
+    }
+
+    /* 낮 레이어 */
+    #shedObject::before,
+    #fenceObject::before,
+    #carObject::before {
+      opacity: 1;
+    }
+
+    /* 밤 컬러 레이어 */
+    #shedObject::after,
+    #fenceObject::after,
+    #carObject::after {
+      opacity: 0;
+      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+    }
+
+    body.is-night #shedObject::before,
+    body.is-night #fenceObject::before,
+    body.is-night #carObject::before {
+      opacity: 0;
+    }
+
+    body.is-night #shedObject::after,
+    body.is-night #fenceObject::after,
+    body.is-night #carObject::after {
+      opacity: 1;
+    }
+
     #axeStump {
       position: absolute;
-      left: 733px;
-      /* 기존 위치(672px)에서 아래로 400px 이동 */
-      top: 1072px;
+      left: 720px;
+      top: 1020px;
       width: 179.2px;
       height: 179.2px;
       background-image: url("images/bg_stump_axe.png");
@@ -268,6 +463,15 @@
       pointer-events: none;
     }
 
+    /* 나무 파츠 그림자는 지면 오브젝트처럼 엔티티보다 아래에 표시합니다. */
+    #treePartShadowLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      overflow: visible;
+      pointer-events: none;
+    }
+
     /* 나무를 칠 때 떨어지는 파츠는 나무 위에 겹쳐서 표시합니다. */
     #treePartLayer {
       position: absolute;
@@ -283,9 +487,29 @@
     */
     .tree-falling-part {
       position: absolute;
+      z-index: 1;
       width: 256px;
       height: 256px;
       will-change: transform, opacity;
+      pointer-events: none;
+    }
+
+    /*
+      나무 파츠 그림자 모양 수정 위치
+      - 실제 위치와 크기는 아래 JavaScript의 TREE_PART_SHADOW_* 값으로 조정합니다.
+      - skewX / scaleY: 그림자가 오른쪽으로 기울고 납작해지는 정도
+      - filter blur(): 그림자 가장자리의 흐림 정도
+    */
+    .tree-falling-part-shadow {
+      position: absolute;
+      z-index: 0;
+      background: #000;
+      border-radius: 50%;
+      opacity: 0;
+      filter: blur(5px);
+      transform: skewX(-28deg) scaleY(0.4);
+      transform-origin: left center;
+      will-change: opacity;
       pointer-events: none;
     }
 
@@ -1858,6 +2082,15 @@
     body.is-restored-night .zombie-sprite-overlay,
     body.is-restored-night .deer-sprite,
     body.is-restored-night .deer-sprite-overlay,
+    body.is-restored-night .world-structure,
+    body.is-restored-night #houseObject::before,
+    body.is-restored-night #houseObject::after,
+    body.is-restored-night #shedObject::before,
+    body.is-restored-night #shedObject::after,
+    body.is-restored-night #fenceObject::before,
+    body.is-restored-night #fenceObject::after,
+    body.is-restored-night #carObject::before,
+    body.is-restored-night #carObject::after,
     body.is-restored-night .bird {
       transition: none !important;
     }
@@ -1884,16 +2117,29 @@
     }
 
     #safeZone {
-      left: 768px;
-      top: 768px;
-      width: 512px;
-      height: 512px;
+      left: 814px;
+      top: 874px;
+      width: 420px;
+      height: 300px;
       border: 2px solid rgba(255, 235, 80, 0.95);
       background: rgba(255, 235, 80, 0.08);
     }
   </style>
 </head>
 <body class="is-initializing-status">
+  <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <filter id="nightCoolBalance" color-interpolation-filters="sRGB">
+      <feColorMatrix
+        type="matrix"
+        values="
+          0.4 0    0    0 0
+          0    0.9 0    0 0
+          0    0    2.5 0 0
+          0    0    0    1 0
+        "
+      />
+    </filter>
+  </svg>
   <script>
     (() => {
       try {
@@ -1918,6 +2164,24 @@
     <div id="world">
       <div id="cloudShadows"></div>
       <div id="props">
+        <div id="structures">
+          <div id="houseObject" class="world-structure"></div>
+          <div
+            id="shedObject"
+            class="world-structure world-interactive"
+            role="button"
+            tabindex="0"
+            aria-label="창고 확인"
+          ></div>
+          <div id="fenceObject" class="world-structure" hidden></div>
+          <div
+            id="carObject"
+            class="world-structure world-interactive"
+            role="button"
+            tabindex="0"
+            aria-label="자동차 확인"
+          ></div>
+        </div>
         <div id="axeStump" aria-hidden="false">
           <div
             id="axePickupHitArea"
@@ -1940,6 +2204,7 @@
           ></div>
         </div>
       </div>
+      <div id="treePartShadowLayer" aria-hidden="true"></div>
       <div id="entities"></div>
       <div id="treeCanopyOverlay" aria-hidden="true">
         <div id="treeCanopyDay"></div>
@@ -2031,14 +2296,14 @@
           <span class="repair-category-label">Traps</span>
         </button>
         <span class="repair-category-separator" aria-hidden="true">/</span>
-        <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="roof">
-          <span class="repair-category-new-badge" hidden>NEW</span>
-          <span class="repair-category-label">Shed</span>
-        </button>
-        <span class="repair-category-separator" aria-hidden="true">/</span>
         <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="walls">
           <span class="repair-category-new-badge" hidden>NEW</span>
           <span class="repair-category-label">Style</span>
+        </button>
+        <span class="repair-category-separator" aria-hidden="true">/</span>
+        <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="roof">
+          <span class="repair-category-new-badge" hidden>NEW</span>
+          <span class="repair-category-label">Shed</span>
         </button>
         <span class="repair-category-separator" aria-hidden="true">/</span>
         <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="house">
@@ -2112,7 +2377,7 @@
       </span>
     </div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.064</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.065</span></div>
 
   <script>
     (() => {
@@ -2127,12 +2392,17 @@
         bottom: 1536
       };
 
+      // 월드 중심(1024, 1024)을 기준으로 한 420×300 안전영역입니다.
       const SAFE_ZONE = {
-        left: 768,
-        top: 768,
-        right: 1280,
-        bottom: 1280
+        left: 814,
+        top: 874,
+        right: 1234,
+        bottom: 1174
       };
+
+      // 자동차와 창고의 표시 영역 중앙에도 각각 128×128 크기의
+      // 사슴 전용 안전 구역을 둡니다.
+      const DEER_STRUCTURE_SAFE_ZONE_SIZE = 128;
 
       const ZOMBIE_WIDTH = 64;
       const ZOMBIE_HEIGHT = 128;
@@ -2250,6 +2520,8 @@
       const TREE_FALL_SOUND = "sounds/sfx_tree_fall.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
       const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
+      const CAR_FAIL_SOUND = "sounds/sfx_car_fail.wav";
+      const SHED_OLD_SOUND = "sounds/sfx_shed_old.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const EXPLORING_FOOTSTEPS_SOUND =
         "sounds/sfx_exploringfootsteps.wav";
@@ -2346,6 +2618,13 @@
       const TREE_PART_HOLD_MS = 1000;
       const TREE_PART_FADE_MS = 2000;
       const TREE_PART_FADE_END_SCALE_MULTIPLIER = 0.94;
+      // 나무 파츠 그림자의 위치와 크기 조정값입니다.
+      // OFFSET은 비행 중 파츠가 회전하는 중심축을 기준으로 적용됩니다.
+      const TREE_PART_SHADOW_OFFSET_X = -50;
+      const TREE_PART_SHADOW_OFFSET_Y = -10;
+      const TREE_PART_SHADOW_WIDTH = 70;
+      const TREE_PART_SHADOW_HEIGHT = 20;
+      const TREE_PART_SHADOW_OPACITY = 0.15;
       const TREE_MAX_CHOPS_PER_GROWTH = 3;
       const TREE_GROWTH_READY = "ready";
       const TREE_GROWTH_DEPLETED = "depleted";
@@ -2365,12 +2644,14 @@
       const HANDGUN_EMPTY_TOAST_MESSAGE = "Empty.";
       const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
       const REPAIR_MATERIALS_TOAST_MESSAGE = "I need more materials.";
+      const SHED_REPAIR_TOAST_MESSAGE = "It needs some work.";
+      const CAR_REPAIR_TOAST_MESSAGE = "This car needs repairs.";
       const REPAIR_GRID_ITEM_COUNT = 25;
       const REPAIR_CATEGORY_ORDER = [
         "fence",
         "shed",
-        "roof",
         "walls",
+        "roof",
         "house"
       ];
       const REPAIR_CATEGORY_DEFINITIONS = {
@@ -2392,7 +2673,7 @@
         walls: {
           label: "Style",
           initialItemName: "Basic",
-          initialItemDescription: "Old, but still standing."
+          initialItemDescription: "It keeps the rain out."
         },
         house: {
           label: "House",
@@ -2406,6 +2687,14 @@
             name: "Wooden Fence",
             materials: { wood: 5 },
             builtDescription: "It makes the place feel like home."
+          }
+        },
+        walls: {
+          5: {
+            name: "Basic",
+            materials: {},
+            built: true,
+            builtDescription: "Old, but still standing."
           }
         }
       };
@@ -2589,6 +2878,9 @@
       );
       const dayNumberTrack = document.getElementById("dayNumberTrack");
       const versionTestButton = document.getElementById("versionTestButton");
+      const shedObject = document.getElementById("shedObject");
+      const fenceObject = document.getElementById("fenceObject");
+      const carObject = document.getElementById("carObject");
       const axeStump = document.getElementById("axeStump");
       const axePickupHitArea = document.getElementById("axePickupHitArea");
       const tree = document.getElementById("tree");
@@ -2599,6 +2891,9 @@
       const treeCanopyDay = document.getElementById("treeCanopyDay");
       const treeCanopyDayFade = document.getElementById("treeCanopyDayFade");
       const treeCanopyNight = document.getElementById("treeCanopyNight");
+      const treePartShadowLayer = document.getElementById(
+        "treePartShadowLayer"
+      );
       const treePartLayer = document.getElementById("treePartLayer");
       const treeHitArea = document.getElementById("treeHitArea");
       const repairButton = document.getElementById("repairButton");
@@ -2828,6 +3123,11 @@
       const repairAppliedItemByCategory = Object.fromEntries(
         REPAIR_CATEGORY_ORDER.map((category) => [category, 0])
       );
+      // Style 탭은 Roof(0~4)와 Walls(5~9)가 서로 독립적으로 적용됩니다.
+      const repairAppliedStyleItemBySection = {
+        roof: 0,
+        walls: 5
+      };
       const repairItemsByCategory = Object.fromEntries(
         REPAIR_CATEGORY_ORDER.map((category) => {
           const definition = REPAIR_CATEGORY_DEFINITIONS[category];
@@ -2843,7 +3143,7 @@
                     ? definition.initialItemName
                     : defaultBlueprint?.name || "",
                 unlocked: index === 0 || Boolean(defaultBlueprint),
-                built: index === 0,
+                built: index === 0 || defaultBlueprint?.built === true,
                 isNew: false,
                 materials: defaultBlueprint
                   ? { ...defaultBlueprint.materials }
@@ -2927,6 +3227,7 @@
         active: false,
         moved: false,
         pointerId: null,
+        captureTarget: null,
         startX: 0,
         startY: 0,
         startPanX: 0,
@@ -3049,7 +3350,21 @@
 
         const selectedItems = value.selectedItemByCategory;
         const appliedItems = value.appliedItemByCategory;
+        const appliedStyleItems = value.appliedStyleItemBySection;
         const storedItems = value.itemsByCategory;
+
+        if (appliedStyleItems && typeof appliedStyleItems === "object") {
+          repairAppliedStyleItemBySection.roof = clamp(
+            normalizeRepairItemIndex(appliedStyleItems.roof),
+            0,
+            4
+          );
+          repairAppliedStyleItemBySection.walls = clamp(
+            normalizeRepairItemIndex(appliedStyleItems.walls),
+            5,
+            9
+          );
+        }
 
         for (const category of REPAIR_CATEGORY_ORDER) {
           if (selectedItems && typeof selectedItems === "object") {
@@ -3104,6 +3419,7 @@
 
             targetItem.name = blueprint.name;
             targetItem.unlocked = true;
+            targetItem.built = targetItem.built || blueprint.built === true;
             targetItem.isNew = false;
             targetItem.materials = { ...blueprint.materials };
           }
@@ -3121,6 +3437,23 @@
             repairAppliedItemByCategory[category] = 0;
           }
         }
+
+        const styleItems = repairItemsByCategory.walls;
+        const appliedRoofIndex = repairAppliedStyleItemBySection.roof;
+        const appliedWallsIndex = repairAppliedStyleItemBySection.walls;
+
+        if (
+          !styleItems[appliedRoofIndex]?.unlocked ||
+          !styleItems[appliedRoofIndex]?.built
+        ) {
+          repairAppliedStyleItemBySection.roof = 0;
+        }
+        if (
+          !styleItems[appliedWallsIndex]?.unlocked ||
+          !styleItems[appliedWallsIndex]?.built
+        ) {
+          repairAppliedStyleItemBySection.walls = 5;
+        }
       }
 
       function serializeRepairState() {
@@ -3128,6 +3461,7 @@
           selectedCategory: repairSelectedCategory,
           selectedItemByCategory: { ...repairSelectedItemByCategory },
           appliedItemByCategory: { ...repairAppliedItemByCategory },
+          appliedStyleItemBySection: { ...repairAppliedStyleItemBySection },
           itemsByCategory: Object.fromEntries(
             REPAIR_CATEGORY_ORDER.map((category) => [
               category,
@@ -3147,6 +3481,27 @@
         const selectedIndex =
           repairSelectedItemByCategory[repairSelectedCategory] || 0;
         return repairItemsByCategory[repairSelectedCategory][selectedIndex];
+      }
+
+      function getAppliedRepairItemIndex(category, itemIndex = 0) {
+        if (category === "walls") {
+          return itemIndex < 5
+            ? repairAppliedStyleItemBySection.roof
+            : repairAppliedStyleItemBySection.walls;
+        }
+        return repairAppliedItemByCategory[category] || 0;
+      }
+
+      function setAppliedRepairItemIndex(category, itemIndex) {
+        if (category === "walls") {
+          if (itemIndex < 5) {
+            repairAppliedStyleItemBySection.roof = itemIndex;
+          } else {
+            repairAppliedStyleItemBySection.walls = itemIndex;
+          }
+          return;
+        }
+        repairAppliedItemByCategory[category] = itemIndex;
       }
 
       function getRepairResourceAmount(resource) {
@@ -3294,7 +3649,7 @@
           button.classList.toggle(
             "is-applied",
             item.unlocked && item.built && index ===
-              (repairAppliedItemByCategory[repairSelectedCategory] || 0)
+              getAppliedRepairItemIndex(repairSelectedCategory, index)
           );
           button.setAttribute(
             "aria-disabled",
@@ -3314,8 +3669,10 @@
       function renderRepairItemInfo() {
         const selectedIndex =
           repairSelectedItemByCategory[repairSelectedCategory] || 0;
-        const appliedIndex =
-          repairAppliedItemByCategory[repairSelectedCategory] || 0;
+        const appliedIndex = getAppliedRepairItemIndex(
+          repairSelectedCategory,
+          selectedIndex
+        );
         const item = getSelectedRepairItem();
 
         const defaultBlueprint =
@@ -3366,7 +3723,14 @@
         }
       }
 
+      function updateInstalledStructureVisibility() {
+        // Fence의 0번(None)은 숨기고, 제작 후 적용한 울타리만 필드에 표시합니다.
+        const appliedFenceIndex = repairAppliedItemByCategory.fence || 0;
+        fenceObject.hidden = appliedFenceIndex === 0;
+      }
+
       function applyRepairState() {
+        updateInstalledStructureVisibility();
         renderRepairCategories();
         renderRepairGrid();
         renderRepairItemInfo();
@@ -3423,13 +3787,16 @@
         }
 
         if (
-          repairAppliedItemByCategory[repairSelectedCategory] === selectedIndex
+          getAppliedRepairItemIndex(
+            repairSelectedCategory,
+            selectedIndex
+          ) === selectedIndex
         ) {
           return;
         }
 
         playSound(CRAFTING_SOUND);
-        repairAppliedItemByCategory[repairSelectedCategory] = selectedIndex;
+        setAppliedRepairItemIndex(repairSelectedCategory, selectedIndex);
         applyRepairState();
         saveResourceState();
       }
@@ -4320,6 +4687,19 @@
         }
       }
 
+      function updateStructureInteractivity() {
+        const isStructureInteractive =
+          !isExploring && !document.body.classList.contains("is-night");
+
+        [shedObject, carObject].forEach((element) => {
+          element.tabIndex = isStructureInteractive ? 0 : -1;
+          element.setAttribute(
+            "aria-disabled",
+            isStructureInteractive ? "false" : "true"
+          );
+        });
+      }
+
       function startOneDeerLeavingForLightChange() {
         const candidates = Array.from(deerMap.values()).filter(
           (deer) =>
@@ -4354,6 +4734,7 @@
 
         document.body.classList.toggle("is-night", enabled);
         updateTreeInteractivity();
+        updateStructureInteractivity();
         transitionCloudShadowOpacity(enabled);
         transitionBgmForNightMode(enabled);
       }
@@ -4798,26 +5179,25 @@
 
       function startBackgroundDrag(event) {
         if (event.button !== undefined && event.button !== 0) return;
-
-        if (
-          event.target instanceof Element &&
-          event.target.closest(".zombie, .deer-hitbox, .world-interactive")
-        ) {
-          return;
-        }
-
         if (maxPanX <= 0 && maxPanY <= 0) return;
 
         event.preventDefault();
         dragState.active = true;
         dragState.moved = false;
         dragState.pointerId = event.pointerId;
+        dragState.captureTarget =
+          event.target instanceof Element ? event.target : viewport;
         dragState.startX = event.clientX;
         dragState.startY = event.clientY;
         dragState.startPanX = panX;
         dragState.startPanY = panY;
 
-        viewport.setPointerCapture(event.pointerId);
+        try {
+          dragState.captureTarget.setPointerCapture(event.pointerId);
+        } catch (_) {
+          dragState.captureTarget = viewport;
+          viewport.setPointerCapture(event.pointerId);
+        }
       }
 
       function moveBackgroundDrag(event) {
@@ -4862,13 +5242,46 @@
           return;
         }
 
-        if (viewport.hasPointerCapture(event.pointerId)) {
-          viewport.releasePointerCapture(event.pointerId);
+        const captureTarget = dragState.captureTarget;
+        if (
+          captureTarget &&
+          typeof captureTarget.hasPointerCapture === "function" &&
+          captureTarget.hasPointerCapture(event.pointerId)
+        ) {
+          try {
+            captureTarget.releasePointerCapture(event.pointerId);
+          } catch (_) {
+            // 포인터 해제가 이미 끝난 경우에도 드래그 상태는 정상 정리합니다.
+          }
         }
 
         dragState.active = false;
+        dragState.moved = false;
         dragState.pointerId = null;
+        dragState.captureTarget = null;
         viewport.classList.remove("is-panning");
+      }
+
+      function shouldActivateFieldObject(event, element = event?.currentTarget) {
+        if (!event) return true;
+        if (dragState.moved) return false;
+
+        if (
+          dragState.active &&
+          event.pointerId !== dragState.pointerId
+        ) {
+          return false;
+        }
+
+        if (!(element instanceof Element)) return true;
+
+        const rect = element.getBoundingClientRect();
+        return (
+          event.clientX >= rect.left &&
+          event.clientX <= rect.right &&
+          event.clientY >= rect.top &&
+          event.clientY <= rect.bottom
+        );
       }
 
       function framePosition(frameIndex) {
@@ -5564,17 +5977,61 @@
         return Math.random() < 0.5 ? 0 : 4;
       }
 
-      function isInsideInflatedSafeZoneFor(x, y, halfWidth, halfHeight) {
+      function isInsideInflatedZoneFor(
+        zone,
+        x,
+        y,
+        halfWidth,
+        halfHeight
+      ) {
         return (
-          x > SAFE_ZONE.left - halfWidth &&
-          x < SAFE_ZONE.right + halfWidth &&
-          y > SAFE_ZONE.top - halfHeight &&
-          y < SAFE_ZONE.bottom + halfHeight
+          x > zone.left - halfWidth &&
+          x < zone.right + halfWidth &&
+          y > zone.top - halfHeight &&
+          y < zone.bottom + halfHeight
+        );
+      }
+
+      function isInsideInflatedSafeZoneFor(x, y, halfWidth, halfHeight) {
+        return isInsideInflatedZoneFor(
+          SAFE_ZONE,
+          x,
+          y,
+          halfWidth,
+          halfHeight
         );
       }
 
       function isInsideInflatedSafeZone(x, y) {
         return isInsideInflatedSafeZoneFor(x, y, HALF_W, HALF_H);
+      }
+
+      function getCenteredStructureSafeZone(element) {
+        const halfSafeSize = DEER_STRUCTURE_SAFE_ZONE_SIZE / 2;
+        const centerX = element.offsetLeft + element.offsetWidth / 2;
+        const centerY = element.offsetTop + element.offsetHeight / 2;
+
+        return {
+          left: centerX - halfSafeSize,
+          top: centerY - halfSafeSize,
+          right: centerX + halfSafeSize,
+          bottom: centerY + halfSafeSize
+        };
+      }
+
+      function getDeerSafeZones() {
+        return [
+          SAFE_ZONE,
+          getCenteredStructureSafeZone(shedObject),
+          getCenteredStructureSafeZone(carObject)
+        ];
+      }
+
+      function doesDeerHorizontalPathCrossZone(y, zone) {
+        return (
+          y > zone.top - DEER_HALF_H &&
+          y < zone.bottom + DEER_HALF_H
+        );
       }
 
       function getRandomSpawnPosition() {
@@ -5648,21 +6105,34 @@
         let bestCandidate = null;
         let bestMinimumDistance = -1;
         let bestAvoidDistance = -1;
+        const deerSafeZones = getDeerSafeZones();
 
         for (let attempt = 0; attempt < 500; attempt += 1) {
           const x = minX + Math.random() * (maxX - minX);
           const y = minY + Math.random() * (maxY - minY);
 
-          if (isInsideInflatedSafeZoneFor(x, y, DEER_HALF_W, DEER_HALF_H)) {
+          const overlapsSafeZone = deerSafeZones.some((zone) =>
+            isInsideInflatedZoneFor(
+              zone,
+              x,
+              y,
+              DEER_HALF_W,
+              DEER_HALF_H
+            )
+          );
+
+          if (overlapsSafeZone) {
             continue;
           }
 
-          // 사슴은 좌우로 도망가므로, 수평 이동 경로가 중앙 안전 구역을
-          // 가로지르지 않도록 안전 구역과 같은 세로 높이에는 생성하지 않습니다.
-          const safePathTop = SAFE_ZONE.top - DEER_HALF_H;
-          const safePathBottom = SAFE_ZONE.bottom + DEER_HALF_H;
-
-          if (y > safePathTop && y < safePathBottom) {
+          // 사슴은 좌우로 도망가므로 중앙 안전 구역뿐 아니라
+          // 창고와 자동차 중앙의 128×128 안전 구역도 가로지르지 않도록
+          // 각 안전 구역과 같은 세로 높이에는 생성하지 않습니다.
+          if (
+            deerSafeZones.some((zone) =>
+              doesDeerHorizontalPathCrossZone(y, zone)
+            )
+          ) {
             continue;
           }
 
@@ -5720,10 +6190,23 @@
           return bestCandidate;
         }
 
-        return {
-          x: GAME_ZONE.left + DEER_HALF_W + 8,
-          y: GAME_ZONE.top + DEER_HALF_H + 8
-        };
+        // 무작위 탐색에서 후보를 찾지 못한 경우에도 안전 구역을
+        // 가로지르지 않는 세로 위치를 위에서 아래로 다시 확인합니다.
+        for (let y = minY; y <= maxY; y += 1) {
+          const crossesSafeZone = deerSafeZones.some((zone) =>
+            doesDeerHorizontalPathCrossZone(y, zone)
+          );
+
+          if (!crossesSafeZone) {
+            return {
+              x: GAME_ZONE.left + DEER_HALF_W + 8,
+              y
+            };
+          }
+        }
+
+        // 모든 수평 이동 경로가 안전 구역과 겹치면 사슴을 생성하지 않습니다.
+        return null;
       }
 
       function playSound(path, volume = 1) {
@@ -6081,7 +6564,6 @@
 
         if (event) {
           event.preventDefault();
-          event.stopPropagation();
         }
 
         hasAxe = true;
@@ -6181,10 +6663,16 @@
       }
 
       function spawnTreeFallingPart(hitNumber) {
-        if (!treePartLayer) return;
+        if (!treePartLayer || !treePartShadowLayer) return;
 
         // 이동용 부모 → 회전용 부모 → 이미지의 3단 구조입니다.
         // 이동과 회전을 같은 요소에서 처리하지 않아 회전축이 바닥으로 끌려가지 않습니다.
+        const shadow = document.createElement("div");
+        shadow.className = "tree-falling-part-shadow";
+        shadow.setAttribute("aria-hidden", "true");
+        shadow.style.width = `${TREE_PART_SHADOW_WIDTH}px`;
+        shadow.style.height = `${TREE_PART_SHADOW_HEIGHT}px`;
+
         const part = document.createElement("div");
         part.className = "tree-falling-part";
         part.setAttribute("aria-hidden", "true");
@@ -6351,6 +6839,11 @@
         const finalTopplePose = getTopplePose(toppleRotation, hitScale);
         const toppleTranslateX = finalTopplePose.x;
         const toppleTranslateY = finalTopplePose.y;
+        // 그림자 오프셋은 바닥 접지점이 아니라 비행 때 사용하는 회전축을 기준으로 합니다.
+        const toppleRotationPivotX =
+          startLeft + toppleTranslateX + TREE_PART_ROTATION_PIVOT_X;
+        const toppleRotationPivotY =
+          startTop + toppleTranslateY + TREE_PART_ROTATION_PIVOT_Y;
 
         part.style.left = `${startLeft}px`;
         part.style.top = `${startTop}px`;
@@ -6358,6 +6851,14 @@
         part.style.transform = "translate3d(0, 0, 0)";
         rotator.style.transform = `rotate(0deg) scale(${hitScale})`;
 
+        // 그림자는 낙하 중에는 숨기고 최종 자세의 회전 중심축을 기준으로 배치합니다.
+        shadow.style.left =
+          `${toppleRotationPivotX + TREE_PART_SHADOW_OFFSET_X}px`;
+        shadow.style.top =
+          `${toppleRotationPivotY + TREE_PART_SHADOW_OFFSET_Y}px`;
+        shadow.style.opacity = "0";
+
+        treePartShadowLayer.appendChild(shadow);
         treePartLayer.appendChild(part);
 
         const setPartPose = (x, y, rotation, scale, opacity = 1) => {
@@ -6403,6 +6904,7 @@
 
           if (!hasPlayedGroundHitSound) {
             hasPlayedGroundHitSound = true;
+            shadow.style.opacity = `${TREE_PART_SHADOW_OPACITY}`;
             playSound(TREE_FALL_SOUND);
           }
 
@@ -6453,6 +6955,7 @@
             const currentScale =
               hitScale *
               (1 - (1 - TREE_PART_FADE_END_SCALE_MULTIPLIER) * rawProgress);
+            shadow.style.opacity = `${TREE_PART_SHADOW_OPACITY * opacity}`;
 
             setPartPose(
               toppleTranslateX,
@@ -6465,6 +6968,7 @@
             return;
           }
 
+          shadow.remove();
           part.remove();
         };
 
@@ -6474,7 +6978,6 @@
       function playTreeChopAnimation(event) {
         if (event) {
           event.preventDefault();
-          event.stopPropagation();
         }
 
         if (isExploring || document.body.classList.contains("is-night")) {
@@ -6814,6 +7317,10 @@
         }
 
         const position = getRandomDeerSpawnPosition(options);
+        if (!position) {
+          return false;
+        }
+
         const now = performance.now();
 
         const element = document.createElement("div");
@@ -6883,9 +7390,9 @@
 
         renderDeer(deer);
 
-        hitbox.addEventListener("pointerdown", (event) => {
+        hitbox.addEventListener("pointerup", (event) => {
+          if (!shouldActivateFieldObject(event, hitbox)) return;
           event.preventDefault();
-          event.stopPropagation();
           attackDeer(deer);
         });
 
@@ -7336,9 +7843,9 @@
           playSound(BIRTH_SOUND, 0.5);
         }
 
-        element.addEventListener("pointerdown", (event) => {
+        element.addEventListener("pointerup", (event) => {
+          if (!shouldActivateFieldObject(event, element)) return;
           event.preventDefault();
-          event.stopPropagation();
           attackZombie(zombie);
         });
 
@@ -7859,6 +8366,26 @@
         }, delay);
       }
 
+      function handleStructureInteraction(event, message, sound = "") {
+        if (event) {
+          event.preventDefault();
+        }
+
+        if (isExploring || document.body.classList.contains("is-night")) {
+          return;
+        }
+
+        showToast(message);
+        if (sound) {
+          playSound(sound);
+        }
+      }
+
+      function handleStructureKeydown(event, message, sound = "") {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        handleStructureInteraction(event, message, sound);
+      }
+
       function startSpawner() {
         // 새 게임에서만 첫 좀비를 즉시 생성합니다.
         // 페이지를 열 때 이미 Axe를 보유했다면 첫 시작용 즉시 생성은 건너뜁니다.
@@ -7872,10 +8399,46 @@
         scheduleNextDeerSpawnTick();
       }
 
-      axePickupHitArea.addEventListener("pointerdown", collectAxe);
+      axePickupHitArea.addEventListener("pointerup", (event) => {
+        if (!shouldActivateFieldObject(event, axePickupHitArea)) return;
+        collectAxe(event);
+      });
       axePickupHitArea.addEventListener("keydown", handleAxePickupKeydown);
-      treeHitArea.addEventListener("pointerdown", playTreeChopAnimation);
+      treeHitArea.addEventListener("pointerup", (event) => {
+        if (!shouldActivateFieldObject(event, treeHitArea)) return;
+        playTreeChopAnimation(event);
+      });
       treeHitArea.addEventListener("keydown", handleTreeKeydown);
+      shedObject.addEventListener("pointerup", (event) => {
+        if (!shouldActivateFieldObject(event, shedObject)) return;
+        handleStructureInteraction(
+          event,
+          SHED_REPAIR_TOAST_MESSAGE,
+          SHED_OLD_SOUND
+        );
+      });
+      shedObject.addEventListener("keydown", (event) => {
+        handleStructureKeydown(
+          event,
+          SHED_REPAIR_TOAST_MESSAGE,
+          SHED_OLD_SOUND
+        );
+      });
+      carObject.addEventListener("pointerup", (event) => {
+        if (!shouldActivateFieldObject(event, carObject)) return;
+        handleStructureInteraction(
+          event,
+          CAR_REPAIR_TOAST_MESSAGE,
+          CAR_FAIL_SOUND
+        );
+      });
+      carObject.addEventListener("keydown", (event) => {
+        handleStructureKeydown(
+          event,
+          CAR_REPAIR_TOAST_MESSAGE,
+          CAR_FAIL_SOUND
+        );
+      });
       repairButton.addEventListener("click", handleRepairButton);
       inventoryButton.addEventListener("click", handleInventoryButton);
       exploreButton.addEventListener("click", handleExploreButton);
