@@ -277,16 +277,35 @@
       pointer-events: none;
     }
 
+    /*
+      나무 파츠는 이동, 회전, 이미지 반전을 서로 다른 요소가 담당합니다.
+      바깥 요소는 포물선 이동만, 회전용 부모는 (134, 105) 축 회전만 처리합니다.
+    */
     .tree-falling-part {
       position: absolute;
       width: 256px;
       height: 256px;
+      will-change: transform, opacity;
+      pointer-events: none;
+    }
+
+    .tree-falling-part-rotator {
+      position: absolute;
+      inset: 0;
+      transform-origin: 134px 105px;
+      will-change: transform;
+      pointer-events: none;
+    }
+
+    .tree-falling-part-image {
+      position: absolute;
+      inset: 0;
       background-image: url("images/bg_tree_part.png");
       background-repeat: no-repeat;
       background-position: center;
       background-size: 256px 256px;
       transform-origin: center center;
-      will-change: transform, opacity;
+      will-change: transform;
       pointer-events: none;
     }
 
@@ -586,7 +605,7 @@
       --expanded-width: 120px;
       position: fixed;
       left: max(24px, calc(env(safe-area-inset-left) + 16px));
-      z-index: 120;
+      z-index: 150;
       display: flex;
       align-items: center;
       width: var(--collapsed-width);
@@ -661,18 +680,47 @@
       transform: translateX(0);
     }
 
-    #exploreButton.is-menu-open,
-    #inventoryButton.is-menu-open,
-    #repairButton.is-menu-open {
-      z-index: 140;
+    #exploreButton.is-menu-open.is-entry-expanded,
+    #inventoryButton.is-menu-open.is-entry-expanded,
+    #repairButton.is-menu-open.is-entry-expanded {
       width: var(--expanded-width);
     }
 
-    #exploreButton.is-menu-open .hud-action-button__label,
-    #inventoryButton.is-menu-open .hud-action-button__label,
-    #repairButton.is-menu-open .hud-action-button__label {
+    #exploreButton.is-menu-open.is-entry-expanded .hud-action-button__label,
+    #inventoryButton.is-menu-open.is-entry-expanded .hud-action-button__label,
+    #repairButton.is-menu-open.is-entry-expanded .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
+    }
+
+    /* 화면 진입 1초 뒤에는 포인터가 버튼 위에 남아 있어도 원형으로 복귀합니다. */
+    #exploreButton.is-menu-open:not(.is-entry-expanded),
+    #inventoryButton.is-menu-open:not(.is-entry-expanded),
+    #repairButton.is-menu-open:not(.is-entry-expanded) {
+      width: var(--collapsed-width);
+    }
+
+    #exploreButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
+    #inventoryButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
+    #repairButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label {
+      opacity: 0;
+      transform: translateX(-6px);
+    }
+
+    /* 현재 열려 있는 화면의 버튼도 다시 호버하면 일반 버튼과 같은 확장 연출을 보여줍니다. */
+    @media (hover: hover) and (pointer: fine) {
+      #exploreButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
+      #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
+      #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover {
+        width: var(--expanded-width);
+      }
+
+      #exploreButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
+      #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
+      #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label {
+        opacity: 1;
+        transform: translateX(0);
+      }
     }
 
     #exploreButton {
@@ -735,15 +783,11 @@
       box-shadow: none;
     }
 
-    #explorationOverlay,
-    #inventoryOverlay,
-    #repairOverlay {
+    /* 세 메뉴가 하나의 딤드·블러를 공유해 화면 전환 중 배경이 깜박이지 않습니다. */
+    #menuBackdrop {
       position: fixed;
       inset: 0;
       z-index: 130;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       background: rgba(0, 0, 0, 0.52);
       -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
@@ -755,13 +799,34 @@
         visibility 0s linear 180ms;
     }
 
+    #menuBackdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+      transition-delay: 0s;
+    }
+
+    #explorationOverlay,
+    #inventoryOverlay,
+    #repairOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 140;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: none;
+    }
+
     #explorationOverlay.is-open,
     #inventoryOverlay.is-open,
     #repairOverlay.is-open {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
-      transition-delay: 0s;
     }
 
     #explorationMenu {
@@ -892,13 +957,57 @@
       보이는 네모는 20×20px로 유지하고 버튼 입력 영역은 28×28px로 넓힙니다.
       버튼 영역끼리 맞닿게 배치해 네모 사이의 8px 여백도 클릭할 수 있습니다.
     */
+    #repairContent {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 28px;
+      width: 100%;
+      transform: translateX(clamp(22px, 4vw, 30px));
+    }
+
     #repairGrid {
       display: grid;
+      flex: 0 0 140px;
       grid-template-columns: repeat(5, 28px);
       grid-auto-rows: 28px;
       gap: 0;
-      justify-content: center;
-      width: 100%;
+      justify-content: start;
+      width: 140px;
+      transform: translateX(5px);
+    }
+
+    #repairGrid.is-style-layout {
+      grid-template-rows: repeat(4, 28px);
+      grid-auto-rows: 28px;
+    }
+
+    .repair-style-row-label {
+      display: inline-flex;
+      align-self: center;
+      justify-self: start;
+      align-items: center;
+      min-width: 0;
+      padding: 0;
+      background: transparent;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1;
+      text-align: left;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(2px, 3px);
+    }
+
+    .repair-style-row-label--roof {
+      grid-column: 1 / span 5;
+      grid-row: 1;
+    }
+
+    .repair-style-row-label--walls {
+      grid-column: 1 / span 5;
+      grid-row: 3;
     }
 
     .repair-grid-item {
@@ -1043,12 +1152,13 @@
     #repairItemInfo {
       position: relative;
       display: grid;
+      flex: 0 1 180px;
       grid-template-columns: minmax(0, 1fr);
-      align-items: center;
+      align-content: start;
       row-gap: 8px;
-      width: min(100%, 280px);
-      min-height: 22px;
-      margin-top: 22px;
+      width: min(100%, 180px);
+      min-height: 140px;
+      padding-top: 4px;
       color: #fff;
       font-size: 15px;
       font-weight: 350;
@@ -1057,14 +1167,14 @@
 
     #repairItemName {
       overflow: hidden;
-      text-align: center;
+      text-align: left;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     #repairItemMeta {
       position: absolute;
-      top: 0;
+      top: 4px;
       right: 0;
       text-align: right;
       white-space: nowrap;
@@ -1072,12 +1182,11 @@
 
     #repairItemDescription {
       width: 100%;
-      min-height: calc(1.45em * 5);
       color: rgba(255, 255, 255, 0.62);
       font-size: 12px;
       font-weight: 350;
       line-height: 1.45;
-      text-align: center;
+      text-align: left;
       white-space: pre-line;
     }
 
@@ -1086,7 +1195,7 @@
       position: relative;
       display: block;
       width: max-content;
-      margin: 0 auto;
+      margin: 0;
       white-space: nowrap;
     }
 
@@ -1102,7 +1211,7 @@
 
     /* Craft / Apply / Applied는 탐험 목적지 이름과 같은 기본 스타일을 사용합니다. */
     #repairActionButton {
-      margin-top: -18px;
+      margin-top: 28px;
       padding: 4px 12px;
       border: 0;
       appearance: none;
@@ -1167,8 +1276,13 @@
         font-size: 13px;
       }
 
+      #repairContent {
+        gap: 18px;
+      }
+
       #repairItemInfo {
-        width: min(100%, 240px);
+        flex-basis: 140px;
+        width: min(100%, 140px);
       }
     }
 
@@ -1846,6 +1960,7 @@
     <span class="hud-resource">Wood <span><span id="woodCount">0</span>/10</span></span>
   </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
+  <div id="menuBackdrop" aria-hidden="true"></div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
       <div class="exploration-destination">
@@ -1913,17 +2028,17 @@
         <span class="repair-category-separator" aria-hidden="true">/</span>
         <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="shed">
           <span class="repair-category-new-badge" hidden>NEW</span>
-          <span class="repair-category-label">Shed</span>
+          <span class="repair-category-label">Traps</span>
         </button>
         <span class="repair-category-separator" aria-hidden="true">/</span>
         <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="roof">
           <span class="repair-category-new-badge" hidden>NEW</span>
-          <span class="repair-category-label">Roof</span>
+          <span class="repair-category-label">Shed</span>
         </button>
         <span class="repair-category-separator" aria-hidden="true">/</span>
         <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="walls">
           <span class="repair-category-new-badge" hidden>NEW</span>
-          <span class="repair-category-label">Walls</span>
+          <span class="repair-category-label">Style</span>
         </button>
         <span class="repair-category-separator" aria-hidden="true">/</span>
         <button class="repair-category" type="button" role="tab" aria-selected="false" data-repair-category="house">
@@ -1931,11 +2046,13 @@
           <span class="repair-category-label">House</span>
         </button>
       </div>
-      <div id="repairGrid" role="grid" aria-label="Repair options"></div>
-      <div id="repairItemInfo" aria-live="polite">
-        <span id="repairItemName">None</span>
-        <span id="repairItemMeta"></span>
-        <div id="repairItemDescription"></div>
+      <div id="repairContent">
+        <div id="repairGrid" role="grid" aria-label="Repair options"></div>
+        <div id="repairItemInfo" aria-live="polite">
+          <span id="repairItemName">None</span>
+          <span id="repairItemMeta"></span>
+          <div id="repairItemDescription"></div>
+        </div>
       </div>
       <button id="repairActionButton" type="button" disabled>Applied</button>
     </div>
@@ -1995,7 +2112,7 @@
       </span>
     </div>
   </div>
-  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.063</span></div>
+  <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span>0.064</span></div>
 
   <script>
     (() => {
@@ -2032,8 +2149,10 @@
       const DEER_HALF_H = DEER_HEIGHT / 2;
       const DEER_HITBOX_SIZE = DEER_WIDTH;
 
-      // 화면에 동시에 표시되는 개체 수 제한
-      const MAX_ACTIVE_ZOMBIES = 10;
+      // 좀비는 현재 필드 클리어에 필요한 수까지만 생성합니다.
+      // 사슴은 기존처럼 최대 3마리이며, 두 종류의 합계만 최종적으로 100마리를 넘지 않습니다.
+      const MAX_ACTIVE_POPULATION = 100;
+      const MAX_ACTIVE_ZOMBIES = MAX_ACTIVE_POPULATION;
       const MAX_ACTIVE_DEER = 3;
 
       // 탐험에 필요한 좀비 처치 수는 첫 소수인 2부터 시작하고,
@@ -2128,6 +2247,7 @@
       const HANDGUN_NO_AMMO_SOUND = "sounds/sfx_handgun_noammo.wav";
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
       const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
+      const TREE_FALL_SOUND = "sounds/sfx_tree_fall.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
       const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
@@ -2206,12 +2326,17 @@
       // 1·2·3번째 히트별 파츠 크기입니다.
       // 나무가 다시 자라면 다음 히트는 다시 첫 번째 크기부터 사용됩니다.
       const TREE_PART_HIT_SCALES = [0.5, 0.46, 0.42];
+      // 바닥 접촉 위치와 회전축은 서로 독립적으로 사용합니다.
       const TREE_PART_GROUND_CONTACT_X = 134;
       const TREE_PART_GROUND_CONTACT_Y = 210;
+      const TREE_PART_TOP_CONTACT_X = 134;
+      const TREE_PART_TOP_CONTACT_Y = 20;
+      const TREE_PART_ROTATION_PIVOT_X = 134;
+      const TREE_PART_ROTATION_PIVOT_Y = 105;
       const TREE_PART_DROP_X = 2;
       // 아래 값은 첫 번째 히트 기준 낙하/전도 위치입니다.
       // 이후 히트는 시작 위치가 내려간 만큼 자동으로 보정되어 바닥 높이는 동일하게 유지됩니다.
-      const TREE_PART_DROP_Y = 54;
+      const TREE_PART_DROP_Y = 74;
       const TREE_PART_DROP_END_ROTATION = 12;
       const TREE_PART_TOPPLE_X = 12;
       const TREE_PART_TOPPLE_Y = 57;
@@ -2255,17 +2380,17 @@
           initialItemDescription: "No fence, no repairs."
         },
         shed: {
+          label: "Traps",
+          initialItemName: "None",
+          initialItemDescription: "No traps. Nice and quiet."
+        },
+        roof: {
           label: "Shed",
           initialItemName: "None",
           initialItemDescription: "Less to take care of."
         },
-        roof: {
-          label: "Roof",
-          initialItemName: "Basic",
-          initialItemDescription: "It keeps the rain out."
-        },
         walls: {
-          label: "Walls",
+          label: "Style",
           initialItemName: "Basic",
           initialItemDescription: "Old, but still standing."
         },
@@ -2410,6 +2535,7 @@
       const foodCountElement = document.getElementById("foodCount");
       const woodCountElement = document.getElementById("woodCount");
       const toastLayer = document.getElementById("toastLayer");
+      const menuBackdrop = document.getElementById("menuBackdrop");
       const explorationOverlay = document.getElementById("explorationOverlay");
       const explorationMenu = document.getElementById("explorationMenu");
       const explorationOptions = Array.from(
@@ -2483,6 +2609,38 @@
         inventoryButton,
         exploreButton
       ];
+      const HUD_ACTION_ENTRY_EXPAND_MS = 1_000;
+      const hudActionEntryTimers = new Map();
+
+      function setHudActionMenuState(button, isOpen) {
+        const existingTimer = hudActionEntryTimers.get(button);
+        if (existingTimer !== undefined) {
+          clearTimeout(existingTimer);
+          hudActionEntryTimers.delete(button);
+        }
+
+        button.classList.toggle("is-menu-open", isOpen);
+        button.classList.toggle("is-entry-expanded", isOpen);
+        // 클릭 직후 포인터가 남아 있어도 1초 뒤에는 먼저 원형으로 복귀합니다.
+        // 이후 포인터가 버튼을 벗어나면 다시 호버 확장을 허용합니다.
+        button.classList.remove("is-hover-ready");
+
+        if (!isOpen) return;
+
+        const timerId = window.setTimeout(() => {
+          hudActionEntryTimers.delete(button);
+          button.classList.remove("is-entry-expanded");
+        }, HUD_ACTION_ENTRY_EXPAND_MS);
+        hudActionEntryTimers.set(button, timerId);
+      }
+
+      for (const button of hudActionButtons) {
+        button.addEventListener("pointerleave", () => {
+          if (button.classList.contains("is-menu-open")) {
+            button.classList.add("is-hover-ready");
+          }
+        });
+      }
 
       function updateHudActionButtonWidths() {
         for (const button of hudActionButtons) {
@@ -3092,8 +3250,30 @@
         const selectedIndex =
           repairSelectedItemByCategory[repairSelectedCategory] || 0;
         const items = repairItemsByCategory[repairSelectedCategory];
+        const isStyleLayout = repairSelectedCategory === "walls";
+
+        repairGrid.classList.toggle("is-style-layout", isStyleLayout);
+
+        if (isStyleLayout) {
+          const roofLabel = document.createElement("span");
+          roofLabel.className =
+            "repair-style-row-label repair-style-row-label--roof";
+          roofLabel.textContent = "Roof";
+          roofLabel.setAttribute("aria-hidden", "true");
+          repairGrid.append(roofLabel);
+
+          const wallsLabel = document.createElement("span");
+          wallsLabel.className =
+            "repair-style-row-label repair-style-row-label--walls";
+          wallsLabel.textContent = "Walls";
+          wallsLabel.setAttribute("aria-hidden", "true");
+          repairGrid.append(wallsLabel);
+        }
 
         items.forEach((item, index) => {
+          // Style은 Roof 5칸과 Walls 5칸, 총 두 줄만 사용합니다.
+          if (isStyleLayout && index >= 10) return;
+
           const button = document.createElement("button");
           button.type = "button";
           button.className = "repair-grid-item";
@@ -3120,6 +3300,13 @@
             "aria-disabled",
             item.unlocked ? "false" : "true"
           );
+
+          if (isStyleLayout) {
+            const isRoofItem = index < 5;
+            button.style.gridColumn = String((index % 5) + 1);
+            button.style.gridRow = isRoofItem ? "2" : "4";
+          }
+
           repairGrid.append(button);
         });
       }
@@ -3210,6 +3397,11 @@
       }
 
       function handleRepairAction() {
+        if (isExploring) {
+          showExploringBusyToast();
+          return;
+        }
+
         const selectedIndex =
           repairSelectedItemByCategory[repairSelectedCategory] || 0;
         const item = getSelectedRepairItem();
@@ -3672,6 +3864,15 @@
           );
         }
 
+        targetZombieCount = Math.min(
+          targetZombieCount,
+          MAX_ACTIVE_POPULATION
+        );
+        targetDeerCount = Math.min(
+          targetDeerCount,
+          Math.max(0, MAX_ACTIVE_POPULATION - targetZombieCount)
+        );
+
         for (let index = 0; index < targetZombieCount; index += 1) {
           if (!createZombie({
             force: true,
@@ -3697,11 +3898,19 @@
         saveResourceState();
       }
 
+      function getActivePopulationCount() {
+        return zombies.size + deerMap.size;
+      }
+
+      function hasActivePopulationCapacity() {
+        return getActivePopulationCount() < MAX_ACTIVE_POPULATION;
+      }
+
       function canCreateZombie() {
         return (
           !isExploring &&
           Date.now() >= zombieSpawnBlockedUntil &&
-          zombies.size < MAX_ACTIVE_ZOMBIES &&
+          hasActivePopulationCapacity() &&
           zombieCount + getLivingZombieCount() < zombieKillRequirement
         );
       }
@@ -3715,31 +3924,45 @@
         showToast(EXPLORING_BUSY_TOAST_MESSAGE);
       }
 
-      function closeExplorationMenu() {
+      function syncMenuBackdrop() {
+        const isAnyMenuOpen =
+          isExplorationMenuOpen || isInventoryOpen || isRepairOpen;
+
+        menuBackdrop.classList.toggle("is-open", isAnyMenuOpen);
+        menuBackdrop.setAttribute(
+          "aria-hidden",
+          isAnyMenuOpen ? "false" : "true"
+        );
+      }
+
+      function closeExplorationMenu(syncBackdrop = true) {
         if (!isExplorationMenuOpen) return;
 
         isExplorationMenuOpen = false;
         explorationOverlay.classList.remove("is-open");
         explorationOverlay.setAttribute("aria-hidden", "true");
-        exploreButton.classList.remove("is-menu-open");
+        setHudActionMenuState(exploreButton, false);
+        if (syncBackdrop) syncMenuBackdrop();
       }
 
-      function closeInventory() {
+      function closeInventory(syncBackdrop = true) {
         if (!isInventoryOpen) return;
 
         isInventoryOpen = false;
         inventoryOverlay.classList.remove("is-open");
         inventoryOverlay.setAttribute("aria-hidden", "true");
-        inventoryButton.classList.remove("is-menu-open");
+        setHudActionMenuState(inventoryButton, false);
+        if (syncBackdrop) syncMenuBackdrop();
       }
 
-      function closeRepair() {
+      function closeRepair(syncBackdrop = true) {
         if (!isRepairOpen) return;
 
         isRepairOpen = false;
         repairOverlay.classList.remove("is-open");
         repairOverlay.setAttribute("aria-hidden", "true");
-        repairButton.classList.remove("is-menu-open");
+        setHudActionMenuState(repairButton, false);
+        if (syncBackdrop) syncMenuBackdrop();
       }
 
       function hasAnyInventoryItem() {
@@ -3849,14 +4072,15 @@
       function openInventory() {
         if (isInventoryOpen || !hasAnyInventoryItem()) return;
 
-        closeExplorationMenu();
-        closeRepair();
+        closeExplorationMenu(false);
+        closeRepair(false);
         inventoryCurrentPage = 0;
         rebuildInventoryPages();
         isInventoryOpen = true;
         inventoryOverlay.classList.add("is-open");
         inventoryOverlay.setAttribute("aria-hidden", "false");
-        inventoryButton.classList.add("is-menu-open");
+        setHudActionMenuState(inventoryButton, true);
+        syncMenuBackdrop();
 
         requestAnimationFrame(() => {
           updateInventoryPagePosition(false);
@@ -3871,12 +4095,13 @@
       function openExplorationMenu() {
         if (isExplorationMenuOpen || isExploring) return;
 
-        closeInventory();
-        closeRepair();
+        closeInventory(false);
+        closeRepair(false);
         isExplorationMenuOpen = true;
         explorationOverlay.classList.add("is-open");
         explorationOverlay.setAttribute("aria-hidden", "false");
-        exploreButton.classList.add("is-menu-open");
+        setHudActionMenuState(exploreButton, true);
+        syncMenuBackdrop();
 
         const firstOption = explorationOptions[0];
         if (firstOption) {
@@ -3885,14 +4110,15 @@
       }
 
       function openRepair() {
-        if (isRepairOpen || isExploring) return;
+        if (isRepairOpen) return;
 
-        closeExplorationMenu();
-        closeInventory();
+        closeExplorationMenu(false);
+        closeInventory(false);
         isRepairOpen = true;
         repairOverlay.classList.add("is-open");
         repairOverlay.setAttribute("aria-hidden", "false");
-        repairButton.classList.add("is-menu-open");
+        setHudActionMenuState(repairButton, true);
+        syncMenuBackdrop();
         applyRepairState();
         updateRepairCategoryLayout();
 
@@ -5613,22 +5839,14 @@
       function handleRepairButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
 
-        if (isExploring) {
-          showExploringBusyToast(event);
-          return;
-        }
-
-        if (isRepairOpen) {
-          closeRepair();
-          return;
-        }
+        // 이미 수리 화면이면 닫거나 다시 열지 않고 현재 상태를 유지합니다.
+        if (isRepairOpen) return;
 
         openRepair();
       }
 
       function handleInventoryButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
-        closeRepair();
 
         if (hasNewInventoryItem) {
           hasNewInventoryItem = false;
@@ -5637,31 +5855,32 @@
         }
 
         if (!hasAnyInventoryItem()) {
+          closeExplorationMenu(false);
+          closeRepair(false);
+          syncMenuBackdrop();
           showToast(INVENTORY_EMPTY_TOAST_MESSAGE);
           return;
         }
 
-        if (isInventoryOpen) {
-          closeInventory();
-          return;
-        }
+        // 이미 가방 화면이면 닫거나 다시 열지 않고 현재 상태를 유지합니다.
+        if (isInventoryOpen) return;
 
         openInventory();
       }
 
       function handleExploreButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
-        closeRepair();
 
         if (isExploring) {
+          closeInventory(false);
+          closeRepair(false);
+          syncMenuBackdrop();
           showExploringBusyToast(event);
           return;
         }
 
-        if (isExplorationMenuOpen) {
-          closeExplorationMenu();
-          return;
-        }
+        // 이미 탐험 목적지 화면이면 닫거나 다시 열지 않고 현재 상태를 유지합니다.
+        if (isExplorationMenuOpen) return;
 
         openExplorationMenu();
       }
@@ -5956,13 +6175,31 @@
         return normalized * normalized * normalized;
       }
 
+      function easeOutCubic(progress) {
+        const normalized = clamp(progress, 0, 1);
+        return 1 - Math.pow(1 - normalized, 3);
+      }
+
       function spawnTreeFallingPart(hitNumber) {
         if (!treePartLayer) return;
 
+        // 이동용 부모 → 회전용 부모 → 이미지의 3단 구조입니다.
+        // 이동과 회전을 같은 요소에서 처리하지 않아 회전축이 바닥으로 끌려가지 않습니다.
         const part = document.createElement("div");
         part.className = "tree-falling-part";
         part.setAttribute("aria-hidden", "true");
-        part.style.backgroundImage = `url("${TREE_PART_IMAGE}")`;
+
+        const rotator = document.createElement("div");
+        rotator.className = "tree-falling-part-rotator";
+        rotator.style.transformOrigin =
+          `${TREE_PART_ROTATION_PIVOT_X}px ${TREE_PART_ROTATION_PIVOT_Y}px`;
+
+        const image = document.createElement("div");
+        image.className = "tree-falling-part-image";
+        image.style.backgroundImage = `url("${TREE_PART_IMAGE}")`;
+
+        rotator.appendChild(image);
+        part.appendChild(rotator);
 
         const treeLeft = 1103;
         const treeTop = 562;
@@ -5983,78 +6220,225 @@
         const baseHitOffset = TREE_PART_HIT_OFFSETS[0] || { x: 0, y: 0 };
         const groundOffsetX = hitOffset.x - baseHitOffset.x;
         const groundOffsetY = hitOffset.y - baseHitOffset.y;
-        const dropX = TREE_PART_DROP_X - groundOffsetX;
-        const dropY = TREE_PART_DROP_Y - groundOffsetY;
-        const toppleX = TREE_PART_TOPPLE_X - groundOffsetX;
-        const toppleY = TREE_PART_TOPPLE_Y - groundOffsetY;
-        const startLeft =
-          startAnchorX - TREE_PART_GROUND_CONTACT_X + hitOffset.x;
-        const startTop =
-          startAnchorY - TREE_PART_GROUND_CONTACT_Y + hitOffset.y;
+
+        // 두 번째 파츠만 이미지 자체를 좌우 반전합니다.
+        // 회전용 부모와 분리되어 반전이 회전축 위치에 영향을 주지 않습니다.
+        const horizontalFlip = offsetIndex === 1 ? -1 : 1;
+        image.style.transform = `scaleX(${horizontalFlip})`;
+
+        // 타격 직후 빠르게 튀어나온 뒤 높은 포물선을 그리며 더 멀리 날아갑니다.
+        const startJitterX = randomBetween(-10, 10);
+        const startJitterY = randomBetween(-6, 5);
+        // 나무 파츠는 항상 오른쪽으로만 날아갑니다.
+        const flightDistance = randomBetween(72, 122);
+        const arcHeight = randomBetween(58, 96);
+        const landingJitterX = randomBetween(-7, 7);
+        const groundJitterY = randomBetween(-3, 3);
+        // 비행 종료 회전은 한 가지 범위만 사용합니다.
+        const dropEndRotation = randomBetween(250, 520);
+        const dropDurationMs = randomBetween(560, 760);
+        const toppleDurationMs = randomBetween(180, 290);
+
+        const dropX = flightDistance * 0.9 - groundOffsetX;
+        const dropY = TREE_PART_DROP_Y - groundOffsetY + groundJitterY;
+        const desiredToppleGroundX =
+          flightDistance - groundOffsetX + landingJitterX;
+        const desiredToppleGroundY =
+          TREE_PART_TOPPLE_Y - groundOffsetY + groundJitterY;
+
+        // 회전용 부모 안에서 지정한 앵커가 현재 회전·스케일 후
+        // 어느 로컬 좌표에 놓이는지 계산합니다. 바닥 위치 체크에만 사용합니다.
+        const getTransformedAnchor = (anchorX, anchorY, rotation, scale) => {
+          const radians = rotation * Math.PI / 180;
+          const cos = Math.cos(radians);
+          const sin = Math.sin(radians);
+          const offsetX =
+            (anchorX - TREE_PART_ROTATION_PIVOT_X) * scale;
+          const offsetY =
+            (anchorY - TREE_PART_ROTATION_PIVOT_Y) * scale;
+
+          return {
+            x:
+              TREE_PART_ROTATION_PIVOT_X +
+              offsetX * cos -
+              offsetY * sin,
+            y:
+              TREE_PART_ROTATION_PIVOT_Y +
+              offsetX * sin +
+              offsetY * cos
+          };
+        };
+
+        const initialGroundAnchor = getTransformedAnchor(
+          TREE_PART_GROUND_CONTACT_X,
+          TREE_PART_GROUND_CONTACT_Y,
+          0,
+          hitScale
+        );
+        const dropBottomAnchor = getTransformedAnchor(
+          TREE_PART_GROUND_CONTACT_X,
+          TREE_PART_GROUND_CONTACT_Y,
+          dropEndRotation,
+          hitScale
+        );
+        const dropTopAnchor = getTransformedAnchor(
+          TREE_PART_TOP_CONTACT_X,
+          TREE_PART_TOP_CONTACT_Y,
+          dropEndRotation,
+          hitScale
+        );
+        const activeContactAnchorAtDrop =
+          dropBottomAnchor.y >= dropTopAnchor.y
+            ? {
+                key: "bottom",
+                x: TREE_PART_GROUND_CONTACT_X,
+                y: TREE_PART_GROUND_CONTACT_Y
+              }
+            : {
+                key: "top",
+                x: TREE_PART_TOP_CONTACT_X,
+                y: TREE_PART_TOP_CONTACT_Y
+              };
+
+        const getNearestHorizontalRotation = (rotation) => {
+          const candidates = [-270, -90, 90, 270, 450, 630];
+          let nearest = candidates[0];
+          let nearestDistance = Math.abs(rotation - nearest);
+
+          for (let index = 1; index < candidates.length; index += 1) {
+            const candidate = candidates[index];
+            const distance = Math.abs(rotation - candidate);
+            if (distance < nearestDistance) {
+              nearest = candidate;
+              nearestDistance = distance;
+            }
+          }
+
+          return nearest;
+        };
+
+        const toppleRotation = getNearestHorizontalRotation(dropEndRotation);
+        const startGroundX = startAnchorX + hitOffset.x + startJitterX;
+        const startGroundY = startAnchorY + hitOffset.y + startJitterY;
+        const startLeft = startGroundX - initialGroundAnchor.x;
+        const startTop = startGroundY - initialGroundAnchor.y;
+
+        // 비행이 끝나는 순간 실제로 바닥에 먼저 닿은 접지 앵커의 화면 좌표를 구합니다.
+        // 이후 넘어질 때는 이 접지점이 회전 기준이 되며, 회전 중에도 같은 바닥 점에 붙어 있습니다.
+        const dropContactAnchor = getTransformedAnchor(
+          activeContactAnchorAtDrop.x,
+          activeContactAnchorAtDrop.y,
+          dropEndRotation,
+          hitScale
+        );
+        const toppleGroundX = startLeft + dropX + dropContactAnchor.x;
+        const toppleGroundY = startTop + dropY + dropContactAnchor.y;
+
+        const getTopplePose = (rotation, scale) => {
+          const currentContactAnchor = getTransformedAnchor(
+            activeContactAnchorAtDrop.x,
+            activeContactAnchorAtDrop.y,
+            rotation,
+            scale
+          );
+
+          return {
+            x: toppleGroundX - startLeft - currentContactAnchor.x,
+            y: toppleGroundY - startTop - currentContactAnchor.y
+          };
+        };
+
+        const finalTopplePose = getTopplePose(toppleRotation, hitScale);
+        const toppleTranslateX = finalTopplePose.x;
+        const toppleTranslateY = finalTopplePose.y;
 
         part.style.left = `${startLeft}px`;
         part.style.top = `${startTop}px`;
-        part.style.transformOrigin =
-          `${TREE_PART_GROUND_CONTACT_X}px ${TREE_PART_GROUND_CONTACT_Y}px`;
         part.style.opacity = "1";
-        part.style.transform =
-          `translate3d(0, 0, 0) rotate(0deg) scale(${hitScale})`;
+        part.style.transform = "translate3d(0, 0, 0)";
+        rotator.style.transform = `rotate(0deg) scale(${hitScale})`;
 
         treePartLayer.appendChild(part);
 
+        const setPartPose = (x, y, rotation, scale, opacity = 1) => {
+          // 바깥 부모는 위치 이동만 담당합니다.
+          part.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          part.style.opacity = `${opacity}`;
+          // 안쪽 부모는 중앙 회전축을 기준으로 회전과 크기만 담당합니다.
+          rotator.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+        };
+
         const startTime = performance.now();
-        const dropEndTime = startTime + TREE_PART_DROP_MS;
-        const toppleEndTime = dropEndTime + TREE_PART_TOPPLE_MS;
+        const dropEndTime = startTime + dropDurationMs;
+        const toppleEndTime = dropEndTime + toppleDurationMs;
         const holdEndTime = toppleEndTime + TREE_PART_HOLD_MS;
         const fadeEndTime = holdEndTime + TREE_PART_FADE_MS;
+        let hasPlayedGroundHitSound = false;
 
         const step = (now) => {
           if (now < dropEndTime) {
             const rawProgress = clamp(
-              (now - startTime) / TREE_PART_DROP_MS,
+              (now - startTime) / dropDurationMs,
               0,
               1
             );
-            const easedProgress = easeInCubic(rawProgress);
-            const currentX = dropX * easedProgress;
-            const currentY = dropY * easedProgress;
-            const currentRotation =
-              TREE_PART_DROP_END_ROTATION * easedProgress;
+            // 가로 위치는 일정한 속도의 선형 그래프로 이동합니다.
+            const currentX = dropX * rawProgress;
+            const currentY =
+              dropY * rawProgress -
+              Math.sin(rawProgress * Math.PI) * arcHeight;
+            // 회전 각도를 선형으로 증가시켜 반시계 방향 되감김이 생기지 않습니다.
+            const currentRotation = dropEndRotation * rawProgress;
 
-            part.style.transform =
-              `translate3d(${currentX}px, ${currentY}px, 0) rotate(${currentRotation}deg) scale(${hitScale})`;
-            part.style.opacity = "1";
+            setPartPose(
+              currentX,
+              currentY,
+              currentRotation,
+              hitScale,
+              1
+            );
             window.requestAnimationFrame(step);
             return;
           }
 
+          if (!hasPlayedGroundHitSound) {
+            hasPlayedGroundHitSound = true;
+            playSound(TREE_FALL_SOUND);
+          }
+
           if (now < toppleEndTime) {
             const rawProgress = clamp(
-              (now - dropEndTime) / TREE_PART_TOPPLE_MS,
+              (now - dropEndTime) / toppleDurationMs,
               0,
               1
             );
-            const currentX =
-              dropX +
-              (toppleX - dropX) * rawProgress;
-            const currentY =
-              dropY +
-              (toppleY - dropY) * rawProgress;
             const currentRotation =
-              TREE_PART_DROP_END_ROTATION +
-              (TREE_PART_TOPPLE_ROTATION - TREE_PART_DROP_END_ROTATION) * rawProgress;
+              dropEndRotation +
+              (toppleRotation - dropEndRotation) * rawProgress;
+            const currentTopplePose = getTopplePose(
+              currentRotation,
+              hitScale
+            );
 
-            part.style.transform =
-              `translate3d(${currentX}px, ${currentY}px, 0) rotate(${currentRotation}deg) scale(${hitScale})`;
-            part.style.opacity = "1";
+            setPartPose(
+              currentTopplePose.x,
+              currentTopplePose.y,
+              currentRotation,
+              hitScale,
+              1
+            );
             window.requestAnimationFrame(step);
             return;
           }
 
           if (now < holdEndTime) {
-            part.style.transform =
-              `translate3d(${toppleX}px, ${toppleY}px, 0) rotate(${TREE_PART_TOPPLE_ROTATION}deg) scale(${hitScale})`;
-            part.style.opacity = "1";
+            setPartPose(
+              toppleTranslateX,
+              toppleTranslateY,
+              toppleRotation,
+              hitScale,
+              1
+            );
             window.requestAnimationFrame(step);
             return;
           }
@@ -6070,9 +6454,13 @@
               hitScale *
               (1 - (1 - TREE_PART_FADE_END_SCALE_MULTIPLIER) * rawProgress);
 
-            part.style.transform =
-              `translate3d(${toppleX}px, ${toppleY}px, 0) rotate(${TREE_PART_TOPPLE_ROTATION}deg) scale(${currentScale})`;
-            part.style.opacity = `${opacity}`;
+            setPartPose(
+              toppleTranslateX,
+              toppleTranslateY,
+              toppleRotation,
+              currentScale,
+              opacity
+            );
             window.requestAnimationFrame(step);
             return;
           }
@@ -6111,7 +6499,12 @@
           return;
         }
 
-        if (isTreeAnimating) return;
+        // 이전 흔들림이 재생 중이어도 새 입력을 받습니다.
+        // 기존 타이머를 취소하고 현재 단계의 타격 애니메이션을 처음부터 다시 재생합니다.
+        if (treeAnimationTimerId !== null) {
+          clearTimeout(treeAnimationTimerId);
+          treeAnimationTimerId = null;
+        }
 
         isTreeAnimating = true;
         treeChopCount += 1;
@@ -6127,11 +6520,6 @@
         saveResourceState();
         playSound(TREE_CHOP_SOUND);
         spawnTreeFallingPart(treeChopCount);
-
-        if (treeAnimationTimerId !== null) {
-          clearTimeout(treeAnimationTimerId);
-          treeAnimationTimerId = null;
-        }
 
         let sequenceIndex = 0;
         const firstFrameIndex = TREE_CHOP_SEQUENCE[sequenceIndex];
@@ -6419,7 +6807,8 @@
         const force = options.force === true;
         if (
           (!force && isExploring) ||
-          deerMap.size >= MAX_ACTIVE_DEER
+          deerMap.size >= MAX_ACTIVE_DEER ||
+          !hasActivePopulationCapacity()
         ) {
           return false;
         }
@@ -6878,7 +7267,7 @@
         const force = options.force === true;
         if (force) {
           if (
-            zombies.size >= MAX_ACTIVE_ZOMBIES ||
+            !hasActivePopulationCapacity() ||
             zombieCount + getLivingZombieCount() >= zombieKillRequirement
           ) {
             return false;
@@ -7456,7 +7845,11 @@
           deerSpawnTimerId = null;
           lastDeerSpawnAt = Date.now();
 
-          if (!isExploring && deerMap.size < MAX_ACTIVE_DEER) {
+          if (
+            !isExploring &&
+            deerMap.size < MAX_ACTIVE_DEER &&
+            hasActivePopulationCapacity()
+          ) {
             createDeer();
           } else {
             saveResourceState();
