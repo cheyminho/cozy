@@ -894,10 +894,24 @@
     }
 
     .toast-message-text {
+      position: relative;
+      isolation: isolate;
       display: block;
       opacity: 0;
       will-change: opacity;
       animation: toast-fade 3s linear forwards;
+    }
+
+    /* 텍스트 뒤에 경계가 부드럽게 퍼지는 약한 딤드를 표시합니다. */
+    .toast-message-text::before {
+      content: "";
+      position: absolute;
+      inset: -5px -14px;
+      z-index: -1;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.15);
+      filter: blur(8px);
+      pointer-events: none;
     }
 
     /*
@@ -2288,7 +2302,7 @@
   </style>
 </head>
 <!-- 우하단에 표시되고 저장 호환성 검사에도 사용하는 현재 게임 버전입니다. -->
-<body class="is-initializing-status" data-game-version="0.069">
+<body class="is-initializing-status" data-game-version="0.070">
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <filter id="nightCoolBalance" color-interpolation-filters="sRGB">
       <feColorMatrix
@@ -2637,6 +2651,7 @@
       const SPAWN_INTERVAL_MS = 60_000;
       const DEER_SPAWN_INTERVAL_MS = 3 * 60_000;
       const EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS = 5_000;
+      const ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS = 1_000;
       const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 3_000;
       const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 7_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
@@ -3419,6 +3434,7 @@
       let lastCompletedExplorationDestination = "";
       let pendingEmptyZombieSpawnTimerId = null;
       let pendingEmptyDeerSpawnTimerId = null;
+      let lastZombieVisibilityCheckAt = 0;
       let todoListHideTimerId = null;
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
@@ -4776,6 +4792,38 @@
         return count;
       }
 
+      function isZombieVisibleInCurrentViewport(zombie) {
+        if (
+          zombie.state === "dying" ||
+          zombie.state === "removed"
+        ) {
+          return false;
+        }
+
+        const visibleBounds = getVisibleWorldBounds();
+        const marginX = HALF_W + 16;
+        const marginY = HALF_H + 16;
+
+        return !(
+          zombie.x + marginX < visibleBounds.left ||
+          zombie.x - marginX > visibleBounds.right ||
+          zombie.y + marginY < visibleBounds.top ||
+          zombie.y - marginY > visibleBounds.bottom
+        );
+      }
+
+      function getVisibleLivingZombieCount() {
+        let count = 0;
+
+        for (const zombie of zombies.values()) {
+          if (isZombieVisibleInCurrentViewport(zombie)) {
+            count += 1;
+          }
+        }
+
+        return count;
+      }
+
       function getLivingDeerCount() {
         let count = 0;
 
@@ -4785,6 +4833,39 @@
             deer.state !== "leaving" &&
             deer.state !== "removed"
           ) {
+            count += 1;
+          }
+        }
+
+        return count;
+      }
+
+      function isDeerVisibleInCurrentViewport(deer) {
+        if (
+          deer.state === "dying" ||
+          deer.state === "leaving" ||
+          deer.state === "removed"
+        ) {
+          return false;
+        }
+
+        const visibleBounds = getVisibleWorldBounds();
+        const marginX = DEER_HALF_W + 16;
+        const marginY = DEER_HALF_H + 16;
+
+        return !(
+          deer.x + marginX < visibleBounds.left ||
+          deer.x - marginX > visibleBounds.right ||
+          deer.y + marginY < visibleBounds.top ||
+          deer.y - marginY > visibleBounds.bottom
+        );
+      }
+
+      function getVisibleLivingDeerCount() {
+        let count = 0;
+
+        for (const deer of deerMap.values()) {
+          if (isDeerVisibleInCurrentViewport(deer)) {
             count += 1;
           }
         }
@@ -4878,7 +4959,8 @@
             force: true,
             silent: true,
             persist: false,
-            skipBirth: true
+            skipBirth: true,
+            preferVisible: true
           })) {
             break;
           }
@@ -4888,7 +4970,8 @@
           if (!createDeer({
             force: true,
             persist: false,
-            skipBirth: true
+            skipBirth: true,
+            preferVisible: true
           })) {
             break;
           }
@@ -5520,6 +5603,7 @@
         commitResourceState({ animateDay: true });
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
+        scheduleEmptyFieldDeerSpawn();
 
         if (explorationTimerId !== null) {
           clearInterval(explorationTimerId);
@@ -5544,8 +5628,9 @@
         returnZombieSpawnTimerId = window.setTimeout(() => {
           returnZombieSpawnTimerId = null;
           if (canCreateZombie()) {
-            createZombie();
+            createZombie({ preferVisible: true });
           }
+          scheduleEmptyFieldZombieSpawn();
         }, 7_000);
       }
 
@@ -5893,6 +5978,7 @@
           return;
         }
 
+        const didMove = dragState.moved;
         const captureTarget = dragState.captureTarget;
         if (
           captureTarget &&
@@ -5911,6 +5997,11 @@
         dragState.pointerId = null;
         dragState.captureTarget = null;
         viewport.classList.remove("is-panning");
+
+        if (didMove) {
+          scheduleEmptyFieldZombieSpawn();
+          scheduleEmptyFieldDeerSpawn();
+        }
       }
 
       function shouldActivateFieldObject(event, element = event?.currentTarget) {
@@ -6693,11 +6784,47 @@
         );
       }
 
-      function getRandomSpawnPosition() {
-        const minX = GAME_ZONE.left + HALF_W;
-        const maxX = GAME_ZONE.right - HALF_W;
-        const minY = GAME_ZONE.top + HALF_H;
-        const maxY = GAME_ZONE.bottom - HALF_H;
+      function getRandomSpawnPosition(options = {}) {
+        const gameMinX = GAME_ZONE.left + HALF_W;
+        const gameMaxX = GAME_ZONE.right - HALF_W;
+        const gameMinY = GAME_ZONE.top + HALF_H;
+        const gameMaxY = GAME_ZONE.bottom - HALF_H;
+        let minX = gameMinX;
+        let maxX = gameMaxX;
+        let minY = gameMinY;
+        let maxY = gameMaxY;
+
+        // 정규 생성과 빈 화면 보충 모두 가능하면 현재 화면 안을 우선합니다.
+        if (options.preferVisible === true) {
+          const visibleBounds = getVisibleWorldBounds();
+          const visibleMargin = 24 / Math.max(worldScale, 0.001);
+          const visibleMinX = Math.max(
+            gameMinX,
+            visibleBounds.left + HALF_W + visibleMargin
+          );
+          const visibleMaxX = Math.min(
+            gameMaxX,
+            visibleBounds.right - HALF_W - visibleMargin
+          );
+          const visibleMinY = Math.max(
+            gameMinY,
+            visibleBounds.top + HALF_H + visibleMargin
+          );
+          const visibleMaxY = Math.min(
+            gameMaxY,
+            visibleBounds.bottom - HALF_H - visibleMargin
+          );
+
+          if (
+            visibleMinX <= visibleMaxX &&
+            visibleMinY <= visibleMaxY
+          ) {
+            minX = visibleMinX;
+            maxX = visibleMaxX;
+            minY = visibleMinY;
+            maxY = visibleMaxY;
+          }
+        }
 
         let bestCandidate = null;
         let bestMinimumDistance = -1;
@@ -6753,10 +6880,47 @@
       }
 
       function getRandomDeerSpawnPosition(options = {}) {
-        const minX = GAME_ZONE.left + DEER_HALF_W;
-        const maxX = GAME_ZONE.right - DEER_HALF_W;
-        const minY = GAME_ZONE.top + DEER_HALF_H;
-        const maxY = GAME_ZONE.bottom - DEER_HALF_H;
+        const gameMinX = GAME_ZONE.left + DEER_HALF_W;
+        const gameMaxX = GAME_ZONE.right - DEER_HALF_W;
+        const gameMinY = GAME_ZONE.top + DEER_HALF_H;
+        const gameMaxY = GAME_ZONE.bottom - DEER_HALF_H;
+        let minX = gameMinX;
+        let maxX = gameMaxX;
+        let minY = gameMinY;
+        let maxY = gameMaxY;
+
+        // 일반 생성과 빈 화면 보충은 현재 화면 안을 우선합니다.
+        // 화면을 이동했을 때 다른 위치에 남아 있는 사슴이 새 생성을 막지 않게 합니다.
+        if (options.preferVisible === true) {
+          const visibleBounds = getVisibleWorldBounds();
+          const visibleMargin = 24 / Math.max(worldScale, 0.001);
+          const visibleMinX = Math.max(
+            gameMinX,
+            visibleBounds.left + DEER_HALF_W + visibleMargin
+          );
+          const visibleMaxX = Math.min(
+            gameMaxX,
+            visibleBounds.right - DEER_HALF_W - visibleMargin
+          );
+          const visibleMinY = Math.max(
+            gameMinY,
+            visibleBounds.top + DEER_HALF_H + visibleMargin
+          );
+          const visibleMaxY = Math.min(
+            gameMaxY,
+            visibleBounds.bottom - DEER_HALF_H - visibleMargin
+          );
+
+          if (
+            visibleMinX <= visibleMaxX &&
+            visibleMinY <= visibleMaxY
+          ) {
+            minX = visibleMinX;
+            maxX = visibleMaxX;
+            minY = visibleMinY;
+            maxY = visibleMaxY;
+          }
+        }
         const avoidX = Number.isFinite(options.avoidX)
           ? options.avoidX
           : null;
@@ -6864,7 +7028,7 @@
 
           if (!crossesSafeZone) {
             return {
-              x: GAME_ZONE.left + DEER_HALF_W + 8,
+              x: Math.min(maxX, minX + 8),
               y
             };
           }
@@ -8004,14 +8168,38 @@
         showSingleDeerFrame(deer, DEER_IDLE_FRAME);
       }
 
-      function removeDeer(deer) {
+      function removeDeer(deer, options = {}) {
         if (deer.state === "removed") return;
 
         deer.state = "removed";
         deer.element.remove();
         deerMap.delete(deer.id);
-        saveResourceState();
-        scheduleEmptyFieldDeerSpawn();
+
+        if (options.persist !== false) {
+          saveResourceState();
+        }
+        if (options.scheduleReplacement !== false) {
+          scheduleEmptyFieldDeerSpawn();
+        }
+      }
+
+      function removeOneHiddenLivingDeer() {
+        for (const deer of deerMap.values()) {
+          if (
+            deer.state !== "dying" &&
+            deer.state !== "leaving" &&
+            deer.state !== "removed" &&
+            !isDeerVisibleInCurrentViewport(deer)
+          ) {
+            removeDeer(deer, {
+              persist: false,
+              scheduleReplacement: false
+            });
+            return true;
+          }
+        }
+
+        return false;
       }
 
       function isDeerOutsideVisibleArea(deer) {
@@ -8028,7 +8216,7 @@
         const force = options.force === true;
         if (
           (!force && isExploring) ||
-          deerMap.size >= MAX_ACTIVE_DEER ||
+          getLivingDeerCount() >= MAX_ACTIVE_DEER ||
           !hasActivePopulationCapacity()
         ) {
           return false;
@@ -8502,7 +8690,7 @@
           return false;
         }
 
-        const position = getRandomSpawnPosition();
+        const position = getRandomSpawnPosition(options);
         const direction = randomDirection();
 
         const element = document.createElement("div");
@@ -8685,7 +8873,7 @@
           const isFirstZombieKill = triggerFirstKillBirdFlock();
           if (isFirstZombieKill) {
             lastDeerSpawnAt = Date.now();
-            createDeer();
+            createDeer({ preferVisible: true });
             scheduleNextDeerSpawnTick();
           }
         }
@@ -8727,7 +8915,7 @@
         }, 500);
       }
 
-      function removeZombie(zombie) {
+      function removeZombie(zombie, options = {}) {
         if (zombie.state === "removed") return;
 
         zombie.state = "removed";
@@ -8738,8 +8926,31 @@
 
         zombie.element.remove();
         zombies.delete(zombie.id);
-        saveResourceState();
-        scheduleEmptyFieldZombieSpawn();
+
+        if (options.persist !== false) {
+          saveResourceState();
+        }
+        if (options.scheduleReplacement !== false) {
+          scheduleEmptyFieldZombieSpawn();
+        }
+      }
+
+      function removeOneHiddenLivingZombie() {
+        for (const zombie of zombies.values()) {
+          if (
+            zombie.state !== "dying" &&
+            zombie.state !== "removed" &&
+            !isZombieVisibleInCurrentViewport(zombie)
+          ) {
+            removeZombie(zombie, {
+              persist: false,
+              scheduleReplacement: false
+            });
+            return true;
+          }
+        }
+
+        return false;
       }
 
       function resolveOuterBounds(zombie) {
@@ -9221,6 +9432,14 @@
           }
         }
 
+        if (
+          now - lastZombieVisibilityCheckAt >=
+          ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS
+        ) {
+          lastZombieVisibilityCheckAt = now;
+          scheduleEmptyFieldZombieSpawn();
+        }
+
         updateCloudGroup("sky", deltaMs, now);
         updateCloudGroup("shadow", deltaMs, now);
         updateBirds(now);
@@ -9241,13 +9460,14 @@
           lastZombieSpawnAt = Date.now();
 
           if (canCreateZombie()) {
-            const created = createZombie();
+            const created = createZombie({ preferVisible: true });
             if (created && pendingEmptyZombieSpawnTimerId !== null) {
               clearTimeout(pendingEmptyZombieSpawnTimerId);
               pendingEmptyZombieSpawnTimerId = null;
             }
           } else {
             saveResourceState();
+            scheduleEmptyFieldZombieSpawn();
           }
 
           scheduleNextZombieSpawnTick();
@@ -9269,11 +9489,11 @@
           if (
             firstKillBirdFlockPlayed &&
             !isExploring &&
-            deerMap.size < MAX_ACTIVE_DEER &&
+            getLivingDeerCount() < MAX_ACTIVE_DEER &&
             hasActivePopulationCapacity() &&
             foodCount < getMaxFoodCount()
           ) {
-            createDeer();
+            createDeer({ preferVisible: true });
           } else {
             saveResourceState();
           }
@@ -9309,20 +9529,31 @@
       }
 
       function scheduleEmptyFieldZombieSpawn() {
-        if (pendingEmptyZombieSpawnTimerId !== null) {
-          clearTimeout(pendingEmptyZombieSpawnTimerId);
-          pendingEmptyZombieSpawnTimerId = null;
+        const cannotShowZombie =
+          isExploring ||
+          Date.now() < zombieSpawnBlockedUntil ||
+          zombieCount >= zombieKillRequirement;
+
+        if (getVisibleLivingZombieCount() > 0 || cannotShowZombie) {
+          if (pendingEmptyZombieSpawnTimerId !== null) {
+            clearTimeout(pendingEmptyZombieSpawnTimerId);
+            pendingEmptyZombieSpawnTimerId = null;
+          }
+          return;
         }
-        if (getLivingZombieCount() > 0 || !canCreateZombie()) return;
+
+        // 이미 보충 생성이 예약되어 있다면 주기적인 화면 검사로 타이머를 밀지 않습니다.
+        if (pendingEmptyZombieSpawnTimerId !== null) return;
 
         const delay = 1_000 + Math.random() * 4_000;
         const regularSpawnRemaining = getRemainingUntilRegularZombieSpawn();
 
-        // 빈 화면 보충 직후 정규 1분 생성이 겹치지 않도록,
-        // 보충 시점 기준 5초 안에 정규 생성이 예정되어 있으면 기다립니다.
+        // 정규 생성이 실제로 가능한 경우에만 5초 중복 방지 규칙을 적용합니다.
+        // 화면 밖 좀비 때문에 최대 필요 수에 도달한 경우에는 숨은 개체를 교체해야 합니다.
         if (
+          canCreateZombie() &&
           regularSpawnRemaining <=
-          delay + EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS
+            delay + EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS
         ) {
           return;
         }
@@ -9331,20 +9562,37 @@
           pendingEmptyZombieSpawnTimerId = null;
 
           if (
-            getRemainingUntilRegularZombieSpawn() <=
-            EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS
+            isExploring ||
+            Date.now() < zombieSpawnBlockedUntil ||
+            zombieCount >= zombieKillRequirement ||
+            getVisibleLivingZombieCount() > 0
           ) {
             return;
           }
 
-          if (getLivingZombieCount() === 0 && canCreateZombie()) {
-            const created = createZombie();
-            if (created) {
-              // 빈 화면 보충도 실제 생성으로 간주해 다음 정규 생성은 1분 뒤로 미룹니다.
-              lastZombieSpawnAt = Date.now();
-              scheduleNextZombieSpawnTick();
-              saveResourceState();
-            }
+          if (
+            canCreateZombie() &&
+            getRemainingUntilRegularZombieSpawn() <=
+              EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS
+          ) {
+            return;
+          }
+
+          // 남은 필요 처치 수만큼의 좀비가 모두 화면 밖에 있으면 한 마리를
+          // 정리한 뒤 현재 화면 안에 다시 생성해 총 개체 수는 늘리지 않습니다.
+          if (!canCreateZombie()) {
+            removeOneHiddenLivingZombie();
+          }
+
+          const created = createZombie({ preferVisible: true });
+          if (created) {
+            // 빈 화면 보충도 실제 생성으로 간주해 다음 정규 생성은 1분 뒤로 미룹니다.
+            lastZombieSpawnAt = Date.now();
+            scheduleNextZombieSpawnTick();
+            saveResourceState();
+          } else {
+            // 생성 위치나 조건이 일시적으로 맞지 않으면 다음 화면 검사에서 재시도합니다.
+            scheduleEmptyFieldZombieSpawn();
           }
         }, delay);
       }
@@ -9352,30 +9600,51 @@
       function scheduleEmptyFieldDeerSpawn() {
         if (pendingEmptyDeerSpawnTimerId !== null) {
           clearTimeout(pendingEmptyDeerSpawnTimerId);
+          pendingEmptyDeerSpawnTimerId = null;
         }
         if (
           !firstKillBirdFlockPlayed ||
           isExploring ||
-          getLivingDeerCount() > 0 ||
+          getVisibleLivingDeerCount() > 0 ||
           foodCount >= getMaxFoodCount() ||
           !hasActivePopulationCapacity()
         ) {
           return;
         }
+
         const delay = EMPTY_DEER_SPAWN_MIN_DELAY_MS +
           Math.random() *
             (EMPTY_DEER_SPAWN_MAX_DELAY_MS -
               EMPTY_DEER_SPAWN_MIN_DELAY_MS);
+
         pendingEmptyDeerSpawnTimerId = window.setTimeout(() => {
           pendingEmptyDeerSpawnTimerId = null;
+
           if (
-            firstKillBirdFlockPlayed &&
-            !isExploring &&
-            getLivingDeerCount() === 0 &&
-            foodCount < getMaxFoodCount() &&
-            hasActivePopulationCapacity()
+            !firstKillBirdFlockPlayed ||
+            isExploring ||
+            getVisibleLivingDeerCount() > 0 ||
+            foodCount >= getMaxFoodCount() ||
+            !hasActivePopulationCapacity()
           ) {
-            createDeer();
+            return;
+          }
+
+          // 최대 3마리가 모두 현재 화면 밖에 남아 있으면 한 마리를 정리해
+          // 화면 안에 새 사슴이 들어올 자리를 확보합니다.
+          if (getLivingDeerCount() >= MAX_ACTIVE_DEER) {
+            removeOneHiddenLivingDeer();
+          }
+
+          const created = createDeer({ preferVisible: true });
+          if (created) {
+            // 빈 화면 보충도 실제 생성으로 간주해 정규 3분 생성과 겹치지 않게 합니다.
+            lastDeerSpawnAt = Date.now();
+            scheduleNextDeerSpawnTick();
+            saveResourceState();
+          } else {
+            // 생성 위치를 일시적으로 찾지 못한 경우 한 번으로 끝내지 않고 다시 시도합니다.
+            scheduleEmptyFieldDeerSpawn();
           }
         }, delay);
       }
@@ -9384,7 +9653,7 @@
         // 새 게임에서만 첫 좀비를 즉시 생성합니다.
         // 페이지를 열 때 이미 Axe를 보유했다면 첫 시작용 즉시 생성은 건너뜁니다.
         if (!skipFirstStartSequence && canCreateZombie()) {
-          createZombie();
+          createZombie({ preferVisible: true });
         }
 
         // 간헐적으로 지나가는 새는 첫 처치 연출 여부와 관계없이 항상 유지합니다.
@@ -9707,6 +9976,8 @@
         updateWorldScale();
         updateInventoryPagePosition(false);
         if (isRepairOpen) applyRepairState();
+        scheduleEmptyFieldZombieSpawn();
+        scheduleEmptyFieldDeerSpawn();
       });
 
       window.addEventListener("pagehide", saveResourceState);
