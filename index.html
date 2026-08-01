@@ -2288,7 +2288,7 @@
   </style>
 </head>
 <!-- 우하단에 표시되고 저장 호환성 검사에도 사용하는 현재 게임 버전입니다. -->
-<body class="is-initializing-status" data-game-version="0.068">
+<body class="is-initializing-status" data-game-version="0.069">
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <filter id="nightCoolBalance" color-interpolation-filters="sRGB">
       <feColorMatrix
@@ -2641,8 +2641,8 @@
       const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 7_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
-      const VILLAGE_EXPLORATION_DURATION_MS = 10 * 60_000;
-      const FOREST_EXPLORATION_DURATION_MS = 30 * 60_000;
+      const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
+      const FOREST_EXPLORATION_DURATION_MS = 15 * 60_000;
       const CITY_EXPLORATION_DURATION_MS = 10 * 60_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
       const GAME_VERSION = String(
@@ -2860,6 +2860,8 @@
       const MAIL_FIRST_TOAST_MESSAGE = "Well, I’ve got mail.";
       const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see where this goes.";
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
+      const MAIL_READ_FIRST_TOAST_MESSAGE = "I should read the letter first.";
+      const MAIL_WAIT_TOAST_MESSAGE = "Maybe tomorrow.";
       const COMPASS_SELECTED_TOAST_MESSAGE = "Now I know where I’m going.";
       const CAR_PARTS_SELECTED_TOAST_MESSAGE = "I might need these for the car.";
       const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s see what they want.";
@@ -3831,35 +3833,44 @@
           return;
         }
 
-        if (currentTodoListId > 0 && isTodoListComplete(currentTodoListId)) {
-          playSound(MAILBOX_SOUND);
-          todoSubmittedListId = currentTodoListId;
-          todoSubmittedDay = dayCount;
-          currentTodoListId = 0;
-          hasStrangerLetter = false;
-          isStrangerLetterOn = false;
-          applyInventoryState();
-          updateTodoListUI();
-          saveResourceState();
-          showToast(MAIL_DONE_TOAST_MESSAGE);
+        if (currentTodoListId > 0) {
+          if (isTodoListComplete(currentTodoListId)) {
+            playSound(MAILBOX_SOUND);
+            todoSubmittedListId = currentTodoListId;
+            todoSubmittedDay = dayCount;
+            currentTodoListId = 0;
+            hasStrangerLetter = false;
+            isStrangerLetterOn = false;
+            applyInventoryState();
+            updateTodoListUI();
+            saveResourceState();
+            showToast(MAIL_DONE_TOAST_MESSAGE);
+            return;
+          }
+
+          showToast(MAIL_READ_FIRST_TOAST_MESSAGE);
           return;
         }
 
-        if (todoSubmittedListId > 0 && dayCount > todoSubmittedDay) {
-          if (todoSubmittedListId === 1) {
-            unlockWoodenFenceBlueprint();
-            deliverTodoList(2);
-            showToast(MAIL_NEXT_TOAST_MESSAGE);
-            return;
+        if (todoSubmittedListId > 0) {
+          if (dayCount > todoSubmittedDay) {
+            if (todoSubmittedListId === 1) {
+              unlockWoodenFenceBlueprint();
+              deliverTodoList(2);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
+
+            if (todoSubmittedListId === 2) {
+              hasCompass = true;
+              markInventoryItemAsNew("compass");
+              deliverTodoList(3);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
           }
 
-          if (todoSubmittedListId === 2) {
-            hasCompass = true;
-            markInventoryItemAsNew("compass");
-            deliverTodoList(3);
-            showToast(MAIL_NEXT_TOAST_MESSAGE);
-            return;
-          }
+          showToast(MAIL_WAIT_TOAST_MESSAGE);
         }
       }
 
