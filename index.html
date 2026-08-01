@@ -295,7 +295,7 @@
 
     #todoListOverlay {
       position: absolute;
-      left: 30px;
+      left: 20px;
       top: 90px;
       z-index: 30;
       color: rgba(255, 255, 255, 0.7);
@@ -895,23 +895,15 @@
 
     .toast-message-text {
       position: relative;
-      isolation: isolate;
       display: block;
+      padding: 1px 4px;
+      margin: -2px -6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.1);
+      box-shadow: 0 0 12px 8px rgba(0, 0, 0, 0.1);
       opacity: 0;
       will-change: opacity;
       animation: toast-fade 3s linear forwards;
-    }
-
-    /* 텍스트 뒤에 경계가 부드럽게 퍼지는 약한 딤드를 표시합니다. */
-    .toast-message-text::before {
-      content: "";
-      position: absolute;
-      inset: -5px -14px;
-      z-index: -1;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.15);
-      filter: blur(8px);
-      pointer-events: none;
     }
 
     /*
@@ -2302,7 +2294,7 @@
   </style>
 </head>
 <!-- 우하단에 표시되고 저장 호환성 검사에도 사용하는 현재 게임 버전입니다. -->
-<body class="is-initializing-status" data-game-version="0.070">
+<body class="is-initializing-status" data-game-version="0.071">
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <filter id="nightCoolBalance" color-interpolation-filters="sRGB">
       <feColorMatrix
