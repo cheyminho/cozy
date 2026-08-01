@@ -54,6 +54,11 @@
       --mailbox-left: 943px;
       --mailbox-top: 1066px;
       --mailbox-size: 64px;
+
+      /* 나무 위치와 표시 배율. 뎁스 영역 판정도 이 값을 함께 사용합니다. */
+      --tree-left: 1103px;
+      --tree-top: 562px;
+      --tree-scale: 0.6;
     }
 
     * {
@@ -565,25 +570,22 @@
     }
 
 
-    /* 나무와 터치 영역 전체를 원본의 60% 크기로 표시합니다. */
+    /* 나무는 뒤쪽 엔티티와 앞쪽 엔티티 사이의 독립 레이어입니다. */
     #tree {
       position: absolute;
-      /* 이전 위치에서 아래로 60px 이동 */
-      left: 1103px;
-      top: 562px;
+      left: var(--tree-left);
+      top: var(--tree-top);
+      z-index: 11;
       width: 512px;
       height: 512px;
-      transform: scale(0.6);
+      transform: scale(var(--tree-scale));
       transform-origin: left top;
       pointer-events: none;
     }
 
     #treeDayVisual,
     #treeDayFadeVisual,
-    #treeNightVisual,
-    #treeCanopyDay,
-    #treeCanopyDayFade,
-    #treeCanopyNight {
+    #treeNightVisual {
       position: absolute;
       inset: 0;
       background-repeat: no-repeat;
@@ -628,37 +630,28 @@
       opacity: 1;
     }
 
-    /* 원본 왼쪽 절반 영역도 나무와 함께 60%로 축소됩니다. */
+    /*
+      나무 입력 영역은 시각 레이어와 분리합니다.
+      좀비/사슴이 나무 뒤에 있어도 엔티티 입력이 나무 입력보다 우선됩니다.
+    */
     #treeHitArea {
       position: absolute;
-      left: 0;
-      top: 0;
-      z-index: 3;
+      left: var(--tree-left);
+      top: var(--tree-top);
+      z-index: 8;
       width: 256px;
       height: 512px;
       cursor: pointer;
       pointer-events: auto;
       touch-action: none;
       outline: none;
+      transform: scale(var(--tree-scale));
+      transform-origin: left top;
     }
 
     body.is-night #treeHitArea {
       pointer-events: none;
       cursor: default;
-    }
-
-    /* 나무 위쪽 3/4는 엔티티보다 앞에 표시해 위쪽 영역의 좀비/사슴이 나무 뒤로 지나가게 합니다. */
-    #treeCanopyOverlay {
-      position: absolute;
-      left: 1103px;
-      top: 562px;
-      z-index: 15;
-      width: 512px;
-      height: 384px;
-      overflow: hidden;
-      transform: scale(0.6);
-      transform-origin: left top;
-      pointer-events: none;
     }
 
     /* 나무 파츠 그림자는 지면 오브젝트처럼 엔티티보다 아래에 표시합니다. */
@@ -731,53 +724,22 @@
       pointer-events: none;
     }
 
-    #treeCanopyDay,
-    #treeCanopyNight {
-      width: 512px;
-      height: 512px;
-    }
-
-    #treeCanopyDay {
-      background-image: url("images/bg_tree.png");
-      background-position: -512px 0;
-      background-size: 1024px 1024px;
-      opacity: 1;
-      transition: opacity 3s ease;
-      will-change: background-position, opacity;
-    }
-
-    #treeCanopyDayFade {
-      background-image: url("images/bg_tree.png");
-      background-position: -512px 0;
-      background-size: 1024px 1024px;
-      opacity: 0;
-      transition: opacity 3s ease;
-      will-change: background-position, opacity;
-    }
-
-    #treeCanopyNight {
-      background-image: url("images/bg_tree_night.png");
-      background-position: left top;
-      background-size: 1024px 1024px;
-      opacity: 0;
-      transition: opacity 3s ease;
-    }
-
-    body.is-night #treeCanopyDay,
-    body.is-night #treeCanopyDayFade {
-      opacity: 0;
-    }
-
-    body.is-night #treeCanopyNight {
-      opacity: 1;
-    }
-
+    #entitiesBehindTree,
     #entities {
       position: absolute;
       inset: 0;
-      z-index: 10;
-      /* 빈 엔티티 레이어가 아래의 도끼 터치 영역을 가리지 않도록 합니다. */
+      /* 빈 엔티티 레이어가 아래의 필드 입력 영역을 가리지 않도록 합니다. */
       pointer-events: none;
+    }
+
+    /* A/B 영역 밖에서 나무와 겹치는 엔티티는 나무 뒤에 표시합니다. */
+    #entitiesBehindTree {
+      z-index: 10;
+    }
+
+    /* A/B 영역 안의 엔티티는 나무 앞에 표시합니다. */
+    #entities {
+      z-index: 12;
     }
 
     /* 실제 구름은 좀비보다 높은 상공 레이어에 표시합니다. */
@@ -2273,9 +2235,6 @@
     body.is-restored-night #treeDayVisual,
     body.is-restored-night #treeDayFadeVisual,
     body.is-restored-night #treeNightVisual,
-    body.is-restored-night #treeCanopyDay,
-    body.is-restored-night #treeCanopyDayFade,
-    body.is-restored-night #treeCanopyNight,
     body.is-restored-night .cloud-visual::before,
     body.is-restored-night .cloud-visual::after,
     body.is-restored-night .zombie-sprite,
@@ -2329,7 +2288,7 @@
   </style>
 </head>
 <!-- 우하단에 표시되고 저장 호환성 검사에도 사용하는 현재 게임 버전입니다. -->
-<body class="is-initializing-status" data-game-version="0.067">
+<body class="is-initializing-status" data-game-version="0.068">
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <filter id="nightCoolBalance" color-interpolation-filters="sRGB">
       <feColorMatrix
@@ -2411,26 +2370,22 @@
             aria-label="도끼 얻기"
           ></div>
         </div>
-        <div id="tree" aria-hidden="false">
-          <div id="treeDayVisual" aria-hidden="true"></div>
-          <div id="treeDayFadeVisual" aria-hidden="true"></div>
-          <div id="treeNightVisual" aria-hidden="true"></div>
-          <div
-            id="treeHitArea"
-            class="world-interactive"
-            role="button"
-            tabindex="0"
-            aria-label="나무 베기"
-          ></div>
-        </div>
       </div>
+      <div
+        id="treeHitArea"
+        class="world-interactive"
+        role="button"
+        tabindex="0"
+        aria-label="나무 베기"
+      ></div>
       <div id="treePartShadowLayer" aria-hidden="true"></div>
-      <div id="entities"></div>
-      <div id="treeCanopyOverlay" aria-hidden="true">
-        <div id="treeCanopyDay"></div>
-        <div id="treeCanopyDayFade"></div>
-        <div id="treeCanopyNight"></div>
+      <div id="entitiesBehindTree"></div>
+      <div id="tree" aria-hidden="false">
+        <div id="treeDayVisual" aria-hidden="true"></div>
+        <div id="treeDayFadeVisual" aria-hidden="true"></div>
+        <div id="treeNightVisual" aria-hidden="true"></div>
       </div>
+      <div id="entities"></div>
       <div id="treePartLayer" aria-hidden="true"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
@@ -2827,6 +2782,17 @@
       const TREE_SHEET_COLUMNS = 2;
       const TREE_FRAME_SIZE = 512;
       const TREE_DEFAULT_FRAME = 1;
+
+      /*
+        나무 원본 512×512 기준 앞쪽 영역입니다.
+        엔티티의 바닥 접지점이 A 또는 B 안에 있으면 나무보다 앞에 표시합니다.
+        A: x 0~172, y 422~512
+        B: x 173~512, y 366~512
+      */
+      const TREE_FRONT_ZONE_A = { left: 0, top: 422, right: 173, bottom: 512 };
+      const TREE_FRONT_ZONE_B = { left: 173, top: 366, right: 512, bottom: 512 };
+      const ZOMBIE_DEPTH_POINT_OFFSET_Y = HALF_H - 25;
+      const DEER_DEPTH_POINT_OFFSET_Y = DEER_HALF_H - 15;
       const TREE_CHOP_SEQUENCE = [2, 3, 2, 1, 0, 1];
       const TREE_CHOP_FRAME_MS = 100;
       // 나무 단계 이미지는 히트 순간 투명도 전환 없이 즉시 교체합니다.
@@ -2894,7 +2860,9 @@
       const MAIL_FIRST_TOAST_MESSAGE = "Well, I’ve got mail.";
       const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see where this goes.";
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
-      const CAR_PARTS_TOAST_MESSAGE = "I might need these for the car.";
+      const COMPASS_SELECTED_TOAST_MESSAGE = "Now I know where I’m going.";
+      const CAR_PARTS_SELECTED_TOAST_MESSAGE = "I might need these for the car.";
+      const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s see what they want.";
       const REPAIR_GRID_ITEM_COUNT = 25;
       const REPAIR_CATEGORY_ORDER = [
         "outdoor",
@@ -3046,6 +3014,7 @@
       const viewport = document.getElementById("viewport");
       const world = document.getElementById("world");
       const cloudShadowsLayer = document.getElementById("cloudShadows");
+      const entitiesBehindTree = document.getElementById("entitiesBehindTree");
       const entities = document.getElementById("entities");
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
@@ -3130,10 +3099,6 @@
       const treeDayVisual = document.getElementById("treeDayVisual");
       const treeDayFadeVisual = document.getElementById("treeDayFadeVisual");
       const treeNightVisual = document.getElementById("treeNightVisual");
-      const treeCanopyOverlay = document.getElementById("treeCanopyOverlay");
-      const treeCanopyDay = document.getElementById("treeCanopyDay");
-      const treeCanopyDayFade = document.getElementById("treeCanopyDayFade");
-      const treeCanopyNight = document.getElementById("treeCanopyNight");
       const treePartShadowLayer = document.getElementById(
         "treePartShadowLayer"
       );
@@ -3703,7 +3668,7 @@
         configureRepairItem("repair", SHED_REPAIR_BLUEPRINT_INDEX, {
           name: "Shed Repair",
           materials: { wood: 10 },
-          builtDescription: "Get the old shed standing again.\nFood +2\nWood +5"
+          builtDescription: "Get the old shed standing again.\nMax Food +2\nMax Wood +5"
         });
         if (markRepairBlueprintAsNew("repair", SHED_REPAIR_BLUEPRINT_INDEX)) {
           saveResourceState();
@@ -4291,7 +4256,7 @@
             : "Shed Repair";
           if (shedRepairItem.built) {
             shedRepairItem.builtDescription =
-              "Get the old shed standing again.\nFood +2\nWood +5";
+              "Get the old shed standing again.\nMax Food +2\nMax Wood +5";
           }
         }
       }
@@ -5503,7 +5468,6 @@
         carPartsCount = Math.min(getMaxCarPartsCount(), carPartsCount + 1);
         markInventoryItemAsNew("carParts");
         applyInventoryState();
-        showToast(CAR_PARTS_TOAST_MESSAGE);
       }
 
       function finishExploration() {
@@ -5518,7 +5482,7 @@
         dayCount += 1;
         zombieKillRequirement = getNextPrime(zombieKillRequirement);
 
-        const previousTreeGrowthState = treeGrowthState;
+        const previousTreeChopCount = treeChopCount;
         if (treeGrowthState === TREE_GROWTH_DEPLETED) {
           treeGrowthState = TREE_GROWTH_REGROWING;
           treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
@@ -5528,7 +5492,7 @@
         ) {
           treeGrowthState = TREE_GROWTH_READY;
           treeChopCount = 0;
-          if (currentTodoListId === 2 && previousTreeGrowthState !== TREE_GROWTH_READY) {
+          if (currentTodoListId === 2 && previousTreeChopCount >= 1) {
             setTodoProgress(2, "item2", true);
           }
         }
@@ -7299,7 +7263,6 @@
           `${-column * TREE_FRAME_SIZE}px ${-row * TREE_FRAME_SIZE}px`;
 
         treeNightVisual.style.backgroundPosition = backgroundPosition;
-        treeCanopyNight.style.backgroundPosition = backgroundPosition;
       }
 
       function getTreeDaySheetForStage(stage) {
@@ -7328,7 +7291,7 @@
 
       function applyTreeDayFrame(image, frameIndex) {
         applyTreeFrameToVisuals(
-          [treeDayVisual, treeCanopyDay],
+          [treeDayVisual],
           image,
           frameIndex
         );
@@ -7391,11 +7354,11 @@
         rotator.appendChild(image);
         part.appendChild(rotator);
 
-        const treeLeft = 1103;
-        const treeTop = 562;
-        const treeScale = 0.6;
-        const treeWidth = 512 * treeScale;
-        const treeHeight = 512 * treeScale;
+        const treeLeft = tree.offsetLeft;
+        const treeTop = tree.offsetTop;
+        const treeScale = getTreeRenderScale();
+        const treeWidth = TREE_FRAME_SIZE * treeScale;
+        const treeHeight = TREE_FRAME_SIZE * treeScale;
         const startAnchorX = treeLeft + treeWidth * TREE_PART_START_X_RATIO;
         const startAnchorY = treeTop + treeHeight * TREE_PART_START_Y_RATIO;
         const offsetIndex = clamp(
@@ -7835,14 +7798,64 @@
         zombie.overlay.style.transform = facingTransform;
       }
 
+      function getTreeRenderScale() {
+        const value = parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue("--tree-scale")
+        );
+        return Number.isFinite(value) && value > 0 ? value : 1;
+      }
+
+      function isPointInsideDepthZone(pointX, pointY, zone) {
+        return (
+          pointX >= zone.left &&
+          pointX < zone.right &&
+          pointY >= zone.top &&
+          pointY <= zone.bottom
+        );
+      }
+
+      function isEntityInTreeFrontZone(worldX, worldGroundY) {
+        const treeScale = getTreeRenderScale();
+        const localX = (worldX - tree.offsetLeft) / treeScale;
+        const localY = (worldGroundY - tree.offsetTop) / treeScale;
+
+        const isInsideTreeBounds = (
+          localX >= 0 &&
+          localX <= TREE_FRAME_SIZE &&
+          localY >= 0 &&
+          localY <= TREE_FRAME_SIZE
+        );
+
+        if (!isInsideTreeBounds) return true;
+
+        return (
+          isPointInsideDepthZone(localX, localY, TREE_FRONT_ZONE_A) ||
+          isPointInsideDepthZone(localX, localY, TREE_FRONT_ZONE_B)
+        );
+      }
+
+      function updateEntityTreeDepth(element, worldX, worldGroundY, sortY) {
+        const targetLayer = isEntityInTreeFrontZone(worldX, worldGroundY)
+          ? entities
+          : entitiesBehindTree;
+
+        if (element.parentElement !== targetLayer) {
+          targetLayer.appendChild(element);
+        }
+
+        // 같은 레이어 안에서는 기존처럼 아래쪽 엔티티가 앞에 표시됩니다.
+        element.style.zIndex = String(Math.round(sortY));
+      }
+
       function renderZombie(zombie) {
         zombie.element.style.left = `${zombie.x}px`;
         zombie.element.style.top = `${zombie.y}px`;
-
-        // 화면 아래쪽에 있는 좀비일수록 앞에 보이도록
-        // 세로 위치(y)를 기준으로 개별 뎁스를 갱신합니다.
-        zombie.element.style.zIndex = String(
-          Math.round(zombie.y)
+        updateEntityTreeDepth(
+          zombie.element,
+          zombie.x,
+          zombie.y + ZOMBIE_DEPTH_POINT_OFFSET_Y,
+          zombie.y
         );
       }
 
@@ -7889,7 +7902,12 @@
       function renderDeer(deer) {
         deer.element.style.left = `${deer.x}px`;
         deer.element.style.top = `${deer.y}px`;
-        deer.element.style.zIndex = String(Math.round(deer.y));
+        updateEntityTreeDepth(
+          deer.element,
+          deer.x,
+          deer.y + DEER_DEPTH_POINT_OFFSET_Y,
+          deer.y
+        );
       }
 
       function showSingleDeerFrame(deer, frameIndex) {
@@ -9582,6 +9600,7 @@
             isAxeEquipped = willEquipAxe;
             if (willEquipAxe) {
               isHandgunEquipped = false;
+              showToast(AXE_SELECTED_TOAST_MESSAGE);
             }
             applyInventoryState();
             saveResourceState();
@@ -9606,18 +9625,37 @@
           }
 
           if (itemType === "musicBox" && hasMusicBox) {
+            const willTurnMusicOn = !isMusicOn;
             playSound(INVENTORY_SET_SOUND);
-            showToast(MUSIC_BOX_SELECTED_TOAST_MESSAGE);
-            setMusicOn(!isMusicOn);
+            setMusicOn(willTurnMusicOn);
+            if (willTurnMusicOn) {
+              showToast(MUSIC_BOX_SELECTED_TOAST_MESSAGE);
+            }
             return;
           }
 
           if (itemType === "strangerLetter" && hasStrangerLetter) {
+            const willTurnLetterOn = !isStrangerLetterOn;
             playSound(INVENTORY_SET_SOUND);
-            isStrangerLetterOn = !isStrangerLetterOn;
+            isStrangerLetterOn = willTurnLetterOn;
+            if (willTurnLetterOn) {
+              showToast(STRANGER_LETTER_SELECTED_TOAST_MESSAGE);
+            }
             updateTodoListUI();
             applyInventoryState();
             saveResourceState();
+            return;
+          }
+
+          if (itemType === "compass" && hasCompass) {
+            playSound(INVENTORY_SET_SOUND);
+            showToast(COMPASS_SELECTED_TOAST_MESSAGE);
+            return;
+          }
+
+          if (itemType === "carParts" && carPartsCount > 0) {
+            playSound(INVENTORY_SET_SOUND);
+            showToast(CAR_PARTS_SELECTED_TOAST_MESSAGE);
             return;
           }
         });
