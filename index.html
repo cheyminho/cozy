@@ -2341,6 +2341,17 @@
     .deer-visual-night {
       z-index: 2;
       opacity: 0;
+    }
+
+    /*
+      밤 컬러 필터를 상위 레이어가 아니라 실제 스프라이트에 직접 적용합니다.
+      처치 후 사망·부패 프레임이 교체되거나 오버레이로 크로스페이드될 때도
+      각 이미지가 확실하게 밤 컬러로 렌더링되도록 합니다.
+    */
+    .zombie-visual-night .zombie-sprite,
+    .zombie-visual-night .zombie-sprite-overlay,
+    .deer-visual-night .deer-sprite,
+    .deer-visual-night .deer-sprite-overlay {
       filter:
         url(#nightCoolBalance)
         brightness(var(--entity-night-brightness))
@@ -2455,7 +2466,7 @@
 -->
 <body
   class="is-initializing-status"
-  data-game-version="0.076"
+  data-game-version="0.077"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
