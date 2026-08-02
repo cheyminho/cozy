@@ -2466,7 +2466,7 @@
 -->
 <body
   class="is-initializing-status"
-  data-game-version="0.077"
+  data-game-version="0.078"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2801,9 +2801,9 @@
         bottom: WORLD_SIZE
       };
 
-      // 살아 있는 좀비와 사슴의 합계가 10마리를 넘게 되는 11번째 생성부터
+      // 살아 있는 좀비와 사슴의 합계가 5마리를 넘게 되는 6번째 생성부터
       // 중앙 1024×1024 대신 월드 전체 2048×2048을 생성·이동 범위로 사용합니다.
-      const EXPANDED_SPAWN_POPULATION_THRESHOLD = 10;
+      const EXPANDED_SPAWN_POPULATION_THRESHOLD = 5;
 
       // 월드 중심(1024, 1024)을 기준으로 한 420×300 안전영역입니다.
       const SAFE_ZONE = {
