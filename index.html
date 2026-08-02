@@ -28,6 +28,10 @@
       --deer-width: 85.3333px;
       --deer-height: 85.3333px;
 
+      /* 좀비·사슴의 밤 전용 밝기와 채도입니다. */
+      --entity-night-brightness: 0.5;
+      --entity-night-saturation: 0.7;
+
       /*
         집 / 창고 / 울타리 / 차 위치와 크기 수정 위치
         - left: 오른쪽으로 갈수록 증가
@@ -191,6 +195,10 @@
       3초 동안 크로스페이드합니다.
     */
     #houseObject {
+      --house-roof-image: none;
+      --house-roof-position: left top;
+      --house-walls-image: none;
+      --house-walls-position: left top;
       left: var(--house-left);
       top: var(--house-top);
       z-index: 3;
@@ -204,10 +212,16 @@
       content: "";
       position: absolute;
       inset: 0;
-      background-image: url("images/house_1.png");
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 100% 100%;
+      background-image:
+        var(--house-roof-image, none),
+        var(--house-walls-image, none),
+        url("images/house_1.png");
+      background-repeat: no-repeat, no-repeat, no-repeat;
+      background-position:
+        var(--house-roof-position, left top),
+        var(--house-walls-position, left top),
+        center;
+      background-size: 200% 200%, 200% 200%, 100% 100%;
       pointer-events: none;
       transition: opacity 3s ease;
     }
@@ -487,6 +501,7 @@
     #fenceObject::before,
     #fenceObject::after {
       background-image: url("images/fence_1.png");
+      background-position: var(--fence-frame-position, left top);
     }
 
     #carObject::before,
@@ -2211,19 +2226,44 @@
       opacity: 0;
     }
 
-    /* 밤 전환에 맞춰 좀비와 사슴만 어둡게 표시합니다. */
-    .zombie-sprite,
-    .zombie-sprite-overlay,
-    .deer-sprite,
-    .deer-sprite-overlay {
-      transition: filter 3s ease;
+    /*
+      좀비와 사슴도 다른 오브젝트처럼 낮/밤 레이어를 겹쳐 놓고
+      opacity를 3초 동안 크로스페이드합니다. SVG filter 자체를 전환하지
+      않으므로 밤 컬러가 순간적으로 튀지 않습니다.
+    */
+    .zombie-visual-layer,
+    .deer-visual-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      transition: opacity 3s ease;
+      will-change: opacity;
     }
 
-    body.is-night .zombie-sprite,
-    body.is-night .zombie-sprite-overlay,
-    body.is-night .deer-sprite,
-    body.is-night .deer-sprite-overlay {
-      filter: brightness(0.4);
+    .zombie-visual-day,
+    .deer-visual-day {
+      z-index: 1;
+      opacity: 1;
+    }
+
+    .zombie-visual-night,
+    .deer-visual-night {
+      z-index: 2;
+      opacity: 0;
+      filter:
+        url(#nightCoolBalance)
+        brightness(var(--entity-night-brightness))
+        saturate(var(--entity-night-saturation));
+    }
+
+    body.is-night .zombie-visual-day,
+    body.is-night .deer-visual-day {
+      opacity: 0;
+    }
+
+    body.is-night .zombie-visual-night,
+    body.is-night .deer-visual-night {
+      opacity: 1;
     }
 
     /* 새는 밤에 밝기를 낮추지 않고 지정한 푸른색으로 전환합니다. */
@@ -2263,10 +2303,8 @@
     body.is-restored-night #treeNightVisual,
     body.is-restored-night .cloud-visual::before,
     body.is-restored-night .cloud-visual::after,
-    body.is-restored-night .zombie-sprite,
-    body.is-restored-night .zombie-sprite-overlay,
-    body.is-restored-night .deer-sprite,
-    body.is-restored-night .deer-sprite-overlay,
+    body.is-restored-night .zombie-visual-layer,
+    body.is-restored-night .deer-visual-layer,
     body.is-restored-night .world-structure,
     body.is-restored-night #houseObject::before,
     body.is-restored-night #houseObject::after,
@@ -2320,7 +2358,7 @@
 -->
 <body
   class="is-initializing-status"
-  data-game-version="0.072"
+  data-game-version="0.073"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2507,6 +2545,30 @@
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="carParts" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Car Parts</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="whitePaint" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">White Paint</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="blackPaint" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Black Paint</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="redPaint" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Red Paint</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="yellowPaint" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Yellow Paint</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="bluePaint" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Blue Paint</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="greenPaint" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Green Paint</span></span>
               <span class="inventory-item__quantity">×0</span>
             </button>
           </div>
@@ -2728,6 +2790,8 @@
       // 이동 속도: 2초에 1px
       const MOVE_SPEED_PX_PER_MS = 1 / 2_000;
       const DEER_EVADE_SPEED_PX_PER_MS = 0.3;
+      const DEER_ALERT_AREA_SIZE = 512;
+      const DEER_ALERT_HALF_SIZE = DEER_ALERT_AREA_SIZE / 2;
 
       const WALK_SHEET = "images/zomebie_default_walk.png";
       const DEAD_SHEET = "images/zomebie_default_dead.png";
@@ -2935,9 +2999,47 @@
       };
       const REPAIR_DEFAULT_BLUEPRINTS = {};
       const REPAIR_SECTION_SPAN = 5;
-      const SHED_REPAIR_BLUEPRINT_INDEX = 0;
-      const CAR_REPAIR_BLUEPRINT_INDEX = 2;
+      const SHED_REPAIR_BLUEPRINT_ID = "shedRepair";
+      const CAR_REPAIR_BLUEPRINT_ID = "carRepair";
+      const REPAIR_BLUEPRINT_DEFINITIONS = {
+        [SHED_REPAIR_BLUEPRINT_ID]: {
+          name: "Shed Repair",
+          materials: { wood: 10 },
+          builtDescription: "Get the old shed standing again.\nMax Food +2\nMax Wood +5"
+        },
+        [CAR_REPAIR_BLUEPRINT_ID]: {
+          name: "Car Repair",
+          materials: { repairKit: 1, carParts: 3 },
+          builtDescription: "Might get it running again."
+        }
+      };
       const WOODED_FENCE_BLUEPRINT_INDEX = 1;
+      const WHITE_FENCE_BLUEPRINT_INDEX = 2;
+      const TIMBER_ROOF_BLUEPRINT_INDEX = 6;
+      const CHARCOAL_ROOF_BLUEPRINT_INDEX = 7;
+      const TIMBER_WALLS_BLUEPRINT_INDEX = 11;
+      const MINT_WALLS_BLUEPRINT_INDEX = 12;
+      const EXPLORATION_BLUEPRINT_DROP_CHANCE = {
+        village: 0.30,
+        forest: 0,
+        city: 0.50
+      };
+      const EXPLORATION_BLUEPRINT_REWARDS = [
+        { category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID },
+        { category: "outdoor", index: WHITE_FENCE_BLUEPRINT_INDEX },
+        { category: "buildings", index: TIMBER_ROOF_BLUEPRINT_INDEX },
+        { category: "buildings", index: CHARCOAL_ROOF_BLUEPRINT_INDEX },
+        { category: "buildings", index: TIMBER_WALLS_BLUEPRINT_INDEX },
+        { category: "buildings", index: MINT_WALLS_BLUEPRINT_INDEX }
+      ];
+      const PAINT_ITEM_DEFINITIONS = {
+        whitePaint: { label: "White Paint" },
+        blackPaint: { label: "Black Paint" },
+        redPaint: { label: "Red Paint" },
+        yellowPaint: { label: "Yellow Paint" },
+        bluePaint: { label: "Blue Paint" },
+        greenPaint: { label: "Green Paint" }
+      };
       const CARRY_FULL_TOAST_MESSAGE = "I can't carry any more.";
       const DEER_FOOD_FULL_TOAST_MESSAGE = "I’ve got enough.";
       const NO_FOOD_TOAST_MESSAGE = "No food, no adventure.";
@@ -3104,6 +3206,12 @@
       const carPartsInventoryItem = document.querySelector(
         '.inventory-item[data-item="carParts"]'
       );
+      const paintInventoryItems = Object.fromEntries(
+        Object.keys(PAINT_ITEM_DEFINITIONS).map((itemType) => [
+          itemType,
+          document.querySelector(`.inventory-item[data-item="${itemType}"]`)
+        ])
+      );
       const inventoryNewBadge = document.getElementById("inventoryNewBadge");
       const inventoryEmptyState = document.getElementById("inventoryEmptyState");
       const repairOverlay = document.getElementById("repairOverlay");
@@ -3131,6 +3239,7 @@
       const dayNumberTrack = document.getElementById("dayNumberTrack");
       const versionTestButton = document.getElementById("versionTestButton");
       const versionNumber = document.getElementById("versionNumber");
+      const houseObject = document.getElementById("houseObject");
       const shedObject = document.getElementById("shedObject");
       const fenceObject = document.getElementById("fenceObject");
       const carObject = document.getElementById("carObject");
@@ -3369,6 +3478,9 @@
       let hasStrangerLetter = false;
       let isStrangerLetterOn = false;
       let carPartsCount = 0;
+      const paintCounts = Object.fromEntries(
+        Object.keys(PAINT_ITEM_DEFINITIONS).map((itemType) => [itemType, 0])
+      );
       let hasRepairKit = false;
       let fuelCount = 0;
       let hasMap = false;
@@ -3401,7 +3513,8 @@
               isNew: false,
               materials: {},
               description: "",
-              builtDescription: ""
+              builtDescription: "",
+              blueprintId: ""
             })
           );
 
@@ -3527,6 +3640,18 @@
         startY: 0,
         startPanX: 0,
         startPanY: 0
+      };
+
+      /*
+        필드 엔티티는 누른 순간 공격 대상을 고정합니다.
+        사슴이 달리는 중 손가락 아래에서 벗어나더라도, 배경 드래그로 판정되지 않았다면
+        pointerup 시 처음 눌렀던 대상을 공격합니다.
+      */
+      const fieldEntityPressState = {
+        active: false,
+        pointerId: null,
+        entityType: "",
+        entityId: null
       };
 
       let inventoryCurrentPage = 0;
@@ -3657,12 +3782,35 @@
         return changed;
       }
 
+      function getRepairBlueprintIndex(blueprintId) {
+        if (!blueprintId) return -1;
+        return (repairItemsByCategory.repair || []).findIndex(
+          (item) => item.blueprintId === blueprintId
+        );
+      }
+
+      function getRepairBlueprintItem(blueprintId) {
+        const index = getRepairBlueprintIndex(blueprintId);
+        return index >= 0 ? repairItemsByCategory.repair[index] : null;
+      }
+
+      function getNextRepairBlueprintSlotIndex() {
+        return (repairItemsByCategory.repair || []).findIndex(
+          (item) =>
+            !item.unlocked &&
+            !item.built &&
+            !item.isNew &&
+            !item.blueprintId &&
+            !item.name
+        );
+      }
+
       function isShedRepaired() {
-        return repairItemsByCategory.repair?.[SHED_REPAIR_BLUEPRINT_INDEX]?.built === true;
+        return getRepairBlueprintItem(SHED_REPAIR_BLUEPRINT_ID)?.built === true;
       }
 
       function isCarRepaired() {
-        return repairItemsByCategory.repair?.[CAR_REPAIR_BLUEPRINT_INDEX]?.built === true;
+        return getRepairBlueprintItem(CAR_REPAIR_BLUEPRINT_ID)?.built === true;
       }
 
       function getRepairCategoryHasNewItems(category) {
@@ -3693,7 +3841,33 @@
         item.materials = { ...(data.materials || {}) };
         item.description = data.description || item.description || "";
         item.builtDescription = data.builtDescription || item.builtDescription || data.description || "";
+        if (typeof data.blueprintId === "string") {
+          item.blueprintId = data.blueprintId;
+        }
         return true;
+      }
+
+      function ensureRepairBlueprintSlot(blueprintId) {
+        const existingIndex = getRepairBlueprintIndex(blueprintId);
+        if (existingIndex >= 0) return existingIndex;
+
+        const definition = REPAIR_BLUEPRINT_DEFINITIONS[blueprintId];
+        if (!definition) return -1;
+
+        const nextIndex = getNextRepairBlueprintSlotIndex();
+        if (nextIndex < 0) return -1;
+
+        configureRepairItem("repair", nextIndex, {
+          ...definition,
+          blueprintId
+        });
+        return nextIndex;
+      }
+
+      function unlockRepairBlueprint(blueprintId) {
+        const index = ensureRepairBlueprintSlot(blueprintId);
+        if (index < 0) return false;
+        return markRepairBlueprintAsNew("repair", index);
       }
 
       function unlockWoodenFenceBlueprint() {
@@ -3708,25 +3882,45 @@
       }
 
       function unlockShedRepairBlueprint() {
-        configureRepairItem("repair", SHED_REPAIR_BLUEPRINT_INDEX, {
-          name: "Shed Repair",
-          materials: { wood: 10 },
-          builtDescription: "Get the old shed standing again.\nMax Food +2\nMax Wood +5"
-        });
-        if (markRepairBlueprintAsNew("repair", SHED_REPAIR_BLUEPRINT_INDEX)) {
+        if (unlockRepairBlueprint(SHED_REPAIR_BLUEPRINT_ID)) {
           saveResourceState();
         }
       }
 
-      function unlockCarRepairBlueprint() {
-        configureRepairItem("repair", CAR_REPAIR_BLUEPRINT_INDEX, {
-          name: "Car Repair",
-          materials: { repairKit: 1, carParts: 3 },
-          builtDescription: "Might get it running again."
+      function configureExplorationBlueprintDefinitions() {
+        configureRepairItem("outdoor", WHITE_FENCE_BLUEPRINT_INDEX, {
+          name: "White Fence",
+          materials: { wood: 5, whitePaint: 1 },
+          builtDescription: "Clean and simple."
         });
-        if (markRepairBlueprintAsNew("repair", CAR_REPAIR_BLUEPRINT_INDEX)) {
+        configureRepairItem("buildings", TIMBER_ROOF_BLUEPRINT_INDEX, {
+          name: "Timber Roof",
+          materials: { wood: 10 },
+          builtDescription: "Warm wood, built to last."
+        });
+        configureRepairItem("buildings", CHARCOAL_ROOF_BLUEPRINT_INDEX, {
+          name: "Charcoal Roof",
+          materials: { wood: 10, whitePaint: 1, blackPaint: 1 },
+          builtDescription: "Dark wood with a quiet look."
+        });
+        configureRepairItem("buildings", TIMBER_WALLS_BLUEPRINT_INDEX, {
+          name: "Timber Walls",
+          materials: { wood: 15 },
+          builtDescription: "Natural wood, warm and sturdy."
+        });
+        configureRepairItem("buildings", MINT_WALLS_BLUEPRINT_INDEX, {
+          name: "Mint Walls",
+          materials: { wood: 15, whitePaint: 1, greenPaint: 1 },
+          builtDescription: "A fresh touch of mint and white."
+        });
+      }
+
+      function unlockCarRepairBlueprint() {
+        if (unlockRepairBlueprint(CAR_REPAIR_BLUEPRINT_ID)) {
           saveResourceState();
+          return true;
         }
+        return false;
       }
 
       function applyMailboxVisibility() {
@@ -3949,6 +4143,96 @@
         return normalized;
       }
 
+      function inferRepairBlueprintId(item) {
+        if (item?.blueprintId && REPAIR_BLUEPRINT_DEFINITIONS[item.blueprintId]) {
+          return item.blueprintId;
+        }
+
+        const normalizedName = String(item?.name || "").trim().toLowerCase();
+        if (normalizedName === "shed repair" || normalizedName === "repaired shed") {
+          return SHED_REPAIR_BLUEPRINT_ID;
+        }
+        if (normalizedName === "car repair") {
+          return CAR_REPAIR_BLUEPRINT_ID;
+        }
+        return item?.blueprintId || "";
+      }
+
+      function resetRepairBlueprintItem(item) {
+        item.name = "";
+        item.unlocked = false;
+        item.built = false;
+        item.isNew = false;
+        item.materials = {};
+        item.description = "";
+        item.builtDescription = "";
+        item.blueprintId = "";
+      }
+
+      function compactRepairBlueprintSlots() {
+        const items = repairItemsByCategory.repair || [];
+        const selectedIndex = repairSelectedItemByCategory.repair;
+        const selectedItem = selectedIndex >= 0 ? items[selectedIndex] : null;
+        const selectedBlueprintId = inferRepairBlueprintId(selectedItem);
+        const selectedLegacyName = String(selectedItem?.name || "");
+
+        const acquiredItems = [];
+        const seenKeys = new Set();
+        for (let index = 0; index < items.length; index += 1) {
+          const item = items[index];
+          if (!item || (!item.unlocked && !item.built && !item.isNew)) continue;
+
+          const blueprintId = inferRepairBlueprintId(item);
+          const key = blueprintId || `legacy:${String(item.name || "").toLowerCase()}:${index}`;
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          acquiredItems.push({
+            ...item,
+            materials: { ...item.materials },
+            blueprintId
+          });
+        }
+
+        for (const item of items) {
+          resetRepairBlueprintItem(item);
+        }
+
+        acquiredItems.forEach((storedItem, index) => {
+          const targetItem = items[index];
+          if (!targetItem) return;
+          const definition = REPAIR_BLUEPRINT_DEFINITIONS[storedItem.blueprintId];
+          if (definition) {
+            configureRepairItem("repair", index, {
+              ...definition,
+              blueprintId: storedItem.blueprintId
+            });
+          } else {
+            targetItem.name = storedItem.name || "";
+            targetItem.materials = { ...storedItem.materials };
+            targetItem.description = storedItem.description || "";
+            targetItem.builtDescription = storedItem.builtDescription || storedItem.description || "";
+            targetItem.blueprintId = storedItem.blueprintId || "";
+          }
+          targetItem.unlocked = storedItem.unlocked === true || storedItem.built === true;
+          targetItem.built = storedItem.built === true;
+          targetItem.isNew = storedItem.isNew === true;
+        });
+
+        if (selectedBlueprintId) {
+          repairSelectedItemByCategory.repair = getRepairBlueprintIndex(selectedBlueprintId);
+        } else if (selectedLegacyName) {
+          repairSelectedItemByCategory.repair = items.findIndex(
+            (item) => item.unlocked && item.name === selectedLegacyName
+          );
+        } else {
+          repairSelectedItemByCategory.repair = -1;
+        }
+
+        if (repairSelectedItemByCategory.repair < 0) {
+          repairSelectedItemByCategory.repair = -1;
+        }
+      }
+
       function loadRepairState(value) {
         if (!value || typeof value !== "object") return;
 
@@ -4008,6 +4292,9 @@
             targetItem.builtDescription = typeof storedItem.builtDescription === "string"
               ? storedItem.builtDescription
               : targetItem.builtDescription;
+            targetItem.blueprintId = typeof storedItem.blueprintId === "string"
+              ? storedItem.blueprintId
+              : targetItem.blueprintId;
           }
 
           const definition = REPAIR_CATEGORY_DEFINITIONS[category];
@@ -4043,6 +4330,9 @@
             repairAppliedItemByCategory[category] = getRepairInitialIndex(category, appliedIndex);
           }
         }
+
+        // 기존 고정 슬롯 저장값도 획득된 순서를 유지한 채 첫 칸부터 빈틈없이 재배치합니다.
+        compactRepairBlueprintSlots();
       }
 
       function serializeRepairState() {
@@ -4066,7 +4356,8 @@
                 isNew: item.isNew,
                 materials: { ...item.materials },
                 description: item.description,
-                builtDescription: item.builtDescription
+                builtDescription: item.builtDescription,
+                blueprintId: item.blueprintId
               }))
             ])
           )
@@ -4103,6 +4394,7 @@
         if (resource === "food") return foodCount;
         if (resource === "carParts") return carPartsCount;
         if (resource === "repairKit") return hasRepairKit ? 1 : 0;
+        if (resource in paintCounts) return paintCounts[resource];
         return 0;
       }
 
@@ -4111,6 +4403,13 @@
         if (resource === "food") foodCount = Math.max(0, amount);
         if (resource === "carParts") carPartsCount = clamp(Math.round(Number(amount) || 0), 0, getMaxCarPartsCount());
         if (resource === "repairKit") hasRepairKit = amount > 0;
+        if (resource in paintCounts) {
+          paintCounts[resource] = clamp(
+            Math.round(Number(amount) || 0),
+            0,
+            MAX_INVENTORY_QUANTITY
+          );
+        }
       }
 
       function canAffordRepairMaterials(materials) {
@@ -4253,7 +4552,13 @@
             wood: "Wood",
             food: "Food",
             carParts: "Car Parts",
-            repairKit: "Repair Kit"
+            repairKit: "Repair Kit",
+            whitePaint: "White Paint",
+            blackPaint: "Black Paint",
+            redPaint: "Red Paint",
+            yellowPaint: "Yellow Paint",
+            bluePaint: "Blue Paint",
+            greenPaint: "Green Paint"
           };
           const materialEntries = Object.entries(item.materials);
           if (materialEntries.length === 0) {
@@ -4269,13 +4574,7 @@
               line.classList.toggle("is-complete", current >= required);
               repairItemDescription.append(line);
             }
-            // 수리 항목 설명은 완료 전에는 숨기고, 재료 표시가 사라진 뒤 같은 위치에 표시합니다.
-            if (repairSelectedCategory !== "repair" && item.description) {
-              const desc = document.createElement("span");
-              desc.className = "repair-material-line";
-              desc.textContent = item.description;
-              repairItemDescription.append(desc);
-            }
+            // 획득 직후에는 이름과 재료만 표시하고, 제작 후 재료 대신 설명을 표시합니다.
           }
         }
 
@@ -4300,8 +4599,7 @@
       }
 
       function syncRepairCompletionLabels() {
-        const shedRepairItem =
-          repairItemsByCategory.repair?.[SHED_REPAIR_BLUEPRINT_INDEX];
+        const shedRepairItem = getRepairBlueprintItem(SHED_REPAIR_BLUEPRINT_ID);
         if (shedRepairItem?.unlocked) {
           shedRepairItem.name = shedRepairItem.built
             ? "Repaired Shed"
@@ -4316,6 +4614,42 @@
       function updateInstalledStructureVisibility() {
         const appliedFenceIndex = repairAppliedItemBySection.outdoor.fence || 0;
         fenceObject.hidden = appliedFenceIndex === 0;
+        fenceObject.style.setProperty(
+          "--fence-frame-position",
+          appliedFenceIndex === WHITE_FENCE_BLUEPRINT_INDEX
+            ? "right top"
+            : "left top"
+        );
+
+        const appliedRoofIndex = repairAppliedItemBySection.buildings.roof || 5;
+        const appliedWallsIndex = repairAppliedItemBySection.buildings.walls || 10;
+        houseObject.style.setProperty(
+          "--house-roof-image",
+          appliedRoofIndex === TIMBER_ROOF_BLUEPRINT_INDEX ||
+          appliedRoofIndex === CHARCOAL_ROOF_BLUEPRINT_INDEX
+            ? 'url("images/house_1_roof.png")'
+            : "none"
+        );
+        houseObject.style.setProperty(
+          "--house-roof-position",
+          appliedRoofIndex === CHARCOAL_ROOF_BLUEPRINT_INDEX
+            ? "right top"
+            : "left top"
+        );
+        houseObject.style.setProperty(
+          "--house-walls-image",
+          appliedWallsIndex === TIMBER_WALLS_BLUEPRINT_INDEX ||
+          appliedWallsIndex === MINT_WALLS_BLUEPRINT_INDEX
+            ? 'url("images/house_1_walls.png")'
+            : "none"
+        );
+        houseObject.style.setProperty(
+          "--house-walls-position",
+          appliedWallsIndex === MINT_WALLS_BLUEPRINT_INDEX
+            ? "right top"
+            : "left top"
+        );
+
         applyMailboxVisibility();
         shedObject.style.setProperty(
           "--shed-frame-position",
@@ -4373,10 +4707,10 @@
           consumeRepairMaterials(item.materials);
           item.built = true;
           item.isNew = false;
-          if (selectedIndex === SHED_REPAIR_BLUEPRINT_INDEX) {
+          if (item.blueprintId === SHED_REPAIR_BLUEPRINT_ID) {
             setTodoProgress(2, "item3", true);
           }
-          if (selectedIndex === CAR_REPAIR_BLUEPRINT_INDEX) {
+          if (item.blueprintId === CAR_REPAIR_BLUEPRINT_ID) {
             setTodoProgress(3, "item3", true);
           }
           updateResourceHud();
@@ -4398,6 +4732,7 @@
           item.isNew = false;
           updateResourceHud();
           applyRepairState();
+          applyInventoryState();
           saveResourceState();
           return;
         }
@@ -4416,6 +4751,8 @@
       }
 
       function loadResourceState() {
+        configureExplorationBlueprintDefinitions();
+
         try {
           const saved = localStorage.getItem(RESOURCE_STORAGE_KEY);
           if (!saved) {
@@ -4517,6 +4854,15 @@
           hasStrangerLetter = parsed.hasStrangerLetter === true;
           isStrangerLetterOn = hasStrangerLetter && parsed.isStrangerLetterOn !== false;
           carPartsCount = normalizeStoredCount(parsed.carParts, getMaxCarPartsCount());
+          const storedPaintCounts = parsed.paintCounts && typeof parsed.paintCounts === "object"
+            ? parsed.paintCounts
+            : {};
+          for (const itemType of Object.keys(paintCounts)) {
+            paintCounts[itemType] = normalizeStoredCount(
+              storedPaintCounts[itemType] ?? parsed[itemType],
+              MAX_INVENTORY_QUANTITY
+            );
+          }
           hasRepairKit = parsed.hasRepairKit === true;
           mailboxIntroTriggered = parsed.mailboxIntroTriggered === true;
           currentTodoListId = clamp(Math.round(Number(parsed.currentTodoListId) || 0), 0, 3);
@@ -4574,6 +4920,11 @@
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
           loadRepairState(parsed.repairState);
+          // 이전 저장 파일의 비어 있던 설계도 슬롯이 새 정의를 덮지 않게 다시 적용합니다.
+          configureExplorationBlueprintDefinitions();
+          hasRepairButtonNew = REPAIR_CATEGORY_ORDER.some(
+            (category) => getRepairCategoryHasNewItems(category)
+          );
         } catch (_) {
           // file:// 환경 등에서 저장소를 사용할 수 없어도 게임은 계속 동작합니다.
         }
@@ -4622,6 +4973,7 @@
               hasStrangerLetter,
               isStrangerLetterOn,
               carParts: carPartsCount,
+              paintCounts: { ...paintCounts },
               hasRepairKit,
               mailboxIntroTriggered,
               currentTodoListId,
@@ -5081,7 +5433,14 @@
       }
 
       function hasAnyInventoryItem() {
-        return hasAxe || hasHandgun || hasHandgunAmmo || hasMusicBox || hasStrangerLetter || hasCompass || carPartsCount > 0;
+        return hasAxe ||
+          hasHandgun ||
+          hasHandgunAmmo ||
+          hasMusicBox ||
+          hasStrangerLetter ||
+          hasCompass ||
+          carPartsCount > 0 ||
+          Object.values(paintCounts).some((count) => count > 0);
       }
 
       function getFirstVisibleInventoryItem() {
@@ -5555,45 +5914,77 @@
         );
       }
 
-      function awardVillageExplorationRewards() {
-        if (!repairItemsByCategory.repair[CAR_REPAIR_BLUEPRINT_INDEX].unlocked && Math.random() < 0.05) {
-          unlockCarRepairBlueprint();
-        }
+      function tryAwardExplorationBlueprint(destination) {
+        const dropChance = EXPLORATION_BLUEPRINT_DROP_CHANCE[destination] || 0;
+        const candidates = EXPLORATION_BLUEPRINT_REWARDS.filter((reward) => {
+          if (reward.category === "repair" && reward.blueprintId) {
+            return getRepairBlueprintItem(reward.blueprintId)?.unlocked !== true;
+          }
+          return repairItemsByCategory[reward.category]?.[reward.index]?.unlocked !== true;
+        });
 
-        const candidates = [];
-        if (!hasHandgun) {
-          candidates.push("handgun");
+        // 탐험 한 번당 설계도 확률은 여기서 정확히 한 번만 판정합니다.
+        if (dropChance <= 0 || candidates.length === 0 || Math.random() >= dropChance) {
+          return false;
         }
-        if (handgunAmmoCount < MAX_INVENTORY_QUANTITY) {
-          candidates.push("handgunAmmo");
-        }
-        if (carPartsCount < getMaxCarPartsCount()) {
-          candidates.push("carParts");
-        }
-
-        if (candidates.length === 0) return;
 
         const reward = candidates[Math.floor(Math.random() * candidates.length)];
+        const awarded = reward.category === "repair" && reward.blueprintId
+          ? unlockRepairBlueprint(reward.blueprintId)
+          : markRepairBlueprintAsNew(reward.category, reward.index);
+        if (awarded) {
+          applyRepairState();
+        }
+        return awarded;
+      }
 
+      function awardExplorationItem() {
+        const candidates = [];
+
+        if (!hasHandgun) candidates.push("handgun");
+        if (handgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("handgunAmmo");
+        if (carPartsCount < getMaxCarPartsCount()) candidates.push("carParts");
+        for (const itemType of Object.keys(paintCounts)) {
+          if (paintCounts[itemType] < MAX_INVENTORY_QUANTITY) {
+            candidates.push(itemType);
+          }
+        }
+
+        if (candidates.length === 0) return false;
+
+        const reward = candidates[Math.floor(Math.random() * candidates.length)];
         if (reward === "handgun") {
           hasHandgun = true;
-          markInventoryItemAsNew("handgun");
-          applyInventoryState();
-          return;
-        }
-
-        if (reward === "handgunAmmo") {
-          const acquiredAmmo = Math.floor(Math.random() * 10) + 1;
+        } else if (reward === "handgunAmmo") {
           hasHandgunAmmo = true;
-          handgunAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, handgunAmmoCount + acquiredAmmo);
-          markInventoryItemAsNew("handgunAmmo");
-          applyInventoryState();
-          return;
+          handgunAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            handgunAmmoCount + 1
+          );
+        } else if (reward === "carParts") {
+          carPartsCount = Math.min(
+            getMaxCarPartsCount(),
+            carPartsCount + 1
+          );
+        } else if (reward in paintCounts) {
+          paintCounts[reward] = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            paintCounts[reward] + 1
+          );
         }
 
-        carPartsCount = Math.min(getMaxCarPartsCount(), carPartsCount + 1);
-        markInventoryItemAsNew("carParts");
+        markInventoryItemAsNew(reward);
         applyInventoryState();
+        return true;
+      }
+
+      function awardExplorationRewards(destination) {
+        configureExplorationBlueprintDefinitions();
+        if (tryAwardExplorationBlueprint(destination)) {
+          // 설계도를 얻은 탐험에서는 아이템을 함께 얻지 않습니다.
+          return;
+        }
+        awardExplorationItem();
       }
 
       function finishExploration() {
@@ -5628,12 +6019,12 @@
 
         if (completedDestination === "village") {
           setTodoProgress(1, "item3", true);
-          awardVillageExplorationRewards();
         } else if (completedDestination === "forest") {
           woodCount = Math.min(getMaxWoodCount(), woodCount + 10);
           setTodoProgress(3, "item2", true);
         }
 
+        awardExplorationRewards(completedDestination);
         commitResourceState({ animateDay: true });
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
@@ -5842,6 +6233,8 @@
           preloadImage(DEAD_SHEET),
           preloadImage(BIRTH_DEATH_SHEET),
           preloadImage(DEER_SHEET),
+          preloadImage("images/house_1_roof.png"),
+          preloadImage("images/house_1_walls.png"),
           preloadImage(STUMP_WITH_AXE_IMAGE),
           preloadImage(STUMP_EMPTY_IMAGE),
           preloadImage(NIGHT_BACKGROUND_IMAGE),
@@ -6034,6 +6427,9 @@
           scheduleEmptyFieldZombieSpawn();
           scheduleEmptyFieldDeerSpawn();
         }
+
+        // 대상 요소에서 pointerup을 받지 못한 예외 상황에도 눌림 상태를 남기지 않습니다.
+        clearFieldEntityPressState(event.pointerId);
       }
 
       function shouldActivateFieldObject(event, element = event?.currentTarget) {
@@ -7293,6 +7689,13 @@
           setInventoryValue(carPartsInventoryItem, `×${carPartsCount}`);
         }
 
+        for (const [itemType, item] of Object.entries(paintInventoryItems)) {
+          if (!item) continue;
+          const count = paintCounts[itemType] || 0;
+          item.hidden = count <= 0;
+          setInventoryValue(item, `×${count}`);
+        }
+
         applyInventoryItemNewTagState();
         rebuildInventoryPages();
       }
@@ -8006,6 +8409,8 @@
 
         zombie.sprite.style.transform = facingTransform;
         zombie.overlay.style.transform = facingTransform;
+        zombie.nightSprite.style.transform = facingTransform;
+        zombie.nightOverlay.style.transform = facingTransform;
       }
 
       function getTreeRenderScale() {
@@ -8070,12 +8475,17 @@
       }
 
       function showSingleFrame(zombie, sheet, frameIndex) {
-        zombie.sprite.style.backgroundImage = `url("${sheet}")`;
-        zombie.sprite.style.backgroundPosition =
-          framePosition(frameIndex);
-        zombie.sprite.style.opacity = "1";
+        const position = framePosition(frameIndex);
 
+        zombie.sprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.sprite.style.backgroundPosition = position;
+        zombie.sprite.style.opacity = "1";
         zombie.overlay.style.opacity = "0";
+
+        zombie.nightSprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.nightSprite.style.backgroundPosition = position;
+        zombie.nightSprite.style.opacity = "1";
+        zombie.nightOverlay.style.opacity = "0";
       }
 
       function showCrossfade(
@@ -8088,17 +8498,24 @@
       ) {
         const clampedProgress = clamp(progress, 0, 1);
 
-        zombie.sprite.style.backgroundImage = `url("${fromSheet}")`;
-        zombie.sprite.style.backgroundPosition =
-          framePosition(fromFrameIndex);
-        zombie.sprite.style.opacity =
-          String(1 - clampedProgress);
+        const fromPosition = framePosition(fromFrameIndex);
+        const toPosition = framePosition(toFrameIndex);
+        const fromOpacity = String(1 - clampedProgress);
+        const toOpacity = String(clampedProgress);
 
+        zombie.sprite.style.backgroundImage = `url("${fromSheet}")`;
+        zombie.sprite.style.backgroundPosition = fromPosition;
+        zombie.sprite.style.opacity = fromOpacity;
         zombie.overlay.style.backgroundImage = `url("${toSheet}")`;
-        zombie.overlay.style.backgroundPosition =
-          framePosition(toFrameIndex);
-        zombie.overlay.style.opacity =
-          String(clampedProgress);
+        zombie.overlay.style.backgroundPosition = toPosition;
+        zombie.overlay.style.opacity = toOpacity;
+
+        zombie.nightSprite.style.backgroundImage = `url("${fromSheet}")`;
+        zombie.nightSprite.style.backgroundPosition = fromPosition;
+        zombie.nightSprite.style.opacity = fromOpacity;
+        zombie.nightOverlay.style.backgroundImage = `url("${toSheet}")`;
+        zombie.nightOverlay.style.backgroundPosition = toPosition;
+        zombie.nightOverlay.style.opacity = toOpacity;
       }
 
       function setDeerFacing(deer) {
@@ -8107,6 +8524,8 @@
 
         deer.sprite.style.transform = facingTransform;
         deer.overlay.style.transform = facingTransform;
+        deer.nightSprite.style.transform = facingTransform;
+        deer.nightOverlay.style.transform = facingTransform;
       }
 
       function renderDeer(deer) {
@@ -8121,11 +8540,17 @@
       }
 
       function showSingleDeerFrame(deer, frameIndex) {
+        const position = deerFramePosition(frameIndex);
+
         deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.sprite.style.backgroundPosition =
-          deerFramePosition(frameIndex);
+        deer.sprite.style.backgroundPosition = position;
         deer.sprite.style.opacity = "1";
         deer.overlay.style.opacity = "0";
+
+        deer.nightSprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.nightSprite.style.backgroundPosition = position;
+        deer.nightSprite.style.opacity = "1";
+        deer.nightOverlay.style.opacity = "0";
       }
 
       function showDeerCrossfade(
@@ -8136,15 +8561,24 @@
       ) {
         const clampedProgress = clamp(progress, 0, 1);
 
-        deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.sprite.style.backgroundPosition =
-          deerFramePosition(fromFrameIndex);
-        deer.sprite.style.opacity = String(1 - clampedProgress);
+        const fromPosition = deerFramePosition(fromFrameIndex);
+        const toPosition = deerFramePosition(toFrameIndex);
+        const fromOpacity = String(1 - clampedProgress);
+        const toOpacity = String(clampedProgress);
 
+        deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.sprite.style.backgroundPosition = fromPosition;
+        deer.sprite.style.opacity = fromOpacity;
         deer.overlay.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.overlay.style.backgroundPosition =
-          deerFramePosition(toFrameIndex);
-        deer.overlay.style.opacity = String(clampedProgress);
+        deer.overlay.style.backgroundPosition = toPosition;
+        deer.overlay.style.opacity = toOpacity;
+
+        deer.nightSprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.nightSprite.style.backgroundPosition = fromPosition;
+        deer.nightSprite.style.opacity = fromOpacity;
+        deer.nightOverlay.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.nightOverlay.style.backgroundPosition = toPosition;
+        deer.nightOverlay.style.opacity = toOpacity;
       }
 
       function scheduleNextDeerIdleAnimation(deer, now = performance.now()) {
@@ -8281,22 +8715,70 @@
         return candidates.sort((a, b) => b.y - a.y || b.id - a.id)[0] || null;
       }
 
-      function attackEntityAtClientPoint(event) {
+      function clearFieldEntityPressState(pointerId = null) {
+        if (
+          pointerId !== null &&
+          fieldEntityPressState.active &&
+          pointerId !== fieldEntityPressState.pointerId
+        ) {
+          return;
+        }
+
+        fieldEntityPressState.active = false;
+        fieldEntityPressState.pointerId = null;
+        fieldEntityPressState.entityType = "";
+        fieldEntityPressState.entityId = null;
+      }
+
+      function startFieldEntityPress(event) {
+        if (event.button !== undefined && event.button !== 0) return;
+
+        // 겹친 위치에서는 기존 규칙대로 살아 있는 좀비를 사슴보다 우선합니다.
         const zombie = getLivingZombieAtClientPoint(
           event.clientX,
           event.clientY
         );
-        if (zombie) {
-          attackZombie(zombie);
+        const deer = zombie
+          ? null
+          : getLivingDeerAtClientPoint(event.clientX, event.clientY);
+
+        if (!zombie && !deer) {
+          clearFieldEntityPressState();
           return;
         }
 
-        const deer = getLivingDeerAtClientPoint(
-          event.clientX,
-          event.clientY
-        );
-        if (deer) {
-          attackDeer(deer);
+        fieldEntityPressState.active = true;
+        fieldEntityPressState.pointerId = event.pointerId;
+        fieldEntityPressState.entityType = zombie ? "zombie" : "deer";
+        fieldEntityPressState.entityId = zombie ? zombie.id : deer.id;
+      }
+
+      function activatePressedFieldEntity(event) {
+        if (
+          !fieldEntityPressState.active ||
+          event.pointerId !== fieldEntityPressState.pointerId
+        ) {
+          return;
+        }
+
+        const entityType = fieldEntityPressState.entityType;
+        const entityId = fieldEntityPressState.entityId;
+        clearFieldEntityPressState(event.pointerId);
+
+        // 뗀 위치가 이동한 엔티티 위인지 다시 검사하지 않고 드래그 여부만 확인합니다.
+        if (!shouldActivateFieldObject(event, null)) return;
+
+        event.preventDefault();
+
+        if (entityType === "zombie") {
+          const zombie = zombies.get(entityId);
+          if (zombie) attackZombie(zombie);
+          return;
+        }
+
+        if (entityType === "deer") {
+          const deer = deerMap.get(entityId);
+          if (deer) attackDeer(deer);
         }
       }
 
@@ -8323,11 +8805,23 @@
         element.setAttribute("aria-label", "Deer");
         element.style.opacity = "0";
 
+        const dayVisual = document.createElement("div");
+        dayVisual.className = "deer-visual-layer deer-visual-day";
+
+        const nightVisual = document.createElement("div");
+        nightVisual.className = "deer-visual-layer deer-visual-night";
+
         const sprite = document.createElement("div");
         sprite.className = "deer-sprite";
 
         const overlay = document.createElement("div");
         overlay.className = "deer-sprite-overlay";
+
+        const nightSprite = document.createElement("div");
+        nightSprite.className = "deer-sprite";
+
+        const nightOverlay = document.createElement("div");
+        nightOverlay.className = "deer-sprite-overlay";
 
         const hitbox = document.createElement("div");
         hitbox.className = "deer-hitbox";
@@ -8335,8 +8829,12 @@
         hitbox.setAttribute("tabindex", "0");
         hitbox.setAttribute("aria-label", "Attack deer");
 
-        element.appendChild(sprite);
-        element.appendChild(overlay);
+        dayVisual.appendChild(sprite);
+        dayVisual.appendChild(overlay);
+        nightVisual.appendChild(nightSprite);
+        nightVisual.appendChild(nightOverlay);
+        element.appendChild(dayVisual);
+        element.appendChild(nightVisual);
         element.appendChild(hitbox);
         entities.appendChild(element);
 
@@ -8346,6 +8844,8 @@
           element,
           sprite,
           overlay,
+          nightSprite,
+          nightOverlay,
           hitbox,
           x: position.x,
           y: position.y,
@@ -8384,11 +8884,8 @@
 
         renderDeer(deer);
 
-        hitbox.addEventListener("pointerup", (event) => {
-          if (!shouldActivateFieldObject(event, hitbox)) return;
-          event.preventDefault();
-          attackEntityAtClientPoint(event);
-        });
+        hitbox.addEventListener("pointerdown", startFieldEntityPress);
+        hitbox.addEventListener("pointerup", activatePressedFieldEntity);
 
         if (options.persist !== false) {
           saveResourceState();
@@ -8477,6 +8974,28 @@
         startDeerTurnaround(deer);
       }
 
+      function alertNearbyDeer(attackedDeer) {
+        for (const otherDeer of deerMap.values()) {
+          if (
+            otherDeer === attackedDeer ||
+            otherDeer.state === "dying" ||
+            otherDeer.state === "leaving" ||
+            otherDeer.state === "removed"
+          ) {
+            continue;
+          }
+
+          const isInsideAlertArea =
+            Math.abs(otherDeer.x - attackedDeer.x) <= DEER_ALERT_HALF_SIZE &&
+            Math.abs(otherDeer.y - attackedDeer.y) <= DEER_ALERT_HALF_SIZE;
+          if (!isInsideAlertArea) continue;
+
+          // 공격당한 사슴이 오른쪽에 있으면 왼쪽, 왼쪽에 있으면 오른쪽으로 도망갑니다.
+          const escapeDirection = attackedDeer.x >= otherDeer.x ? -1 : 1;
+          beginDeerRunInDirection(otherDeer, escapeDirection, "leaving");
+        }
+      }
+
       function attackDeer(deer) {
         if (isExploring) {
           showExploringBusyToast();
@@ -8505,6 +9024,13 @@
           return;
         }
 
+        if (weapon === "handgun" && handgunAmmoCount <= 0) {
+          playSound(HANDGUN_NO_AMMO_SOUND);
+          showToast(HANDGUN_EMPTY_TOAST_MESSAGE);
+          return;
+        }
+
+        alertNearbyDeer(deer);
         let damage = 0;
 
         if (weapon === "axe") {
@@ -8520,12 +9046,6 @@
           playSound(HIT_SOUND, 0.5);
           damage = AXE_DAMAGE;
         } else {
-          if (handgunAmmoCount <= 0) {
-            playSound(HANDGUN_NO_AMMO_SOUND);
-            showToast(HANDGUN_EMPTY_TOAST_MESSAGE);
-            return;
-          }
-
           handgunAmmoCount -= 1;
           applyInventoryState();
           saveResourceState();
@@ -8787,6 +9307,12 @@
         element.setAttribute("aria-label", "Zombie");
         element.style.opacity = "0";
 
+        const dayVisual = document.createElement("div");
+        dayVisual.className = "zombie-visual-layer zombie-visual-day";
+
+        const nightVisual = document.createElement("div");
+        nightVisual.className = "zombie-visual-layer zombie-visual-night";
+
         const sprite = document.createElement("div");
         sprite.className = "zombie-sprite";
         sprite.style.backgroundImage =
@@ -8795,8 +9321,20 @@
         const overlay = document.createElement("div");
         overlay.className = "zombie-sprite-overlay";
 
-        element.appendChild(sprite);
-        element.appendChild(overlay);
+        const nightSprite = document.createElement("div");
+        nightSprite.className = "zombie-sprite";
+        nightSprite.style.backgroundImage =
+          `url("${BIRTH_DEATH_SHEET}")`;
+
+        const nightOverlay = document.createElement("div");
+        nightOverlay.className = "zombie-sprite-overlay";
+
+        dayVisual.appendChild(sprite);
+        dayVisual.appendChild(overlay);
+        nightVisual.appendChild(nightSprite);
+        nightVisual.appendChild(nightOverlay);
+        element.appendChild(dayVisual);
+        element.appendChild(nightVisual);
         entities.appendChild(element);
 
         const skipBirth = options.skipBirth === true;
@@ -8805,6 +9343,8 @@
           element,
           sprite,
           overlay,
+          nightSprite,
+          nightOverlay,
           x: position.x,
           y: position.y,
           direction,
@@ -8830,7 +9370,9 @@
           zombie.element.style.opacity = "1";
           showSingleFrame(zombie, WALK_SHEET, zombie.walkFrame);
         } else {
-          zombie.sprite.style.backgroundPosition = framePosition(0);
+          const birthPosition = framePosition(0);
+          zombie.sprite.style.backgroundPosition = birthPosition;
+          zombie.nightSprite.style.backgroundPosition = birthPosition;
         }
 
         renderZombie(zombie);
@@ -8838,11 +9380,8 @@
           playSound(BIRTH_SOUND, 0.5);
         }
 
-        element.addEventListener("pointerup", (event) => {
-          if (!shouldActivateFieldObject(event, element)) return;
-          event.preventDefault();
-          attackEntityAtClientPoint(event);
-        });
+        element.addEventListener("pointerdown", startFieldEntityPress);
+        element.addEventListener("pointerup", activatePressedFieldEntity);
 
         if (options.persist !== false) {
           saveResourceState();
@@ -9331,6 +9870,9 @@
             zombie.sprite.style.backgroundImage = `url("${WALK_SHEET}")`;
             zombie.sprite.style.opacity = "1";
             zombie.overlay.style.opacity = "0";
+            zombie.nightSprite.style.backgroundImage = `url("${WALK_SHEET}")`;
+            zombie.nightSprite.style.opacity = "1";
+            zombie.nightOverlay.style.opacity = "0";
           } else {
             showSingleFrame(
               zombie,
@@ -10022,6 +10564,11 @@
           if (itemType === "carParts" && carPartsCount > 0) {
             playSound(INVENTORY_SET_SOUND);
             showToast(CAR_PARTS_SELECTED_TOAST_MESSAGE);
+            return;
+          }
+
+          if (itemType in paintCounts && paintCounts[itemType] > 0) {
+            playSound(INVENTORY_SET_SOUND);
             return;
           }
         });
