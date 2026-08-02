@@ -1124,6 +1124,7 @@
       height: 32px;
       object-fit: contain;
       pointer-events: none;
+      transform: translateY(-2px);
     }
 
     .hud-action-button__label {
@@ -1810,7 +1811,7 @@
       justify-content: center;
       gap: 7px;
       min-height: 6px;
-      margin-top: 16px;
+      margin-top: 21px;
     }
 
     .inventory-pagination[hidden] {
@@ -1885,7 +1886,7 @@
 
     .inventory-item-new-badge {
       position: absolute;
-      right: calc(100% + 12px);
+      right: calc(100% + 10px);
       top: 50%;
       display: inline-block;
       width: 26px;
@@ -2454,7 +2455,7 @@
 -->
 <body
   class="is-initializing-status"
-  data-game-version="0.075"
+  data-game-version="0.076"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2837,7 +2838,7 @@
       const STORAGE_MAX_FOOD_COUNT = UPGRADED_MAX_FOOD_COUNT;
       const STORAGE_MAX_WOOD_COUNT = UPGRADED_MAX_WOOD_COUNT;
       const MAX_INVENTORY_QUANTITY = 99;
-      const INVENTORY_ITEMS_PER_PAGE = 10;
+      const INVENTORY_ITEMS_PER_PAGE = 5;
       const INVENTORY_DOT_PAGE_LIMIT = 5;
 
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
