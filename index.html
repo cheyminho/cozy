@@ -73,7 +73,7 @@
       --roof-size: 244px;
 
       --walls-left: 902px;
-      --walls-top: 870px;
+      --walls-top: 868px;
       --walls-size: 244px;
 
       /* 나무 위치와 표시 배율. 뎁스 영역 판정도 이 값을 함께 사용합니다. */
@@ -2465,8 +2465,8 @@
   data-reset-save-on-version-mismatch="false" : 버전이 달라도 저장 유지
 -->
 <body
-  class="is-initializing-status"
-  data-game-version="0.078"
+  class="is-initializing-stat9s"
+  data-game-version="0.079"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2852,6 +2852,15 @@
       const INVENTORY_ITEMS_PER_PAGE = 5;
       const INVENTORY_DOT_PAGE_LIMIT = 5;
 
+      /*
+        탐험에서 수량 아이템을 한 번 획득할 때의 수량 범위입니다.
+        별도 규칙이 없는 수량 아이템은 아래 헬퍼에서 기본 1개로 처리합니다.
+        앞으로 아이템별 획득 수량이 추가되면 이 객체에 범위만 등록하면 됩니다.
+      */
+      const EXPLORATION_ITEM_QUANTITY_RANGES = Object.freeze({
+        handgunAmmo: Object.freeze({ min: 5, max: 20 })
+      });
+
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
       // 같은 타입 안에서는 화면에 표시되는 영문 이름 기준으로 정렬합니다.
       const INVENTORY_ITEM_SORT_GROUPS = Object.freeze({
@@ -3091,6 +3100,8 @@
       const TREE_GROWTH_READY = "ready";
       const TREE_GROWTH_DEPLETED = "depleted";
       const TREE_GROWTH_REGROWING = "regrowing";
+      // 완전히 벤 나무는 부분 회복 상태에서 하루를 더 유지합니다.
+      const TREE_GROWTH_REGROWING_HOLD = "regrowingHold";
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
@@ -5015,7 +5026,8 @@
           treeGrowthState = [
             TREE_GROWTH_READY,
             TREE_GROWTH_DEPLETED,
-            TREE_GROWTH_REGROWING
+            TREE_GROWTH_REGROWING,
+            TREE_GROWTH_REGROWING_HOLD
           ].includes(parsed.treeGrowthState)
             ? parsed.treeGrowthState
             : (treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH
@@ -6254,6 +6266,18 @@
         return awarded;
       }
 
+      function getExplorationItemQuantityRange(itemType) {
+        const configuredRange = EXPLORATION_ITEM_QUANTITY_RANGES[itemType];
+        const min = Math.max(1, Math.round(Number(configuredRange?.min) || 1));
+        const max = Math.max(min, Math.round(Number(configuredRange?.max) || min));
+        return { min, max };
+      }
+
+      function rollExplorationItemQuantity(itemType) {
+        const { min, max } = getExplorationItemQuantityRange(itemType);
+        return min + Math.floor(Math.random() * (max - min + 1));
+      }
+
       function awardExplorationItem() {
         const candidates = [];
 
@@ -6275,17 +6299,17 @@
           hasHandgunAmmo = true;
           handgunAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            handgunAmmoCount + 1
+            handgunAmmoCount + rollExplorationItemQuantity(reward)
           );
         } else if (reward === "carParts") {
           carPartsCount = Math.min(
             getMaxCarPartsCount(),
-            carPartsCount + 1
+            carPartsCount + rollExplorationItemQuantity(reward)
           );
         } else if (reward in paintCounts) {
           paintCounts[reward] = Math.min(
             MAX_INVENTORY_QUANTITY,
-            paintCounts[reward] + 1
+            paintCounts[reward] + rollExplorationItemQuantity(reward)
           );
         }
 
@@ -6339,7 +6363,11 @@
           treeGrowthState = TREE_GROWTH_REGROWING;
           treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
         } else if (treeGrowthState === TREE_GROWTH_REGROWING) {
-          // 고갈 후 두 번째 탐험 완료: 완전 회복 + 투두 완료
+          // 두 번째 탐험 완료: 부분 회복 상태에서 하루 더 머뭅니다.
+          treeGrowthState = TREE_GROWTH_REGROWING_HOLD;
+          treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
+        } else if (treeGrowthState === TREE_GROWTH_REGROWING_HOLD) {
+          // 고갈 후 세 번째 탐험 완료: 완전 회복 + 투두 완료
           treeGrowthState = TREE_GROWTH_READY;
           treeChopCount = 0;
           setTodoProgress(2, "item2", true);
@@ -8425,7 +8453,10 @@
 
       function getTreePersistentVisualStage() {
         if (treeGrowthState === TREE_GROWTH_DEPLETED) return 3;
-        if (treeGrowthState === TREE_GROWTH_REGROWING) return 2;
+        if (
+          treeGrowthState === TREE_GROWTH_REGROWING ||
+          treeGrowthState === TREE_GROWTH_REGROWING_HOLD
+        ) return 2;
         if (treeChopCount >= 2) return 3;
         if (treeChopCount >= 1) return 2;
         return 1;
