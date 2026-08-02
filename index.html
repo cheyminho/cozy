@@ -402,13 +402,25 @@
       transform: translateY(-50%);
     }
 
-    #todoDoneNote {
+    #todoDoneNote,
+    #todoRewardNote {
       display: block;
-      margin-top: 4px;
+      color: inherit;
+      font: inherit;
+      text-transform: lowercase;
       opacity: 1;
     }
 
-    #todoDoneNote[hidden] {
+    #todoDoneNote {
+      margin-top: 5px;
+    }
+
+    #todoRewardNote {
+      margin-top: -4px;
+    }
+
+    #todoDoneNote[hidden],
+    #todoRewardNote[hidden] {
       display: none;
     }
 
@@ -2466,7 +2478,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.079"
+  data-game-version="0.080"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2595,6 +2607,7 @@
     <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
     <span class="todo-item" data-todo-key="item3">explore the village</span>
     <span id="todoDoneNote" hidden>when done, write back.</span>
+    <span id="todoRewardNote" hidden></span>
   </div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
@@ -3433,6 +3446,7 @@
         document.querySelectorAll("#todoListOverlay .todo-item")
       );
       const todoDoneNote = document.getElementById("todoDoneNote");
+      const todoRewardNote = document.getElementById("todoRewardNote");
       const hudActionButtons = [
         repairButton,
         inventoryButton,
@@ -4214,6 +4228,11 @@
           ]
         };
 
+        const rewardTexts = {
+          1: "i'll send you a decor blueprint.",
+          2: "i'll send you a compass."
+        };
+
         const visible =
           hasStrangerLetter &&
           isStrangerLetterOn &&
@@ -4236,7 +4255,14 @@
           element.classList.toggle("is-complete", progress[key] === true);
         });
 
-        todoDoneNote.hidden = !isTodoListComplete(currentTodoListId);
+        const isComplete = isTodoListComplete(currentTodoListId);
+        const rewardText = rewardTexts[currentTodoListId] || "";
+
+        todoDoneNote.hidden = !isComplete;
+        if (todoRewardNote) {
+          todoRewardNote.textContent = rewardText;
+          todoRewardNote.hidden = !isComplete || !rewardText;
+        }
       }
 
       function handleMailboxInteraction(event) {
