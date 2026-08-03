@@ -2570,7 +2570,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.091"
+  data-game-version="0.092"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2996,7 +2996,8 @@
       });
 
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
-      // 같은 타입 안에서는 화면에 표시되는 영문 이름 기준으로 정렬합니다.
+      // 수량 아이템은 체인소우 배터리 → 탄약 → 페인트 → 나머지 순서이며,
+      // 같은 하위 그룹 안에서는 화면에 표시되는 영문 이름 기준으로 정렬합니다.
       const INVENTORY_ITEM_SORT_GROUPS = Object.freeze({
         musicBox: 0,
         strangerLetter: 0,
@@ -3018,6 +3019,18 @@
         bluePaint: 2,
         greenPaint: 2,
         compass: 3
+      });
+      const INVENTORY_QUANTITY_SORT_GROUPS = Object.freeze({
+        chainsawBattery: 0,
+        handgunAmmo: 1,
+        shotgunAmmo: 1,
+        rifleAmmo: 1,
+        whitePaint: 2,
+        blackPaint: 2,
+        redPaint: 2,
+        yellowPaint: 2,
+        bluePaint: 2,
+        greenPaint: 2
       });
 
       // 화면에 표시하지 않는 전투 수치입니다.
@@ -3052,6 +3065,10 @@
       const RESET_SAVE_ON_VERSION_MISMATCH =
         document.body.dataset.resetSaveOnVersionMismatch === "true";
       const TEST_MODE = true;
+      // 테스트 모드 v 버튼으로 지급할 탄약 수량과 체인소우 배터리 잔량입니다.
+      // 지급값과 다시 눌렀을 때의 초기화 판정이 이 값을 함께 사용합니다.
+      const TEST_AMMO_QUANTITY = 3;
+      const TEST_CHAINSAW_BATTERY_PERCENT = 5;
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
       const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
       const DAY_NUMBER_ROLL_FALLBACK_MS = 1_100;
@@ -6380,12 +6397,26 @@
         return INVENTORY_ITEM_SORT_GROUPS[itemType] ?? 3;
       }
 
+      function getInventoryQuantitySortGroup(item) {
+        const itemType = item?.dataset.item || "";
+        return INVENTORY_QUANTITY_SORT_GROUPS[itemType] ?? 3;
+      }
+
       function sortInventoryItems(items) {
         return [...items].sort((leftItem, rightItem) => {
-          const groupDifference =
-            getInventoryItemSortGroup(leftItem) -
-            getInventoryItemSortGroup(rightItem);
+          const leftGroup = getInventoryItemSortGroup(leftItem);
+          const rightGroup = getInventoryItemSortGroup(rightItem);
+          const groupDifference = leftGroup - rightGroup;
           if (groupDifference !== 0) return groupDifference;
+
+          if (leftGroup === 2) {
+            const quantityGroupDifference =
+              getInventoryQuantitySortGroup(leftItem) -
+              getInventoryQuantitySortGroup(rightItem);
+            if (quantityGroupDifference !== 0) {
+              return quantityGroupDifference;
+            }
+          }
 
           return getInventoryItemLabel(leftItem).localeCompare(
             getInventoryItemLabel(rightItem),
@@ -7323,16 +7354,16 @@
         return hasAxe &&
           hasHandgun &&
           hasHandgunAmmo &&
-          handgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          handgunAmmoCount >= TEST_AMMO_QUANTITY &&
           hasShotgun &&
           hasShotgunAmmo &&
-          shotgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          shotgunAmmoCount >= TEST_AMMO_QUANTITY &&
           hasRifle &&
           hasRifleAmmo &&
-          rifleAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          rifleAmmoCount >= TEST_AMMO_QUANTITY &&
           hasChainsaw &&
           hasChainsawBattery &&
-          chainsawBatteryPercent >= MAX_CHAINSAW_BATTERY &&
+          chainsawBatteryPercent >= TEST_CHAINSAW_BATTERY_PERCENT &&
           hasMusicBox &&
           hasStrangerLetter &&
           hasCompass &&
@@ -7358,25 +7389,25 @@
 
         markNewIfMissing("handgunAmmo", hasHandgunAmmo && handgunAmmoCount > 0);
         hasHandgunAmmo = true;
-        handgunAmmoCount = MAX_INVENTORY_QUANTITY;
+        handgunAmmoCount = TEST_AMMO_QUANTITY;
 
         markNewIfMissing("shotgun", hasShotgun);
         hasShotgun = true;
         markNewIfMissing("shotgunAmmo", hasShotgunAmmo && shotgunAmmoCount > 0);
         hasShotgunAmmo = true;
-        shotgunAmmoCount = MAX_INVENTORY_QUANTITY;
+        shotgunAmmoCount = TEST_AMMO_QUANTITY;
 
         markNewIfMissing("rifle", hasRifle);
         hasRifle = true;
         markNewIfMissing("rifleAmmo", hasRifleAmmo && rifleAmmoCount > 0);
         hasRifleAmmo = true;
-        rifleAmmoCount = MAX_INVENTORY_QUANTITY;
+        rifleAmmoCount = TEST_AMMO_QUANTITY;
 
         markNewIfMissing("chainsaw", hasChainsaw);
         hasChainsaw = true;
         markNewIfMissing("chainsawBattery", hasChainsawBattery && chainsawBatteryPercent > 0);
         hasChainsawBattery = true;
-        chainsawBatteryPercent = MAX_CHAINSAW_BATTERY;
+        chainsawBatteryPercent = TEST_CHAINSAW_BATTERY_PERCENT;
 
         markNewIfMissing("musicBox", hasMusicBox);
         hasMusicBox = true;
