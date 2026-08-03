@@ -2613,7 +2613,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.095"
+  data-game-version="0.096"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3110,10 +3110,10 @@
       const DEER_SPAWN_INTERVAL_MS = 3 * 60_000;
       const EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS = 5_000;
       const ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS = 1_000;
-      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 2_000;
-      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 3_000;
-      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 3_000;
-      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 5_000;
+      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 3_000;
+      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 5_000;
+      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 5_000;
+      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 7_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
       const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
@@ -12683,7 +12683,7 @@
           }
 
           // 사망 모션이나 이탈 중인 개체가 전체 개체 수 제한을 잠시 차지한다면
-          // 최초 3~5초 타이머를 다시 시작하지 않고 자리가 생길 때까지 짧게 재확인합니다.
+          // 최초 5~7초 타이머를 다시 시작하지 않고 자리가 생길 때까지 짧게 재확인합니다.
           if (!hasActivePopulationCapacity()) {
             pendingEmptyDeerSpawnTimerId = window.setTimeout(
               trySpawnEmptyFieldDeer,
