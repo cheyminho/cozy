@@ -2613,7 +2613,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.093"
+  data-game-version="0.094"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2749,7 +2749,12 @@
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
       <div class="exploration-destination">
-        <button class="exploration-option" type="button" data-destination="village" role="menuitem">Village</button>
+        <button class="exploration-option" type="button" data-destination="village" role="menuitem">
+          <span class="exploration-option-label-wrap">
+            <span class="exploration-option-new-badge" data-exploration-new-badge="village" aria-hidden="true" hidden>NEW</span>
+            <span>Village</span>
+          </span>
+        </button>
         <div class="exploration-requirement">
           <span class="exploration-requirement-item" data-requirement="zombies" data-required="2">Zombies <span class="exploration-requirement-current">0</span>/<span class="exploration-requirement-total">2</span></span>
           <span class="exploration-requirement-item" data-requirement="food" data-required="1">Food <span class="exploration-requirement-current">0</span>/1</span>
@@ -3656,7 +3661,7 @@
         document.querySelectorAll(".exploration-option")
       );
       const explorationOptionNewBadges = Object.fromEntries(
-        ["forest", "city"].map((destination) => [
+        ["village", "forest", "city"].map((destination) => [
           destination,
           document.querySelector(
             `[data-exploration-new-badge="${destination}"]`
@@ -4108,11 +4113,13 @@
       let hasRepairButtonNew = false;
       let hasExploreButtonNew = false;
       const explorationDestinationNewState = {
+        village: false,
         forest: false,
         city: false
       };
       // 한 번 확인해 지운 목적지 NEW가 조건 갱신 때 다시 생기지 않도록 별도로 기록합니다.
       const explorationUnlockAnnouncementTriggered = {
+        village: false,
         forest: false,
         city: false
       };
@@ -4218,6 +4225,7 @@
       let repairNewBadgeStateInitialized = false;
       let exploreNewBadgeStateInitialized = false;
       const explorationOptionNewBadgeStateInitialized = {
+        village: false,
         forest: false,
         city: false
       };
@@ -4441,11 +4449,15 @@
 
       function applyExplorationNewBadgeState(animate = hasGameInitialized) {
         updateExploreNewBadgeState(animate);
+        updateExplorationOptionNewBadgeState("village", animate);
         updateExplorationOptionNewBadgeState("forest", animate);
         updateExplorationOptionNewBadgeState("city", animate);
       }
 
       function isExplorationUnlockAnnouncementReady(destination) {
+        if (destination === "village") {
+          return zombieCount >= zombieKillRequirement && foodCount >= 1;
+        }
         if (destination === "forest") return hasCompass;
         if (destination === "city") return hasMap && isCarRepaired();
         return false;
@@ -4456,7 +4468,7 @@
         const persist = options.persist ?? hasGameInitialized;
         let didChange = false;
 
-        for (const destination of ["forest", "city"]) {
+        for (const destination of ["village", "forest", "city"]) {
           if (
             isExplorationUnlockAnnouncementReady(destination) &&
             !explorationUnlockAnnouncementTriggered[destination]
@@ -6010,7 +6022,7 @@
                 ? storedExplorationNewState.triggered
                 : {};
 
-            for (const destination of ["forest", "city"]) {
+            for (const destination of ["village", "forest", "city"]) {
               explorationDestinationNewState[destination] =
                 storedDestinations[destination] === true;
               explorationUnlockAnnouncementTriggered[destination] =
