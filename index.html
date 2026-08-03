@@ -2613,7 +2613,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.094"
+  data-game-version="0.095"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3110,8 +3110,10 @@
       const DEER_SPAWN_INTERVAL_MS = 3 * 60_000;
       const EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS = 5_000;
       const ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS = 1_000;
+      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 2_000;
+      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 3_000;
       const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 3_000;
-      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 7_000;
+      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 5_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
       const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
@@ -6419,10 +6421,11 @@
         );
       }
 
-      function getVisibleLivingDeerCount() {
+      function getVisibleLivingDeerCount(ignoredDeerId = null) {
         let count = 0;
 
         for (const deer of deerMap.values()) {
+          if (deer.id === ignoredDeerId) continue;
           if (isDeerVisibleInCurrentViewport(deer)) {
             count += 1;
           }
@@ -10799,6 +10802,12 @@
         deer.runFrame = 0;
         deer.runIntroComplete = false;
         setDeerFacing(deer);
+
+        // 마지막으로 보이던 사슴이 도망가기 시작한 순간부터
+        // 해당 사슴을 빈 화면 판정에서 제외하고 보충 타이머를 계산합니다.
+        if (state === "evading" || state === "leaving") {
+          scheduleEmptyFieldDeerSpawn({ ignoredDeerId: deer.id });
+        }
       }
 
       function beginDeerEvadeInDirection(deer, direction) {
@@ -10845,6 +10854,10 @@
         deer.deathSlideDirection = slideDirection || 1;
         deer.element.style.opacity = "1";
         showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[0]);
+
+        // 마지막으로 보이던 살아 있는 사슴이 죽기 시작한 순간부터
+        // 시체 제거를 기다리지 않고 빈 화면 보충 타이머를 계산합니다.
+        scheduleEmptyFieldDeerSpawn({ ignoredDeerId: deer.id });
 
         if (!deer.counted) {
           deer.counted = true;
@@ -12556,7 +12569,10 @@
         // 이미 보충 생성이 예약되어 있다면 주기적인 화면 검사로 타이머를 밀지 않습니다.
         if (pendingEmptyZombieSpawnTimerId !== null) return;
 
-        const delay = 1_000 + Math.random() * 4_000;
+        const delay = EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS +
+          Math.random() *
+            (EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS -
+              EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS);
         const regularSpawnRemaining = getRemainingUntilRegularZombieSpawn();
 
         // 정규 생성이 실제로 가능한 경우에만 5초 중복 방지 규칙을 적용합니다.
@@ -12615,7 +12631,7 @@
         }, delay);
       }
 
-      function scheduleEmptyFieldDeerSpawn() {
+      function scheduleEmptyFieldDeerSpawn(options = {}) {
         if (
           populationTimersPausedForBackground ||
           document.visibilityState === "hidden"
@@ -12627,15 +12643,18 @@
           return;
         }
 
-        if (pendingEmptyDeerSpawnTimerId !== null) {
-          clearTimeout(pendingEmptyDeerSpawnTimerId);
-          pendingEmptyDeerSpawnTimerId = null;
-        }
+        // 이미 사망·이탈 시작 시 예약된 타이머가 있다면
+        // 시체 제거 또는 주기적인 화면 검사로 시간을 다시 밀지 않습니다.
+        if (pendingEmptyDeerSpawnTimerId !== null) return;
+
+        const ignoredDeerId = Number.isFinite(Number(options.ignoredDeerId))
+          ? Number(options.ignoredDeerId)
+          : null;
+
         if (
           !firstKillBirdFlockPlayed ||
           isExploring ||
-          getVisibleLivingDeerCount() > 0 ||
-          !hasActivePopulationCapacity()
+          getVisibleLivingDeerCount(ignoredDeerId) > 0
         ) {
           return;
         }
@@ -12645,7 +12664,7 @@
             (EMPTY_DEER_SPAWN_MAX_DELAY_MS -
               EMPTY_DEER_SPAWN_MIN_DELAY_MS);
 
-        pendingEmptyDeerSpawnTimerId = window.setTimeout(() => {
+        const trySpawnEmptyFieldDeer = () => {
           pendingEmptyDeerSpawnTimerId = null;
 
           if (
@@ -12658,9 +12677,18 @@
           if (
             !firstKillBirdFlockPlayed ||
             isExploring ||
-            getVisibleLivingDeerCount() > 0 ||
-            !hasActivePopulationCapacity()
+            getVisibleLivingDeerCount(ignoredDeerId) > 0
           ) {
+            return;
+          }
+
+          // 사망 모션이나 이탈 중인 개체가 전체 개체 수 제한을 잠시 차지한다면
+          // 최초 3~5초 타이머를 다시 시작하지 않고 자리가 생길 때까지 짧게 재확인합니다.
+          if (!hasActivePopulationCapacity()) {
+            pendingEmptyDeerSpawnTimerId = window.setTimeout(
+              trySpawnEmptyFieldDeer,
+              250
+            );
             return;
           }
 
@@ -12677,10 +12705,18 @@
             scheduleNextDeerSpawnTick();
             saveResourceState();
           } else {
-            // 생성 위치를 일시적으로 찾지 못한 경우 한 번으로 끝내지 않고 다시 시도합니다.
-            scheduleEmptyFieldDeerSpawn();
+            // 생성 위치를 일시적으로 찾지 못한 경우 최초 지연을 다시 적용하지 않고 재시도합니다.
+            pendingEmptyDeerSpawnTimerId = window.setTimeout(
+              trySpawnEmptyFieldDeer,
+              250
+            );
           }
-        }, delay);
+        };
+
+        pendingEmptyDeerSpawnTimerId = window.setTimeout(
+          trySpawnEmptyFieldDeer,
+          delay
+        );
       }
 
       function startSpawner() {
