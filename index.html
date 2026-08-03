@@ -2518,7 +2518,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.083"
+  data-game-version="0.084"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3258,10 +3258,40 @@
           builtDescription: "Neatly framed and easy to tend."
         }
       };
-      const TIMBER_ROOF_BLUEPRINT_INDEX = 6;
-      const CHARCOAL_ROOF_BLUEPRINT_INDEX = 7;
-      const TIMBER_WALLS_BLUEPRINT_INDEX = 11;
-      const MINT_WALLS_BLUEPRINT_INDEX = 12;
+      const TIMBER_ROOF_BLUEPRINT_ID = "timberRoof";
+      const CHARCOAL_ROOF_BLUEPRINT_ID = "charcoalRoof";
+      const TIMBER_WALLS_BLUEPRINT_ID = "timberWalls";
+      const MINT_WALLS_BLUEPRINT_ID = "mintWalls";
+      const BUILDING_BLUEPRINT_DEFINITIONS = {
+        [TIMBER_ROOF_BLUEPRINT_ID]: {
+          sectionKey: "roof",
+          name: "Timber Roof",
+          materials: { wood: 10 },
+          builtDescription: "Warm wood, built to last.",
+          framePosition: "left top"
+        },
+        [CHARCOAL_ROOF_BLUEPRINT_ID]: {
+          sectionKey: "roof",
+          name: "Charcoal Roof",
+          materials: { wood: 10, whitePaint: 1, blackPaint: 2 },
+          builtDescription: "Dark wood with a quiet look.",
+          framePosition: "right top"
+        },
+        [TIMBER_WALLS_BLUEPRINT_ID]: {
+          sectionKey: "walls",
+          name: "Timber Walls",
+          materials: { wood: 15 },
+          builtDescription: "Natural wood, warm and sturdy.",
+          framePosition: "left top"
+        },
+        [MINT_WALLS_BLUEPRINT_ID]: {
+          sectionKey: "walls",
+          name: "Mint Walls",
+          materials: { wood: 15, whitePaint: 1, greenPaint: 2 },
+          builtDescription: "A fresh touch of mint and white.",
+          framePosition: "right top"
+        }
+      };
       const EXPLORATION_BLUEPRINT_DROP_CHANCE = {
         village: 0.30,
         forest: 0.20,
@@ -3270,10 +3300,10 @@
       const EXPLORATION_BLUEPRINT_REWARDS = [
         { destinations: ["village", "city"], category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID },
         { destinations: ["village", "city"], category: "outdoor", blueprintId: WHITE_FENCE_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "buildings", index: TIMBER_ROOF_BLUEPRINT_INDEX },
-        { destinations: ["village", "city"], category: "buildings", index: CHARCOAL_ROOF_BLUEPRINT_INDEX },
-        { destinations: ["village", "city"], category: "buildings", index: TIMBER_WALLS_BLUEPRINT_INDEX },
-        { destinations: ["village", "city"], category: "buildings", index: MINT_WALLS_BLUEPRINT_INDEX },
+        { destinations: ["village", "city"], category: "buildings", blueprintId: TIMBER_ROOF_BLUEPRINT_ID },
+        { destinations: ["village", "city"], category: "buildings", blueprintId: CHARCOAL_ROOF_BLUEPRINT_ID },
+        { destinations: ["village", "city"], category: "buildings", blueprintId: TIMBER_WALLS_BLUEPRINT_ID },
+        { destinations: ["village", "city"], category: "buildings", blueprintId: MINT_WALLS_BLUEPRINT_ID },
         { destinations: ["forest"], category: "outdoor", blueprintId: FLOWER_BED_BLUEPRINT_ID },
         { destinations: ["forest"], category: "outdoor", blueprintId: WOODEN_FLOWER_BED_BLUEPRINT_ID }
       ];
@@ -4206,6 +4236,84 @@
         return markRepairBlueprintAsNew("outdoor", index);
       }
 
+      function inferBuildingBlueprintId(item) {
+        if (item?.blueprintId && BUILDING_BLUEPRINT_DEFINITIONS[item.blueprintId]) {
+          return item.blueprintId;
+        }
+
+        const normalizedName = String(item?.name || "").trim().toLowerCase();
+        return Object.keys(BUILDING_BLUEPRINT_DEFINITIONS).find(
+          (blueprintId) =>
+            BUILDING_BLUEPRINT_DEFINITIONS[blueprintId].name.toLowerCase() === normalizedName
+        ) || "";
+      }
+
+      function getBuildingBlueprintIndex(blueprintId) {
+        if (!blueprintId) return -1;
+        return (repairItemsByCategory.buildings || []).findIndex(
+          (item) => inferBuildingBlueprintId(item) === blueprintId
+        );
+      }
+
+      function getBuildingBlueprintItem(blueprintId) {
+        const index = getBuildingBlueprintIndex(blueprintId);
+        return index >= 0 ? repairItemsByCategory.buildings[index] : null;
+      }
+
+      function getBuildingSectionDefinition(sectionKey) {
+        return REPAIR_CATEGORY_DEFINITIONS.buildings.sections.find(
+          (section) => section.key === sectionKey
+        ) || null;
+      }
+
+      function getNextBuildingBlueprintSlotIndex(sectionKey) {
+        const section = getBuildingSectionDefinition(sectionKey);
+        if (!section) return -1;
+
+        const firstBlueprintIndex = section.startIndex + (section.initialItemName ? 1 : 0);
+        for (
+          let index = firstBlueprintIndex;
+          index < section.startIndex + REPAIR_SECTION_SPAN;
+          index += 1
+        ) {
+          const item = repairItemsByCategory.buildings[index];
+          if (
+            item &&
+            !item.unlocked &&
+            !item.built &&
+            !item.isNew &&
+            !item.blueprintId &&
+            !item.name
+          ) {
+            return index;
+          }
+        }
+        return -1;
+      }
+
+      function ensureBuildingBlueprintSlot(blueprintId) {
+        const existingIndex = getBuildingBlueprintIndex(blueprintId);
+        if (existingIndex >= 0) return existingIndex;
+
+        const definition = BUILDING_BLUEPRINT_DEFINITIONS[blueprintId];
+        if (!definition) return -1;
+
+        const nextIndex = getNextBuildingBlueprintSlotIndex(definition.sectionKey);
+        if (nextIndex < 0) return -1;
+
+        configureRepairItem("buildings", nextIndex, {
+          ...definition,
+          blueprintId
+        });
+        return nextIndex;
+      }
+
+      function unlockBuildingBlueprint(blueprintId) {
+        const index = ensureBuildingBlueprintSlot(blueprintId);
+        if (index < 0) return false;
+        return markRepairBlueprintAsNew("buildings", index);
+      }
+
       function unlockWoodenFenceBlueprint() {
         if (unlockOutdoorBlueprint(WOODEN_FENCE_BLUEPRINT_ID)) {
           saveResourceState();
@@ -4219,26 +4327,18 @@
       }
 
       function configureExplorationBlueprintDefinitions() {
-        configureRepairItem("buildings", TIMBER_ROOF_BLUEPRINT_INDEX, {
-          name: "Timber Roof",
-          materials: { wood: 10 },
-          builtDescription: "Warm wood, built to last."
-        });
-        configureRepairItem("buildings", CHARCOAL_ROOF_BLUEPRINT_INDEX, {
-          name: "Charcoal Roof",
-          materials: { wood: 10, whitePaint: 1, blackPaint: 2 },
-          builtDescription: "Dark wood with a quiet look."
-        });
-        configureRepairItem("buildings", TIMBER_WALLS_BLUEPRINT_INDEX, {
-          name: "Timber Walls",
-          materials: { wood: 15 },
-          builtDescription: "Natural wood, warm and sturdy."
-        });
-        configureRepairItem("buildings", MINT_WALLS_BLUEPRINT_INDEX, {
-          name: "Mint Walls",
-          materials: { wood: 15, whitePaint: 1, greenPaint: 2 },
-          builtDescription: "A fresh touch of mint and white."
-        });
+        // 이미 슬롯에 등록된 House 설계도에만 최신 정의를 다시 적용합니다.
+        // 아직 획득하지 않은 설계도는 미리 슬롯을 차지하지 않습니다.
+        const items = repairItemsByCategory.buildings || [];
+        for (let index = 0; index < items.length; index += 1) {
+          const blueprintId = inferBuildingBlueprintId(items[index]);
+          const definition = BUILDING_BLUEPRINT_DEFINITIONS[blueprintId];
+          if (!definition) continue;
+          configureRepairItem("buildings", index, {
+            ...definition,
+            blueprintId
+          });
+        }
       }
 
       function unlockCarRepairBlueprint() {
@@ -4586,6 +4686,90 @@
         repairSelectedItemByCategory.outdoor = -1;
       }
 
+      function compactBuildingBlueprintSlots() {
+        const items = repairItemsByCategory.buildings || [];
+        const acquiredBySection = Object.fromEntries(
+          REPAIR_CATEGORY_DEFINITIONS.buildings.sections.map((section) => [section.key, []])
+        );
+        const seenBlueprintIds = new Set();
+        const appliedBlueprintBySection = {};
+        const selectedIndex = repairSelectedItemByCategory.buildings;
+        const selectedItem = selectedIndex >= 0 ? items[selectedIndex] : null;
+        const selectedBlueprintId = inferBuildingBlueprintId(selectedItem);
+        const selectedBasicIndex = selectedBlueprintId
+          ? -1
+          : REPAIR_CATEGORY_DEFINITIONS.buildings.sections.some(
+              (section) => section.startIndex === selectedIndex
+            )
+            ? selectedIndex
+            : -1;
+
+        for (const section of REPAIR_CATEGORY_DEFINITIONS.buildings.sections) {
+          const appliedIndex = repairAppliedItemBySection.buildings[section.key];
+          const appliedItem = Number.isInteger(appliedIndex) && appliedIndex >= 0
+            ? items[appliedIndex]
+            : null;
+          const appliedBlueprintId = inferBuildingBlueprintId(appliedItem);
+          appliedBlueprintBySection[section.key] =
+            BUILDING_BLUEPRINT_DEFINITIONS[appliedBlueprintId]?.sectionKey === section.key
+              ? appliedBlueprintId
+              : "";
+        }
+
+        for (let index = 0; index < items.length; index += 1) {
+          const item = items[index];
+          const blueprintId = inferBuildingBlueprintId(item);
+          const definition = BUILDING_BLUEPRINT_DEFINITIONS[blueprintId];
+          if (
+            !definition ||
+            seenBlueprintIds.has(blueprintId) ||
+            (!item.unlocked && !item.built && !item.isNew)
+          ) {
+            continue;
+          }
+
+          seenBlueprintIds.add(blueprintId);
+          acquiredBySection[definition.sectionKey].push({
+            ...item,
+            blueprintId,
+            materials: { ...item.materials }
+          });
+        }
+
+        for (const section of REPAIR_CATEGORY_DEFINITIONS.buildings.sections) {
+          const firstBlueprintIndex = section.startIndex + (section.initialItemName ? 1 : 0);
+          for (
+            let index = firstBlueprintIndex;
+            index < section.startIndex + REPAIR_SECTION_SPAN;
+            index += 1
+          ) {
+            resetRepairBlueprintItem(items[index]);
+          }
+
+          for (const storedItem of acquiredBySection[section.key]) {
+            const blueprintId = storedItem.blueprintId;
+            const targetIndex = ensureBuildingBlueprintSlot(blueprintId);
+            const targetItem = targetIndex >= 0 ? items[targetIndex] : null;
+            if (!targetItem) continue;
+            targetItem.unlocked = storedItem.unlocked === true || storedItem.built === true;
+            targetItem.built = storedItem.built === true;
+            targetItem.isNew = storedItem.isNew === true;
+          }
+
+          const appliedBlueprintId = appliedBlueprintBySection[section.key];
+          repairAppliedItemBySection.buildings[section.key] = appliedBlueprintId
+            ? getBuildingBlueprintIndex(appliedBlueprintId)
+            : section.startIndex;
+        }
+
+        repairSelectedItemByCategory.buildings = selectedBlueprintId
+          ? getBuildingBlueprintIndex(selectedBlueprintId)
+          : selectedBasicIndex;
+        if (repairSelectedItemByCategory.buildings < 0) {
+          repairSelectedItemByCategory.buildings = -1;
+        }
+      }
+
       function compactRepairBlueprintSlots() {
         const items = repairItemsByCategory.repair || [];
         const selectedIndex = repairSelectedItemByCategory.repair;
@@ -4751,8 +4935,11 @@
           }
         }
 
-        // Decor는 각 하위 카테고리에서 획득 순서대로 첫 칸부터 재배치합니다.
+        // Decor는 각 하위 카테고리에서 획득 순서대로 첫 빈칸부터 재배치합니다.
         compactOutdoorBlueprintSlots();
+
+        // House는 Basic 다음 칸부터 획득 순서대로 빈틈없이 재배치합니다.
+        compactBuildingBlueprintSlots();
 
         // Restore의 기존 고정 슬롯 저장값도 획득된 순서를 유지한 채 첫 칸부터 빈틈없이 재배치합니다.
         compactRepairBlueprintSlots();
@@ -5092,28 +5279,36 @@
             : "left top"
         );
 
-        const appliedRoofIndex = repairAppliedItemBySection.buildings.roof || 5;
+        const appliedRoofIndex = repairAppliedItemBySection.buildings.roof ?? 5;
+        const appliedRoofItem = appliedRoofIndex >= 0
+          ? repairItemsByCategory.buildings[appliedRoofIndex]
+          : null;
+        const appliedRoofBlueprintId = inferBuildingBlueprintId(appliedRoofItem);
+        const appliedRoofDefinition = BUILDING_BLUEPRINT_DEFINITIONS[appliedRoofBlueprintId];
         roofObject.hidden = !(
-          appliedRoofIndex === TIMBER_ROOF_BLUEPRINT_INDEX ||
-          appliedRoofIndex === CHARCOAL_ROOF_BLUEPRINT_INDEX
+          appliedRoofItem?.unlocked &&
+          appliedRoofItem?.built &&
+          appliedRoofDefinition?.sectionKey === "roof"
         );
         roofObject.style.setProperty(
           "--roof-frame-position",
-          appliedRoofIndex === CHARCOAL_ROOF_BLUEPRINT_INDEX
-            ? "right top"
-            : "left top"
+          appliedRoofDefinition?.framePosition || "left top"
         );
 
-        const appliedWallsIndex = repairAppliedItemBySection.buildings.walls || 10;
+        const appliedWallsIndex = repairAppliedItemBySection.buildings.walls ?? 10;
+        const appliedWallsItem = appliedWallsIndex >= 0
+          ? repairItemsByCategory.buildings[appliedWallsIndex]
+          : null;
+        const appliedWallsBlueprintId = inferBuildingBlueprintId(appliedWallsItem);
+        const appliedWallsDefinition = BUILDING_BLUEPRINT_DEFINITIONS[appliedWallsBlueprintId];
         wallsObject.hidden = !(
-          appliedWallsIndex === TIMBER_WALLS_BLUEPRINT_INDEX ||
-          appliedWallsIndex === MINT_WALLS_BLUEPRINT_INDEX
+          appliedWallsItem?.unlocked &&
+          appliedWallsItem?.built &&
+          appliedWallsDefinition?.sectionKey === "walls"
         );
         wallsObject.style.setProperty(
           "--walls-frame-position",
-          appliedWallsIndex === MINT_WALLS_BLUEPRINT_INDEX
-            ? "right top"
-            : "left top"
+          appliedWallsDefinition?.framePosition || "left top"
         );
 
         applyMailboxVisibility();
@@ -6519,6 +6714,9 @@
           if (reward.category === "outdoor" && reward.blueprintId) {
             return getOutdoorBlueprintItem(reward.blueprintId)?.unlocked !== true;
           }
+          if (reward.category === "buildings" && reward.blueprintId) {
+            return getBuildingBlueprintItem(reward.blueprintId)?.unlocked !== true;
+          }
           return repairItemsByCategory[reward.category]?.[reward.index]?.unlocked !== true;
         });
 
@@ -6532,7 +6730,9 @@
           ? unlockRepairBlueprint(reward.blueprintId)
           : reward.category === "outdoor" && reward.blueprintId
             ? unlockOutdoorBlueprint(reward.blueprintId)
-            : markRepairBlueprintAsNew(reward.category, reward.index);
+            : reward.category === "buildings" && reward.blueprintId
+              ? unlockBuildingBlueprint(reward.blueprintId)
+              : markRepairBlueprintAsNew(reward.category, reward.index);
         if (awarded) {
           applyRepairState();
         }
@@ -6785,8 +6985,10 @@
           ensureOutdoorBlueprintSlot(blueprintId);
         }
 
-        // 탐험으로 획득하는 집 설계도 정의를 모두 준비합니다.
-        configureExplorationBlueprintDefinitions();
+        // House 설계도도 각 하위 카테고리의 Basic 다음 첫 빈칸부터 등록합니다.
+        for (const blueprintId of Object.keys(BUILDING_BLUEPRINT_DEFINITIONS)) {
+          ensureBuildingBlueprintSlot(blueprintId);
+        }
 
         // Restore 설계도는 획득 순서형 슬롯이므로 빈 슬롯부터 등록합니다.
         for (const blueprintId of Object.keys(REPAIR_BLUEPRINT_DEFINITIONS)) {
