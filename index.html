@@ -2570,7 +2570,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.088"
+  data-game-version="0.089"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3053,6 +3053,8 @@
         document.body.dataset.resetSaveOnVersionMismatch === "true";
       const TEST_MODE = true;
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
+      const TEST_MODE_AMMO_QUANTITY = 3;
+      const TEST_MODE_CHAINSAW_BATTERY_PERCENT = 10;
       const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
       const DAY_NUMBER_ROLL_FALLBACK_MS = 1_100;
 
@@ -7320,16 +7322,16 @@
         return hasAxe &&
           hasHandgun &&
           hasHandgunAmmo &&
-          handgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          handgunAmmoCount >= TEST_MODE_AMMO_QUANTITY &&
           hasShotgun &&
           hasShotgunAmmo &&
-          shotgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          shotgunAmmoCount >= TEST_MODE_AMMO_QUANTITY &&
           hasRifle &&
           hasRifleAmmo &&
-          rifleAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          rifleAmmoCount >= TEST_MODE_AMMO_QUANTITY &&
           hasChainsaw &&
           hasChainsawBattery &&
-          chainsawBatteryPercent >= MAX_CHAINSAW_BATTERY &&
+          chainsawBatteryPercent >= TEST_MODE_CHAINSAW_BATTERY_PERCENT &&
           hasMusicBox &&
           hasStrangerLetter &&
           hasCompass &&
@@ -7355,25 +7357,25 @@
 
         markNewIfMissing("handgunAmmo", hasHandgunAmmo && handgunAmmoCount > 0);
         hasHandgunAmmo = true;
-        handgunAmmoCount = MAX_INVENTORY_QUANTITY;
+        handgunAmmoCount = TEST_MODE_AMMO_QUANTITY;
 
         markNewIfMissing("shotgun", hasShotgun);
         hasShotgun = true;
         markNewIfMissing("shotgunAmmo", hasShotgunAmmo && shotgunAmmoCount > 0);
         hasShotgunAmmo = true;
-        shotgunAmmoCount = MAX_INVENTORY_QUANTITY;
+        shotgunAmmoCount = TEST_MODE_AMMO_QUANTITY;
 
         markNewIfMissing("rifle", hasRifle);
         hasRifle = true;
         markNewIfMissing("rifleAmmo", hasRifleAmmo && rifleAmmoCount > 0);
         hasRifleAmmo = true;
-        rifleAmmoCount = MAX_INVENTORY_QUANTITY;
+        rifleAmmoCount = TEST_MODE_AMMO_QUANTITY;
 
         markNewIfMissing("chainsaw", hasChainsaw);
         hasChainsaw = true;
         markNewIfMissing("chainsawBattery", hasChainsawBattery && chainsawBatteryPercent > 0);
         hasChainsawBattery = true;
-        chainsawBatteryPercent = MAX_CHAINSAW_BATTERY;
+        chainsawBatteryPercent = TEST_MODE_CHAINSAW_BATTERY_PERCENT;
 
         markNewIfMissing("musicBox", hasMusicBox);
         hasMusicBox = true;
