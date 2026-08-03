@@ -1281,6 +1281,7 @@
 
     #exploreButton {
       bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
+      overflow: visible;
     }
 
     #inventoryButton {
@@ -2071,6 +2072,48 @@
         font-weight 160ms cubic-bezier(0.215, 0.61, 0.355, 1);
     }
 
+    .exploration-option-label-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    .exploration-option-new-badge {
+      position: absolute;
+      right: calc(100% + 8px);
+      top: 50%;
+      padding: 2px 3px 1px;
+      background: #f6c062;
+      color: #000;
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0;
+      text-align: right;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateY(-50%) scale(1);
+      transform-origin: right center;
+    }
+
+    .exploration-option-new-badge[hidden] {
+      display: none;
+    }
+
+    /* 목적지 NEW도 가방·수리·탐험 버튼과 같은 팝 타이밍과 곡선을 사용합니다. */
+    .exploration-option-new-badge.is-appearing {
+      animation: exploration-option-new-badge-pop 320ms
+        cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes exploration-option-new-badge-pop {
+      from {
+        transform: translateY(-50%) scale(0);
+      }
+      to {
+        transform: translateY(-50%) scale(1);
+      }
+    }
+
     .exploration-requirement {
       color: rgba(255, 255, 255, 0.62);
       font-size: 12px;
@@ -2570,7 +2613,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.092"
+  data-game-version="0.093"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2713,7 +2756,12 @@
         </div>
       </div>
       <div class="exploration-destination">
-        <button class="exploration-option" type="button" data-destination="forest" role="menuitem">Forest</button>
+        <button class="exploration-option" type="button" data-destination="forest" role="menuitem">
+          <span class="exploration-option-label-wrap">
+            <span class="exploration-option-new-badge" data-exploration-new-badge="forest" aria-hidden="true" hidden>NEW</span>
+            <span>Forest</span>
+          </span>
+        </button>
         <div class="exploration-requirement">
           <span class="exploration-requirement-item" data-requirement="zombies" data-required="2">Zombies <span class="exploration-requirement-current">0</span>/<span class="exploration-requirement-total">2</span></span>
           <span class="exploration-requirement-item" data-requirement="food" data-required="3">Food <span class="exploration-requirement-current">0</span>/3</span>
@@ -2721,7 +2769,12 @@
         </div>
       </div>
       <div class="exploration-destination">
-        <button class="exploration-option" type="button" data-destination="city" role="menuitem">City</button>
+        <button class="exploration-option" type="button" data-destination="city" role="menuitem">
+          <span class="exploration-option-label-wrap">
+            <span class="exploration-option-new-badge" data-exploration-new-badge="city" aria-hidden="true" hidden>NEW</span>
+            <span>City</span>
+          </span>
+        </button>
         <div class="exploration-requirement">
           <span class="exploration-requirement-item" data-requirement="zombies" data-required="2">Zombies <span class="exploration-requirement-current">0</span>/<span class="exploration-requirement-total">2</span></span>
           <span class="exploration-requirement-item" data-requirement="food" data-required="5">Food <span class="exploration-requirement-current">0</span>/5</span>
@@ -2887,6 +2940,7 @@
     type="button"
     aria-label="Explore"
   >
+    <span id="exploreNewBadge" class="inventory-new-badge" hidden>NEW</span>
     <img
       class="hud-action-button__icon"
       src="images/icon_explore.png"
@@ -3601,6 +3655,14 @@
       const explorationOptions = Array.from(
         document.querySelectorAll(".exploration-option")
       );
+      const explorationOptionNewBadges = Object.fromEntries(
+        ["forest", "city"].map((destination) => [
+          destination,
+          document.querySelector(
+            `[data-exploration-new-badge="${destination}"]`
+          )
+        ])
+      );
       const explorationRequirementItems = Array.from(
         document.querySelectorAll(".exploration-requirement-item")
       );
@@ -3678,6 +3740,7 @@
         "repairActionButton"
       );
       const repairNewBadge = document.getElementById("repairNewBadge");
+      const exploreNewBadge = document.getElementById("exploreNewBadge");
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
       const dayStatus = document.getElementById("dayStatus");
@@ -4043,6 +4106,16 @@
       let versionTestLastClickAt = -Infinity;
       let isStateSaveSuppressed = false;
       let hasRepairButtonNew = false;
+      let hasExploreButtonNew = false;
+      const explorationDestinationNewState = {
+        forest: false,
+        city: false
+      };
+      // 한 번 확인해 지운 목적지 NEW가 조건 갱신 때 다시 생기지 않도록 별도로 기록합니다.
+      const explorationUnlockAnnouncementTriggered = {
+        forest: false,
+        city: false
+      };
       let mailboxIntroTriggered = false;
       let currentTodoListId = 0;
       let todoSubmittedListId = 0;
@@ -4142,6 +4215,12 @@
       let inventoryPageItemTypes = [];
       let suppressInventoryClickUntil = 0;
       let inventoryNewBadgeStateInitialized = false;
+      let repairNewBadgeStateInitialized = false;
+      let exploreNewBadgeStateInitialized = false;
+      const explorationOptionNewBadgeStateInitialized = {
+        forest: false,
+        city: false
+      };
       let renderedDayCount = 1;
       let dayNumberAnimationToken = 0;
       let dayNumberAnimationTimerId = null;
@@ -4236,6 +4315,17 @@
         return 3;
       }
 
+      // Car Parts는 자동차 수리 전까지만 최대 3개를 보유합니다.
+      // 수리가 끝나면 수량과 NEW 상태를 모두 제거해 가방에 다시 나타나지 않게 합니다.
+      function clearCarPartsAfterRepair() {
+        carPartsCount = 0;
+        newInventoryItemTypes.delete("carParts");
+        viewedInventoryNewItemTypes.delete("carParts");
+        if (newInventoryItemTypes.size === 0) {
+          hasNewInventoryItem = false;
+        }
+      }
+
       function isSectionedRepairCategory(category) {
         return Array.isArray(REPAIR_CATEGORY_DEFINITIONS[category]?.sections);
       }
@@ -4299,9 +4389,104 @@
         return repairCategoryNewByCategory[category] === true;
       }
 
+      // 가방·수리·탐험 버튼 NEW가 모두 같은 방식으로 생성 애니메이션을 재생합니다.
+      function setAnimatedNewBadgeVisibility(badge, shouldShow, animate) {
+        if (!badge) return;
+
+        const wasHidden = badge.hidden;
+        badge.hidden = !shouldShow;
+
+        if (animate && shouldShow && wasHidden) {
+          badge.classList.remove("is-appearing");
+          void badge.offsetWidth;
+          badge.classList.add("is-appearing");
+        } else if (!shouldShow || !animate) {
+          badge.classList.remove("is-appearing");
+        }
+      }
+
       function updateRepairNewBadgeState() {
-        if (!repairNewBadge) return;
-        repairNewBadge.hidden = !hasRepairButtonNew;
+        const animate = repairNewBadgeStateInitialized;
+        setAnimatedNewBadgeVisibility(
+          repairNewBadge,
+          hasRepairButtonNew,
+          animate
+        );
+        repairNewBadgeStateInitialized = true;
+      }
+
+      function updateExploreNewBadgeState(animate = hasGameInitialized) {
+        setAnimatedNewBadgeVisibility(
+          exploreNewBadge,
+          hasExploreButtonNew,
+          exploreNewBadgeStateInitialized && animate
+        );
+        exploreNewBadgeStateInitialized = true;
+      }
+
+      function updateExplorationOptionNewBadgeState(
+        destination,
+        animate = hasGameInitialized
+      ) {
+        const badge = explorationOptionNewBadges[destination];
+        if (!badge) return;
+
+        setAnimatedNewBadgeVisibility(
+          badge,
+          explorationDestinationNewState[destination] === true,
+          explorationOptionNewBadgeStateInitialized[destination] && animate
+        );
+        explorationOptionNewBadgeStateInitialized[destination] = true;
+      }
+
+      function applyExplorationNewBadgeState(animate = hasGameInitialized) {
+        updateExploreNewBadgeState(animate);
+        updateExplorationOptionNewBadgeState("forest", animate);
+        updateExplorationOptionNewBadgeState("city", animate);
+      }
+
+      function isExplorationUnlockAnnouncementReady(destination) {
+        if (destination === "forest") return hasCompass;
+        if (destination === "city") return hasMap && isCarRepaired();
+        return false;
+      }
+
+      function syncExplorationUnlockNewState(options = {}) {
+        const animate = options.animate ?? hasGameInitialized;
+        const persist = options.persist ?? hasGameInitialized;
+        let didChange = false;
+
+        for (const destination of ["forest", "city"]) {
+          if (
+            isExplorationUnlockAnnouncementReady(destination) &&
+            !explorationUnlockAnnouncementTriggered[destination]
+          ) {
+            explorationUnlockAnnouncementTriggered[destination] = true;
+            explorationDestinationNewState[destination] = true;
+            hasExploreButtonNew = true;
+            didChange = true;
+          }
+        }
+
+        applyExplorationNewBadgeState(animate);
+        if (didChange && persist) saveResourceState();
+        return didChange;
+      }
+
+      function clearExploreButtonNewState() {
+        if (!hasExploreButtonNew) return false;
+        hasExploreButtonNew = false;
+        updateExploreNewBadgeState(false);
+        saveResourceState();
+        return true;
+      }
+
+      function clearExplorationDestinationNewState(destination) {
+        if (!explorationDestinationNewState[destination]) return false;
+        explorationDestinationNewState[destination] = false;
+        updateExplorationOptionNewBadgeState(destination, false);
+        saveResourceState();
+        return true;
       }
 
       function markRepairBlueprintAsNew(category, index) {
@@ -4729,6 +4914,7 @@
             if (todoSubmittedListId === 2) {
               hasCompass = true;
               markInventoryItemAsNew("compass");
+              syncExplorationUnlockNewState();
               deliverTodoList(3);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
@@ -5567,6 +5753,7 @@
           }
           if (item.blueprintId === CAR_REPAIR_BLUEPRINT_ID) {
             setTodoProgress(3, "item3", true);
+            clearCarPartsAfterRepair();
           }
           updateResourceHud();
           applyRepairState();
@@ -5804,6 +5991,33 @@
             Number(parsed.map) > 0 ||
             parsed.repairKit === true ||
             Number(parsed.repairKit) > 0;
+
+          const storedExplorationNewState =
+            parsed.explorationNewState &&
+            typeof parsed.explorationNewState === "object"
+              ? parsed.explorationNewState
+              : null;
+          if (storedExplorationNewState) {
+            hasExploreButtonNew = storedExplorationNewState.button === true;
+            const storedDestinations =
+              storedExplorationNewState.destinations &&
+              typeof storedExplorationNewState.destinations === "object"
+                ? storedExplorationNewState.destinations
+                : {};
+            const storedTriggered =
+              storedExplorationNewState.triggered &&
+              typeof storedExplorationNewState.triggered === "object"
+                ? storedExplorationNewState.triggered
+                : {};
+
+            for (const destination of ["forest", "city"]) {
+              explorationDestinationNewState[destination] =
+                storedDestinations[destination] === true;
+              explorationUnlockAnnouncementTriggered[destination] =
+                storedTriggered[destination] === true;
+            }
+          }
+
           explorationDestination = typeof parsed.explorationDestination === "string"
             ? parsed.explorationDestination
             : "";
@@ -5840,6 +6054,9 @@
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
           loadRepairState(parsed.repairState);
+          if (isCarRepaired()) {
+            clearCarPartsAfterRepair();
+          }
           // 이전 저장 파일의 비어 있던 설계도 슬롯이 새 정의를 덮지 않게 다시 적용합니다.
           configureExplorationBlueprintDefinitions();
           hasRepairButtonNew = REPAIR_CATEGORY_ORDER.some(
@@ -5917,6 +6134,11 @@
               todoProgress,
               fuel: fuelCount,
               hasMap,
+              explorationNewState: {
+                button: hasExploreButtonNew,
+                destinations: { ...explorationDestinationNewState },
+                triggered: { ...explorationUnlockAnnouncementTriggered }
+              },
               repairState: serializeRepairState(),
               firstKillBirdFlockPlayed,
               explorationDestination,
@@ -5970,6 +6192,11 @@
           item.hidden =
             item.classList.contains("is-label-only") && isComplete;
         }
+
+        syncExplorationUnlockNewState({
+          animate: hasGameInitialized,
+          persist: hasGameInitialized
+        });
       }
 
       function updateResourceHud() {
@@ -7021,7 +7248,9 @@
         if (rifleAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("rifleAmmo");
         if (!hasChainsaw) candidates.push("chainsaw");
         if (chainsawBatteryPercent < MAX_CHAINSAW_BATTERY) candidates.push("chainsawBattery");
-        if (carPartsCount < getMaxCarPartsCount()) candidates.push("carParts");
+        if (!isCarRepaired() && carPartsCount < getMaxCarPartsCount()) {
+          candidates.push("carParts");
+        }
         for (const itemType of Object.keys(paintCounts)) {
           if (paintCounts[itemType] < MAX_INVENTORY_QUANTITY) {
             candidates.push(itemType);
@@ -7367,7 +7596,7 @@
           hasMusicBox &&
           hasStrangerLetter &&
           hasCompass &&
-          carPartsCount > 0 &&
+          (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
           flowerCount > 0 &&
           Object.values(paintCounts).every((count) => count > 0) &&
           hasRepairKit &&
@@ -7418,8 +7647,12 @@
         markNewIfMissing("compass", hasCompass);
         hasCompass = true;
 
-        markNewIfMissing("carParts", carPartsCount > 0);
-        carPartsCount = Math.max(carPartsCount, 1);
+        if (isCarRepaired()) {
+          clearCarPartsAfterRepair();
+        } else {
+          markNewIfMissing("carParts", carPartsCount > 0);
+          carPartsCount = Math.max(carPartsCount, getMaxCarPartsCount());
+        }
 
         markNewIfMissing("flowers", flowerCount > 0);
         flowerCount = Math.max(flowerCount, 1);
@@ -8995,6 +9228,7 @@
 
       function handleExploreButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
+        clearExploreButtonNewState();
 
         if (isExploring) {
           closeInventory(false);
@@ -9205,7 +9439,7 @@
         }
 
         if (carPartsInventoryItem) {
-          carPartsInventoryItem.hidden = carPartsCount <= 0;
+          carPartsInventoryItem.hidden = isCarRepaired() || carPartsCount <= 0;
           setInventoryValue(carPartsInventoryItem, `×${carPartsCount}`);
         }
 
@@ -9259,26 +9493,13 @@
       }
 
       function applyInventoryNewBadgeState() {
-        if (!inventoryNewBadge) return;
-
-        const shouldShow = hasNewInventoryItem;
-        const wasHidden = inventoryNewBadge.hidden;
-        inventoryNewBadge.hidden = !shouldShow;
-
-        // 저장 상태를 처음 반영할 때는 기존 배지를 정적으로 표시하고,
-        // 플레이 중 새로 생기는 순간에만 등장 애니메이션을 재생합니다.
-        if (!inventoryNewBadgeStateInitialized) {
-          inventoryNewBadgeStateInitialized = true;
-          return;
-        }
-
-        if (shouldShow && wasHidden) {
-          inventoryNewBadge.classList.remove("is-appearing");
-          void inventoryNewBadge.offsetWidth;
-          inventoryNewBadge.classList.add("is-appearing");
-        } else if (!shouldShow) {
-          inventoryNewBadge.classList.remove("is-appearing");
-        }
+        const animate = inventoryNewBadgeStateInitialized;
+        setAnimatedNewBadgeVisibility(
+          inventoryNewBadge,
+          hasNewInventoryItem,
+          animate
+        );
+        inventoryNewBadgeStateInitialized = true;
       }
 
       function stopBgmPlayback() {
@@ -12870,8 +13091,15 @@
       });
 
       for (const option of explorationOptions) {
+        const destination = option.dataset.destination || "";
+
+        option.addEventListener("mouseenter", () => {
+          clearExplorationDestinationNewState(destination);
+        });
+
         option.addEventListener("click", () => {
-          handleExplorationDestination(option.dataset.destination);
+          clearExplorationDestinationNewState(destination);
+          handleExplorationDestination(destination);
         });
       }
 
