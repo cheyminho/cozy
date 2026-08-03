@@ -837,6 +837,58 @@
       pointer-events: none;
     }
 
+    /* 좀비 머리·신체 파츠는 나무 파츠와 분리된 전용 레이어를 사용합니다. */
+    #zombiePartShadowLayer,
+    #zombiePartLayer {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    #zombiePartShadowLayer {
+      z-index: 9;
+    }
+
+    #zombiePartLayer {
+      z-index: 18;
+    }
+
+    .zombie-falling-part {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    .zombie-falling-part-image {
+      position: absolute;
+      inset: 0;
+      width: 32px;
+      height: 32px;
+      background-image: url("images/zomebie_default_parts.png");
+      background-repeat: no-repeat;
+      background-size: 128px 64px;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: transform;
+      pointer-events: none;
+    }
+
+    .zombie-falling-part-shadow {
+      position: absolute;
+      z-index: 0;
+      background: #000;
+      border-radius: 50%;
+      opacity: 0;
+      filter: blur(4px);
+      transform: skewX(-24deg) scaleY(0.42);
+      transform-origin: left center;
+      will-change: opacity, transform;
+      pointer-events: none;
+    }
+
     #entitiesBehindTree,
     #entities {
       position: absolute;
@@ -2518,7 +2570,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.085"
+  data-game-version="0.086"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2627,6 +2679,8 @@
       </div>
       <div id="entities"></div>
       <div id="treePartLayer" aria-hidden="true"></div>
+      <div id="zombiePartShadowLayer" aria-hidden="true"></div>
+      <div id="zombiePartLayer" aria-hidden="true"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
@@ -2694,6 +2748,30 @@
             <button class="inventory-item" type="button" role="menuitem" data-item="handgunAmmo" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Handgun Ammo</span></span>
               <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="shotgun" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Shotgun</span></span>
+              <span class="inventory-item__quantity"></span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="shotgunAmmo" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Shotgun Ammo</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="rifle" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Rifle</span></span>
+              <span class="inventory-item__quantity"></span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="rifleAmmo" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Rifle Ammo</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="chainsaw" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Chainsaw</span></span>
+              <span class="inventory-item__quantity"></span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="chainsawBattery" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Chainsaw Battery</span></span>
+              <span class="inventory-item__quantity">0%</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="musicBox" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Music Box</span></span>
@@ -2856,7 +2934,7 @@
 
       // 살아 있는 좀비와 사슴의 합계가 5마리를 넘게 되는 6번째 생성부터
       // 중앙 1024×1024 대신 월드 전체 2048×2048을 생성·이동 범위로 사용합니다.
-      const EXPANDED_SPAWN_POPULATION_THRESHOLD = 5;
+      const EXPANDED_SPAWN_POPULATION_THRESHOLD = 3;
 
       // 월드 중심(1024, 1024)을 기준으로 한 420×300 안전영역입니다.
       const SAFE_ZONE = {
@@ -2911,7 +2989,10 @@
         앞으로 아이템별 획득 수량이 추가되면 이 객체에 범위만 등록하면 됩니다.
       */
       const EXPLORATION_ITEM_QUANTITY_RANGES = Object.freeze({
-        handgunAmmo: Object.freeze({ min: 5, max: 20 })
+        handgunAmmo: Object.freeze({ min: 5, max: 20 }),
+        shotgunAmmo: Object.freeze({ min: 3, max: 15 }),
+        rifleAmmo: Object.freeze({ min: 2, max: 10 }),
+        chainsawBattery: Object.freeze({ min: 10, max: 60 })
       });
 
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
@@ -2921,7 +3002,13 @@
         strangerLetter: 0,
         axe: 1,
         handgun: 1,
+        shotgun: 1,
+        rifle: 1,
+        chainsaw: 1,
         handgunAmmo: 2,
+        shotgunAmmo: 2,
+        rifleAmmo: 2,
+        chainsawBattery: 2,
         carParts: 2,
         flowers: 2,
         whitePaint: 2,
@@ -2941,6 +3028,10 @@
       const HANDGUN_DAMAGE = 50;
       const HANDGUN_MISS_CHANCE = 0.20;
       const HANDGUN_CRITICAL_CHANCE = 0.10;
+      const MAX_CHAINSAW_BATTERY = 100;
+      const CHAINSAW_DRAIN_INTERVAL_MS = 1_000;
+      const CHAINSAW_GLITCH_DURATION_MS = 700;
+      const CHAINSAW_GLITCH_FRAME_MS = 100;
 
       // 생성 간격: 좀비 1분 / 사슴 3분
       const SPAWN_INTERVAL_MS = 60_000;
@@ -3005,6 +3096,8 @@
 
       const WALK_SHEET = "images/zomebie_default_walk.png";
       const DEAD_SHEET = "images/zomebie_default_dead.png";
+      const DEAD_NO_HEAD_SHEET = "images/zomebie_default_dead_nohead.png";
+      const ZOMBIE_PARTS_SHEET = "images/zomebie_default_parts.png";
       const BIRTH_DEATH_SHEET =
         "images/zomebie_default_birthdeath.png";
       const DEER_SHEET = "images/deer_default.png";
@@ -3026,7 +3119,15 @@
       const AXE_MISS_SOUND = "sounds/sfx_miss_axe.wav";
       const HANDGUN_SOUND = "sounds/sfx_handgun.wav";
       const HANDGUN_EQUIP_SOUND = "sounds/sfx_handgun_equip.wav";
-      const HANDGUN_NO_AMMO_SOUND = "sounds/sfx_handgun_noammo.wav";
+      const NO_AMMO_SOUND = "sounds/sfx_noammo.wav";
+      const SHOTGUN_EQUIP_SOUND = "sounds/sfx_shotgun_equip.wav";
+      const SHOTGUN_FIRE_SOUND = "sounds/sfx_shotgun_fire.wav";
+      const RIFLE_EQUIP_SOUND = "sounds/sfx_rifle_equip.wav";
+      const RIFLE_FIRE_SOUND = "sounds/sfx_rifle_fire.wav";
+      const CHAINSAW_EQUIP_SOUND = "sounds/sfx_chainsaw_equip.wav";
+      const CHAINSAW_IDLE_SOUND = "sounds/sfx_chainsaw_idle.wav";
+      const CHAINSAW_ATTACK_SOUND = "sounds/sfx_chainsaw_attack.wav";
+      const CHAINSAW_LOW_BATTERY_SOUND = "sounds/sfx_chainsaw_lowbattery.wav";
       const GET_AXE_SOUND = "sounds/sfx_get_axe.wav";
       const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
       const TREE_FALL_SOUND = "sounds/sfx_tree_fall.wav";
@@ -3149,6 +3250,31 @@
       const TREE_PART_SHADOW_WIDTH = 70;
       const TREE_PART_SHADOW_HEIGHT = 20;
       const TREE_PART_SHADOW_OPACITY = 0.15;
+
+      // 좀비 파츠 전용 연출값입니다. 시작 위치와 비행·바운스·그림자는 여기서 조정합니다.
+      const ZOMBIE_PART_SIZE = 32;
+      const ZOMBIE_PART_START_OFFSETS = [
+        { x: -8, y: -18 }, { x: 7, y: -22 }, { x: -12, y: 1 }, { x: 11, y: -1 },
+        { x: -7, y: 20 }, { x: 8, y: 18 }, { x: -1, y: 5 }, { x: 3, y: -8 }
+      ];
+      const ZOMBIE_HEAD_START_OFFSET = { x: 0, y: -34 };
+      const ZOMBIE_PART_FLIGHT_DISTANCE_MIN = 70;
+      const ZOMBIE_PART_FLIGHT_DISTANCE_MAX = 150;
+      const ZOMBIE_PART_ARC_MIN = 48;
+      const ZOMBIE_PART_ARC_MAX = 110;
+      const ZOMBIE_PART_FLIGHT_MS_MIN = 520;
+      const ZOMBIE_PART_FLIGHT_MS_MAX = 820;
+      const ZOMBIE_PART_BOUNCE_HEIGHT_MIN = 8;
+      const ZOMBIE_PART_BOUNCE_HEIGHT_MAX = 24;
+      const ZOMBIE_PART_BOUNCE_MS = 360;
+      const ZOMBIE_PART_HOLD_MS = TREE_PART_HOLD_MS;
+      const ZOMBIE_PART_FADE_MS = TREE_PART_FADE_MS;
+      const ZOMBIE_PART_SHADOW_WIDTH = 28;
+      const ZOMBIE_PART_SHADOW_HEIGHT = 9;
+      const ZOMBIE_PART_SHADOW_OFFSET_X = 11;
+      const ZOMBIE_PART_SHADOW_OFFSET_Y = 15;
+      const ZOMBIE_PART_SHADOW_OPACITY = 0.16;
+
       const TREE_MAX_CHOPS_PER_GROWTH = 3;
       const TREE_GROWTH_READY = "ready";
       const TREE_GROWTH_DEPLETED = "depleted";
@@ -3167,7 +3293,15 @@
       const MUSIC_BOX_SELECTED_TOAST_MESSAGE = "It still works.";
       const HANDGUN_SELECTED_TOAST_MESSAGE = "Better than bare hands.";
       const HANDGUN_AMMO_SELECTED_TOAST_MESSAGE = "Every bullet counts.";
-      const HANDGUN_EMPTY_TOAST_MESSAGE = "Empty.";
+      const SHOTGUN_SELECTED_TOAST_MESSAGE = "For close encounters.";
+      const SHOTGUN_AMMO_SELECTED_TOAST_MESSAGE = "A few more shells.";
+      const RIFLE_SELECTED_TOAST_MESSAGE = "Better from a distance.";
+      const RIFLE_AMMO_SELECTED_TOAST_MESSAGE = "A few more rounds.";
+      const CHAINSAW_SELECTED_TOAST_MESSAGE = "Let’s cut this short.";
+      const CHAINSAW_BATTERY_SELECTED_TOAST_MESSAGE = "This should keep it running.";
+      const EMPTY_WEAPON_TOAST_MESSAGE = "Empty.";
+      const CHAINSAW_NO_POWER_TOAST_MESSAGE = "No power.";
+      const OVERKILL_TOAST_MESSAGE = "It would be overkill.";
       const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
       const REPAIR_MATERIALS_TOAST_MESSAGE = "I need more materials.";
       const SHED_REPAIR_TOAST_MESSAGE = "It needs some work.";
@@ -3469,6 +3603,24 @@
       const handgunAmmoInventoryItem = document.querySelector(
         '.inventory-item[data-item="handgunAmmo"]'
       );
+      const shotgunInventoryItem = document.querySelector(
+        '.inventory-item[data-item="shotgun"]'
+      );
+      const shotgunAmmoInventoryItem = document.querySelector(
+        '.inventory-item[data-item="shotgunAmmo"]'
+      );
+      const rifleInventoryItem = document.querySelector(
+        '.inventory-item[data-item="rifle"]'
+      );
+      const rifleAmmoInventoryItem = document.querySelector(
+        '.inventory-item[data-item="rifleAmmo"]'
+      );
+      const chainsawInventoryItem = document.querySelector(
+        '.inventory-item[data-item="chainsaw"]'
+      );
+      const chainsawBatteryInventoryItem = document.querySelector(
+        '.inventory-item[data-item="chainsawBattery"]'
+      );
       const musicBoxInventoryItem = document.querySelector(
         '.inventory-item[data-item="musicBox"]'
       );
@@ -3535,6 +3687,8 @@
         "treePartShadowLayer"
       );
       const treePartLayer = document.getElementById("treePartLayer");
+      const zombiePartShadowLayer = document.getElementById("zombiePartShadowLayer");
+      const zombiePartLayer = document.getElementById("zombiePartLayer");
       const treeHitArea = document.getElementById("treeHitArea");
       const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
@@ -3752,6 +3906,20 @@
       let isHandgunEquipped = false;
       let hasHandgunAmmo = false;
       let handgunAmmoCount = 0;
+      let hasShotgun = false;
+      let isShotgunEquipped = false;
+      let hasShotgunAmmo = false;
+      let shotgunAmmoCount = 0;
+      let hasRifle = false;
+      let isRifleEquipped = false;
+      let hasRifleAmmo = false;
+      let rifleAmmoCount = 0;
+      let hasChainsaw = false;
+      let isChainsawEquipped = false;
+      let hasChainsawBattery = false;
+      let chainsawBatteryPercent = 0;
+      let chainsawDrainTimerId = null;
+      let chainsawBatteryPausedForBackground = false;
       let hasMusicBox = false;
       let isMusicOn = false;
       let hasNewInventoryItem = false;
@@ -3901,6 +4069,11 @@
       for (const audio of structureSoundAudioByPath.values()) {
         audio.preload = "auto";
       }
+
+      const chainsawIdleAudio = new Audio(CHAINSAW_IDLE_SOUND);
+      chainsawIdleAudio.loop = true;
+      chainsawIdleAudio.preload = "auto";
+      chainsawIdleAudio.volume = 1;
 
       const dayBgmAudio = new Audio(DAY_BGM_SOUND);
       const nightBgmAudio = new Audio(NIGHT_BGM_SOUND);
@@ -5506,10 +5679,29 @@
             parsed.handgunAmmo,
             MAX_INVENTORY_QUANTITY
           );
-          isHandgunEquipped = hasHandgun &&
-            parsed.isHandgunEquipped === true;
-          isAxeEquipped = hasAxe && !isHandgunEquipped &&
-            parsed.isAxeEquipped !== false;
+          hasShotgun = parsed.hasShotgun === true;
+          hasShotgunAmmo = parsed.hasShotgunAmmo === true || Number(parsed.shotgunAmmo) > 0;
+          shotgunAmmoCount = normalizeStoredCount(parsed.shotgunAmmo, MAX_INVENTORY_QUANTITY);
+          hasRifle = parsed.hasRifle === true;
+          hasRifleAmmo = parsed.hasRifleAmmo === true || Number(parsed.rifleAmmo) > 0;
+          rifleAmmoCount = normalizeStoredCount(parsed.rifleAmmo, MAX_INVENTORY_QUANTITY);
+          hasChainsaw = parsed.hasChainsaw === true;
+          hasChainsawBattery = parsed.hasChainsawBattery === true || Number(parsed.chainsawBattery) > 0;
+          chainsawBatteryPercent = normalizeStoredCount(parsed.chainsawBattery, MAX_CHAINSAW_BATTERY);
+
+          const storedEquippedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"]
+            .includes(parsed.equippedWeapon)
+            ? parsed.equippedWeapon
+            : (parsed.isChainsawEquipped === true ? "chainsaw"
+              : parsed.isRifleEquipped === true ? "rifle"
+              : parsed.isShotgunEquipped === true ? "shotgun"
+              : parsed.isHandgunEquipped === true ? "handgun"
+              : parsed.isAxeEquipped !== false ? "axe" : "");
+          isAxeEquipped = storedEquippedWeapon === "axe" && hasAxe;
+          isHandgunEquipped = storedEquippedWeapon === "handgun" && hasHandgun;
+          isShotgunEquipped = storedEquippedWeapon === "shotgun" && hasShotgun;
+          isRifleEquipped = storedEquippedWeapon === "rifle" && hasRifle;
+          isChainsawEquipped = storedEquippedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
           hasMusicBox = parsed.hasMusicBox === true;
           isMusicOn = hasMusicBox && parsed.isMusicOn !== false;
           hasNewInventoryItem = parsed.hasNewInventoryItem === true;
@@ -5534,6 +5726,12 @@
           ) {
             if (hasHandgun) newInventoryItemTypes.add("handgun");
             if (hasHandgunAmmo) newInventoryItemTypes.add("handgunAmmo");
+            if (hasShotgun) newInventoryItemTypes.add("shotgun");
+            if (hasShotgunAmmo) newInventoryItemTypes.add("shotgunAmmo");
+            if (hasRifle) newInventoryItemTypes.add("rifle");
+            if (hasRifleAmmo) newInventoryItemTypes.add("rifleAmmo");
+            if (hasChainsaw) newInventoryItemTypes.add("chainsaw");
+            if (hasChainsawBattery) newInventoryItemTypes.add("chainsawBattery");
           }
 
           const storedViewedInventoryNewItems = Array.isArray(
@@ -5593,6 +5791,9 @@
           explorationEndsAt = Number.isFinite(Number(parsed.explorationEndsAt))
             ? Math.max(0, Number(parsed.explorationEndsAt))
             : 0;
+          if (explorationEndsAt > 0 && isChainsawEquipped) {
+            isChainsawEquipped = false;
+          }
 
           const savedAt = Number.isFinite(Number(parsed.savedAt))
             ? Math.max(0, Number(parsed.savedAt))
@@ -5665,6 +5866,19 @@
               isHandgunEquipped,
               hasHandgunAmmo,
               handgunAmmo: handgunAmmoCount,
+              hasShotgun,
+              isShotgunEquipped,
+              hasShotgunAmmo,
+              shotgunAmmo: shotgunAmmoCount,
+              hasRifle,
+              isRifleEquipped,
+              hasRifleAmmo,
+              rifleAmmo: rifleAmmoCount,
+              hasChainsaw,
+              isChainsawEquipped,
+              hasChainsawBattery,
+              chainsawBattery: chainsawBatteryPercent,
+              equippedWeapon: getEquippedWeapon(),
               hasMusicBox,
               isMusicOn,
               hasNewInventoryItem,
@@ -6138,6 +6352,12 @@
         return hasAxe ||
           hasHandgun ||
           hasHandgunAmmo ||
+          hasShotgun ||
+          hasShotgunAmmo ||
+          hasRifle ||
+          hasRifleAmmo ||
+          hasChainsaw ||
+          hasChainsawBattery ||
           hasMusicBox ||
           hasStrangerLetter ||
           hasCompass ||
@@ -6633,6 +6853,9 @@
       }
 
       function startExploration(destination) {
+        if (isChainsawEquipped) {
+          setEquippedWeapon("", { render: true, save: false });
+        }
         closeExplorationMenu();
         closeInventory();
 
@@ -6756,6 +6979,12 @@
 
         if (!hasHandgun) candidates.push("handgun");
         if (handgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("handgunAmmo");
+        if (!hasShotgun) candidates.push("shotgun");
+        if (shotgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("shotgunAmmo");
+        if (!hasRifle) candidates.push("rifle");
+        if (rifleAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("rifleAmmo");
+        if (!hasChainsaw) candidates.push("chainsaw");
+        if (chainsawBatteryPercent < MAX_CHAINSAW_BATTERY) candidates.push("chainsawBattery");
         if (carPartsCount < getMaxCarPartsCount()) candidates.push("carParts");
         for (const itemType of Object.keys(paintCounts)) {
           if (paintCounts[itemType] < MAX_INVENTORY_QUANTITY) {
@@ -6773,6 +7002,30 @@
           handgunAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
             handgunAmmoCount + rollExplorationItemQuantity(reward)
+          );
+        } else if (reward === "shotgun") {
+          hasShotgun = true;
+        } else if (reward === "shotgunAmmo") {
+          hasShotgunAmmo = true;
+          shotgunAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            shotgunAmmoCount + rollExplorationItemQuantity(reward)
+          );
+        } else if (reward === "rifle") {
+          hasRifle = true;
+        } else if (reward === "rifleAmmo") {
+          hasRifleAmmo = true;
+          rifleAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            rifleAmmoCount + rollExplorationItemQuantity(reward)
+          );
+        } else if (reward === "chainsaw") {
+          hasChainsaw = true;
+        } else if (reward === "chainsawBattery") {
+          hasChainsawBattery = true;
+          chainsawBatteryPercent = Math.min(
+            MAX_CHAINSAW_BATTERY,
+            chainsawBatteryPercent + rollExplorationItemQuantity(reward)
           );
         } else if (reward === "carParts") {
           carPartsCount = Math.min(
@@ -7065,7 +7318,16 @@
         return hasAxe &&
           hasHandgun &&
           hasHandgunAmmo &&
-          handgunAmmoCount > 0 &&
+          handgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          hasShotgun &&
+          hasShotgunAmmo &&
+          shotgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          hasRifle &&
+          hasRifleAmmo &&
+          rifleAmmoCount >= MAX_INVENTORY_QUANTITY &&
+          hasChainsaw &&
+          hasChainsawBattery &&
+          chainsawBatteryPercent >= MAX_CHAINSAW_BATTERY &&
           hasMusicBox &&
           hasStrangerLetter &&
           hasCompass &&
@@ -7091,7 +7353,25 @@
 
         markNewIfMissing("handgunAmmo", hasHandgunAmmo && handgunAmmoCount > 0);
         hasHandgunAmmo = true;
-        handgunAmmoCount = Math.max(handgunAmmoCount, 1);
+        handgunAmmoCount = MAX_INVENTORY_QUANTITY;
+
+        markNewIfMissing("shotgun", hasShotgun);
+        hasShotgun = true;
+        markNewIfMissing("shotgunAmmo", hasShotgunAmmo && shotgunAmmoCount > 0);
+        hasShotgunAmmo = true;
+        shotgunAmmoCount = MAX_INVENTORY_QUANTITY;
+
+        markNewIfMissing("rifle", hasRifle);
+        hasRifle = true;
+        markNewIfMissing("rifleAmmo", hasRifleAmmo && rifleAmmoCount > 0);
+        hasRifleAmmo = true;
+        rifleAmmoCount = MAX_INVENTORY_QUANTITY;
+
+        markNewIfMissing("chainsaw", hasChainsaw);
+        hasChainsaw = true;
+        markNewIfMissing("chainsawBattery", hasChainsawBattery && chainsawBatteryPercent > 0);
+        hasChainsawBattery = true;
+        chainsawBatteryPercent = MAX_CHAINSAW_BATTERY;
 
         markNewIfMissing("musicBox", hasMusicBox);
         hasMusicBox = true;
@@ -7244,6 +7524,8 @@
         return Promise.all([
           preloadImage(WALK_SHEET),
           preloadImage(DEAD_SHEET),
+          preloadImage(DEAD_NO_HEAD_SHEET),
+          preloadImage(ZOMBIE_PARTS_SHEET),
           preloadImage(BIRTH_DEATH_SHEET),
           preloadImage(DEER_SHEET),
           preloadImage("images/house_1_roof.png"),
@@ -8699,6 +8981,119 @@
         if (valueElement) valueElement.textContent = value;
       }
 
+      function getEquippedWeapon() {
+        if (isChainsawEquipped) return "chainsaw";
+        if (isRifleEquipped) return "rifle";
+        if (isShotgunEquipped) return "shotgun";
+        if (isHandgunEquipped) return "handgun";
+        if (isAxeEquipped) return "axe";
+        return "";
+      }
+
+      function stopChainsawIdleSound() {
+        try {
+          chainsawIdleAudio.pause();
+          chainsawIdleAudio.currentTime = 0;
+        } catch (_) {}
+      }
+
+      function startChainsawIdleSound() {
+        if (!isChainsawEquipped || chainsawBatteryPercent <= 0 || document.visibilityState === "hidden") {
+          stopChainsawIdleSound();
+          return;
+        }
+        chainsawIdleAudio.play().catch(() => {});
+      }
+
+      function playChainsawEquipThenIdle() {
+        try {
+          const equipAudio = new Audio(CHAINSAW_EQUIP_SOUND);
+          let completed = false;
+          const finish = () => {
+            if (completed) return;
+            completed = true;
+            if (isChainsawEquipped && chainsawBatteryPercent > 0) {
+              startChainsawIdleSound();
+            }
+          };
+          equipAudio.addEventListener("ended", finish, { once: true });
+          equipAudio.addEventListener("error", finish, { once: true });
+          equipAudio.play().catch(finish);
+        } catch (_) {
+          startChainsawIdleSound();
+        }
+      }
+
+      function stopChainsawBatteryDrain() {
+        if (chainsawDrainTimerId !== null) {
+          clearInterval(chainsawDrainTimerId);
+          chainsawDrainTimerId = null;
+        }
+      }
+
+      function setEquippedWeapon(weapon = "", options = {}) {
+        const normalizedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"].includes(weapon)
+          ? weapon
+          : "";
+
+        isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
+        isHandgunEquipped = normalizedWeapon === "handgun" && hasHandgun;
+        isShotgunEquipped = normalizedWeapon === "shotgun" && hasShotgun;
+        isRifleEquipped = normalizedWeapon === "rifle" && hasRifle;
+        isChainsawEquipped = normalizedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
+
+        if (!isChainsawEquipped) {
+          stopChainsawBatteryDrain();
+          stopChainsawIdleSound();
+        } else if (options.startChainsaw !== false) {
+          startChainsawBatteryDrain();
+          startChainsawIdleSound();
+        }
+
+        if (options.render !== false) applyInventoryState();
+        if (options.save !== false) saveResourceState();
+      }
+
+      function handleChainsawBatteryDepleted() {
+        chainsawBatteryPercent = 0;
+        isChainsawEquipped = false;
+        stopChainsawBatteryDrain();
+        stopChainsawIdleSound();
+        applyInventoryState();
+        saveResourceState();
+      }
+
+      function startChainsawBatteryDrain() {
+        stopChainsawBatteryDrain();
+        if (!isChainsawEquipped || chainsawBatteryPercent <= 0 || document.visibilityState === "hidden") return;
+
+        chainsawDrainTimerId = window.setInterval(() => {
+          if (!isChainsawEquipped || document.visibilityState === "hidden") return;
+          chainsawBatteryPercent = Math.max(0, chainsawBatteryPercent - 1);
+          applyInventoryState();
+          if (chainsawBatteryPercent <= 0) {
+            handleChainsawBatteryDepleted();
+            return;
+          }
+          saveResourceState();
+        }, CHAINSAW_DRAIN_INTERVAL_MS);
+      }
+
+      function pauseChainsawForBackground() {
+        chainsawBatteryPausedForBackground = isChainsawEquipped;
+        stopChainsawBatteryDrain();
+        stopChainsawIdleSound();
+      }
+
+      function resumeChainsawAfterBackground() {
+        if (document.visibilityState === "hidden") return;
+        if (!isExploring && isChainsawEquipped && chainsawBatteryPercent > 0) {
+          startChainsawBatteryDrain();
+          startChainsawIdleSound();
+        }
+        chainsawBatteryPausedForBackground = false;
+      }
+
       function applyInventoryState() {
         if (axeInventoryItem) {
           axeInventoryItem.hidden = !hasAxe;
@@ -8713,6 +9108,36 @@
         if (handgunAmmoInventoryItem) {
           handgunAmmoInventoryItem.hidden = !hasHandgunAmmo;
           setInventoryValue(handgunAmmoInventoryItem, `×${handgunAmmoCount}`);
+        }
+
+        if (shotgunInventoryItem) {
+          shotgunInventoryItem.hidden = !hasShotgun;
+          setInventoryValue(shotgunInventoryItem, hasShotgun && isShotgunEquipped ? "E" : "");
+        }
+
+        if (shotgunAmmoInventoryItem) {
+          shotgunAmmoInventoryItem.hidden = !hasShotgunAmmo;
+          setInventoryValue(shotgunAmmoInventoryItem, `×${shotgunAmmoCount}`);
+        }
+
+        if (rifleInventoryItem) {
+          rifleInventoryItem.hidden = !hasRifle;
+          setInventoryValue(rifleInventoryItem, hasRifle && isRifleEquipped ? "E" : "");
+        }
+
+        if (rifleAmmoInventoryItem) {
+          rifleAmmoInventoryItem.hidden = !hasRifleAmmo;
+          setInventoryValue(rifleAmmoInventoryItem, `×${rifleAmmoCount}`);
+        }
+
+        if (chainsawInventoryItem) {
+          chainsawInventoryItem.hidden = !hasChainsaw;
+          setInventoryValue(chainsawInventoryItem, hasChainsaw && isChainsawEquipped ? "E" : "");
+        }
+
+        if (chainsawBatteryInventoryItem) {
+          chainsawBatteryInventoryItem.hidden = !hasChainsawBattery;
+          setInventoryValue(chainsawBatteryInventoryItem, `${chainsawBatteryPercent}%`);
         }
 
         if (musicBoxInventoryItem) {
@@ -8909,8 +9334,7 @@
         }
 
         hasAxe = true;
-        isAxeEquipped = true;
-        isHandgunEquipped = false;
+        setEquippedWeapon("axe", { render: false, save: false });
         markInventoryItemAsNew("axe");
         applyAxeState();
         applyInventoryState();
@@ -9762,6 +10186,7 @@
         const candidates = Array.from(zombies.values()).filter(
           (zombie) =>
             zombie.state !== "dying" &&
+            zombie.state !== "chainsawAttacking" &&
             zombie.state !== "removed" &&
             isClientPointInsideElement(clientX, clientY, zombie.element)
         );
@@ -10081,14 +10506,18 @@
           return;
         }
 
+        const weapon = getEquippedWeapon();
+
+        // 샷건·체인소우의 사슴 제한은 Food 최대치보다 먼저 판정합니다.
+        if (weapon === "shotgun" || weapon === "chainsaw") {
+          showToast(OVERKILL_TOAST_MESSAGE);
+          return;
+        }
+
         if (foodCount >= getMaxFoodCount()) {
           showToast(DEER_FOOD_FULL_TOAST_MESSAGE);
           return;
         }
-
-        const weapon = isHandgunEquipped
-          ? "handgun"
-          : (isAxeEquipped ? "axe" : "");
 
         if (!weapon) {
           showToast(UNARMED_TOAST_MESSAGE);
@@ -10096,18 +10525,18 @@
         }
 
         if (weapon === "handgun" && handgunAmmoCount <= 0) {
-          playSound(HANDGUN_NO_AMMO_SOUND);
-          showToast(HANDGUN_EMPTY_TOAST_MESSAGE);
+          showNoAmmoFeedback();
+          return;
+        }
+        if (weapon === "rifle" && rifleAmmoCount <= 0) {
+          showNoAmmoFeedback();
           return;
         }
 
         alertNearbyDeer(deer, deer);
-        let damage = 0;
 
         if (weapon === "axe") {
           deer.axeAttackCount += 1;
-
-          // 사슴은 첫 두 번의 도끼 공격을 반드시 피하고, 세 번째는 반드시 맞습니다.
           if (deer.axeAttackCount <= 2) {
             playSound(AXE_MISS_SOUND, 0.7);
             makeDeerEvade(deer);
@@ -10115,26 +10544,34 @@
           }
 
           playSound(HIT_SOUND, 0.5);
-          damage = AXE_DAMAGE;
-        } else {
-          handgunAmmoCount -= 1;
-          applyInventoryState();
-          saveResourceState();
-          playSound(HANDGUN_SOUND);
+          deer.health = Math.max(0, deer.health - AXE_DAMAGE);
+          if (deer.health <= 0) beginDeerDeath(deer);
+          return;
+        }
 
+        if (weapon === "handgun") {
+          consumeAmmo("handgun");
+          playSound(HANDGUN_SOUND);
           if (Math.random() < HANDGUN_MISS_CHANCE) {
             makeDeerEvade(deer);
             return;
           }
 
-          damage = HANDGUN_DAMAGE;
-          if (Math.random() < HANDGUN_CRITICAL_CHANCE) {
-            damage *= 2;
+          const isCritical = Math.random() < HANDGUN_CRITICAL_CHANCE;
+          const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
+          deer.health = Math.max(0, deer.health - damage);
+          if (deer.health <= 0) {
+            if (isCritical) setTodoProgress(3, "item1", true);
+            beginDeerDeath(deer);
           }
+          return;
         }
 
-        deer.health = Math.max(0, deer.health - damage);
-        if (deer.health <= 0) {
+        if (weapon === "rifle") {
+          consumeAmmo("rifle");
+          playSound(RIFLE_FIRE_SOUND);
+          setTodoProgress(3, "item1", true);
+          deer.health = 0;
           beginDeerDeath(deer);
         }
       }
@@ -10435,6 +10872,10 @@
           deathStartedAt: 0,
           counted: false,
           fallSoundTimer: null,
+          deathSheet: DEAD_SHEET,
+          chainsawAttackStartedAt: 0,
+          chainsawAttackFrame: -1,
+          chainsawAttackStep: -1,
           movementZone: spawnZone
         };
 
@@ -10466,6 +10907,266 @@
         return true;
       }
 
+      function getZombiePartFramePosition(frameIndex) {
+        const normalized = clamp(Math.round(Number(frameIndex) || 0), 0, 7);
+        const col = normalized % 4;
+        const row = Math.floor(normalized / 4);
+        return `${-col * ZOMBIE_PART_SIZE}px ${-row * ZOMBIE_PART_SIZE}px`;
+      }
+
+      function chooseUniqueRandomZombieParts(count) {
+        const frames = Array.from({ length: 8 }, (_, index) => index);
+        for (let index = frames.length - 1; index > 0; index -= 1) {
+          const swapIndex = Math.floor(Math.random() * (index + 1));
+          [frames[index], frames[swapIndex]] = [frames[swapIndex], frames[index]];
+        }
+        return frames.slice(0, clamp(count, 0, frames.length));
+      }
+
+      function spawnZombieFallingPart(options = {}) {
+        if (!zombiePartLayer || !zombiePartShadowLayer) return;
+
+        const frameIndex = clamp(Math.round(Number(options.frameIndex) || 0), 0, 7);
+        const startX = Number(options.startX) || 0;
+        const startY = Number(options.startY) || 0;
+        const directionX = Number.isFinite(Number(options.directionX)) ? Number(options.directionX) : 1;
+        const directionY = Number.isFinite(Number(options.directionY)) ? Number(options.directionY) : 0;
+        const distance = Number(options.distance) || randomBetween(
+          ZOMBIE_PART_FLIGHT_DISTANCE_MIN,
+          ZOMBIE_PART_FLIGHT_DISTANCE_MAX
+        );
+        const arcHeight = Number(options.arcHeight) || randomBetween(
+          ZOMBIE_PART_ARC_MIN,
+          ZOMBIE_PART_ARC_MAX
+        );
+        const flightDuration = Number(options.flightDuration) || randomBetween(
+          ZOMBIE_PART_FLIGHT_MS_MIN,
+          ZOMBIE_PART_FLIGHT_MS_MAX
+        );
+        const bounceHeight = Number(options.bounceHeight) || randomBetween(
+          ZOMBIE_PART_BOUNCE_HEIGHT_MIN,
+          ZOMBIE_PART_BOUNCE_HEIGHT_MAX
+        );
+        const rotationDirection = Math.random() < 0.5 ? -1 : 1;
+        const totalRotation = rotationDirection * randomBetween(420, 900);
+        const sharedFallSoundState = options.sharedFallSoundState || { played: false };
+
+        const shadow = document.createElement("div");
+        shadow.className = "zombie-falling-part-shadow";
+        shadow.style.width = `${ZOMBIE_PART_SHADOW_WIDTH}px`;
+        shadow.style.height = `${ZOMBIE_PART_SHADOW_HEIGHT}px`;
+
+        const part = document.createElement("div");
+        part.className = "zombie-falling-part";
+        part.style.left = `${startX}px`;
+        part.style.top = `${startY}px`;
+
+        const image = document.createElement("div");
+        image.className = "zombie-falling-part-image";
+        image.style.backgroundImage = `url("${ZOMBIE_PARTS_SHEET}")`;
+        image.style.backgroundPosition = getZombiePartFramePosition(frameIndex);
+        part.appendChild(image);
+
+        const horizontalDistance = directionX * distance;
+        const verticalDistance = directionY * distance * 0.45 + randomBetween(28, 64);
+        const landingX = startX + horizontalDistance;
+        const landingY = startY + verticalDistance;
+        shadow.style.left = `${landingX + ZOMBIE_PART_SHADOW_OFFSET_X}px`;
+        shadow.style.top = `${landingY + ZOMBIE_PART_SHADOW_OFFSET_Y}px`;
+        shadow.style.opacity = "0";
+
+        zombiePartShadowLayer.appendChild(shadow);
+        zombiePartLayer.appendChild(part);
+
+        const startTime = performance.now();
+        const flightEnd = startTime + flightDuration;
+        const bounceEnd = flightEnd + ZOMBIE_PART_BOUNCE_MS;
+        const holdEnd = bounceEnd + ZOMBIE_PART_HOLD_MS;
+        const fadeEnd = holdEnd + ZOMBIE_PART_FADE_MS;
+
+        const setPose = (x, y, rotation, opacity = 1, scale = 1) => {
+          part.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          part.style.opacity = String(opacity);
+          image.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+        };
+
+        const step = (now) => {
+          if (!part.isConnected) return;
+
+          if (now < flightEnd) {
+            const progress = clamp((now - startTime) / flightDuration, 0, 1);
+            const x = horizontalDistance * progress;
+            const y = verticalDistance * progress - Math.sin(progress * Math.PI) * arcHeight;
+            setPose(x, y, totalRotation * progress);
+            requestAnimationFrame(step);
+            return;
+          }
+
+          if (!sharedFallSoundState.played) {
+            sharedFallSoundState.played = true;
+            playFallSound();
+          }
+          shadow.style.opacity = String(ZOMBIE_PART_SHADOW_OPACITY);
+
+          if (now < bounceEnd) {
+            const progress = clamp((now - flightEnd) / ZOMBIE_PART_BOUNCE_MS, 0, 1);
+            const bounceWave = Math.abs(Math.sin(progress * Math.PI * 2));
+            const decayedBounce = bounceHeight * (1 - progress) * bounceWave;
+            setPose(horizontalDistance, verticalDistance - decayedBounce, totalRotation + totalRotation * 0.2 * progress);
+            requestAnimationFrame(step);
+            return;
+          }
+
+          if (now < holdEnd) {
+            setPose(horizontalDistance, verticalDistance, totalRotation * 1.2);
+            requestAnimationFrame(step);
+            return;
+          }
+
+          if (now < fadeEnd) {
+            const progress = clamp((now - holdEnd) / ZOMBIE_PART_FADE_MS, 0, 1);
+            const opacity = 1 - progress;
+            shadow.style.opacity = String(ZOMBIE_PART_SHADOW_OPACITY * opacity);
+            setPose(horizontalDistance, verticalDistance, totalRotation * 1.2, opacity, 1 - progress * 0.06);
+            requestAnimationFrame(step);
+            return;
+          }
+
+          shadow.remove();
+          part.remove();
+        };
+
+        requestAnimationFrame(step);
+      }
+
+      function spawnZombieHeadPart(zombie) {
+        const fallDirection = zombie.deathStartFrame < 4 ? 1 : -1;
+        const offset = ZOMBIE_HEAD_START_OFFSET;
+        spawnZombieFallingPart({
+          frameIndex: 0,
+          startX: zombie.x + offset.x - ZOMBIE_PART_SIZE / 2,
+          startY: zombie.y + offset.y - ZOMBIE_PART_SIZE / 2,
+          directionX: fallDirection,
+          directionY: -0.12,
+          distance: randomBetween(92, 138),
+          arcHeight: randomBetween(72, 112),
+          flightDuration: randomBetween(620, 820),
+          bounceHeight: randomBetween(16, 28)
+        });
+      }
+
+      function spawnShotgunZombieParts(zombie) {
+        const sharedFallSoundState = { played: false };
+        const selectedFrames = chooseUniqueRandomZombieParts(5);
+        selectedFrames.forEach((frameIndex, index) => {
+          const angle = (Math.PI * 2 * index) / selectedFrames.length + randomBetween(-0.45, 0.45);
+          const offset = ZOMBIE_PART_START_OFFSETS[frameIndex] || { x: 0, y: 0 };
+          spawnZombieFallingPart({
+            frameIndex,
+            startX: zombie.x + offset.x - ZOMBIE_PART_SIZE / 2,
+            startY: zombie.y + offset.y - ZOMBIE_PART_SIZE / 2,
+            directionX: Math.cos(angle),
+            directionY: Math.sin(angle),
+            distance: randomBetween(ZOMBIE_PART_FLIGHT_DISTANCE_MIN, ZOMBIE_PART_FLIGHT_DISTANCE_MAX),
+            sharedFallSoundState
+          });
+        });
+      }
+
+      function registerPlayerZombieKill(zombie) {
+        if (zombie.counted) return;
+
+        zombie.counted = true;
+        awardMusicBox();
+        const isFirstZombieKill = triggerFirstKillBirdFlock();
+        if (isFirstZombieKill) {
+          lastDeerSpawnAt = Date.now();
+          createDeer({ preferVisible: true, forceVisibleWhenExpanded: true });
+          scheduleNextDeerSpawnTick();
+        }
+
+        setTodoProgress(1, "item1", true);
+        const previousZombieCount = zombieCount;
+        zombieCount = Math.min(zombieKillRequirement, zombieCount + 1);
+        commitResourceState();
+
+        if (previousZombieCount < zombieKillRequirement && zombieCount >= zombieKillRequirement) {
+          window.setTimeout(() => {
+            if (!isExploring && zombieCount >= zombieKillRequirement) {
+              showToast(FIELD_CLEAR_TOAST_MESSAGE);
+            }
+          }, FIELD_CLEAR_TOAST_DELAY_MS);
+        }
+      }
+
+      function consumeAmmo(ammoType) {
+        if (ammoType === "handgun") {
+          if (handgunAmmoCount <= 0) return false;
+          handgunAmmoCount -= 1;
+        } else if (ammoType === "shotgun") {
+          if (shotgunAmmoCount <= 0) return false;
+          shotgunAmmoCount -= 1;
+        } else if (ammoType === "rifle") {
+          if (rifleAmmoCount <= 0) return false;
+          rifleAmmoCount -= 1;
+        } else {
+          return false;
+        }
+        applyInventoryState();
+        saveResourceState();
+        return true;
+      }
+
+      function showNoAmmoFeedback() {
+        playSound(NO_AMMO_SOUND);
+        showToast(EMPTY_WEAPON_TOAST_MESSAGE);
+      }
+
+      function showChainsawNoPowerFeedback() {
+        playSound(CHAINSAW_LOW_BATTERY_SOUND);
+        showToast(CHAINSAW_NO_POWER_TOAST_MESSAGE);
+      }
+
+      function beginShotgunDeath(zombie) {
+        if (zombie.state === "dying" || zombie.state === "removed") return;
+        registerPlayerZombieKill(zombie);
+        spawnShotgunZombieParts(zombie);
+        zombie.state = "removed";
+        zombie.element.remove();
+        zombies.delete(zombie.id);
+        saveResourceState();
+        scheduleEmptyFieldZombieSpawn();
+      }
+
+      function beginChainsawAttackDeath(zombie) {
+        if (zombie.state === "dying" || zombie.state === "removed" || zombie.state === "chainsawAttacking") return;
+        zombie.state = "chainsawAttacking";
+        zombie.element.classList.add("is-dead");
+        zombie.chainsawAttackStartedAt = performance.now();
+        zombie.chainsawAttackFrame = -1;
+        zombie.chainsawAttackStep = -1;
+        zombie.element.style.opacity = "1";
+      }
+
+      function updateChainsawAttackDeath(zombie, now) {
+        const elapsed = now - zombie.chainsawAttackStartedAt;
+        if (elapsed >= CHAINSAW_GLITCH_DURATION_MS) {
+          beginDeath(zombie, true, { deathType: "normal" });
+          return;
+        }
+
+        const step = Math.floor(elapsed / CHAINSAW_GLITCH_FRAME_MS);
+        if (step !== zombie.chainsawAttackStep) {
+          let nextFrame = Math.floor(Math.random() * 8);
+          if (nextFrame === zombie.chainsawAttackFrame) {
+            nextFrame = (nextFrame + 1 + Math.floor(Math.random() * 7)) % 8;
+          }
+          zombie.chainsawAttackStep = step;
+          zombie.chainsawAttackFrame = nextFrame;
+        }
+        showSingleFrame(zombie, WALK_SHEET, Math.max(0, zombie.chainsawAttackFrame));
+      }
+
       function attackZombie(zombie) {
         if (isExploring) {
           showExploringBusyToast();
@@ -10474,63 +11175,29 @@
 
         if (
           zombie.state === "dying" ||
+          zombie.state === "chainsawAttacking" ||
           zombie.state === "removed"
         ) {
           return;
         }
 
-        const weapon = isHandgunEquipped
-          ? "handgun"
-          : (isAxeEquipped ? "axe" : "");
-
+        const weapon = getEquippedWeapon();
         if (!weapon) {
           showToast(UNARMED_TOAST_MESSAGE);
           return;
         }
 
-        let damage = 0;
-
         if (weapon === "axe") {
           alertNearbyDeer(zombie);
-
           if (Math.random() < AXE_MISS_CHANCE) {
             playSound(AXE_MISS_SOUND, 0.7);
             return;
           }
 
           playSound(HIT_SOUND, 0.5);
-          damage = AXE_DAMAGE;
-        } else {
-          if (handgunAmmoCount <= 0) {
-            playSound(HANDGUN_NO_AMMO_SOUND);
-            showToast(HANDGUN_EMPTY_TOAST_MESSAGE);
-            return;
-          }
-
-          alertNearbyDeer(zombie);
-
-          handgunAmmoCount -= 1;
-          applyInventoryState();
-          saveResourceState();
-          playSound(HANDGUN_SOUND);
-
-          if (Math.random() < HANDGUN_MISS_CHANCE) {
-            return;
-          }
-
-          damage = HANDGUN_DAMAGE;
-          if (Math.random() < HANDGUN_CRITICAL_CHANCE) {
-            damage *= 2;
-          }
-          const isOneShotHeadshot = damage >= zombie.health;
-
-          zombie.health = Math.max(0, zombie.health - damage);
-
+          zombie.health = Math.max(0, zombie.health - AXE_DAMAGE);
           if (zombie.health <= 0) {
-            if (isOneShotHeadshot) {
-              setTodoProgress(3, "item1", true);
-            }
-            beginDeath(zombie, true);
+            beginDeath(zombie, true, { deathType: "normal" });
             return;
           }
 
@@ -10538,83 +11205,94 @@
           zombie.deathStartFrame = randomDeathStartFrame();
           zombie.hitReactionFrame = zombie.deathStartFrame;
           zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
+          showSingleFrame(zombie, DEAD_SHEET, zombie.hitReactionFrame);
+          return;
+        }
 
-          showSingleFrame(
-            zombie,
-            ZOMBIE_HIT_REACTION_SEQUENCE[zombie.hitReactionFrame]
-          );
+        if (weapon === "handgun") {
+          if (!consumeAmmo("handgun")) {
+            showNoAmmoFeedback();
+            return;
+          }
+          alertNearbyDeer(zombie);
+          playSound(HANDGUN_SOUND);
+          if (Math.random() < HANDGUN_MISS_CHANCE) return;
+
+          const isCritical = Math.random() < HANDGUN_CRITICAL_CHANCE;
+          const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
+          zombie.health = Math.max(0, zombie.health - damage);
+          if (zombie.health <= 0) {
+            if (isCritical) setTodoProgress(3, "item1", true);
+            beginDeath(zombie, true, { deathType: isCritical ? "headshot" : "normal" });
+            return;
+          }
+
+          zombie.state = "hit";
+          zombie.deathStartFrame = randomDeathStartFrame();
+          zombie.hitReactionFrame = zombie.deathStartFrame;
+          zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
+          showSingleFrame(zombie, DEAD_SHEET, zombie.hitReactionFrame);
           saveResourceState();
           return;
         }
 
-        zombie.health = Math.max(0, zombie.health - damage);
-
-        if (zombie.health <= 0) {
-          beginDeath(zombie, true);
+        if (weapon === "shotgun") {
+          if (!consumeAmmo("shotgun")) {
+            showNoAmmoFeedback();
+            return;
+          }
+          alertNearbyDeer(zombie);
+          playSound(SHOTGUN_FIRE_SOUND);
+          beginShotgunDeath(zombie);
           return;
         }
 
-        zombie.state = "hit";
-        zombie.deathStartFrame = randomDeathStartFrame();
-        zombie.hitReactionFrame = zombie.deathStartFrame;
-        zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
+        if (weapon === "rifle") {
+          if (!consumeAmmo("rifle")) {
+            showNoAmmoFeedback();
+            return;
+          }
+          alertNearbyDeer(zombie);
+          playSound(RIFLE_FIRE_SOUND);
+          setTodoProgress(3, "item1", true);
+          zombie.health = 0;
+          beginDeath(zombie, true, { deathType: "headshot" });
+          return;
+        }
 
-        showSingleFrame(
-          zombie,
-          DEAD_SHEET,
-          zombie.hitReactionFrame
-        );
+        if (weapon === "chainsaw") {
+          if (chainsawBatteryPercent <= 0) {
+            showChainsawNoPowerFeedback();
+            handleChainsawBatteryDepleted();
+            return;
+          }
+          alertNearbyDeer(zombie);
+          playSound(CHAINSAW_ATTACK_SOUND);
+          zombie.health = 0;
+          beginChainsawAttackDeath(zombie);
+        }
       }
 
-      function beginDeath(zombie, wasPlayerKill = false) {
+      function beginDeath(zombie, wasPlayerKill = false, options = {}) {
         if (zombie.state === "dying" || zombie.state === "removed") return;
 
+        const deathType = options.deathType === "headshot" ? "headshot" : "normal";
         zombie.state = "dying";
         zombie.element.classList.add("is-dead");
         zombie.deathStartFrame = randomDeathStartFrame();
         zombie.deathStartedAt = performance.now();
+        zombie.deathSheet = deathType === "headshot" ? DEAD_NO_HEAD_SHEET : DEAD_SHEET;
         playSound(DEATH_SOUND, 0.5);
 
         if (wasPlayerKill) {
-          awardMusicBox();
-          const isFirstZombieKill = triggerFirstKillBirdFlock();
-          if (isFirstZombieKill) {
-            lastDeerSpawnAt = Date.now();
-            createDeer({ preferVisible: true, forceVisibleWhenExpanded: true });
-            scheduleNextDeerSpawnTick();
-          }
+          registerPlayerZombieKill(zombie);
         }
 
         zombie.element.style.opacity = "1";
-        showSingleFrame(
-          zombie,
-          DEAD_SHEET,
-          zombie.deathStartFrame
-        );
+        showSingleFrame(zombie, zombie.deathSheet, zombie.deathStartFrame);
 
-        if (wasPlayerKill && !zombie.counted) {
-          zombie.counted = true;
-          setTodoProgress(1, "item1", true);
-          const previousZombieCount = zombieCount;
-          zombieCount = Math.min(
-            zombieKillRequirement,
-            zombieCount + 1
-          );
-          commitResourceState();
-
-          if (
-            previousZombieCount < zombieKillRequirement &&
-            zombieCount >= zombieKillRequirement
-          ) {
-            window.setTimeout(() => {
-              if (
-                !isExploring &&
-                zombieCount >= zombieKillRequirement
-              ) {
-                showToast(FIELD_CLEAR_TOAST_MESSAGE);
-              }
-            }, FIELD_CLEAR_TOAST_DELAY_MS);
-          }
+        if (deathType === "headshot") {
+          spawnZombieHeadPart(zombie);
         }
 
         zombie.fallSoundTimer = window.setTimeout(() => {
@@ -10995,6 +11673,7 @@
 
       function updateDying(zombie, now) {
         const elapsed = now - zombie.deathStartedAt;
+        const deathSheet = zombie.deathSheet || DEAD_SHEET;
         const deathFrameDuration = 1000 / DEATH_FPS;
         const deathAnimationEnd = 4 * deathFrameDuration;
         const lastDeathFrameHoldEnd =
@@ -11025,7 +11704,7 @@
 
           showSingleFrame(
             zombie,
-            DEAD_SHEET,
+            deathSheet,
             zombie.deathStartFrame + localFrame
           );
           return;
@@ -11034,7 +11713,7 @@
         if (elapsed < lastDeathFrameHoldEnd) {
           showSingleFrame(
             zombie,
-            DEAD_SHEET,
+            deathSheet,
             deadLastFrame
           );
           return;
@@ -11047,7 +11726,7 @@
 
           showCrossfade(
             zombie,
-            DEAD_SHEET,
+            deathSheet,
             deadLastFrame,
             BIRTH_DEATH_SHEET,
             extraFrameOne,
@@ -11122,6 +11801,8 @@
             zombie.state === "hit"
           ) {
             updateWalking(zombie, deltaMs, now);
+          } else if (zombie.state === "chainsawAttacking") {
+            updateChainsawAttackDeath(zombie, now);
           } else if (zombie.state === "dying") {
             updateDying(zombie, now);
           }
@@ -11839,36 +12520,70 @@
           return;
         }
 
+        if (itemType === "shotgunAmmo" && hasShotgunAmmo) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(SHOTGUN_AMMO_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "rifleAmmo" && hasRifleAmmo) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(RIFLE_AMMO_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "chainsawBattery" && hasChainsawBattery) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(CHAINSAW_BATTERY_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
         if (itemType === "axe" && hasAxe) {
-          const willEquipAxe = !isAxeEquipped;
-          playSound(
-            willEquipAxe ? GET_AXE_SOUND : INVENTORY_SET_SOUND,
-            willEquipAxe ? 0.7 : 1
-          );
-          isAxeEquipped = willEquipAxe;
-          if (willEquipAxe) {
-            isHandgunEquipped = false;
-            showToast(AXE_SELECTED_TOAST_MESSAGE);
-          }
-          applyInventoryState();
-          saveResourceState();
+          const willEquip = getEquippedWeapon() !== "axe";
+          playSound(willEquip ? GET_AXE_SOUND : INVENTORY_SET_SOUND, willEquip ? 0.7 : 1);
+          setEquippedWeapon(willEquip ? "axe" : "");
+          if (willEquip) showToast(AXE_SELECTED_TOAST_MESSAGE);
           return;
         }
 
         if (itemType === "handgun" && hasHandgun) {
-          const willEquipHandgun = !isHandgunEquipped;
-          playSound(
-            willEquipHandgun
-              ? HANDGUN_EQUIP_SOUND
-              : INVENTORY_SET_SOUND
-          );
-          isHandgunEquipped = willEquipHandgun;
-          if (willEquipHandgun) {
-            isAxeEquipped = false;
-            showToast(HANDGUN_SELECTED_TOAST_MESSAGE);
+          const willEquip = getEquippedWeapon() !== "handgun";
+          playSound(willEquip ? HANDGUN_EQUIP_SOUND : INVENTORY_SET_SOUND);
+          setEquippedWeapon(willEquip ? "handgun" : "");
+          if (willEquip) showToast(HANDGUN_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "shotgun" && hasShotgun) {
+          const willEquip = getEquippedWeapon() !== "shotgun";
+          playSound(willEquip ? SHOTGUN_EQUIP_SOUND : INVENTORY_SET_SOUND);
+          setEquippedWeapon(willEquip ? "shotgun" : "");
+          if (willEquip) showToast(SHOTGUN_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "rifle" && hasRifle) {
+          const willEquip = getEquippedWeapon() !== "rifle";
+          playSound(willEquip ? RIFLE_EQUIP_SOUND : INVENTORY_SET_SOUND);
+          setEquippedWeapon(willEquip ? "rifle" : "");
+          if (willEquip) showToast(RIFLE_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "chainsaw" && hasChainsaw) {
+          if (chainsawBatteryPercent <= 0) {
+            showChainsawNoPowerFeedback();
+            setEquippedWeapon("");
+            return;
           }
-          applyInventoryState();
-          saveResourceState();
+          const willEquip = getEquippedWeapon() !== "chainsaw";
+          if (!willEquip) playSound(INVENTORY_SET_SOUND);
+          setEquippedWeapon(willEquip ? "chainsaw" : "", { startChainsaw: false });
+          if (willEquip) {
+            startChainsawBatteryDrain();
+            playChainsawEquipThenIdle();
+            showToast(CHAINSAW_SELECTED_TOAST_MESSAGE);
+          }
           return;
         }
 
@@ -11967,6 +12682,13 @@
         if (hasMusicBox && isMusicOn && !bgmStarted) {
           startBgmPlayback();
         }
+        if (
+          isChainsawEquipped &&
+          chainsawBatteryPercent > 0 &&
+          chainsawIdleAudio.paused
+        ) {
+          startChainsawIdleSound();
+        }
       });
 
       document.addEventListener("keydown", (event) => {
@@ -12003,16 +12725,30 @@
       function handlePopulationVisibilityChange() {
         if (document.visibilityState === "hidden") {
           pausePopulationTimersForBackground();
+          pauseChainsawForBackground();
           return;
         }
 
         refreshPopulationAfterResume();
+        resumeChainsawAfterBackground();
       }
 
-      window.addEventListener("pagehide", pausePopulationTimersForBackground);
-      window.addEventListener("pageshow", refreshPopulationAfterResume);
-      window.addEventListener("blur", pausePopulationTimersForBackground);
-      window.addEventListener("focus", refreshPopulationAfterResume);
+      window.addEventListener("pagehide", () => {
+        pausePopulationTimersForBackground();
+        pauseChainsawForBackground();
+      });
+      window.addEventListener("pageshow", () => {
+        refreshPopulationAfterResume();
+        resumeChainsawAfterBackground();
+      });
+      window.addEventListener("blur", () => {
+        pausePopulationTimersForBackground();
+        pauseChainsawForBackground();
+      });
+      window.addEventListener("focus", () => {
+        refreshPopulationAfterResume();
+        resumeChainsawAfterBackground();
+      });
       document.addEventListener(
         "visibilitychange",
         handlePopulationVisibilityChange
@@ -12023,14 +12759,24 @@
         handlePopulationVisibilityChange
       );
       // 지원 브라우저에서는 Page Lifecycle API도 함께 사용합니다.
-      document.addEventListener("freeze", pausePopulationTimersForBackground);
-      document.addEventListener("resume", refreshPopulationAfterResume);
+      document.addEventListener("freeze", () => {
+        pausePopulationTimersForBackground();
+        pauseChainsawForBackground();
+      });
+      document.addEventListener("resume", () => {
+        refreshPopulationAfterResume();
+        resumeChainsawAfterBackground();
+      });
 
       async function initializeGame() {
         // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
         await preloadGameSprites();
 
         loadResourceState();
+        if (isChainsawEquipped && chainsawBatteryPercent > 0) {
+          startChainsawBatteryDrain();
+          startChainsawIdleSound();
+        }
         restoreStoredPopulation();
         updateWorldScale();
         initializeClouds();
