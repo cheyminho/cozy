@@ -2518,7 +2518,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.084"
+  data-game-version="0.085"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -11795,20 +11795,8 @@
           return;
         }
 
+        const didMove = inventoryPageDragState.moved;
         const deltaX = event.clientX - inventoryPageDragState.startX;
-        const pageWidth = getInventoryPageWidth();
-        let targetPage = inventoryCurrentPage;
-
-        if (
-          inventoryPageDragState.moved &&
-          Math.abs(deltaX) >= Math.max(42, pageWidth * 0.18)
-        ) {
-          targetPage += deltaX < 0 ? 1 : -1;
-        }
-
-        if (inventoryPageDragState.moved) {
-          suppressInventoryClickUntil = performance.now() + 300;
-        }
 
         if (inventoryViewport.hasPointerCapture(event.pointerId)) {
           inventoryViewport.releasePointerCapture(event.pointerId);
@@ -11817,6 +11805,22 @@
         inventoryPageDragState.active = false;
         inventoryPageDragState.moved = false;
         inventoryPageDragState.pointerId = null;
+
+        /*
+          단순 탭에서는 페이지 위치나 pagination DOM을 갱신하지 않습니다.
+          iOS Safari는 pointerup 중 조상 트랙의 transform이 다시 적용되면
+          버튼에 이어서 발생해야 할 click을 취소할 수 있습니다.
+        */
+        if (!didMove) return;
+
+        const pageWidth = getInventoryPageWidth();
+        let targetPage = inventoryCurrentPage;
+
+        if (Math.abs(deltaX) >= Math.max(42, pageWidth * 0.18)) {
+          targetPage += deltaX < 0 ? 1 : -1;
+        }
+
+        suppressInventoryClickUntil = performance.now() + 300;
         goToInventoryPage(targetPage, true);
       }
 
@@ -11825,101 +11829,135 @@
       inventoryViewport.addEventListener("pointerup", endInventoryPageDrag);
       inventoryViewport.addEventListener("pointercancel", endInventoryPageDrag);
 
+      function activateInventoryItem(item) {
+        const itemType = item.dataset.item || "";
+        clearInventoryItemNewState(itemType);
+
+        if (itemType === "handgunAmmo" && hasHandgunAmmo) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(HANDGUN_AMMO_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "axe" && hasAxe) {
+          const willEquipAxe = !isAxeEquipped;
+          playSound(
+            willEquipAxe ? GET_AXE_SOUND : INVENTORY_SET_SOUND,
+            willEquipAxe ? 0.7 : 1
+          );
+          isAxeEquipped = willEquipAxe;
+          if (willEquipAxe) {
+            isHandgunEquipped = false;
+            showToast(AXE_SELECTED_TOAST_MESSAGE);
+          }
+          applyInventoryState();
+          saveResourceState();
+          return;
+        }
+
+        if (itemType === "handgun" && hasHandgun) {
+          const willEquipHandgun = !isHandgunEquipped;
+          playSound(
+            willEquipHandgun
+              ? HANDGUN_EQUIP_SOUND
+              : INVENTORY_SET_SOUND
+          );
+          isHandgunEquipped = willEquipHandgun;
+          if (willEquipHandgun) {
+            isAxeEquipped = false;
+            showToast(HANDGUN_SELECTED_TOAST_MESSAGE);
+          }
+          applyInventoryState();
+          saveResourceState();
+          return;
+        }
+
+        if (itemType === "musicBox" && hasMusicBox) {
+          const willTurnMusicOn = !isMusicOn;
+          playSound(INVENTORY_SET_SOUND);
+          setMusicOn(willTurnMusicOn);
+          if (willTurnMusicOn) {
+            showToast(MUSIC_BOX_SELECTED_TOAST_MESSAGE);
+          }
+          return;
+        }
+
+        if (itemType === "strangerLetter" && hasStrangerLetter) {
+          const willTurnLetterOn = !isStrangerLetterOn;
+          playSound(INVENTORY_SET_SOUND);
+          isStrangerLetterOn = willTurnLetterOn;
+          if (willTurnLetterOn) {
+            showToast(STRANGER_LETTER_SELECTED_TOAST_MESSAGE);
+          }
+          updateTodoListUI();
+          applyInventoryState();
+          saveResourceState();
+          return;
+        }
+
+        if (itemType === "compass" && hasCompass) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(COMPASS_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "carParts" && carPartsCount > 0) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(CAR_PARTS_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "flowers" && flowerCount > 0) {
+          playSound(INVENTORY_SET_SOUND);
+          return;
+        }
+
+        if (itemType in paintCounts && paintCounts[itemType] > 0) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(PAINT_SELECTED_TOAST_MESSAGE);
+        }
+      }
+
       for (const item of inventoryItems) {
+        let touchPointerId = null;
+
         item.addEventListener("mouseenter", () => {
           clearInventoryItemNewState(item.dataset.item || "");
         });
 
+        /*
+          이동된 페이지의 버튼은 일부 모바일 브라우저에서 pointerup 뒤에
+          click이 생성되지 않을 수 있으므로 터치 입력은 pointerup에서 직접 처리합니다.
+          실제 페이지 드래그로 판정된 입력은 실행하지 않습니다.
+        */
+        item.addEventListener("pointerdown", (event) => {
+          if (event.pointerType === "mouse" || !event.isPrimary) return;
+          touchPointerId = event.pointerId;
+        });
+
+        item.addEventListener("pointercancel", (event) => {
+          if (event.pointerId === touchPointerId) touchPointerId = null;
+        });
+
+        item.addEventListener("pointerup", (event) => {
+          if (
+            event.pointerType === "mouse" ||
+            event.pointerId !== touchPointerId
+          ) {
+            return;
+          }
+
+          touchPointerId = null;
+          if (inventoryPageDragState.moved) return;
+
+          // 뒤이어 click이 생성되는 브라우저에서는 같은 탭이 두 번 실행되지 않게 합니다.
+          suppressInventoryClickUntil = performance.now() + 500;
+          activateInventoryItem(item);
+        });
+
         item.addEventListener("click", () => {
           if (performance.now() < suppressInventoryClickUntil) return;
-
-          const itemType = item.dataset.item || "";
-          clearInventoryItemNewState(itemType);
-
-          if (itemType === "handgunAmmo" && hasHandgunAmmo) {
-            playSound(INVENTORY_SET_SOUND);
-            showToast(HANDGUN_AMMO_SELECTED_TOAST_MESSAGE);
-            return;
-          }
-
-          if (itemType === "axe" && hasAxe) {
-            const willEquipAxe = !isAxeEquipped;
-            playSound(
-              willEquipAxe ? GET_AXE_SOUND : INVENTORY_SET_SOUND,
-              willEquipAxe ? 0.7 : 1
-            );
-            isAxeEquipped = willEquipAxe;
-            if (willEquipAxe) {
-              isHandgunEquipped = false;
-              showToast(AXE_SELECTED_TOAST_MESSAGE);
-            }
-            applyInventoryState();
-            saveResourceState();
-            return;
-          }
-
-          if (itemType === "handgun" && hasHandgun) {
-            const willEquipHandgun = !isHandgunEquipped;
-            playSound(
-              willEquipHandgun
-                ? HANDGUN_EQUIP_SOUND
-                : INVENTORY_SET_SOUND
-            );
-            isHandgunEquipped = willEquipHandgun;
-            if (willEquipHandgun) {
-              isAxeEquipped = false;
-              showToast(HANDGUN_SELECTED_TOAST_MESSAGE);
-            }
-            applyInventoryState();
-            saveResourceState();
-            return;
-          }
-
-          if (itemType === "musicBox" && hasMusicBox) {
-            const willTurnMusicOn = !isMusicOn;
-            playSound(INVENTORY_SET_SOUND);
-            setMusicOn(willTurnMusicOn);
-            if (willTurnMusicOn) {
-              showToast(MUSIC_BOX_SELECTED_TOAST_MESSAGE);
-            }
-            return;
-          }
-
-          if (itemType === "strangerLetter" && hasStrangerLetter) {
-            const willTurnLetterOn = !isStrangerLetterOn;
-            playSound(INVENTORY_SET_SOUND);
-            isStrangerLetterOn = willTurnLetterOn;
-            if (willTurnLetterOn) {
-              showToast(STRANGER_LETTER_SELECTED_TOAST_MESSAGE);
-            }
-            updateTodoListUI();
-            applyInventoryState();
-            saveResourceState();
-            return;
-          }
-
-          if (itemType === "compass" && hasCompass) {
-            playSound(INVENTORY_SET_SOUND);
-            showToast(COMPASS_SELECTED_TOAST_MESSAGE);
-            return;
-          }
-
-          if (itemType === "carParts" && carPartsCount > 0) {
-            playSound(INVENTORY_SET_SOUND);
-            showToast(CAR_PARTS_SELECTED_TOAST_MESSAGE);
-            return;
-          }
-
-          if (itemType === "flowers" && flowerCount > 0) {
-            playSound(INVENTORY_SET_SOUND);
-            return;
-          }
-
-          if (itemType in paintCounts && paintCounts[itemType] > 0) {
-            playSound(INVENTORY_SET_SOUND);
-            showToast(PAINT_SELECTED_TOAST_MESSAGE);
-            return;
-          }
+          activateInventoryItem(item);
         });
       }
 
