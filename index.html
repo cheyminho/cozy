@@ -2518,7 +2518,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.082"
+  data-game-version="0.083"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3820,6 +3820,8 @@
       let zombieSpawnTimerId = null;
       let hasGameInitialized = false;
       let deerSpawnTimerId = null;
+      let populationTimersPausedForBackground = false;
+      let lastPopulationResumeRefreshAt = 0;
       let versionTestClickCount = 0;
       let versionTestLastClickAt = -Infinity;
       let isStateSaveSuppressed = false;
@@ -10958,6 +10960,14 @@
       function scheduleNextZombieSpawnTick() {
         if (zombieSpawnTimerId !== null) {
           clearTimeout(zombieSpawnTimerId);
+          zombieSpawnTimerId = null;
+        }
+
+        if (
+          populationTimersPausedForBackground ||
+          document.visibilityState === "hidden"
+        ) {
+          return;
         }
 
         const elapsed = Math.max(0, Date.now() - lastZombieSpawnAt);
@@ -10965,6 +10975,16 @@
 
         zombieSpawnTimerId = window.setTimeout(() => {
           zombieSpawnTimerId = null;
+
+          // iOS Safari가 복귀 과정에서 대기 중이던 타이머를 먼저 실행해도
+          // 경과 시간을 소비하지 않도록 백그라운드 상태에서는 즉시 중단합니다.
+          if (
+            populationTimersPausedForBackground ||
+            document.visibilityState === "hidden"
+          ) {
+            return;
+          }
+
           lastZombieSpawnAt = Date.now();
 
           if (canCreateZombie()) {
@@ -10985,6 +11005,14 @@
       function scheduleNextDeerSpawnTick() {
         if (deerSpawnTimerId !== null) {
           clearTimeout(deerSpawnTimerId);
+          deerSpawnTimerId = null;
+        }
+
+        if (
+          populationTimersPausedForBackground ||
+          document.visibilityState === "hidden"
+        ) {
+          return;
         }
 
         const elapsed = Math.max(0, Date.now() - lastDeerSpawnAt);
@@ -10992,6 +11020,14 @@
 
         deerSpawnTimerId = window.setTimeout(() => {
           deerSpawnTimerId = null;
+
+          if (
+            populationTimersPausedForBackground ||
+            document.visibilityState === "hidden"
+          ) {
+            return;
+          }
+
           lastDeerSpawnAt = Date.now();
 
           if (
@@ -11010,6 +11046,31 @@
         }, delay);
       }
 
+      function pausePopulationTimersForBackground() {
+        if (!hasGameInitialized) return;
+
+        populationTimersPausedForBackground = true;
+
+        if (zombieSpawnTimerId !== null) {
+          clearTimeout(zombieSpawnTimerId);
+          zombieSpawnTimerId = null;
+        }
+        if (deerSpawnTimerId !== null) {
+          clearTimeout(deerSpawnTimerId);
+          deerSpawnTimerId = null;
+        }
+        if (pendingEmptyZombieSpawnTimerId !== null) {
+          clearTimeout(pendingEmptyZombieSpawnTimerId);
+          pendingEmptyZombieSpawnTimerId = null;
+        }
+        if (pendingEmptyDeerSpawnTimerId !== null) {
+          clearTimeout(pendingEmptyDeerSpawnTimerId);
+          pendingEmptyDeerSpawnTimerId = null;
+        }
+
+        saveResourceState();
+      }
+
       /*
         iOS에서 화면 잠금이나 백그라운드 전환으로 타이머가 멈춘 경우,
         다시 화면이 활성화될 때 집에 머문 경과 시간만큼 누락된 좀비와 사슴 생성을 보정합니다.
@@ -11021,6 +11082,19 @@
         }
 
         const now = Date.now();
+        const wasPausedForBackground =
+          populationTimersPausedForBackground;
+        populationTimersPausedForBackground = false;
+
+        // pageshow, visibilitychange, focus가 연달아 들어오는 iOS Safari에서
+        // 실제 백그라운드 복귀가 아닌 중복 이벤트만 짧게 무시합니다.
+        if (
+          !wasPausedForBackground &&
+          now - lastPopulationResumeRefreshAt < 250
+        ) {
+          return;
+        }
+        lastPopulationResumeRefreshAt = now;
 
         if (isExploring) {
           // 탐험 완료 시각이 지났다면 일반 카운트다운과 동일하게 귀환 처리합니다.
@@ -11168,6 +11242,17 @@
       }
 
       function scheduleEmptyFieldZombieSpawn() {
+        if (
+          populationTimersPausedForBackground ||
+          document.visibilityState === "hidden"
+        ) {
+          if (pendingEmptyZombieSpawnTimerId !== null) {
+            clearTimeout(pendingEmptyZombieSpawnTimerId);
+            pendingEmptyZombieSpawnTimerId = null;
+          }
+          return;
+        }
+
         const cannotShowZombie =
           isExploring ||
           Date.now() < zombieSpawnBlockedUntil ||
@@ -11199,6 +11284,13 @@
 
         pendingEmptyZombieSpawnTimerId = window.setTimeout(() => {
           pendingEmptyZombieSpawnTimerId = null;
+
+          if (
+            populationTimersPausedForBackground ||
+            document.visibilityState === "hidden"
+          ) {
+            return;
+          }
 
           if (
             isExploring ||
@@ -11237,6 +11329,17 @@
       }
 
       function scheduleEmptyFieldDeerSpawn() {
+        if (
+          populationTimersPausedForBackground ||
+          document.visibilityState === "hidden"
+        ) {
+          if (pendingEmptyDeerSpawnTimerId !== null) {
+            clearTimeout(pendingEmptyDeerSpawnTimerId);
+            pendingEmptyDeerSpawnTimerId = null;
+          }
+          return;
+        }
+
         if (pendingEmptyDeerSpawnTimerId !== null) {
           clearTimeout(pendingEmptyDeerSpawnTimerId);
           pendingEmptyDeerSpawnTimerId = null;
@@ -11257,6 +11360,13 @@
 
         pendingEmptyDeerSpawnTimerId = window.setTimeout(() => {
           pendingEmptyDeerSpawnTimerId = null;
+
+          if (
+            populationTimersPausedForBackground ||
+            document.visibilityState === "hidden"
+          ) {
+            return;
+          }
 
           if (
             !firstKillBirdFlockPlayed ||
@@ -11650,16 +11760,31 @@
         scheduleEmptyFieldDeerSpawn();
       });
 
-      window.addEventListener("pagehide", saveResourceState);
-      window.addEventListener("pageshow", refreshPopulationAfterResume);
-      document.addEventListener("visibilitychange", () => {
+      function handlePopulationVisibilityChange() {
         if (document.visibilityState === "hidden") {
-          saveResourceState();
+          pausePopulationTimersForBackground();
           return;
         }
 
         refreshPopulationAfterResume();
-      });
+      }
+
+      window.addEventListener("pagehide", pausePopulationTimersForBackground);
+      window.addEventListener("pageshow", refreshPopulationAfterResume);
+      window.addEventListener("blur", pausePopulationTimersForBackground);
+      window.addEventListener("focus", refreshPopulationAfterResume);
+      document.addEventListener(
+        "visibilitychange",
+        handlePopulationVisibilityChange
+      );
+      // 구형 iOS Safari 대응용 이벤트입니다.
+      document.addEventListener(
+        "webkitvisibilitychange",
+        handlePopulationVisibilityChange
+      );
+      // 지원 브라우저에서는 Page Lifecycle API도 함께 사용합니다.
+      document.addEventListener("freeze", pausePopulationTimersForBackground);
+      document.addEventListener("resume", refreshPopulationAfterResume);
 
       async function initializeGame() {
         // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
