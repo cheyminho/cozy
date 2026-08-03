@@ -2570,7 +2570,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.086"
+  data-game-version="0.087"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3097,6 +3097,8 @@
       const WALK_SHEET = "images/zomebie_default_walk.png";
       const DEAD_SHEET = "images/zomebie_default_dead.png";
       const DEAD_NO_HEAD_SHEET = "images/zomebie_default_dead_nohead.png";
+      // 머리가 분리된 사망의 마지막 4프레임(256×128, 4×1) 전용 시트입니다.
+      const DEATH_NO_HEAD_SHEET = "images/zomebie_default_death_nohead.png";
       const ZOMBIE_PARTS_SHEET = "images/zomebie_default_parts.png";
       const BIRTH_DEATH_SHEET =
         "images/zomebie_default_birthdeath.png";
@@ -7525,6 +7527,7 @@
           preloadImage(WALK_SHEET),
           preloadImage(DEAD_SHEET),
           preloadImage(DEAD_NO_HEAD_SHEET),
+          preloadImage(DEATH_NO_HEAD_SHEET),
           preloadImage(ZOMBIE_PARTS_SHEET),
           preloadImage(BIRTH_DEATH_SHEET),
           preloadImage(DEER_SHEET),
@@ -9964,15 +9967,22 @@
         );
       }
 
+      function zombieSheetBackgroundSize(sheet) {
+        return sheet === DEATH_NO_HEAD_SHEET ? "256px 128px" : "256px 256px";
+      }
+
       function showSingleFrame(zombie, sheet, frameIndex) {
         const position = framePosition(frameIndex);
+        const backgroundSize = zombieSheetBackgroundSize(sheet);
 
         zombie.sprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.sprite.style.backgroundSize = backgroundSize;
         zombie.sprite.style.backgroundPosition = position;
         zombie.sprite.style.opacity = "1";
         zombie.overlay.style.opacity = "0";
 
         zombie.nightSprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.nightSprite.style.backgroundSize = backgroundSize;
         zombie.nightSprite.style.backgroundPosition = position;
         zombie.nightSprite.style.opacity = "1";
         zombie.nightOverlay.style.opacity = "0";
@@ -9990,20 +10000,26 @@
 
         const fromPosition = framePosition(fromFrameIndex);
         const toPosition = framePosition(toFrameIndex);
+        const fromBackgroundSize = zombieSheetBackgroundSize(fromSheet);
+        const toBackgroundSize = zombieSheetBackgroundSize(toSheet);
         const fromOpacity = String(1 - clampedProgress);
         const toOpacity = String(clampedProgress);
 
         zombie.sprite.style.backgroundImage = `url("${fromSheet}")`;
+        zombie.sprite.style.backgroundSize = fromBackgroundSize;
         zombie.sprite.style.backgroundPosition = fromPosition;
         zombie.sprite.style.opacity = fromOpacity;
         zombie.overlay.style.backgroundImage = `url("${toSheet}")`;
+        zombie.overlay.style.backgroundSize = toBackgroundSize;
         zombie.overlay.style.backgroundPosition = toPosition;
         zombie.overlay.style.opacity = toOpacity;
 
         zombie.nightSprite.style.backgroundImage = `url("${fromSheet}")`;
+        zombie.nightSprite.style.backgroundSize = fromBackgroundSize;
         zombie.nightSprite.style.backgroundPosition = fromPosition;
         zombie.nightSprite.style.opacity = fromOpacity;
         zombie.nightOverlay.style.backgroundImage = `url("${toSheet}")`;
+        zombie.nightOverlay.style.backgroundSize = toBackgroundSize;
         zombie.nightOverlay.style.backgroundPosition = toPosition;
         zombie.nightOverlay.style.opacity = toOpacity;
       }
@@ -11691,7 +11707,14 @@
 
         const isBackwardDeath = zombie.deathStartFrame === 0;
         const deadLastFrame = zombie.deathStartFrame + 3;
-        const extraFrameOne = isBackwardDeath ? 4 : 6;
+        const usesNoHeadDeathFrames = deathSheet === DEAD_NO_HEAD_SHEET;
+        const extraSheet = usesNoHeadDeathFrames
+          ? DEATH_NO_HEAD_SHEET
+          : BIRTH_DEATH_SHEET;
+        // 기존 birthdeath 5~8번과 같은 방향 순서를 새 시트 1~4번에 대응합니다.
+        const extraFrameOne = usesNoHeadDeathFrames
+          ? (isBackwardDeath ? 0 : 2)
+          : (isBackwardDeath ? 4 : 6);
         const extraFrameTwo = extraFrameOne + 1;
 
         zombie.element.style.opacity = "1";
@@ -11728,7 +11751,7 @@
             zombie,
             deathSheet,
             deadLastFrame,
-            BIRTH_DEATH_SHEET,
+            extraSheet,
             extraFrameOne,
             progress
           );
@@ -11738,7 +11761,7 @@
         if (elapsed < extraFrameOneHoldEnd) {
           showSingleFrame(
             zombie,
-            BIRTH_DEATH_SHEET,
+            extraSheet,
             extraFrameOne
           );
           return;
@@ -11751,9 +11774,9 @@
 
           showCrossfade(
             zombie,
-            BIRTH_DEATH_SHEET,
+            extraSheet,
             extraFrameOne,
-            BIRTH_DEATH_SHEET,
+            extraSheet,
             extraFrameTwo,
             progress
           );
@@ -11763,7 +11786,7 @@
         if (elapsed < extraFrameTwoHoldEnd) {
           showSingleFrame(
             zombie,
-            BIRTH_DEATH_SHEET,
+            extraSheet,
             extraFrameTwo
           );
           return;
@@ -11776,7 +11799,7 @@
 
           showSingleFrame(
             zombie,
-            BIRTH_DEATH_SHEET,
+            extraSheet,
             extraFrameTwo
           );
 
