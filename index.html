@@ -2570,7 +2570,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.089"
+  data-game-version="0.090"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3053,8 +3053,6 @@
         document.body.dataset.resetSaveOnVersionMismatch === "true";
       const TEST_MODE = true;
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
-      const TEST_MODE_AMMO_QUANTITY = 3;
-      const TEST_MODE_CHAINSAW_BATTERY_PERCENT = 10;
       const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
       const DAY_NUMBER_ROLL_FALLBACK_MS = 1_100;
 
@@ -7322,16 +7320,16 @@
         return hasAxe &&
           hasHandgun &&
           hasHandgunAmmo &&
-          handgunAmmoCount >= TEST_MODE_AMMO_QUANTITY &&
+          handgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
           hasShotgun &&
           hasShotgunAmmo &&
-          shotgunAmmoCount >= TEST_MODE_AMMO_QUANTITY &&
+          shotgunAmmoCount >= MAX_INVENTORY_QUANTITY &&
           hasRifle &&
           hasRifleAmmo &&
-          rifleAmmoCount >= TEST_MODE_AMMO_QUANTITY &&
+          rifleAmmoCount >= MAX_INVENTORY_QUANTITY &&
           hasChainsaw &&
           hasChainsawBattery &&
-          chainsawBatteryPercent >= TEST_MODE_CHAINSAW_BATTERY_PERCENT &&
+          chainsawBatteryPercent >= MAX_CHAINSAW_BATTERY &&
           hasMusicBox &&
           hasStrangerLetter &&
           hasCompass &&
@@ -7357,25 +7355,25 @@
 
         markNewIfMissing("handgunAmmo", hasHandgunAmmo && handgunAmmoCount > 0);
         hasHandgunAmmo = true;
-        handgunAmmoCount = TEST_MODE_AMMO_QUANTITY;
+        handgunAmmoCount = MAX_INVENTORY_QUANTITY;
 
         markNewIfMissing("shotgun", hasShotgun);
         hasShotgun = true;
         markNewIfMissing("shotgunAmmo", hasShotgunAmmo && shotgunAmmoCount > 0);
         hasShotgunAmmo = true;
-        shotgunAmmoCount = TEST_MODE_AMMO_QUANTITY;
+        shotgunAmmoCount = MAX_INVENTORY_QUANTITY;
 
         markNewIfMissing("rifle", hasRifle);
         hasRifle = true;
         markNewIfMissing("rifleAmmo", hasRifleAmmo && rifleAmmoCount > 0);
         hasRifleAmmo = true;
-        rifleAmmoCount = TEST_MODE_AMMO_QUANTITY;
+        rifleAmmoCount = MAX_INVENTORY_QUANTITY;
 
         markNewIfMissing("chainsaw", hasChainsaw);
         hasChainsaw = true;
         markNewIfMissing("chainsawBattery", hasChainsawBattery && chainsawBatteryPercent > 0);
         hasChainsawBattery = true;
-        chainsawBatteryPercent = TEST_MODE_CHAINSAW_BATTERY_PERCENT;
+        chainsawBatteryPercent = MAX_CHAINSAW_BATTERY;
 
         markNewIfMissing("musicBox", hasMusicBox);
         hasMusicBox = true;
@@ -8491,19 +8489,31 @@
         };
       }
 
+      // 창고와 자동차는 게임 중 위치·크기가 바뀌지 않으므로,
+      // 이동 및 생성 판정마다 offset 값을 다시 읽지 않고 캐시를 공유합니다.
+      let cachedStructureSafeZones = [];
+      let cachedZombieSafeZones = [SAFE_ZONE];
+      let cachedDeerSafeZones = [SAFE_ZONE];
+
+      function refreshStructureSafeZones() {
+        const shedSafeZone = getCenteredStructureSafeZone(shedObject);
+        const carSafeZone = getCenteredStructureSafeZone(carObject);
+
+        cachedStructureSafeZones = [shedSafeZone, carSafeZone];
+        cachedZombieSafeZones = [SAFE_ZONE, ...cachedStructureSafeZones];
+        cachedDeerSafeZones = [SAFE_ZONE, ...cachedStructureSafeZones];
+      }
+
       function getStructureSafeZones() {
-        return [
-          getCenteredStructureSafeZone(shedObject),
-          getCenteredStructureSafeZone(carObject)
-        ];
+        return cachedStructureSafeZones;
       }
 
       function getZombieSafeZones() {
-        return [SAFE_ZONE, ...getStructureSafeZones()];
+        return cachedZombieSafeZones;
       }
 
       function getDeerSafeZones() {
-        return [SAFE_ZONE, ...getStructureSafeZones()];
+        return cachedDeerSafeZones;
       }
 
       function doesDeerHorizontalPathCrossZone(y, zone) {
@@ -9902,6 +9912,10 @@
         const facingTransform =
           zombie.facing === 1 ? "scaleX(-1)" : "scaleX(1)";
 
+        // 방향이 실제로 바뀐 경우에만 네 스프라이트 레이어를 갱신합니다.
+        if (zombie.renderedFacingTransform === facingTransform) return;
+        zombie.renderedFacingTransform = facingTransform;
+
         zombie.sprite.style.transform = facingTransform;
         zombie.overlay.style.transform = facingTransform;
         zombie.nightSprite.style.transform = facingTransform;
@@ -9974,20 +9988,39 @@
       }
 
       function showSingleFrame(zombie, sheet, frameIndex) {
+        const renderState = zombie.spriteRenderState;
+
+        // 같은 단일 프레임이 유지되는 동안에는 DOM 스타일을 다시 쓰지 않습니다.
+        if (
+          renderState.mode === "single" &&
+          renderState.sheet === sheet &&
+          renderState.frameIndex === frameIndex
+        ) {
+          return;
+        }
+
         const position = framePosition(frameIndex);
         const backgroundSize = zombieSheetBackgroundSize(sheet);
+        const backgroundImage = `url("${sheet}")`;
 
-        zombie.sprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.sprite.style.backgroundImage = backgroundImage;
         zombie.sprite.style.backgroundSize = backgroundSize;
         zombie.sprite.style.backgroundPosition = position;
         zombie.sprite.style.opacity = "1";
         zombie.overlay.style.opacity = "0";
 
-        zombie.nightSprite.style.backgroundImage = `url("${sheet}")`;
+        zombie.nightSprite.style.backgroundImage = backgroundImage;
         zombie.nightSprite.style.backgroundSize = backgroundSize;
         zombie.nightSprite.style.backgroundPosition = position;
         zombie.nightSprite.style.opacity = "1";
         zombie.nightOverlay.style.opacity = "0";
+
+        renderState.mode = "single";
+        renderState.sheet = sheet;
+        renderState.frameIndex = frameIndex;
+        renderState.crossfadeKey = "";
+        renderState.fromOpacity = "1";
+        renderState.toOpacity = "0";
       }
 
       function showCrossfade(
@@ -9999,36 +10032,66 @@
         progress
       ) {
         const clampedProgress = clamp(progress, 0, 1);
-
-        const fromPosition = framePosition(fromFrameIndex);
-        const toPosition = framePosition(toFrameIndex);
-        const fromBackgroundSize = zombieSheetBackgroundSize(fromSheet);
-        const toBackgroundSize = zombieSheetBackgroundSize(toSheet);
+        const renderState = zombie.spriteRenderState;
+        const crossfadeKey =
+          `${fromSheet}|${fromFrameIndex}|${toSheet}|${toFrameIndex}`;
         const fromOpacity = String(1 - clampedProgress);
         const toOpacity = String(clampedProgress);
 
-        zombie.sprite.style.backgroundImage = `url("${fromSheet}")`;
-        zombie.sprite.style.backgroundSize = fromBackgroundSize;
-        zombie.sprite.style.backgroundPosition = fromPosition;
-        zombie.sprite.style.opacity = fromOpacity;
-        zombie.overlay.style.backgroundImage = `url("${toSheet}")`;
-        zombie.overlay.style.backgroundSize = toBackgroundSize;
-        zombie.overlay.style.backgroundPosition = toPosition;
-        zombie.overlay.style.opacity = toOpacity;
+        // 전환에 사용되는 시트와 프레임은 바뀌는 순간에만 설정합니다.
+        if (
+          renderState.mode !== "crossfade" ||
+          renderState.crossfadeKey !== crossfadeKey
+        ) {
+          const fromPosition = framePosition(fromFrameIndex);
+          const toPosition = framePosition(toFrameIndex);
+          const fromBackgroundSize = zombieSheetBackgroundSize(fromSheet);
+          const toBackgroundSize = zombieSheetBackgroundSize(toSheet);
+          const fromBackgroundImage = `url("${fromSheet}")`;
+          const toBackgroundImage = `url("${toSheet}")`;
 
-        zombie.nightSprite.style.backgroundImage = `url("${fromSheet}")`;
-        zombie.nightSprite.style.backgroundSize = fromBackgroundSize;
-        zombie.nightSprite.style.backgroundPosition = fromPosition;
-        zombie.nightSprite.style.opacity = fromOpacity;
-        zombie.nightOverlay.style.backgroundImage = `url("${toSheet}")`;
-        zombie.nightOverlay.style.backgroundSize = toBackgroundSize;
-        zombie.nightOverlay.style.backgroundPosition = toPosition;
-        zombie.nightOverlay.style.opacity = toOpacity;
+          zombie.sprite.style.backgroundImage = fromBackgroundImage;
+          zombie.sprite.style.backgroundSize = fromBackgroundSize;
+          zombie.sprite.style.backgroundPosition = fromPosition;
+          zombie.overlay.style.backgroundImage = toBackgroundImage;
+          zombie.overlay.style.backgroundSize = toBackgroundSize;
+          zombie.overlay.style.backgroundPosition = toPosition;
+
+          zombie.nightSprite.style.backgroundImage = fromBackgroundImage;
+          zombie.nightSprite.style.backgroundSize = fromBackgroundSize;
+          zombie.nightSprite.style.backgroundPosition = fromPosition;
+          zombie.nightOverlay.style.backgroundImage = toBackgroundImage;
+          zombie.nightOverlay.style.backgroundSize = toBackgroundSize;
+          zombie.nightOverlay.style.backgroundPosition = toPosition;
+
+          renderState.mode = "crossfade";
+          renderState.crossfadeKey = crossfadeKey;
+          renderState.sheet = "";
+          renderState.frameIndex = -1;
+          renderState.fromOpacity = "";
+          renderState.toOpacity = "";
+        }
+
+        // 크로스페이드 중에는 실제로 달라지는 투명도만 갱신합니다.
+        if (renderState.fromOpacity !== fromOpacity) {
+          zombie.sprite.style.opacity = fromOpacity;
+          zombie.nightSprite.style.opacity = fromOpacity;
+          renderState.fromOpacity = fromOpacity;
+        }
+        if (renderState.toOpacity !== toOpacity) {
+          zombie.overlay.style.opacity = toOpacity;
+          zombie.nightOverlay.style.opacity = toOpacity;
+          renderState.toOpacity = toOpacity;
+        }
       }
 
       function setDeerFacing(deer) {
         const facingTransform =
           deer.facing === "left" ? "scaleX(-1)" : "scaleX(1)";
+
+        // 방향이 실제로 바뀐 경우에만 네 스프라이트 레이어를 갱신합니다.
+        if (deer.renderedFacingTransform === facingTransform) return;
+        deer.renderedFacingTransform = facingTransform;
 
         deer.sprite.style.transform = facingTransform;
         deer.overlay.style.transform = facingTransform;
@@ -10048,17 +10111,34 @@
       }
 
       function showSingleDeerFrame(deer, frameIndex) {
-        const position = deerFramePosition(frameIndex);
+        const renderState = deer.spriteRenderState;
 
-        deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        // 같은 단일 프레임이 유지되는 동안에는 DOM 스타일을 다시 쓰지 않습니다.
+        if (
+          renderState.mode === "single" &&
+          renderState.frameIndex === frameIndex
+        ) {
+          return;
+        }
+
+        const position = deerFramePosition(frameIndex);
+        const backgroundImage = `url("${DEER_SHEET}")`;
+
+        deer.sprite.style.backgroundImage = backgroundImage;
         deer.sprite.style.backgroundPosition = position;
         deer.sprite.style.opacity = "1";
         deer.overlay.style.opacity = "0";
 
-        deer.nightSprite.style.backgroundImage = `url("${DEER_SHEET}")`;
+        deer.nightSprite.style.backgroundImage = backgroundImage;
         deer.nightSprite.style.backgroundPosition = position;
         deer.nightSprite.style.opacity = "1";
         deer.nightOverlay.style.opacity = "0";
+
+        renderState.mode = "single";
+        renderState.frameIndex = frameIndex;
+        renderState.crossfadeKey = "";
+        renderState.fromOpacity = "1";
+        renderState.toOpacity = "0";
       }
 
       function showDeerCrossfade(
@@ -10068,25 +10148,48 @@
         progress
       ) {
         const clampedProgress = clamp(progress, 0, 1);
-
-        const fromPosition = deerFramePosition(fromFrameIndex);
-        const toPosition = deerFramePosition(toFrameIndex);
+        const renderState = deer.spriteRenderState;
+        const crossfadeKey = `${fromFrameIndex}|${toFrameIndex}`;
         const fromOpacity = String(1 - clampedProgress);
         const toOpacity = String(clampedProgress);
 
-        deer.sprite.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.sprite.style.backgroundPosition = fromPosition;
-        deer.sprite.style.opacity = fromOpacity;
-        deer.overlay.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.overlay.style.backgroundPosition = toPosition;
-        deer.overlay.style.opacity = toOpacity;
+        // 전환 프레임은 바뀌는 순간에만 설정합니다.
+        if (
+          renderState.mode !== "crossfade" ||
+          renderState.crossfadeKey !== crossfadeKey
+        ) {
+          const fromPosition = deerFramePosition(fromFrameIndex);
+          const toPosition = deerFramePosition(toFrameIndex);
+          const backgroundImage = `url("${DEER_SHEET}")`;
 
-        deer.nightSprite.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.nightSprite.style.backgroundPosition = fromPosition;
-        deer.nightSprite.style.opacity = fromOpacity;
-        deer.nightOverlay.style.backgroundImage = `url("${DEER_SHEET}")`;
-        deer.nightOverlay.style.backgroundPosition = toPosition;
-        deer.nightOverlay.style.opacity = toOpacity;
+          deer.sprite.style.backgroundImage = backgroundImage;
+          deer.sprite.style.backgroundPosition = fromPosition;
+          deer.overlay.style.backgroundImage = backgroundImage;
+          deer.overlay.style.backgroundPosition = toPosition;
+
+          deer.nightSprite.style.backgroundImage = backgroundImage;
+          deer.nightSprite.style.backgroundPosition = fromPosition;
+          deer.nightOverlay.style.backgroundImage = backgroundImage;
+          deer.nightOverlay.style.backgroundPosition = toPosition;
+
+          renderState.mode = "crossfade";
+          renderState.crossfadeKey = crossfadeKey;
+          renderState.frameIndex = -1;
+          renderState.fromOpacity = "";
+          renderState.toOpacity = "";
+        }
+
+        // 크로스페이드 중에는 실제로 달라지는 투명도만 갱신합니다.
+        if (renderState.fromOpacity !== fromOpacity) {
+          deer.sprite.style.opacity = fromOpacity;
+          deer.nightSprite.style.opacity = fromOpacity;
+          renderState.fromOpacity = fromOpacity;
+        }
+        if (renderState.toOpacity !== toOpacity) {
+          deer.overlay.style.opacity = toOpacity;
+          deer.nightOverlay.style.opacity = toOpacity;
+          renderState.toOpacity = toOpacity;
+        }
       }
 
       function scheduleNextDeerIdleAnimation(deer, now = performance.now()) {
@@ -10363,6 +10466,14 @@
           x: position.x,
           y: position.y,
           facing: Math.random() < 0.5 ? "left" : "right",
+          renderedFacingTransform: "",
+          spriteRenderState: {
+            mode: "",
+            frameIndex: -1,
+            crossfadeKey: "",
+            fromOpacity: "",
+            toOpacity: ""
+          },
           state: skipBirth ? "idle" : "birthing",
           birthStartedAt: now,
           idleAnimation: null,
@@ -10879,6 +10990,15 @@
           y: position.y,
           direction,
           facing: Math.random() < 0.5 ? -1 : 1,
+          renderedFacingTransform: "",
+          spriteRenderState: {
+            mode: "",
+            sheet: "",
+            frameIndex: -1,
+            crossfadeKey: "",
+            fromOpacity: "",
+            toOpacity: ""
+          },
           health: ZOMBIE_MAX_HEALTH,
           state: skipBirth ? "walking" : "birthing",
           birthStartedAt: performance.now(),
@@ -10905,9 +11025,7 @@
           zombie.element.style.opacity = "1";
           showSingleFrame(zombie, WALK_SHEET, zombie.walkFrame);
         } else {
-          const birthPosition = framePosition(0);
-          zombie.sprite.style.backgroundPosition = birthPosition;
-          zombie.nightSprite.style.backgroundPosition = birthPosition;
+          showSingleFrame(zombie, BIRTH_DEATH_SHEET, 0);
         }
 
         renderZombie(zombie);
@@ -11645,12 +11763,6 @@
         if (zombie.state === "hit") {
           if (now >= zombie.hitReactionEnd) {
             zombie.state = "walking";
-            zombie.sprite.style.backgroundImage = `url("${WALK_SHEET}")`;
-            zombie.sprite.style.opacity = "1";
-            zombie.overlay.style.opacity = "0";
-            zombie.nightSprite.style.backgroundImage = `url("${WALK_SHEET}")`;
-            zombie.nightSprite.style.opacity = "1";
-            zombie.nightOverlay.style.opacity = "0";
           } else {
             showSingleFrame(
               zombie,
@@ -12741,6 +12853,7 @@
 
       window.addEventListener("resize", () => {
         updateWorldScale();
+        refreshStructureSafeZones();
         updateInventoryPagePosition(false);
         if (isRepairOpen) applyRepairState();
         scheduleEmptyFieldZombieSpawn();
@@ -12797,6 +12910,8 @@
         // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
         await preloadGameSprites();
 
+        // 구조물 안전영역은 개체 복원·생성 전에 한 번 계산해 공유합니다.
+        refreshStructureSafeZones();
         loadResourceState();
         if (isChainsawEquipped && chainsawBatteryPercent > 0) {
           startChainsawBatteryDrain();
