@@ -2518,7 +2518,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.081"
+  data-game-version="0.082"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3818,6 +3818,7 @@
       let lastZombieSpawnAt = Date.now();
       let lastDeerSpawnAt = Date.now();
       let zombieSpawnTimerId = null;
+      let hasGameInitialized = false;
       let deerSpawnTimerId = null;
       let versionTestClickCount = 0;
       let versionTestLastClickAt = -Infinity;
@@ -11009,6 +11010,137 @@
         }, delay);
       }
 
+      /*
+        iOS에서 화면 잠금이나 백그라운드 전환으로 타이머가 멈춘 경우,
+        다시 화면이 활성화될 때 집에 머문 경과 시간만큼 누락된 좀비와 사슴 생성을 보정합니다.
+        탐험 중 경과 시간은 필드 엔티티 생성 시간에 포함하지 않습니다.
+      */
+      function refreshPopulationAfterResume() {
+        if (!hasGameInitialized || document.visibilityState === "hidden") {
+          return;
+        }
+
+        const now = Date.now();
+
+        if (isExploring) {
+          // 탐험 완료 시각이 지났다면 일반 카운트다운과 동일하게 귀환 처리합니다.
+          updateExploringCountdown();
+
+          if (!isExploring) {
+            // 귀환 직후에는 기존 7초 생성 지연 규칙을 그대로 사용합니다.
+            scheduleNextZombieSpawnTick();
+            scheduleNextDeerSpawnTick();
+            scheduleEmptyFieldZombieSpawn();
+            scheduleEmptyFieldDeerSpawn();
+            saveResourceState();
+            return;
+          }
+
+          // 아직 탐험 중이라면 백그라운드에 있던 시간을 생성 주기에서 제외합니다.
+          lastZombieSpawnAt = now;
+          lastDeerSpawnAt = now;
+          scheduleNextZombieSpawnTick();
+          scheduleNextDeerSpawnTick();
+          saveResourceState();
+          return;
+        }
+
+        const zombieSpawnEligibleAt = Math.max(
+          lastZombieSpawnAt,
+          zombieSpawnBlockedUntil
+        );
+        const elapsedZombieTicks = Math.max(
+          0,
+          Math.floor(
+            (now - zombieSpawnEligibleAt) / SPAWN_INTERVAL_MS
+          )
+        );
+
+        let createdZombieCount = 0;
+        for (let index = 0; index < elapsedZombieTicks; index += 1) {
+          if (!canCreateZombie()) break;
+
+          const created = createZombie({
+            silent: true,
+            persist: false,
+            skipBirth: true,
+            preferVisible: true
+          });
+          if (!created) break;
+          createdZombieCount += 1;
+        }
+
+        if (elapsedZombieTicks > 0) {
+          // 생성 한도에 막혀도 지난 주기는 소비해 복귀 직후 중복 생성되지 않게 합니다.
+          lastZombieSpawnAt = Math.min(
+            now,
+            zombieSpawnEligibleAt +
+              elapsedZombieTicks * SPAWN_INTERVAL_MS
+          );
+        }
+
+        if (
+          createdZombieCount > 0 &&
+          pendingEmptyZombieSpawnTimerId !== null
+        ) {
+          clearTimeout(pendingEmptyZombieSpawnTimerId);
+          pendingEmptyZombieSpawnTimerId = null;
+        }
+
+        const elapsedDeerTicks = firstKillBirdFlockPlayed
+          ? Math.max(
+              0,
+              Math.floor(
+                (now - lastDeerSpawnAt) / DEER_SPAWN_INTERVAL_MS
+              )
+            )
+          : 0;
+
+        let createdDeerCount = 0;
+        for (let index = 0; index < elapsedDeerTicks; index += 1) {
+          if (
+            !firstKillBirdFlockPlayed ||
+            getLivingDeerCount() >= MAX_ACTIVE_DEER ||
+            !hasActivePopulationCapacity() ||
+            foodCount >= getMaxFoodCount()
+          ) {
+            break;
+          }
+
+          const created = createDeer({
+            persist: false,
+            skipBirth: true,
+            preferVisible: true
+          });
+          if (!created) break;
+          createdDeerCount += 1;
+        }
+
+        if (elapsedDeerTicks > 0) {
+          // 생성 한도나 Food 최대치에 막혀도 지난 주기는 소비해 중복 보정을 막습니다.
+          lastDeerSpawnAt = Math.min(
+            now,
+            lastDeerSpawnAt +
+              elapsedDeerTicks * DEER_SPAWN_INTERVAL_MS
+          );
+        }
+
+        if (
+          createdDeerCount > 0 &&
+          pendingEmptyDeerSpawnTimerId !== null
+        ) {
+          clearTimeout(pendingEmptyDeerSpawnTimerId);
+          pendingEmptyDeerSpawnTimerId = null;
+        }
+
+        // 정지되었던 기존 타이머를 현재 타임스탬프 기준으로 다시 예약합니다.
+        scheduleNextZombieSpawnTick();
+        scheduleNextDeerSpawnTick();
+        scheduleEmptyFieldZombieSpawn();
+        scheduleEmptyFieldDeerSpawn();
+        saveResourceState();
+      }
+
       function handleStructureInteraction(event, message, sound = "") {
         if (event) {
           event.preventDefault();
@@ -11519,10 +11651,14 @@
       });
 
       window.addEventListener("pagehide", saveResourceState);
+      window.addEventListener("pageshow", refreshPopulationAfterResume);
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") {
           saveResourceState();
+          return;
         }
+
+        refreshPopulationAfterResume();
       });
 
       async function initializeGame() {
@@ -11534,6 +11670,7 @@
         updateWorldScale();
         initializeClouds();
         startSpawner();
+        hasGameInitialized = true;
         updateTodoListUI();
         scheduleEmptyFieldZombieSpawn();
         scheduleEmptyFieldDeerSpawn();
