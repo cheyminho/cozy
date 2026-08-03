@@ -2613,7 +2613,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.096"
+  data-game-version="0.097"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -10065,7 +10065,7 @@
 
         isTreeAnimating = true;
         treeChopCount += 1;
-        woodCount = Math.min(getMaxWoodCount(), woodCount + 1);
+        woodCount = Math.min(getMaxWoodCount(), woodCount + 2);
 
         if (treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH) {
           treeGrowthState = TREE_GROWTH_DEPLETED;
