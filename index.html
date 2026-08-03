@@ -1542,7 +1542,47 @@
         box-shadow 120ms ease-out;
     }
 
+    /*
+      획득했지만 아직 제작하지 않은 설계도는 선택 전 점선 외곽선으로 표시합니다.
+      --dash-length와 --dash-gap 값으로 점선 길이와 간격을 직접 조절할 수 있습니다.
+    */
+    .repair-grid-item.is-uncrafted:not(.is-selected):not(.is-new)::before {
+      --dash-length: 5px;
+      --dash-gap: 3px;
+      --dash-thickness: 1px;
+	  
+	  opacity: 0.5;
+
+      border-color: transparent;
+      background:
+        repeating-linear-gradient(
+          to right,
+          #fff 0 var(--dash-length),
+          transparent var(--dash-length)
+            calc(var(--dash-length) + var(--dash-gap))
+        ) left top / 100% var(--dash-thickness) no-repeat,
+        repeating-linear-gradient(
+          to right,
+          #fff 0 var(--dash-length),
+          transparent var(--dash-length)
+            calc(var(--dash-length) + var(--dash-gap))
+        ) left bottom / 100% var(--dash-thickness) no-repeat,
+        repeating-linear-gradient(
+          to bottom,
+          #fff 0 var(--dash-length),
+          transparent var(--dash-length)
+            calc(var(--dash-length) + var(--dash-gap))
+        ) left top / var(--dash-thickness) 100% no-repeat,
+        repeating-linear-gradient(
+          to bottom,
+          #fff 0 var(--dash-length),
+          transparent var(--dash-length)
+            calc(var(--dash-length) + var(--dash-gap))
+        ) right top / var(--dash-thickness) 100% no-repeat;
+    }
+
     .repair-grid-item.is-selected::before {
+      border-style: solid;
       background: #fff;
     }
 
@@ -1709,7 +1749,7 @@
       pointer-events: none;
     }
 
-    /* Craft / Apply / Applied는 탐험 목적지 이름과 같은 기본 스타일을 사용합니다. */
+    /* Craft / Apply / Remove / Repair / Repaired는 탐험 목적지 이름과 같은 기본 스타일을 사용합니다. */
     #repairActionButton {
       margin-top: 28px;
       padding: 4px 12px;
@@ -2478,7 +2518,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.080"
+  data-game-version="0.081"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2730,10 +2770,10 @@
         <div id="repairItemInfo" aria-live="polite">
           <span id="repairItemName">None</span>
           <span id="repairItemMeta"></span>
-          <div id="repairItemDescription"></div>
+          <div id="repairItemDescription">Nothing to fix right now.</div>
         </div>
       </div>
-      <button id="repairActionButton" type="button" disabled>Applied</button>
+      <button id="repairActionButton" type="button" disabled>Apply</button>
     </div>
   </div>
   <button
@@ -3152,8 +3192,8 @@
         outdoor: {
           label: "Decor",
           sections: [
-            { key: "fence", label: "Fence", startIndex: 0, initialItemName: "None", initialItemDescription: "No fence, no repairs." },
-            { key: "garden", label: "Garden", startIndex: 5, initialItemName: "None", initialItemDescription: "Less to take care of." }
+            { key: "fence", label: "Fence", startIndex: 0 },
+            { key: "garden", label: "Garden", startIndex: 5 }
           ]
         },
         buildings: {
@@ -3177,7 +3217,7 @@
       const REPAIR_BLUEPRINT_DEFINITIONS = {
         [SHED_REPAIR_BLUEPRINT_ID]: {
           name: "Shed Repair",
-          materials: { wood: 10 },
+          materials: { wood: 7 },
           builtDescription: "Get the old shed standing again.\nMax Food +2\nMax Wood +5"
         },
         [CAR_REPAIR_BLUEPRINT_ID]: {
@@ -3186,14 +3226,42 @@
           builtDescription: "Might get it running again."
         }
       };
-      const WOODED_FENCE_BLUEPRINT_INDEX = 1;
-      const WHITE_FENCE_BLUEPRINT_INDEX = 2;
+      const WOODEN_FENCE_BLUEPRINT_ID = "woodenFence";
+      const WHITE_FENCE_BLUEPRINT_ID = "whiteFence";
+      const FLOWER_BED_BLUEPRINT_ID = "flowerBed";
+      const WOODEN_FLOWER_BED_BLUEPRINT_ID = "woodenFlowerBed";
+      const OUTDOOR_BLUEPRINT_DEFINITIONS = {
+        [WOODEN_FENCE_BLUEPRINT_ID]: {
+          sectionKey: "fence",
+          name: "Wooden Fence",
+          materials: { wood: 5 },
+          builtDescription: "It makes the place feel like home."
+        },
+        [WHITE_FENCE_BLUEPRINT_ID]: {
+          sectionKey: "fence",
+          name: "White Fence",
+          materials: { wood: 5, whitePaint: 1 },
+          builtDescription: "Clean and simple."
+        },
+        [FLOWER_BED_BLUEPRINT_ID]: {
+          sectionKey: "garden",
+          name: "Flower Bed",
+          materials: { flowers: 7 },
+          description: "A few flowers among the stones.",
+          builtDescription: "A few flowers among the stones."
+        },
+        [WOODEN_FLOWER_BED_BLUEPRINT_ID]: {
+          sectionKey: "garden",
+          name: "Wooden Flower Bed",
+          materials: { flowers: 10, wood: 3 },
+          description: "Neatly framed and easy to tend.",
+          builtDescription: "Neatly framed and easy to tend."
+        }
+      };
       const TIMBER_ROOF_BLUEPRINT_INDEX = 6;
       const CHARCOAL_ROOF_BLUEPRINT_INDEX = 7;
       const TIMBER_WALLS_BLUEPRINT_INDEX = 11;
       const MINT_WALLS_BLUEPRINT_INDEX = 12;
-      const FLOWER_BED_BLUEPRINT_INDEX = 6;
-      const WOODEN_FLOWER_BED_BLUEPRINT_INDEX = 7;
       const EXPLORATION_BLUEPRINT_DROP_CHANCE = {
         village: 0.30,
         forest: 0.20,
@@ -3201,13 +3269,13 @@
       };
       const EXPLORATION_BLUEPRINT_REWARDS = [
         { destinations: ["village", "city"], category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "outdoor", index: WHITE_FENCE_BLUEPRINT_INDEX },
+        { destinations: ["village", "city"], category: "outdoor", blueprintId: WHITE_FENCE_BLUEPRINT_ID },
         { destinations: ["village", "city"], category: "buildings", index: TIMBER_ROOF_BLUEPRINT_INDEX },
         { destinations: ["village", "city"], category: "buildings", index: CHARCOAL_ROOF_BLUEPRINT_INDEX },
         { destinations: ["village", "city"], category: "buildings", index: TIMBER_WALLS_BLUEPRINT_INDEX },
         { destinations: ["village", "city"], category: "buildings", index: MINT_WALLS_BLUEPRINT_INDEX },
-        { destinations: ["forest"], category: "outdoor", index: FLOWER_BED_BLUEPRINT_INDEX },
-        { destinations: ["forest"], category: "outdoor", index: WOODEN_FLOWER_BED_BLUEPRINT_INDEX }
+        { destinations: ["forest"], category: "outdoor", blueprintId: FLOWER_BED_BLUEPRINT_ID },
+        { destinations: ["forest"], category: "outdoor", blueprintId: WOODEN_FLOWER_BED_BLUEPRINT_ID }
       ];
       const PAINT_ITEM_DEFINITIONS = {
         whitePaint: { label: "White Paint" },
@@ -3676,16 +3744,13 @@
       let isRepairOpen = false;
       let repairSelectedCategory = "outdoor";
       const repairSelectedItemByCategory = Object.fromEntries(
-        REPAIR_CATEGORY_ORDER.map((category) => [
-          category,
-          category === "repair" ? -1 : 0
-        ])
+        REPAIR_CATEGORY_ORDER.map((category) => [category, -1])
       );
       const repairAppliedItemByCategory = Object.fromEntries(
         REPAIR_CATEGORY_ORDER.map((category) => [category, 0])
       );
       const repairAppliedItemBySection = {
-        outdoor: { fence: 0, garden: 5 },
+        outdoor: { fence: -1, garden: -1 },
         buildings: { type: 0, roof: 5, walls: 10 }
       };
       // 카테고리 NEW 태그와 개별 설계도의 노란 NEW 상태를 따로 관리합니다.
@@ -3712,12 +3777,13 @@
 
           if (Array.isArray(definition.sections)) {
             for (const section of definition.sections) {
+              if (!section.initialItemName) continue;
               const initialItem = items[section.startIndex];
               initialItem.name = section.initialItemName;
               initialItem.unlocked = true;
               initialItem.built = true;
-              initialItem.description = section.initialItemDescription;
-              initialItem.builtDescription = section.initialItemDescription;
+              initialItem.description = section.initialItemDescription || "";
+              initialItem.builtDescription = section.initialItemDescription || "";
             }
           } else if (category !== "repair") {
             items[0].name = definition.initialItemName;
@@ -3961,7 +4027,8 @@
 
       function getRepairInitialIndex(category, itemIndex = 0) {
         const section = getRepairSectionDefinition(category, itemIndex);
-        return section ? section.startIndex : 0;
+        if (!section) return category === "repair" ? -1 : 0;
+        return section.initialItemName ? section.startIndex : -1;
       }
 
       function clearRepairCategoryNewState(category) {
@@ -4059,13 +4126,85 @@
         return markRepairBlueprintAsNew("repair", index);
       }
 
-      function unlockWoodenFenceBlueprint() {
-        configureRepairItem("outdoor", WOODED_FENCE_BLUEPRINT_INDEX, {
-          name: "Wooden Fence",
-          materials: { wood: 5 },
-          builtDescription: "It makes the place feel like home."
+      function inferOutdoorBlueprintId(item) {
+        if (item?.blueprintId && OUTDOOR_BLUEPRINT_DEFINITIONS[item.blueprintId]) {
+          return item.blueprintId;
+        }
+
+        const normalizedName = String(item?.name || "").trim().toLowerCase();
+        return Object.keys(OUTDOOR_BLUEPRINT_DEFINITIONS).find(
+          (blueprintId) =>
+            OUTDOOR_BLUEPRINT_DEFINITIONS[blueprintId].name.toLowerCase() === normalizedName
+        ) || "";
+      }
+
+      function getOutdoorBlueprintIndex(blueprintId) {
+        if (!blueprintId) return -1;
+        return (repairItemsByCategory.outdoor || []).findIndex(
+          (item) => inferOutdoorBlueprintId(item) === blueprintId
+        );
+      }
+
+      function getOutdoorBlueprintItem(blueprintId) {
+        const index = getOutdoorBlueprintIndex(blueprintId);
+        return index >= 0 ? repairItemsByCategory.outdoor[index] : null;
+      }
+
+      function getOutdoorSectionDefinition(sectionKey) {
+        return REPAIR_CATEGORY_DEFINITIONS.outdoor.sections.find(
+          (section) => section.key === sectionKey
+        ) || null;
+      }
+
+      function getNextOutdoorBlueprintSlotIndex(sectionKey) {
+        const section = getOutdoorSectionDefinition(sectionKey);
+        if (!section) return -1;
+
+        for (
+          let index = section.startIndex;
+          index < section.startIndex + REPAIR_SECTION_SPAN;
+          index += 1
+        ) {
+          const item = repairItemsByCategory.outdoor[index];
+          if (
+            item &&
+            !item.unlocked &&
+            !item.built &&
+            !item.isNew &&
+            !item.blueprintId &&
+            !item.name
+          ) {
+            return index;
+          }
+        }
+        return -1;
+      }
+
+      function ensureOutdoorBlueprintSlot(blueprintId) {
+        const existingIndex = getOutdoorBlueprintIndex(blueprintId);
+        if (existingIndex >= 0) return existingIndex;
+
+        const definition = OUTDOOR_BLUEPRINT_DEFINITIONS[blueprintId];
+        if (!definition) return -1;
+
+        const nextIndex = getNextOutdoorBlueprintSlotIndex(definition.sectionKey);
+        if (nextIndex < 0) return -1;
+
+        configureRepairItem("outdoor", nextIndex, {
+          ...definition,
+          blueprintId
         });
-        if (markRepairBlueprintAsNew("outdoor", WOODED_FENCE_BLUEPRINT_INDEX)) {
+        return nextIndex;
+      }
+
+      function unlockOutdoorBlueprint(blueprintId) {
+        const index = ensureOutdoorBlueprintSlot(blueprintId);
+        if (index < 0) return false;
+        return markRepairBlueprintAsNew("outdoor", index);
+      }
+
+      function unlockWoodenFenceBlueprint() {
+        if (unlockOutdoorBlueprint(WOODEN_FENCE_BLUEPRINT_ID)) {
           saveResourceState();
         }
       }
@@ -4077,11 +4216,6 @@
       }
 
       function configureExplorationBlueprintDefinitions() {
-        configureRepairItem("outdoor", WHITE_FENCE_BLUEPRINT_INDEX, {
-          name: "White Fence",
-          materials: { wood: 5, whitePaint: 1 },
-          builtDescription: "Clean and simple."
-        });
         configureRepairItem("buildings", TIMBER_ROOF_BLUEPRINT_INDEX, {
           name: "Timber Roof",
           materials: { wood: 10 },
@@ -4089,7 +4223,7 @@
         });
         configureRepairItem("buildings", CHARCOAL_ROOF_BLUEPRINT_INDEX, {
           name: "Charcoal Roof",
-          materials: { wood: 10, whitePaint: 1, blackPaint: 1 },
+          materials: { wood: 10, whitePaint: 1, blackPaint: 2 },
           builtDescription: "Dark wood with a quiet look."
         });
         configureRepairItem("buildings", TIMBER_WALLS_BLUEPRINT_INDEX, {
@@ -4099,20 +4233,8 @@
         });
         configureRepairItem("buildings", MINT_WALLS_BLUEPRINT_INDEX, {
           name: "Mint Walls",
-          materials: { wood: 15, whitePaint: 1, greenPaint: 1 },
+          materials: { wood: 15, whitePaint: 1, greenPaint: 2 },
           builtDescription: "A fresh touch of mint and white."
-        });
-        configureRepairItem("outdoor", FLOWER_BED_BLUEPRINT_INDEX, {
-          name: "Flower Bed",
-          materials: { flowers: 7 },
-          description: "A few flowers among the stones.",
-          builtDescription: "A few flowers among the stones."
-        });
-        configureRepairItem("outdoor", WOODEN_FLOWER_BED_BLUEPRINT_INDEX, {
-          name: "Wooden Flower Bed",
-          materials: { flowers: 10, wood: 3 },
-          description: "Neatly framed and easy to tend.",
-          builtDescription: "Neatly framed and easy to tend."
         });
       }
 
@@ -4333,12 +4455,23 @@
           : 0;
       }
 
-      function normalizeRepairSelectedItemIndex(value, category) {
+      function normalizeRepairSelectedItemIndex(value) {
         const number = Math.round(Number(value));
-        if (category === "repair" && number === -1) return -1;
+        if (number === -1) return -1;
         return Number.isFinite(number)
           ? clamp(number, 0, REPAIR_GRID_ITEM_COUNT - 1)
-          : (category === "repair" ? -1 : 0);
+          : -1;
+      }
+
+      function normalizeRepairAppliedSectionIndex(value, category, section) {
+        const number = Math.round(Number(value));
+        const fallbackIndex = section.initialItemName ? section.startIndex : -1;
+        if (number === -1 && fallbackIndex === -1) return -1;
+        if (!Number.isFinite(number)) return fallbackIndex;
+        return number >= section.startIndex &&
+          number < section.startIndex + REPAIR_SECTION_SPAN
+          ? number
+          : fallbackIndex;
       }
 
       function normalizeRepairMaterials(value) {
@@ -4380,6 +4513,74 @@
         item.description = "";
         item.builtDescription = "";
         item.blueprintId = "";
+      }
+
+      function compactOutdoorBlueprintSlots() {
+        const items = repairItemsByCategory.outdoor || [];
+        const acquiredBySection = Object.fromEntries(
+          REPAIR_CATEGORY_DEFINITIONS.outdoor.sections.map((section) => [section.key, []])
+        );
+        const seenBlueprintIds = new Set();
+        const appliedBlueprintBySection = {};
+
+        for (const section of REPAIR_CATEGORY_DEFINITIONS.outdoor.sections) {
+          const appliedIndex = repairAppliedItemBySection.outdoor[section.key];
+          const appliedItem = Number.isInteger(appliedIndex) && appliedIndex >= 0
+            ? items[appliedIndex]
+            : null;
+          const appliedBlueprintId = inferOutdoorBlueprintId(appliedItem);
+          appliedBlueprintBySection[section.key] =
+            OUTDOOR_BLUEPRINT_DEFINITIONS[appliedBlueprintId]?.sectionKey === section.key
+              ? appliedBlueprintId
+              : "";
+        }
+
+        for (let index = 0; index < items.length; index += 1) {
+          const item = items[index];
+          const blueprintId = inferOutdoorBlueprintId(item);
+          const definition = OUTDOOR_BLUEPRINT_DEFINITIONS[blueprintId];
+          if (
+            !definition ||
+            seenBlueprintIds.has(blueprintId) ||
+            (!item.unlocked && !item.built && !item.isNew)
+          ) {
+            continue;
+          }
+
+          seenBlueprintIds.add(blueprintId);
+          acquiredBySection[definition.sectionKey].push({
+            ...item,
+            blueprintId,
+            materials: { ...item.materials }
+          });
+        }
+
+        for (const section of REPAIR_CATEGORY_DEFINITIONS.outdoor.sections) {
+          for (
+            let index = section.startIndex;
+            index < section.startIndex + REPAIR_SECTION_SPAN;
+            index += 1
+          ) {
+            resetRepairBlueprintItem(items[index]);
+          }
+
+          for (const storedItem of acquiredBySection[section.key]) {
+            const blueprintId = storedItem.blueprintId;
+            const targetIndex = ensureOutdoorBlueprintSlot(blueprintId);
+            const targetItem = targetIndex >= 0 ? items[targetIndex] : null;
+            if (!targetItem) continue;
+            targetItem.unlocked = storedItem.unlocked === true || storedItem.built === true;
+            targetItem.built = storedItem.built === true;
+            targetItem.isNew = storedItem.isNew === true;
+          }
+
+          const appliedBlueprintId = appliedBlueprintBySection[section.key];
+          repairAppliedItemBySection.outdoor[section.key] = appliedBlueprintId
+            ? getOutdoorBlueprintIndex(appliedBlueprintId)
+            : -1;
+        }
+
+        repairSelectedItemByCategory.outdoor = -1;
       }
 
       function compactRepairBlueprintSlots() {
@@ -4464,11 +4665,15 @@
             const storedSections = appliedSectionItems[category];
             if (!storedSections || typeof storedSections !== "object") continue;
             for (const key of Object.keys(sections)) {
-              const fallbackIndex = sections[key];
-              const rawIndex = normalizeRepairItemIndex(storedSections[key]);
-              sections[key] = rawIndex >= getRepairInitialIndex(category, rawIndex)
-                ? rawIndex
-                : fallbackIndex;
+              const section = REPAIR_CATEGORY_DEFINITIONS[category]?.sections?.find(
+                (entry) => entry.key === key
+              );
+              if (!section) continue;
+              sections[key] = normalizeRepairAppliedSectionIndex(
+                storedSections[key],
+                category,
+                section
+              );
             }
           }
         }
@@ -4476,8 +4681,7 @@
         for (const category of REPAIR_CATEGORY_ORDER) {
           if (selectedItems && typeof selectedItems === "object") {
             repairSelectedItemByCategory[category] = normalizeRepairSelectedItemIndex(
-              selectedItems[category],
-              category
+              selectedItems[category]
             );
           }
 
@@ -4514,13 +4718,14 @@
           const definition = REPAIR_CATEGORY_DEFINITIONS[category];
           if (Array.isArray(definition.sections)) {
             for (const section of definition.sections) {
+              if (!section.initialItemName) continue;
               const initialItem = targetItems[section.startIndex];
               initialItem.name = section.initialItemName;
               initialItem.unlocked = true;
               initialItem.built = true;
               initialItem.isNew = false;
-              initialItem.description = section.initialItemDescription;
-              initialItem.builtDescription = section.initialItemDescription;
+              initialItem.description = section.initialItemDescription || "";
+              initialItem.builtDescription = section.initialItemDescription || "";
             }
           } else if (category !== "repair") {
             const initialItem = targetItems[0];
@@ -4534,9 +4739,7 @@
 
           const selectedIndex = repairSelectedItemByCategory[category];
           if (selectedIndex < 0 || !targetItems[selectedIndex]?.unlocked) {
-            repairSelectedItemByCategory[category] = category === "repair"
-              ? -1
-              : getRepairInitialIndex(category, selectedIndex);
+            repairSelectedItemByCategory[category] = -1;
           }
 
           const appliedIndex = repairAppliedItemByCategory[category];
@@ -4545,8 +4748,14 @@
           }
         }
 
-        // 기존 고정 슬롯 저장값도 획득된 순서를 유지한 채 첫 칸부터 빈틈없이 재배치합니다.
+        // Decor는 각 하위 카테고리에서 획득 순서대로 첫 칸부터 재배치합니다.
+        compactOutdoorBlueprintSlots();
+
+        // Restore의 기존 고정 슬롯 저장값도 획득된 순서를 유지한 채 첫 칸부터 빈틈없이 재배치합니다.
         compactRepairBlueprintSlots();
+
+        // 저장 데이터에 이전 재료 수량이 남아 있어도 최신 설계도 정의를 다시 적용합니다.
+        configureExplorationBlueprintDefinitions();
 
         for (const category of REPAIR_CATEGORY_ORDER) {
           if (
@@ -4605,10 +4814,11 @@
       function getAppliedRepairItemIndex(category, itemIndex = 0) {
         if (isSectionedRepairCategory(category)) {
           const section = getRepairSectionDefinition(category, itemIndex);
-          if (!section) return 0;
-          return repairAppliedItemBySection[category][section.key] ?? section.startIndex;
+          if (!section) return -1;
+          return repairAppliedItemBySection[category][section.key] ??
+            getRepairInitialIndex(category, itemIndex);
         }
-        return repairAppliedItemByCategory[category] || 0;
+        return repairAppliedItemByCategory[category] ?? -1;
       }
 
       function setAppliedRepairItemIndex(category, itemIndex) {
@@ -4698,7 +4908,7 @@
       function renderRepairGrid() {
         repairGrid.replaceChildren();
 
-        const selectedIndex = repairSelectedItemByCategory[repairSelectedCategory] || 0;
+        const selectedIndex = repairSelectedItemByCategory[repairSelectedCategory];
         const items = repairItemsByCategory[repairSelectedCategory];
         const definition = REPAIR_CATEGORY_DEFINITIONS[repairSelectedCategory];
         const isSectionedLayout = Array.isArray(definition.sections);
@@ -4737,6 +4947,7 @@
           button.classList.toggle("is-selected", item.unlocked && index === selectedIndex);
           button.classList.toggle("is-disabled", !item.unlocked);
           button.classList.toggle("is-new", item.unlocked && item.isNew);
+          button.classList.toggle("is-uncrafted", item.unlocked && !item.built);
           button.classList.toggle(
             "is-applied",
             item.unlocked && item.built && index === getAppliedRepairItemIndex(repairSelectedCategory, index)
@@ -4759,14 +4970,13 @@
         const item = getSelectedRepairItem();
 
         if (!item) {
-          const definition = REPAIR_CATEGORY_DEFINITIONS[repairSelectedCategory];
-          repairItemName.textContent = definition.initialItemName || "None";
+          repairItemName.textContent = "None";
           repairItemMeta.textContent = "";
           repairItemMeta.removeAttribute("aria-label");
-          repairItemDescription.textContent = definition.initialItemDescription || "";
+          repairItemDescription.textContent = "Nothing to fix right now.";
           repairActionButton.textContent = repairSelectedCategory === "repair"
             ? "Repair"
-            : "Applied";
+            : "Apply";
           repairActionButton.disabled = true;
           return;
         }
@@ -4814,8 +5024,10 @@
         }
 
         if (repairSelectedCategory === "repair") {
-          repairActionButton.textContent = "Repair";
-          repairActionButton.disabled = !item.unlocked || item.built || !canAffordRepairMaterials(item.materials);
+          repairActionButton.textContent = item.built ? "Repaired" : "Repair";
+          repairActionButton.disabled = item.built ||
+            !item.unlocked ||
+            !canAffordRepairMaterials(item.materials);
           return;
         }
 
@@ -4825,8 +5037,14 @@
           return;
         }
         if (selectedIndex === appliedIndex) {
-          repairActionButton.textContent = "Applied";
-          repairActionButton.disabled = true;
+          const section = getRepairSectionDefinition(
+            repairSelectedCategory,
+            selectedIndex
+          );
+          const canRemove = repairSelectedCategory === "outdoor" &&
+            (section?.key === "fence" || section?.key === "garden");
+          repairActionButton.textContent = canRemove ? "Remove" : "Applied";
+          repairActionButton.disabled = !canRemove;
         } else {
           repairActionButton.textContent = "Apply";
           repairActionButton.disabled = false;
@@ -4847,20 +5065,26 @@
       }
 
       function updateInstalledStructureVisibility() {
-        const appliedFenceIndex = repairAppliedItemBySection.outdoor.fence || 0;
-        fenceObject.hidden = appliedFenceIndex === 0;
+        const appliedFenceIndex = repairAppliedItemBySection.outdoor.fence ?? -1;
+        const appliedFenceItem = appliedFenceIndex >= 0
+          ? repairItemsByCategory.outdoor[appliedFenceIndex]
+          : null;
+        fenceObject.hidden = !(appliedFenceItem?.unlocked && appliedFenceItem?.built);
         fenceObject.style.setProperty(
           "--fence-frame-position",
-          appliedFenceIndex === WHITE_FENCE_BLUEPRINT_INDEX
+          inferOutdoorBlueprintId(appliedFenceItem) === WHITE_FENCE_BLUEPRINT_ID
             ? "right top"
             : "left top"
         );
 
-        const appliedGardenIndex = repairAppliedItemBySection.outdoor.garden || 5;
-        gardenObject.hidden = appliedGardenIndex === 5;
+        const appliedGardenIndex = repairAppliedItemBySection.outdoor.garden ?? -1;
+        const appliedGardenItem = appliedGardenIndex >= 0
+          ? repairItemsByCategory.outdoor[appliedGardenIndex]
+          : null;
+        gardenObject.hidden = !(appliedGardenItem?.unlocked && appliedGardenItem?.built);
         gardenObject.style.setProperty(
           "--garden-frame-position",
-          appliedGardenIndex === WOODEN_FLOWER_BED_BLUEPRINT_INDEX
+          inferOutdoorBlueprintId(appliedGardenItem) === WOODEN_FLOWER_BED_BLUEPRINT_ID
             ? "right top"
             : "left top"
         );
@@ -4909,6 +5133,7 @@
         if (!isRepairCategory(category)) return;
 
         repairSelectedCategory = category;
+        repairSelectedItemByCategory[category] = -1;
         clearRepairCategoryNewState(category);
         applyRepairState();
         updateRepairCategoryLayout();
@@ -4978,6 +5203,19 @@
         }
 
         if (getAppliedRepairItemIndex(repairSelectedCategory, selectedIndex) === selectedIndex) {
+          const section = getRepairSectionDefinition(
+            repairSelectedCategory,
+            selectedIndex
+          );
+          const canRemove = repairSelectedCategory === "outdoor" &&
+            (section?.key === "fence" || section?.key === "garden");
+          if (!canRemove) return;
+
+          playSound(CRAFTING_SOUND);
+          repairAppliedItemBySection.outdoor[section.key] = -1;
+          repairSelectedItemByCategory.outdoor = -1;
+          applyRepairState();
+          saveResourceState();
           return;
         }
 
@@ -4985,7 +5223,7 @@
         setAppliedRepairItemIndex(repairSelectedCategory, selectedIndex);
         if (repairSelectedCategory === "outdoor") {
           const section = getRepairSectionDefinition("outdoor", selectedIndex);
-          if (section?.key === "fence" && selectedIndex !== section.startIndex) {
+          if (section?.key === "fence") {
             setTodoProgress(2, "item1", true);
           }
         }
@@ -5937,6 +6175,7 @@
         const didClearSelectedCategoryNew = clearRepairCategoryNewState(
           repairSelectedCategory
         );
+        repairSelectedItemByCategory[repairSelectedCategory] = -1;
         updateRepairNewBadgeState();
 
         closeExplorationMenu(false);
@@ -6274,6 +6513,9 @@
           if (reward.category === "repair" && reward.blueprintId) {
             return getRepairBlueprintItem(reward.blueprintId)?.unlocked !== true;
           }
+          if (reward.category === "outdoor" && reward.blueprintId) {
+            return getOutdoorBlueprintItem(reward.blueprintId)?.unlocked !== true;
+          }
           return repairItemsByCategory[reward.category]?.[reward.index]?.unlocked !== true;
         });
 
@@ -6285,7 +6527,9 @@
         const reward = candidates[Math.floor(Math.random() * candidates.length)];
         const awarded = reward.category === "repair" && reward.blueprintId
           ? unlockRepairBlueprint(reward.blueprintId)
-          : markRepairBlueprintAsNew(reward.category, reward.index);
+          : reward.category === "outdoor" && reward.blueprintId
+            ? unlockOutdoorBlueprint(reward.blueprintId)
+            : markRepairBlueprintAsNew(reward.category, reward.index);
         if (awarded) {
           applyRepairState();
         }
@@ -6533,14 +6777,12 @@
       }
 
       function configureAllBlueprintDefinitionsForTest() {
-        // 메일 보상으로 얻는 기본 울타리도 테스트 대상에 포함합니다.
-        configureRepairItem("outdoor", WOODED_FENCE_BLUEPRINT_INDEX, {
-          name: "Wooden Fence",
-          materials: { wood: 5 },
-          builtDescription: "It makes the place feel like home."
-        });
+        // Decor 설계도는 각 하위 카테고리의 첫 빈칸부터 등록합니다.
+        for (const blueprintId of Object.keys(OUTDOOR_BLUEPRINT_DEFINITIONS)) {
+          ensureOutdoorBlueprintSlot(blueprintId);
+        }
 
-        // 탐험으로 획득하는 장식·집 설계도 정의를 모두 준비합니다.
+        // 탐험으로 획득하는 집 설계도 정의를 모두 준비합니다.
         configureExplorationBlueprintDefinitions();
 
         // Restore 설계도는 획득 순서형 슬롯이므로 빈 슬롯부터 등록합니다.
