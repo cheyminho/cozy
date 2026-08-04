@@ -578,6 +578,14 @@
     #carObject::before,
     #carObject::after {
       background-image: url("images/car.png");
+      background-position: var(--car-frame-position, left top);
+    }
+
+    /* 시티 탐험 출발·복귀 이동 중에는 자동차 입력을 잠급니다. */
+    #carObject.is-traveling {
+      pointer-events: none;
+      cursor: default;
+      will-change: transform;
     }
 
     /* 낮 레이어 */
@@ -2763,7 +2771,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.100"
+  data-game-version="0.101"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3524,10 +3532,26 @@
       const MAILBOX_SOUND = "sounds/sfx_mailbox.wav";
       const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
       const CAR_FAIL_SOUND = "sounds/sfx_car_fail.wav";
+      const CAR_HORN_SOUND = "sounds/sfx_car_horn.wav";
+      const CITY_EXPLORATION_START_SOUND = "sounds/sfx_car_start.wav";
+      const CITY_EXPLORATION_STOP_SOUND = "sounds/sfx_car_stop.wav";
       const SHED_OLD_SOUND = "sounds/sfx_shed_old.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const EXPLORING_FOOTSTEPS_SOUND =
         "sounds/sfx_exploringfootsteps.wav";
+
+      const CAR_TRAVEL_DURATION_MS = 5_000;
+      const CAR_DRIVE_FRAME_INTERVAL_MS = 150;
+      const CAR_CITY_DEPARTURE_OFFSET_X = -1_833;
+      const CAR_CITY_DEPARTURE_OFFSET_Y = 1_361;
+      const CAR_CITY_RETURN_START_OFFSET_X = 1_833;
+      const CAR_CITY_RETURN_START_OFFSET_Y = -1_361;
+      const CAR_DRIVE_FRAME_POSITIONS = [
+        "right top",
+        "left bottom",
+        "right bottom",
+        "left bottom"
+      ];
       const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
       const NIGHT_BGM_SOUND = "sounds/bgm_meadow_night.mp3";
       const RAINY_DAY_BGM_SOUND = "sounds/rainy_day.mp3";
@@ -3705,6 +3729,7 @@
       const SHED_REPAIR_TOAST_MESSAGE = "It needs some work.";
       const SHED_REPAIRED_TOAST_MESSAGE = "Guess I’m a hoarder now.";
       const CAR_REPAIR_TOAST_MESSAGE = "This car needs repairs.";
+      const CAR_REPAIRED_TOAST_MESSAGE = "Ready for the road.";
       const MAIL_FIRST_TOAST_MESSAGE = "Well, I’ve got mail.";
       const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see where this goes.";
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
@@ -4321,6 +4346,8 @@
       let dayCount = 1;
       let rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
       let isRainyToday = false;
+      // 비가 온 날의 다음 날 낮에 좀비 처치 요구량을 2로 초기화합니다.
+      let zombieKillRequirementResetPending = false;
       let foodCount = 0;
       let woodCount = 0;
       let hasAxe = false;
@@ -4423,6 +4450,10 @@
       let explorationTimerId = null;
       let explorationCompleteToastTimerId = null;
       let returnZombieSpawnTimerId = null;
+      let carTravelAnimationFrameId = null;
+      let carDriveFrameTimerId = null;
+      let carTravelAnimationToken = 0;
+      let isCarTraveling = false;
       let zombieSpawnBlockedUntil = 0;
       let treeAnimationTimerId = null;
       let isTreeAnimating = false;
@@ -4502,6 +4533,7 @@
 
       const structureSoundAudioByPath = new Map([
         [CAR_FAIL_SOUND, new Audio(CAR_FAIL_SOUND)],
+        [CAR_HORN_SOUND, new Audio(CAR_HORN_SOUND)],
         [SHED_OLD_SOUND, new Audio(SHED_OLD_SOUND)]
       ]);
       for (const audio of structureSoundAudioByPath.values()) {
@@ -6193,6 +6225,12 @@
           "--shed-frame-position",
           isShedRepaired() ? "right top" : "left top"
         );
+        if (!isCarTraveling) {
+          carObject.style.setProperty(
+            "--car-frame-position",
+            isCarRepaired() ? "right top" : "left top"
+          );
+        }
       }
 
       function applyRepairState() {
@@ -6357,6 +6395,13 @@
             parsed.rainChancePercent
           );
           isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
+          zombieKillRequirementResetPending =
+            Object.prototype.hasOwnProperty.call(
+              parsed,
+              "zombieKillRequirementResetPending"
+            )
+              ? parsed.zombieKillRequirementResetPending === true
+              : isRainyToday;
           foodCount = normalizeStoredCount(parsed.food, STORAGE_MAX_FOOD_COUNT);
           // 테스트 모드에서 모든 설계도 제작 재료를 한 번에 지급하면
           // Wood가 일반 최대치를 넘을 수 있으므로 해당 저장값을 그대로 복원합니다.
@@ -6613,6 +6658,7 @@
               dayCount,
               rainChancePercent,
               isRainyToday,
+              zombieKillRequirementResetPending,
               food: foodCount,
               wood: woodCount,
               treeChopCount,
@@ -7953,10 +7999,13 @@
           !isExploring && !document.body.classList.contains("is-night");
 
         [shedObject, carObject, mailboxObject].forEach((element) => {
-          element.tabIndex = isStructureInteractive ? 0 : -1;
+          const isElementInteractive =
+            isStructureInteractive &&
+            !(element === carObject && isCarTraveling);
+          element.tabIndex = isElementInteractive ? 0 : -1;
           element.setAttribute(
             "aria-disabled",
-            isStructureInteractive ? "false" : "true"
+            isElementInteractive ? "false" : "true"
           );
         });
       }
@@ -8249,6 +8298,133 @@
         }
       }
 
+      function setCarFramePosition(position) {
+        carObject.style.setProperty("--car-frame-position", position);
+      }
+
+      function setCarIdleFrame() {
+        setCarFramePosition(isCarRepaired() ? "right top" : "left top");
+      }
+
+      function stopCarDriveFrameLoop({ restoreIdleFrame = true } = {}) {
+        if (carDriveFrameTimerId !== null) {
+          clearInterval(carDriveFrameTimerId);
+          carDriveFrameTimerId = null;
+        }
+        if (restoreIdleFrame) {
+          setCarIdleFrame();
+        }
+      }
+
+      function startCarDriveFrameLoop() {
+        stopCarDriveFrameLoop({ restoreIdleFrame: false });
+        let frameIndex = 0;
+        setCarFramePosition(CAR_DRIVE_FRAME_POSITIONS[frameIndex]);
+        carDriveFrameTimerId = window.setInterval(() => {
+          frameIndex = (frameIndex + 1) % CAR_DRIVE_FRAME_POSITIONS.length;
+          setCarFramePosition(CAR_DRIVE_FRAME_POSITIONS[frameIndex]);
+        }, CAR_DRIVE_FRAME_INTERVAL_MS);
+      }
+
+      function setCarTravelTransform(x, y) {
+        carObject.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+
+      function cancelCarTravelAnimation({ restoreIdleFrame = true } = {}) {
+        carTravelAnimationToken += 1;
+        if (carTravelAnimationFrameId !== null) {
+          cancelAnimationFrame(carTravelAnimationFrameId);
+          carTravelAnimationFrameId = null;
+        }
+        stopCarDriveFrameLoop({ restoreIdleFrame });
+        isCarTraveling = false;
+        carObject.classList.remove("is-traveling");
+      }
+
+      function animateCarTravel({
+        fromX,
+        fromY,
+        toX,
+        toY,
+        easing,
+        hideWhenComplete = false
+      }) {
+        cancelCarTravelAnimation({ restoreIdleFrame: false });
+        const animationToken = carTravelAnimationToken;
+        const startedAt = performance.now();
+
+        isCarTraveling = true;
+        carObject.classList.add("is-traveling");
+        carObject.style.visibility = "visible";
+        setCarTravelTransform(fromX, fromY);
+        startCarDriveFrameLoop();
+        updateStructureInteractivity();
+
+        const step = (now) => {
+          if (animationToken !== carTravelAnimationToken) return;
+
+          const progress = Math.min(
+            1,
+            Math.max(0, (now - startedAt) / CAR_TRAVEL_DURATION_MS)
+          );
+          const easedProgress = easing(progress);
+          setCarTravelTransform(
+            fromX + (toX - fromX) * easedProgress,
+            fromY + (toY - fromY) * easedProgress
+          );
+
+          if (progress < 1) {
+            carTravelAnimationFrameId = requestAnimationFrame(step);
+            return;
+          }
+
+          carTravelAnimationFrameId = null;
+          stopCarDriveFrameLoop();
+          isCarTraveling = false;
+          carObject.classList.remove("is-traveling");
+          carObject.style.visibility = hideWhenComplete ? "hidden" : "visible";
+          updateStructureInteractivity();
+        };
+
+        carTravelAnimationFrameId = requestAnimationFrame(step);
+      }
+
+      function startCityCarDeparture() {
+        animateCarTravel({
+          fromX: 0,
+          fromY: 0,
+          toX: CAR_CITY_DEPARTURE_OFFSET_X,
+          toY: CAR_CITY_DEPARTURE_OFFSET_Y,
+          easing: (progress) => progress * progress,
+          hideWhenComplete: true
+        });
+      }
+
+      function startCityCarReturn() {
+        animateCarTravel({
+          fromX: CAR_CITY_RETURN_START_OFFSET_X,
+          fromY: CAR_CITY_RETURN_START_OFFSET_Y,
+          toX: 0,
+          toY: 0,
+          easing: (progress) => 1 - (1 - progress) * (1 - progress)
+        });
+      }
+
+      function setCarAwayForRestoredCityExploration() {
+        cancelCarTravelAnimation();
+        setCarTravelTransform(
+          CAR_CITY_DEPARTURE_OFFSET_X,
+          CAR_CITY_DEPARTURE_OFFSET_Y
+        );
+        carObject.style.visibility = "hidden";
+      }
+
+      function resetCarToHomePosition() {
+        cancelCarTravelAnimation();
+        setCarTravelTransform(0, 0);
+        carObject.style.visibility = "visible";
+      }
+
       function setNightMode(enabled) {
         const wasNight = document.body.classList.contains("is-night");
 
@@ -8280,7 +8456,12 @@
           returnZombieSpawnTimerId = null;
         }
 
-        playSound(EXPLORING_FOOTSTEPS_SOUND);
+        const isCityExploration = destination === "city";
+        playSound(
+          isCityExploration
+            ? CITY_EXPLORATION_START_SOUND
+            : EXPLORING_FOOTSTEPS_SOUND
+        );
 
         const requiredFood = getDestinationFoodRequirement(destination);
         foodCount = Math.max(0, foodCount - requiredFood);
@@ -8288,6 +8469,9 @@
         isExploring = true;
         explorationDestination = destination;
         explorationEndsAt = Date.now() + getExplorationDurationMs(destination);
+        if (isCityExploration) {
+          startCityCarDeparture();
+        }
         commitResourceState();
         setNightMode(true);
         exploringStatus.classList.add("is-visible");
@@ -8316,6 +8500,7 @@
           isExploring = false;
           explorationDestination = "";
           explorationEndsAt = 0;
+          resetCarToHomePosition();
           setNightMode(false);
           updateDayStatus();
           saveResourceState();
@@ -8323,6 +8508,11 @@
         }
 
         isExploring = true;
+        if (explorationDestination === "city") {
+          setCarAwayForRestoredCityExploration();
+        } else {
+          resetCarToHomePosition();
+        }
         setNightMode(true);
         exploringStatus.classList.add("is-visible");
         updateDayStatus();
@@ -8562,17 +8752,32 @@
       function finishExploration() {
         if (!isExploring) return;
 
-        playSound(EXPLORING_FOOTSTEPS_SOUND);
+        const completedDestination = explorationDestination;
+        playSound(
+          completedDestination === "city"
+            ? CITY_EXPLORATION_STOP_SOUND
+            : EXPLORING_FOOTSTEPS_SOUND
+        );
+        if (completedDestination === "city") {
+          startCityCarReturn();
+        } else {
+          resetCarToHomePosition();
+        }
 
         isExploring = false;
-        const completedDestination = explorationDestination;
         explorationDestination = "";
         explorationEndsAt = 0;
         dayCount += 1;
+        const shouldResetZombieRequirementToday =
+          zombieKillRequirementResetPending;
         const isNewDayRainy = rollWeatherForNewDay();
-        zombieKillRequirement = isNewDayRainy
+
+        // 비가 내린 당일에는 기존 증가 규칙을 유지하고,
+        // 비가 온 날의 다음 날 낮이 시작될 때 2마리로 초기화합니다.
+        zombieKillRequirement = shouldResetZombieRequirementToday
           ? INITIAL_ZOMBIE_KILL_REQUIREMENT
           : getNextPrime(zombieKillRequirement);
+        zombieKillRequirementResetPending = isNewDayRainy;
 
         if (treeGrowthState === TREE_GROWTH_DEPLETED) {
           // 3번 베어 고갈된 뒤 첫 탐험 완료: 부분 회복
@@ -8605,8 +8810,8 @@
 
         awardExplorationRewards(completedDestination);
         applyWeatherState();
-        commitResourceState({ animateDay: true });
         setNightMode(false);
+        commitResourceState({ animateDay: true });
         exploringStatus.classList.remove("is-visible");
         scheduleEmptyFieldDeerSpawn();
 
@@ -14006,15 +14211,25 @@
         handleStructureKeydown(event, isShedRepaired() ? SHED_REPAIRED_TOAST_MESSAGE : SHED_REPAIR_TOAST_MESSAGE, SHED_OLD_SOUND);
       });
       carObject.addEventListener("pointerup", (event) => {
+        if (isCarTraveling) return;
         if (!shouldActivateFieldObject(event, carObject)) return;
         handleStructureInteraction(
           event,
-          CAR_REPAIR_TOAST_MESSAGE,
-          CAR_FAIL_SOUND
+          isCarRepaired()
+            ? CAR_REPAIRED_TOAST_MESSAGE
+            : CAR_REPAIR_TOAST_MESSAGE,
+          isCarRepaired() ? CAR_HORN_SOUND : CAR_FAIL_SOUND
         );
       });
       carObject.addEventListener("keydown", (event) => {
-        handleStructureKeydown(event, CAR_REPAIR_TOAST_MESSAGE, CAR_FAIL_SOUND);
+        if (isCarTraveling) return;
+        handleStructureKeydown(
+          event,
+          isCarRepaired()
+            ? CAR_REPAIRED_TOAST_MESSAGE
+            : CAR_REPAIR_TOAST_MESSAGE,
+          isCarRepaired() ? CAR_HORN_SOUND : CAR_FAIL_SOUND
+        );
       });
       mailboxObject.addEventListener("pointerup", (event) => {
         if (!shouldActivateFieldObject(event, mailboxObject)) return;
