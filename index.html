@@ -912,6 +912,156 @@
       z-index: 20;
     }
 
+    /*
+      비 효과 표시는 새 DAY가 시작될 때 결정된 날씨 상태에 따라 자동으로 변경됩니다.
+      비 오는 낮의 컬러톤은 JavaScript의 RAIN_DAY_TONE 설정으로 조절합니다.
+    */
+    #rainDayTone {
+      position: absolute;
+      inset: 0;
+      z-index: 24;
+      visibility: hidden;
+      background: var(--rain-day-tint, rgba(42, 56, 68, 0.16));
+      opacity: 0;
+      pointer-events: none;
+      -webkit-backdrop-filter:
+        url(#rainDayColorBalance)
+        brightness(var(--rain-day-brightness, 0.88))
+        saturate(var(--rain-day-saturation, 0.82))
+        contrast(var(--rain-day-contrast, 0.98));
+      backdrop-filter:
+        url(#rainDayColorBalance)
+        brightness(var(--rain-day-brightness, 0.88))
+        saturate(var(--rain-day-saturation, 0.82))
+        contrast(var(--rain-day-contrast, 0.98));
+      transition: opacity 3s ease, visibility 0s linear 3s;
+    }
+
+    /* 낮에는 비 오는 낮 전용 톤만 적용합니다. */
+    body.is-rainy:not(.is-night) #rainDayTone {
+      visibility: visible;
+      opacity: var(--rain-day-opacity, 1);
+      transition-delay: 0s;
+    }
+
+    /*
+      비 오는 밤의 화면 톤은 비 오는 낮 및 일반 밤 컬러와 분리합니다.
+      JavaScript의 RAIN_NIGHT_TONE에서 밝기·채도·대비·RGB 밸런스·틴트를 조절합니다.
+    */
+    #rainNightTone {
+      position: absolute;
+      inset: 0;
+      z-index: 24;
+      visibility: hidden;
+      background: var(--rain-night-tint, rgba(0, 0, 0, 0));
+      opacity: 0;
+      pointer-events: none;
+      -webkit-backdrop-filter:
+        url(#rainNightColorBalance)
+        brightness(var(--rain-night-brightness, 1))
+        saturate(var(--rain-night-saturation, 1))
+        contrast(var(--rain-night-contrast, 1));
+      backdrop-filter:
+        url(#rainNightColorBalance)
+        brightness(var(--rain-night-brightness, 1))
+        saturate(var(--rain-night-saturation, 1))
+        contrast(var(--rain-night-contrast, 1));
+      transition: opacity 3s ease, visibility 0s linear 3s;
+    }
+
+    body.is-rainy.is-night #rainNightTone {
+      visibility: visible;
+      opacity: var(--rain-night-opacity, 1);
+      transition-delay: 0s;
+    }
+
+    #rainLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 25;
+      overflow: hidden;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    body.is-rainy #rainLayer {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* 비가 오는 동안 실제 구름과 구름 그림자는 표시하지 않습니다. */
+    body.is-rainy #clouds,
+    body.is-rainy #cloudShadows {
+      display: none;
+    }
+
+    /*
+      빗줄기는 한 장의 반복 패턴이 아니라 각각 별도 요소로 움직입니다.
+      길이·굵기·투명도·속도·시작 위치는 JavaScript에서 개별 랜덤값을 받습니다.
+      빗줄기의 색과 모양은 낮·밤이 동일하며 알파값만 따로 적용합니다.
+    */
+    .rain-drop {
+      position: absolute;
+      left: var(--rain-left);
+      top: -24vh;
+      width: var(--rain-thickness);
+      height: var(--rain-length);
+      border-radius: 999px;
+      transform-origin: center center;
+      animation: rain-drop-fall var(--rain-duration) linear infinite;
+      animation-delay: var(--rain-delay);
+      will-change: transform;
+      pointer-events: none;
+    }
+
+    .rain-drop::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(
+        to bottom,
+        rgba(225, 238, 248, 0),
+        rgba(225, 238, 248, 0.9)
+      );
+      opacity: var(--rain-drop-day-opacity);
+      pointer-events: none;
+      transition: opacity 3s ease;
+    }
+
+    body.is-night .rain-drop::before {
+      opacity: var(--rain-drop-night-opacity);
+    }
+
+    /* 게임 시작 시에는 날씨를 즉시 적용하고 낮·밤 변경부터 전환을 사용합니다. */
+    body.is-initializing-weather #rainDayTone,
+    body.is-initializing-weather #rainNightTone,
+    body.is-initializing-weather #rainLayer,
+    body.is-initializing-weather .rain-drop::before {
+      transition: none !important;
+    }
+
+    /* 비가 꺼져 있을 때는 숨기는 것뿐 아니라 애니메이션 계산도 멈춥니다. */
+    body:not(.is-rainy) .rain-drop {
+      animation-play-state: paused;
+    }
+
+    /* 빗줄기의 기울기와 이동 방향을 모두 오른쪽 아래 방향으로 일치시킵니다. */
+    @keyframes rain-drop-fall {
+      from {
+        transform: translate3d(0, var(--rain-start-y), 0)
+          rotate(var(--rain-angle));
+      }
+      to {
+        transform: translate3d(
+          var(--rain-travel-x),
+          var(--rain-travel-y),
+          0
+        ) rotate(var(--rain-angle));
+      }
+    }
+
     /* 새 떼는 배경 위 상공 레이어에서 날아가며, 화면 드래그에도 함께 반응합니다. */
     #birds {
       position: absolute;
@@ -2612,8 +2762,8 @@
   data-reset-save-on-version-mismatch="false" : 버전이 달라도 저장 유지
 -->
 <body
-  class="is-initializing-stat9s"
-  data-game-version="0.099"
+  class="is-initializing-stat9s is-initializing-weather"
+  data-game-version="0.100"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2625,6 +2775,32 @@
           0    0.9 0    0 0
           0    0    2.5 0 0
           0    0    0    1 0
+        "
+      />
+    </filter>
+    <!-- 비 오는 낮의 기본 RGB 컬러 밸런스입니다. JavaScript 설정값으로 갱신됩니다. -->
+    <filter id="rainDayColorBalance" color-interpolation-filters="sRGB">
+      <feColorMatrix
+        id="rainDayColorMatrix"
+        type="matrix"
+        values="
+          1 0 0 0 0
+          0 1 0 0 0
+          0 0 1 0 0
+          0 0 0 1 0
+        "
+      />
+    </filter>
+    <!-- 비 오는 밤의 추가 RGB 컬러 밸런스입니다. JavaScript 설정값으로 갱신됩니다. -->
+    <filter id="rainNightColorBalance" color-interpolation-filters="sRGB">
+      <feColorMatrix
+        id="rainNightColorMatrix"
+        type="matrix"
+        values="
+          1 0 0 0 0
+          0 1 0 0 0
+          0 0 1 0 0
+          0 0 0 1 0
         "
       />
     </filter>
@@ -2658,6 +2834,15 @@
           savedExplorationEndsAt > Date.now()
         ) {
           document.body.classList.add("is-night", "is-restored-night");
+        }
+
+        const savedDayCount = Number(parsed.dayCount);
+        if (
+          Number.isFinite(savedDayCount) &&
+          savedDayCount > 1 &&
+          parsed.isRainyToday === true
+        ) {
+          document.body.classList.add("is-rainy");
         }
       } catch (_) {
         // 저장소를 읽을 수 없어도 기본 낮 화면으로 계속 실행합니다.
@@ -2729,6 +2914,9 @@
       <div id="gameZone" class="debug-zone"></div>
       <div id="safeZone" class="debug-zone"></div>
     </div>
+    <div id="rainDayTone" aria-hidden="true"></div>
+    <div id="rainNightTone" aria-hidden="true"></div>
+    <div id="rainLayer" aria-hidden="true"></div>
   </div>
 
   <div id="hud">
@@ -3143,6 +3331,110 @@
       const RESET_SAVE_ON_VERSION_MISMATCH =
         document.body.dataset.resetSaveOnVersionMismatch === "true";
       const TEST_MODE = true;
+
+      /*
+        비 발생 확률 수정 위치
+        - 첫째 날에는 비가 오지 않습니다.
+        - 둘째 날부터 10%로 시작하며, 맑은 날이 지날 때마다 1%씩 증가합니다.
+        - 비가 온 날에는 다음 날 확률을 다시 10%로 낮춥니다.
+      */
+      const INITIAL_RAIN_CHANCE_PERCENT = 10;
+      const RAIN_CHANCE_DAILY_INCREASE_PERCENT = 1;
+      const MAX_RAIN_CHANCE_PERCENT = 100;
+
+      /*
+        비 오는 낮 컬러톤 수정 위치
+        - brightness: 전체 밝기. 낮을수록 어두워집니다.
+        - saturation: 채도. 낮을수록 흐리고 차분해집니다.
+        - contrast: 대비. 1보다 낮으면 대비가 부드러워집니다.
+        - colorBalance: 틴트와 별개인 기본 RGB 컬러 밸런스입니다.
+          red / green / blue가 1이면 원본 유지, 1보다 낮으면 해당 색 감소,
+          1보다 높으면 해당 색이 증가합니다.
+        - tint: 화면 위에 겹치는 색상과 투명도입니다.
+        - opacity: 비 오는 낮 톤 전체 강도입니다. 0~1 범위입니다.
+        밤에는 이 설정이 적용되지 않고 기존 밤 컬러를 사용합니다.
+      */
+      const RAIN_DAY_TONE = Object.freeze({
+        brightness: 0.9,
+        saturation: 0.5,
+        contrast: 1.5,
+        colorBalance: Object.freeze({
+          red: 0.9,
+          green: 1,
+          blue: 1.5
+        }),
+        tint: "rgba(20, 70, 95, 0.1)",
+        opacity: 1
+      });
+
+      /*
+        비 오는 밤 컬러톤 수정 위치
+        - 일반 밤 컬러가 적용된 화면 위에 추가로 적용되는 비 전용 밤 톤입니다.
+        - brightness: 1이면 밝기 유지, 1보다 낮으면 더 어둡게, 높으면 더 밝게 표시합니다.
+        - saturation / contrast / colorBalance / tint / opacity 사용법은 RAIN_DAY_TONE과 같습니다.
+        - 현재 기본값은 일반 밤 컬러를 그대로 유지하도록 중립값으로 설정되어 있습니다.
+      */
+      const RAIN_NIGHT_TONE = Object.freeze({
+        brightness: 1.1,
+        saturation: 0.3,
+        contrast: 1.3,
+        colorBalance: Object.freeze({
+          red: 0.8,
+          green: 1,
+          blue: 1.1
+        }),
+        tint: "rgba(50, 70, 90, 0.2)",
+        opacity: 1
+      });
+
+      /*
+        개별 빗줄기 수정 위치
+        - thicknessMinPx / thicknessMaxPx: 빗줄기 굵기의 최소·최대값(px)
+        - lengthMinPx / lengthMaxPx: 빗줄기 길이의 최소·최대값(px)
+        - opacityMin / opacityMax: 각 빗줄기의 기본 투명도 범위(0~1)
+        - dayAlpha / nightAlpha: 동일한 빗줄기 모양에 적용하는 낮·밤 알파 배율
+        각 빗줄기는 굵기·길이·기본 투명도 범위 안에서 무작위 값을 사용합니다.
+      */
+      const RAIN_DROP_STYLE = Object.freeze({
+        thicknessMinPx: 1,
+        thicknessMaxPx: 1.2,
+        lengthMinPx: 30,
+        lengthMaxPx: 70,
+        opacityMin: 0.3,
+        opacityMax: 0.7,
+        dayAlpha: 0.5,
+        nightAlpha: 0.2
+      });
+
+      /*
+        나머지 빗줄기 설정
+        - 개수는 뷰포트 면적 10,000px²당 densityPer10kPx2개를 기준으로 계산합니다.
+        - 짧은 빗줄기는 화면 상단 가까이에서 끝나고, 긴 빗줄기는 화면 하단까지 내려옵니다.
+        - landingYMinViewportRatio / landingYMaxViewportRatio는 빗줄기 끝점의 높이 범위입니다.
+      */
+      const RAIN_DROP_LAYOUT = Object.freeze({
+        densityPer10kPx2: 1,
+        minimumCount: 300,
+        maximumCount: 1200,
+        landingYMinViewportRatio: 0.03,
+        landingYMaxViewportRatio: 1.08,
+        startYViewportRatio: -0.1,
+        layerTopViewportRatio: -0.24
+      });
+      const RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND = Object.freeze({
+        min: 900,
+        max: 1300
+      });
+      const RAIN_DROP_ANGLE_RANGE_DEG = Object.freeze({ min: -0.1, max: -0.2 });
+      const RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE = Object.freeze({
+        min: 0.00,
+        max: 0.01
+      });
+
+      // 총기 획득 시 함께 지급하는 탄약과 체인소우 획득 시 배터리 범위입니다.
+      const WEAPON_STARTER_AMMO_RANGE = Object.freeze({ min: 1, max: 5 });
+      const CHAINSAW_STARTER_BATTERY_RANGE = Object.freeze({ min: 5, max: 10 });
+
       // 테스트 모드 v 버튼으로 지급할 탄약 수량과 체인소우 배터리 잔량입니다.
       // 지급값과 다시 눌렀을 때의 초기화 판정이 이 값을 함께 사용합니다.
       const TEST_AMMO_QUANTITY = 3;
@@ -3238,10 +3530,19 @@
         "sounds/sfx_exploringfootsteps.wav";
       const DAY_BGM_SOUND = "sounds/bgm_meadow.mp3";
       const NIGHT_BGM_SOUND = "sounds/bgm_meadow_night.mp3";
+      const RAINY_DAY_BGM_SOUND = "sounds/rainy_day.mp3";
+      const RAINY_NIGHT_BGM_SOUND = "sounds/rainy_night.mp3";
+      const RAIN_AMBIENT_SOUND = "sounds/sfx_rain.wav";
       // 기존 곡이 먼저 줄어든 뒤 잠시 조용한 구간을 두고 새 곡이 올라옵니다.
       const BGM_FADE_OUT_MS = 2_500;
       const BGM_QUIET_HOLD_MS = 1_000;
       const BGM_FADE_IN_MS = 2_500;
+      // 빗소리는 Music Box 설정과 별개로 날씨만 따라가며 부드럽게 나타나고 사라집니다.
+      const RAIN_AMBIENT_FADE_IN_MS = 2_500;
+      const RAIN_AMBIENT_FADE_OUT_MS = 2_500;
+      const RAIN_AMBIENT_VOLUME = 0.5;
+      // 기본 loop 대신 두 재생기를 겹쳐 연결해 반복 경계의 빈 간격과 클릭음을 줄입니다.
+      const RAIN_AMBIENT_LOOP_CROSSFADE_MS = 250;
 
       // 프레임 번호는 코드 내부에서 0부터 시작합니다.
       // 리소스 기준: 대기 13 / 보기 13→11→12→11→13 / 풀 뜯기 13→4→5→4→13
@@ -3779,6 +4080,8 @@
       const exploreNewBadge = document.getElementById("exploreNewBadge");
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
+      const weatherLabel = document.getElementById("weatherLabel");
+      const rainLayer = document.getElementById("rainLayer");
       const dayStatus = document.getElementById("dayStatus");
       const dayNumber = document.getElementById("dayNumber");
       const dayNumberViewport = dayNumber.querySelector(
@@ -4016,6 +4319,8 @@
       let zombieCount = 0;
       let zombieKillRequirement = INITIAL_ZOMBIE_KILL_REQUIREMENT;
       let dayCount = 1;
+      let rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
+      let isRainyToday = false;
       let foodCount = 0;
       let woodCount = 0;
       let hasAxe = false;
@@ -4210,17 +4515,45 @@
 
       const dayBgmAudio = new Audio(DAY_BGM_SOUND);
       const nightBgmAudio = new Audio(NIGHT_BGM_SOUND);
-      dayBgmAudio.loop = true;
-      nightBgmAudio.loop = true;
-      dayBgmAudio.volume = 1;
-      nightBgmAudio.volume = 0;
-      dayBgmAudio.preload = "auto";
-      nightBgmAudio.preload = "auto";
+      const rainyDayBgmAudio = new Audio(RAINY_DAY_BGM_SOUND);
+      const rainyNightBgmAudio = new Audio(RAINY_NIGHT_BGM_SOUND);
+      const bgmAudios = [
+        dayBgmAudio,
+        nightBgmAudio,
+        rainyDayBgmAudio,
+        rainyNightBgmAudio
+      ];
+      for (const audio of bgmAudios) {
+        audio.loop = true;
+        audio.volume = 0;
+        audio.preload = "auto";
+      }
+      let activeBgmAudio = null;
       let bgmStartScheduled = false;
       let bgmStarted = false;
       let bgmStartTimerId = null;
       let bgmFadeFrameId = null;
       let bgmFadeToken = 0;
+
+      const rainAmbientAudios = [
+        new Audio(RAIN_AMBIENT_SOUND),
+        new Audio(RAIN_AMBIENT_SOUND)
+      ];
+      for (const audio of rainAmbientAudios) {
+        audio.loop = false;
+        audio.volume = 0;
+        audio.preload = "auto";
+      }
+      let rainAmbientMasterVolume = 0;
+      let rainAmbientDeckGains = [1, 0];
+      let rainAmbientActiveDeckIndex = 0;
+      let rainAmbientStarted = false;
+      let rainAmbientStartScheduled = false;
+      let rainAmbientFadeFrameId = null;
+      let rainAmbientFadeToken = 0;
+      let rainAmbientLoopTimerId = null;
+      let rainAmbientLoopFadeFrameId = null;
+      let rainAmbientLoopToken = 0;
 
       let worldScale = 1;
       let panX = 0;
@@ -4338,6 +4671,35 @@
         return Number.isFinite(number)
           ? Math.max(1, Math.round(number))
           : 1;
+      }
+
+      function normalizeRainChancePercent(value) {
+        const number = Number(value);
+        return Number.isFinite(number)
+          ? clamp(
+              number,
+              INITIAL_RAIN_CHANCE_PERCENT,
+              MAX_RAIN_CHANCE_PERCENT
+            )
+          : INITIAL_RAIN_CHANCE_PERCENT;
+      }
+
+      function rollWeatherForNewDay() {
+        if (dayCount <= 1) {
+          isRainyToday = false;
+          rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
+          return false;
+        }
+
+        isRainyToday = Math.random() * 100 < rainChancePercent;
+        rainChancePercent = isRainyToday
+          ? INITIAL_RAIN_CHANCE_PERCENT
+          : Math.min(
+              MAX_RAIN_CHANCE_PERCENT,
+              rainChancePercent + RAIN_CHANCE_DAILY_INCREASE_PERCENT
+            );
+
+        return isRainyToday;
       }
 
 
@@ -5037,13 +5399,8 @@
             if (todoSubmittedListId === 3) {
               if (!hasRifle) {
                 hasRifle = true;
-                hasRifleAmmo = true;
-                rifleAmmoCount = Math.min(
-                  MAX_INVENTORY_QUANTITY,
-                  rifleAmmoCount + 20
-                );
                 markInventoryItemAsNew("rifle");
-                markInventoryItemAsNew("rifleAmmo");
+                grantStarterSupplyForWeapon("rifle");
               }
               deliverTodoList(4);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
@@ -5963,6 +6320,7 @@
             applyTreeVisualState();
             updateResourceHud();
             updateDayStatus();
+            applyWeatherState();
             restoreExplorationState();
             return;
           }
@@ -5982,6 +6340,7 @@
             applyTreeVisualState();
             updateResourceHud();
             updateDayStatus();
+            applyWeatherState();
             restoreExplorationState();
             return;
           }
@@ -5994,6 +6353,10 @@
             zombieKillRequirement
           );
           dayCount = normalizeDayCount(parsed.dayCount);
+          rainChancePercent = normalizeRainChancePercent(
+            parsed.rainChancePercent
+          );
+          isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
           foodCount = normalizeStoredCount(parsed.food, STORAGE_MAX_FOOD_COUNT);
           // 테스트 모드에서 모든 설계도 제작 재료를 한 번에 지급하면
           // Wood가 일반 최대치를 넘을 수 있으므로 해당 저장값을 그대로 복원합니다.
@@ -6233,6 +6596,7 @@
         updateTodoListUI();
         updateResourceHud();
         updateDayStatus();
+        applyWeatherState();
         restoreExplorationState();
       }
 
@@ -6247,6 +6611,8 @@
               zombies: zombieCount,
               zombieKillRequirement,
               dayCount,
+              rainChancePercent,
+              isRainyToday,
               food: foodCount,
               wood: woodCount,
               treeChopCount,
@@ -7058,15 +7424,21 @@
         exploringTime.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
       }
 
-      function animateBgmVolumes(
-        targetDayVolume,
-        targetNightVolume,
-        durationMs,
-        transitionToken
-      ) {
+      function getCurrentBgmAudio() {
+        const isNight = document.body.classList.contains("is-night");
+        const isRainy = document.body.classList.contains("is-rainy");
+
+        if (isRainy) {
+          return isNight ? rainyNightBgmAudio : rainyDayBgmAudio;
+        }
+        return isNight ? nightBgmAudio : dayBgmAudio;
+      }
+
+      function animateBgmVolumes(targetAudio, targetVolume, durationMs, transitionToken) {
         return new Promise((resolve) => {
-          const dayStartVolume = dayBgmAudio.volume;
-          const nightStartVolume = nightBgmAudio.volume;
+          const startVolumes = new Map(
+            bgmAudios.map((audio) => [audio, audio.volume])
+          );
           const startedAt = performance.now();
 
           if (bgmFadeFrameId !== null) {
@@ -7087,18 +7459,16 @@
             );
             const easedProgress = 1 - Math.pow(1 - progress, 3);
 
-            dayBgmAudio.volume = clamp(
-              dayStartVolume +
-                (targetDayVolume - dayStartVolume) * easedProgress,
-              0,
-              1
-            );
-            nightBgmAudio.volume = clamp(
-              nightStartVolume +
-                (targetNightVolume - nightStartVolume) * easedProgress,
-              0,
-              1
-            );
+            for (const audio of bgmAudios) {
+              const startVolume = startVolumes.get(audio) || 0;
+              const finalVolume = audio === targetAudio ? targetVolume : 0;
+              audio.volume = clamp(
+                startVolume +
+                  (finalVolume - startVolume) * easedProgress,
+                0,
+                1
+              );
+            }
 
             if (progress < 1) {
               bgmFadeFrameId = requestAnimationFrame(updateFade);
@@ -7120,26 +7490,35 @@
         });
       }
 
-      async function transitionBgmForNightMode(enabled) {
+      async function transitionBgmForCurrentState() {
         if (!isMusicOn || !bgmStarted) return;
 
+        const incomingAudio = getCurrentBgmAudio();
+        if (
+          activeBgmAudio === incomingAudio &&
+          !incomingAudio.paused &&
+          incomingAudio.volume >= 0.999
+        ) {
+          return;
+        }
+
         const transitionToken = ++bgmFadeToken;
-        const incomingAudio = enabled ? nightBgmAudio : dayBgmAudio;
-        const outgoingAudio = enabled ? dayBgmAudio : nightBgmAudio;
 
         if (bgmFadeFrameId !== null) {
           cancelAnimationFrame(bgmFadeFrameId);
           bgmFadeFrameId = null;
         }
 
-        // 새 곡이 조용한 구간 동안 미리 진행되지 않도록 멈춰 둡니다.
-        incomingAudio.pause();
-        try {
-          incomingAudio.currentTime = 0;
-        } catch (_) {}
+        if (incomingAudio !== activeBgmAudio) {
+          // 새 곡이 조용한 구간 동안 미리 진행되지 않도록 멈춰 둡니다.
+          incomingAudio.pause();
+          try {
+            incomingAudio.currentTime = 0;
+          } catch (_) {}
+        }
 
         const fadedOut = await animateBgmVolumes(
-          0,
+          null,
           0,
           BGM_FADE_OUT_MS,
           transitionToken
@@ -7152,9 +7531,14 @@
         );
         if (!holdCompleted) return;
 
-        outgoingAudio.pause();
+        for (const audio of bgmAudios) {
+          if (audio === incomingAudio) continue;
+          audio.pause();
+          try {
+            audio.currentTime = 0;
+          } catch (_) {}
+        }
         try {
-          outgoingAudio.currentTime = 0;
           incomingAudio.currentTime = 0;
         } catch (_) {}
 
@@ -7162,17 +7546,357 @@
           await incomingAudio.play();
         } catch (_) {
           // 새 트랙 재생이 차단되면 다음 사용자 입력에서 다시 시도합니다.
+          activeBgmAudio = null;
           bgmStarted = false;
           return;
         }
 
+        if (transitionToken !== bgmFadeToken) {
+          incomingAudio.pause();
+          return;
+        }
+
+        activeBgmAudio = incomingAudio;
         const fadedIn = await animateBgmVolumes(
-          enabled ? 0 : 1,
-          enabled ? 1 : 0,
+          incomingAudio,
+          1,
           BGM_FADE_IN_MS,
           transitionToken
         );
         if (!fadedIn) return;
+      }
+
+      function applyRainAmbientDeckVolumes() {
+        for (let index = 0; index < rainAmbientAudios.length; index += 1) {
+          rainAmbientAudios[index].volume = clamp(
+            rainAmbientMasterVolume * rainAmbientDeckGains[index],
+            0,
+            1
+          );
+        }
+      }
+
+      function cancelRainAmbientLoopSchedule() {
+        rainAmbientLoopToken += 1;
+        if (rainAmbientLoopTimerId !== null) {
+          clearTimeout(rainAmbientLoopTimerId);
+          rainAmbientLoopTimerId = null;
+        }
+        if (rainAmbientLoopFadeFrameId !== null) {
+          cancelAnimationFrame(rainAmbientLoopFadeFrameId);
+          rainAmbientLoopFadeFrameId = null;
+        }
+      }
+
+      function resetRainAmbientDecks() {
+        cancelRainAmbientLoopSchedule();
+        for (const audio of rainAmbientAudios) {
+          audio.pause();
+          try {
+            audio.currentTime = 0;
+          } catch (_) {}
+          audio.volume = 0;
+        }
+        rainAmbientActiveDeckIndex = 0;
+        rainAmbientDeckGains = [1, 0];
+      }
+
+      function getRainAmbientPlayingDeckIndex() {
+        let bestIndex = -1;
+        let bestGain = -1;
+        for (let index = 0; index < rainAmbientAudios.length; index += 1) {
+          const audio = rainAmbientAudios[index];
+          if (audio.paused || audio.ended) continue;
+          if (rainAmbientDeckGains[index] > bestGain) {
+            bestGain = rainAmbientDeckGains[index];
+            bestIndex = index;
+          }
+        }
+        return bestIndex;
+      }
+
+      function scheduleRainAmbientLoop(deckIndex, loopToken = rainAmbientLoopToken) {
+        if (
+          loopToken !== rainAmbientLoopToken ||
+          !rainAmbientStarted ||
+          !document.body.classList.contains("is-rainy")
+        ) {
+          return;
+        }
+
+        const audio = rainAmbientAudios[deckIndex];
+        const scheduleFromDuration = () => {
+          if (
+            loopToken !== rainAmbientLoopToken ||
+            audio.paused ||
+            !Number.isFinite(audio.duration) ||
+            audio.duration <= 0
+          ) {
+            return false;
+          }
+
+          const remainingMs = Math.max(
+            0,
+            (audio.duration - audio.currentTime) * 1_000 -
+              RAIN_AMBIENT_LOOP_CROSSFADE_MS
+          );
+          rainAmbientLoopTimerId = window.setTimeout(() => {
+            rainAmbientLoopTimerId = null;
+            crossfadeRainAmbientLoop(deckIndex, loopToken);
+          }, remainingMs);
+          return true;
+        };
+
+        if (scheduleFromDuration()) return;
+
+        const retrySchedule = () => {
+          audio.removeEventListener("loadedmetadata", retrySchedule);
+          audio.removeEventListener("durationchange", retrySchedule);
+          if (!scheduleFromDuration() && loopToken === rainAmbientLoopToken) {
+            rainAmbientLoopTimerId = window.setTimeout(() => {
+              rainAmbientLoopTimerId = null;
+              scheduleRainAmbientLoop(deckIndex, loopToken);
+            }, 100);
+          }
+        };
+        audio.addEventListener("loadedmetadata", retrySchedule, { once: true });
+        audio.addEventListener("durationchange", retrySchedule, { once: true });
+      }
+
+      async function crossfadeRainAmbientLoop(fromDeckIndex, loopToken) {
+        if (
+          loopToken !== rainAmbientLoopToken ||
+          !rainAmbientStarted ||
+          !document.body.classList.contains("is-rainy")
+        ) {
+          return;
+        }
+
+        const toDeckIndex = fromDeckIndex === 0 ? 1 : 0;
+        const fromAudio = rainAmbientAudios[fromDeckIndex];
+        const toAudio = rainAmbientAudios[toDeckIndex];
+
+        toAudio.pause();
+        try {
+          toAudio.currentTime = 0;
+        } catch (_) {}
+        rainAmbientDeckGains[toDeckIndex] = 0;
+        applyRainAmbientDeckVolumes();
+
+        try {
+          await toAudio.play();
+        } catch (_) {
+          // 다음 재생이 일시적으로 막히면 현재 트랙의 끝에서 즉시 다시 시도합니다.
+          const retry = () => {
+            fromAudio.removeEventListener("ended", retry);
+            if (loopToken !== rainAmbientLoopToken) return;
+            crossfadeRainAmbientLoop(fromDeckIndex, loopToken);
+          };
+          fromAudio.addEventListener("ended", retry, { once: true });
+          return;
+        }
+
+        if (loopToken !== rainAmbientLoopToken) {
+          toAudio.pause();
+          return;
+        }
+
+        const startedAt = performance.now();
+        const updateLoopFade = (now) => {
+          if (loopToken !== rainAmbientLoopToken) return;
+          const progress = clamp(
+            (now - startedAt) / Math.max(1, RAIN_AMBIENT_LOOP_CROSSFADE_MS),
+            0,
+            1
+          );
+          // 같은 소리 두 개가 겹쳐도 체감 음량이 꺼지지 않도록 equal-power 곡선을 사용합니다.
+          rainAmbientDeckGains[fromDeckIndex] = Math.cos(
+            progress * Math.PI * 0.5
+          );
+          rainAmbientDeckGains[toDeckIndex] = Math.sin(
+            progress * Math.PI * 0.5
+          );
+          applyRainAmbientDeckVolumes();
+
+          if (progress < 1) {
+            rainAmbientLoopFadeFrameId = requestAnimationFrame(updateLoopFade);
+            return;
+          }
+
+          rainAmbientLoopFadeFrameId = null;
+          fromAudio.pause();
+          try {
+            fromAudio.currentTime = 0;
+          } catch (_) {}
+          rainAmbientDeckGains[fromDeckIndex] = 0;
+          rainAmbientDeckGains[toDeckIndex] = 1;
+          rainAmbientActiveDeckIndex = toDeckIndex;
+          applyRainAmbientDeckVolumes();
+          scheduleRainAmbientLoop(toDeckIndex, loopToken);
+        };
+
+        rainAmbientLoopFadeFrameId = requestAnimationFrame(updateLoopFade);
+      }
+
+      function normalizeRainAmbientPlaybackForResume() {
+        const playingDeckIndex = getRainAmbientPlayingDeckIndex();
+        if (playingDeckIndex < 0) return -1;
+
+        cancelRainAmbientLoopSchedule();
+        rainAmbientActiveDeckIndex = playingDeckIndex;
+        rainAmbientDeckGains = rainAmbientAudios.map((_, index) =>
+          index === playingDeckIndex ? 1 : 0
+        );
+        for (let index = 0; index < rainAmbientAudios.length; index += 1) {
+          if (index === playingDeckIndex) continue;
+          rainAmbientAudios[index].pause();
+          try {
+            rainAmbientAudios[index].currentTime = 0;
+          } catch (_) {}
+        }
+        applyRainAmbientDeckVolumes();
+        return playingDeckIndex;
+      }
+
+      function animateRainAmbientVolume(targetVolume, durationMs, transitionToken) {
+        return new Promise((resolve) => {
+          const startVolume = rainAmbientMasterVolume;
+          const startedAt = performance.now();
+
+          if (rainAmbientFadeFrameId !== null) {
+            cancelAnimationFrame(rainAmbientFadeFrameId);
+            rainAmbientFadeFrameId = null;
+          }
+
+          const updateFade = (now) => {
+            if (transitionToken !== rainAmbientFadeToken) {
+              resolve(false);
+              return;
+            }
+
+            const progress = clamp(
+              (now - startedAt) / Math.max(1, durationMs),
+              0,
+              1
+            );
+            const easedProgress = 1 - Math.pow(1 - progress, 3);
+            rainAmbientMasterVolume = clamp(
+              startVolume +
+                (targetVolume - startVolume) * easedProgress,
+              0,
+              1
+            );
+            applyRainAmbientDeckVolumes();
+
+            if (progress < 1) {
+              rainAmbientFadeFrameId = requestAnimationFrame(updateFade);
+            } else {
+              rainAmbientFadeFrameId = null;
+              resolve(true);
+            }
+          };
+
+          rainAmbientFadeFrameId = requestAnimationFrame(updateFade);
+        });
+      }
+
+      async function startRainAmbientPlayback() {
+        if (
+          !document.body.classList.contains("is-rainy") ||
+          rainAmbientStartScheduled
+        ) {
+          return;
+        }
+
+        const transitionToken = ++rainAmbientFadeToken;
+        if (rainAmbientFadeFrameId !== null) {
+          cancelAnimationFrame(rainAmbientFadeFrameId);
+          rainAmbientFadeFrameId = null;
+        }
+
+        // 페이드아웃 도중 다시 비가 오면 더 크게 들리던 재생기를 유지해 자연스럽게 복귀합니다.
+        const resumedDeckIndex = normalizeRainAmbientPlaybackForResume();
+        if (resumedDeckIndex >= 0) {
+          rainAmbientStarted = true;
+          const loopToken = rainAmbientLoopToken;
+          scheduleRainAmbientLoop(resumedDeckIndex, loopToken);
+          await animateRainAmbientVolume(
+            RAIN_AMBIENT_VOLUME,
+            RAIN_AMBIENT_FADE_IN_MS,
+            transitionToken
+          );
+          return;
+        }
+
+        rainAmbientStartScheduled = true;
+        resetRainAmbientDecks();
+        rainAmbientMasterVolume = 0;
+        applyRainAmbientDeckVolumes();
+
+        const firstAudio = rainAmbientAudios[rainAmbientActiveDeckIndex];
+        try {
+          await firstAudio.play();
+        } catch (_) {
+          rainAmbientStarted = false;
+          rainAmbientStartScheduled = false;
+          return;
+        }
+
+        if (
+          transitionToken !== rainAmbientFadeToken ||
+          !document.body.classList.contains("is-rainy")
+        ) {
+          resetRainAmbientDecks();
+          rainAmbientStartScheduled = false;
+          return;
+        }
+
+        rainAmbientStarted = true;
+        rainAmbientStartScheduled = false;
+        const loopToken = rainAmbientLoopToken;
+        scheduleRainAmbientLoop(rainAmbientActiveDeckIndex, loopToken);
+        await animateRainAmbientVolume(
+          RAIN_AMBIENT_VOLUME,
+          RAIN_AMBIENT_FADE_IN_MS,
+          transitionToken
+        );
+      }
+
+      async function stopRainAmbientPlayback() {
+        const transitionToken = ++rainAmbientFadeToken;
+        rainAmbientStartScheduled = false;
+        cancelRainAmbientLoopSchedule();
+
+        if (rainAmbientFadeFrameId !== null) {
+          cancelAnimationFrame(rainAmbientFadeFrameId);
+          rainAmbientFadeFrameId = null;
+        }
+
+        if (getRainAmbientPlayingDeckIndex() < 0 && !rainAmbientStarted) {
+          rainAmbientMasterVolume = 0;
+          applyRainAmbientDeckVolumes();
+          return;
+        }
+
+        const fadedOut = await animateRainAmbientVolume(
+          0,
+          RAIN_AMBIENT_FADE_OUT_MS,
+          transitionToken
+        );
+        if (!fadedOut) return;
+
+        resetRainAmbientDecks();
+        rainAmbientMasterVolume = 0;
+        applyRainAmbientDeckVolumes();
+        rainAmbientStarted = false;
+      }
+
+      function syncRainAmbientForWeather() {
+        if (document.body.classList.contains("is-rainy")) {
+          startRainAmbientPlayback();
+        } else {
+          stopRainAmbientPlayback();
+        }
       }
 
       function getCloudShadowBaseOpacity(now = performance.now()) {
@@ -7262,6 +7986,269 @@
         return true;
       }
 
+      function getRandomRainValue(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function getTargetRainDropCount() {
+        const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+        const targetCount = Math.round(
+          viewportArea / 10_000 * RAIN_DROP_LAYOUT.densityPer10kPx2
+        );
+
+        return Math.max(
+          RAIN_DROP_LAYOUT.minimumCount,
+          Math.min(RAIN_DROP_LAYOUT.maximumCount, targetCount)
+        );
+      }
+
+      function createRainDropElement() {
+        const drop = document.createElement("span");
+        const lengthPx = getRandomRainValue(
+          RAIN_DROP_STYLE.lengthMinPx,
+          RAIN_DROP_STYLE.lengthMaxPx
+        );
+        const lengthRange = Math.max(
+          1,
+          RAIN_DROP_STYLE.lengthMaxPx - RAIN_DROP_STYLE.lengthMinPx
+        );
+        const sizeProgress = Math.max(
+          0,
+          Math.min(1, (lengthPx - RAIN_DROP_STYLE.lengthMinPx) / lengthRange)
+        );
+
+        drop.className = "rain-drop";
+        drop.dataset.rainFallSpeed = getRandomRainValue(
+          RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND.min,
+          RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND.max
+        ).toFixed(3);
+        drop.dataset.rainHorizontalTravelRatio = getRandomRainValue(
+          RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE.min,
+          RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE.max
+        ).toFixed(4);
+        drop.dataset.rainDelayProgress = Math.random().toFixed(4);
+        drop.dataset.rainLengthPx = lengthPx.toFixed(3);
+        drop.dataset.rainSizeProgress = sizeProgress.toFixed(4);
+        drop.style.setProperty(
+          "--rain-left",
+          `${getRandomRainValue(-18, 100).toFixed(2)}%`
+        );
+        drop.style.setProperty(
+          "--rain-thickness",
+          `${getRandomRainValue(
+            RAIN_DROP_STYLE.thicknessMinPx,
+            RAIN_DROP_STYLE.thicknessMaxPx
+          ).toFixed(2)}px`
+        );
+        drop.style.setProperty("--rain-length", `${lengthPx.toFixed(2)}px`);
+        const baseOpacity = getRandomRainValue(
+          RAIN_DROP_STYLE.opacityMin,
+          RAIN_DROP_STYLE.opacityMax
+        );
+        drop.style.setProperty(
+          "--rain-drop-day-opacity",
+          Math.max(0, Math.min(1, baseOpacity * RAIN_DROP_STYLE.dayAlpha))
+            .toFixed(3)
+        );
+        drop.style.setProperty(
+          "--rain-drop-night-opacity",
+          Math.max(0, Math.min(1, baseOpacity * RAIN_DROP_STYLE.nightAlpha))
+            .toFixed(3)
+        );
+        drop.style.setProperty(
+          "--rain-angle",
+          `${getRandomRainValue(
+            RAIN_DROP_ANGLE_RANGE_DEG.min,
+            RAIN_DROP_ANGLE_RANGE_DEG.max
+          ).toFixed(2)}deg`
+        );
+
+        return drop;
+      }
+
+      function syncRainDropCount() {
+        if (!rainLayer) return;
+
+        const targetCount = getTargetRainDropCount();
+        const currentCount = rainLayer.childElementCount;
+
+        if (currentCount < targetCount) {
+          const fragment = document.createDocumentFragment();
+          for (let index = currentCount; index < targetCount; index += 1) {
+            fragment.appendChild(createRainDropElement());
+          }
+          rainLayer.appendChild(fragment);
+        } else if (currentCount > targetCount) {
+          for (let index = currentCount; index > targetCount; index -= 1) {
+            rainLayer.lastElementChild?.remove();
+          }
+        }
+      }
+
+      function updateRainDropViewportMotion() {
+        if (!rainLayer) return;
+
+        const viewportHeight = Math.max(1, window.innerHeight);
+        const startTranslateYPx =
+          viewportHeight * RAIN_DROP_LAYOUT.startYViewportRatio;
+        const layerTopPx =
+          viewportHeight * RAIN_DROP_LAYOUT.layerTopViewportRatio;
+
+        for (const drop of rainLayer.children) {
+          const fallSpeedPxPerSecond = Number(drop.dataset.rainFallSpeed);
+          const horizontalTravelRatio = Number(
+            drop.dataset.rainHorizontalTravelRatio
+          );
+          const delayProgress = Number(drop.dataset.rainDelayProgress);
+          const lengthPx = Number(drop.dataset.rainLengthPx);
+          const sizeProgress = Number(drop.dataset.rainSizeProgress);
+          const safeFallSpeed = Number.isFinite(fallSpeedPxPerSecond)
+            ? fallSpeedPxPerSecond
+            : RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND.min;
+          const safeHorizontalTravelRatio = Number.isFinite(
+            horizontalTravelRatio
+          )
+            ? horizontalTravelRatio
+            : RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE.min;
+          const safeDelayProgress = Number.isFinite(delayProgress)
+            ? delayProgress
+            : 0;
+          const safeLengthPx = Number.isFinite(lengthPx)
+            ? lengthPx
+            : RAIN_DROP_STYLE.lengthMinPx;
+          const safeSizeProgress = Number.isFinite(sizeProgress)
+            ? Math.max(0, Math.min(1, sizeProgress))
+            : 0;
+          const landingYRatio =
+            RAIN_DROP_LAYOUT.landingYMinViewportRatio +
+            (RAIN_DROP_LAYOUT.landingYMaxViewportRatio -
+              RAIN_DROP_LAYOUT.landingYMinViewportRatio) *
+              safeSizeProgress;
+          const landingPointYPx = viewportHeight * landingYRatio;
+          const endTranslateYPx = Math.max(
+            startTranslateYPx + 1,
+            landingPointYPx - layerTopPx - safeLengthPx
+          );
+          const verticalTravelDistancePx = Math.max(
+            1,
+            endTranslateYPx - startTranslateYPx
+          );
+          const durationMs =
+            verticalTravelDistancePx / safeFallSpeed * 1_000;
+
+          drop.style.setProperty(
+            "--rain-start-y",
+            `${startTranslateYPx.toFixed(2)}px`
+          );
+          drop.style.setProperty(
+            "--rain-travel-y",
+            `${endTranslateYPx.toFixed(2)}px`
+          );
+          drop.style.setProperty(
+            "--rain-duration",
+            `${durationMs.toFixed(0)}ms`
+          );
+          drop.style.setProperty(
+            "--rain-delay",
+            `${(-durationMs * safeDelayProgress).toFixed(0)}ms`
+          );
+          drop.style.setProperty(
+            "--rain-travel-x",
+            `${(
+              verticalTravelDistancePx * safeHorizontalTravelRatio
+            ).toFixed(2)}px`
+          );
+        }
+      }
+
+      function initializeRainDrops() {
+        if (!rainLayer) return;
+
+        syncRainDropCount();
+        updateRainDropViewportMotion();
+      }
+
+      function applyRainColorMatrix(matrixElement, colorBalance) {
+        if (!matrixElement || !colorBalance) return;
+
+        matrixElement.setAttribute(
+          "values",
+          [
+            `${colorBalance.red} 0 0 0 0`,
+            `0 ${colorBalance.green} 0 0 0`,
+            `0 0 ${colorBalance.blue} 0 0`,
+            "0 0 0 1 0"
+          ].join(" ")
+        );
+      }
+
+      function applyWeatherState() {
+        const rootStyle = document.documentElement.style;
+        const rainDayColorMatrix = document.getElementById(
+          "rainDayColorMatrix"
+        );
+        const rainNightColorMatrix = document.getElementById(
+          "rainNightColorMatrix"
+        );
+
+        applyRainColorMatrix(
+          rainDayColorMatrix,
+          RAIN_DAY_TONE.colorBalance
+        );
+        applyRainColorMatrix(
+          rainNightColorMatrix,
+          RAIN_NIGHT_TONE.colorBalance
+        );
+
+        rootStyle.setProperty(
+          "--rain-day-brightness",
+          String(RAIN_DAY_TONE.brightness)
+        );
+        rootStyle.setProperty(
+          "--rain-day-saturation",
+          String(RAIN_DAY_TONE.saturation)
+        );
+        rootStyle.setProperty(
+          "--rain-day-contrast",
+          String(RAIN_DAY_TONE.contrast)
+        );
+        rootStyle.setProperty("--rain-day-tint", RAIN_DAY_TONE.tint);
+        rootStyle.setProperty(
+          "--rain-day-opacity",
+          String(RAIN_DAY_TONE.opacity)
+        );
+
+        rootStyle.setProperty(
+          "--rain-night-brightness",
+          String(RAIN_NIGHT_TONE.brightness)
+        );
+        rootStyle.setProperty(
+          "--rain-night-saturation",
+          String(RAIN_NIGHT_TONE.saturation)
+        );
+        rootStyle.setProperty(
+          "--rain-night-contrast",
+          String(RAIN_NIGHT_TONE.contrast)
+        );
+        rootStyle.setProperty("--rain-night-tint", RAIN_NIGHT_TONE.tint);
+        rootStyle.setProperty(
+          "--rain-night-opacity",
+          String(RAIN_NIGHT_TONE.opacity)
+        );
+
+        const shouldRain = dayCount > 1 && isRainyToday;
+        const wasRainy = document.body.classList.contains("is-rainy");
+        document.body.classList.toggle("is-rainy", shouldRain);
+        if (weatherLabel) {
+          weatherLabel.textContent = shouldRain ? "Rainy" : "Sunny";
+        }
+
+        syncRainAmbientForWeather();
+        if (wasRainy !== shouldRain) {
+          transitionBgmForCurrentState();
+        }
+      }
+
       function setNightMode(enabled) {
         const wasNight = document.body.classList.contains("is-night");
 
@@ -7273,7 +8260,7 @@
         updateTreeInteractivity();
         updateStructureInteractivity();
         transitionCloudShadowOpacity(enabled);
-        transitionBgmForNightMode(enabled);
+        transitionBgmForCurrentState();
       }
 
       function startExploration(destination) {
@@ -7399,6 +8386,63 @@
         return rolledQuantity * Math.max(1, Math.round(Number(multiplier) || 1));
       }
 
+      function rollStarterSupplyQuantity(range) {
+        const min = Math.max(0, Math.round(Number(range?.min) || 0));
+        const max = Math.max(min, Math.round(Number(range?.max) || min));
+        return min + Math.floor(Math.random() * (max - min + 1));
+      }
+
+      /*
+        무기를 처음 획득했을 때 함께 지급하는 시작 탄약 / 배터리입니다.
+        총기: 1~5발, 체인소우: 5~10%
+      */
+      function grantStarterSupplyForWeapon(weaponType) {
+        if (weaponType === "handgun") {
+          const previous = handgunAmmoCount;
+          handgunAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            handgunAmmoCount + rollStarterSupplyQuantity(WEAPON_STARTER_AMMO_RANGE)
+          );
+          hasHandgunAmmo = handgunAmmoCount > 0;
+          if (handgunAmmoCount > previous) markInventoryItemAsNew("handgunAmmo");
+          return;
+        }
+
+        if (weaponType === "shotgun") {
+          const previous = shotgunAmmoCount;
+          shotgunAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            shotgunAmmoCount + rollStarterSupplyQuantity(WEAPON_STARTER_AMMO_RANGE)
+          );
+          hasShotgunAmmo = shotgunAmmoCount > 0;
+          if (shotgunAmmoCount > previous) markInventoryItemAsNew("shotgunAmmo");
+          return;
+        }
+
+        if (weaponType === "rifle") {
+          const previous = rifleAmmoCount;
+          rifleAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            rifleAmmoCount + rollStarterSupplyQuantity(WEAPON_STARTER_AMMO_RANGE)
+          );
+          hasRifleAmmo = rifleAmmoCount > 0;
+          if (rifleAmmoCount > previous) markInventoryItemAsNew("rifleAmmo");
+          return;
+        }
+
+        if (weaponType === "chainsaw") {
+          const previous = chainsawBatteryPercent;
+          chainsawBatteryPercent = Math.min(
+            MAX_CHAINSAW_BATTERY,
+            chainsawBatteryPercent + rollStarterSupplyQuantity(CHAINSAW_STARTER_BATTERY_RANGE)
+          );
+          hasChainsawBattery = chainsawBatteryPercent > 0;
+          if (chainsawBatteryPercent > previous) {
+            markInventoryItemAsNew("chainsawBattery");
+          }
+        }
+      }
+
       function awardExplorationItem(destination) {
         const candidates = [];
 
@@ -7426,6 +8470,7 @@
         const quantityMultiplier = destination === "city" ? 2 : 1;
         if (reward === "handgun") {
           hasHandgun = true;
+          grantStarterSupplyForWeapon("handgun");
         } else if (reward === "handgunAmmo") {
           hasHandgunAmmo = true;
           handgunAmmoCount = Math.min(
@@ -7434,6 +8479,7 @@
           );
         } else if (reward === "shotgun") {
           hasShotgun = true;
+          grantStarterSupplyForWeapon("shotgun");
         } else if (reward === "shotgunAmmo") {
           hasShotgunAmmo = true;
           shotgunAmmoCount = Math.min(
@@ -7448,6 +8494,7 @@
           );
         } else if (reward === "chainsaw") {
           hasChainsaw = true;
+          grantStarterSupplyForWeapon("chainsaw");
         } else if (reward === "chainsawBattery") {
           hasChainsawBattery = true;
           chainsawBatteryPercent = Math.min(
@@ -7522,7 +8569,10 @@
         explorationDestination = "";
         explorationEndsAt = 0;
         dayCount += 1;
-        zombieKillRequirement = getNextPrime(zombieKillRequirement);
+        const isNewDayRainy = rollWeatherForNewDay();
+        zombieKillRequirement = isNewDayRainy
+          ? INITIAL_ZOMBIE_KILL_REQUIREMENT
+          : getNextPrime(zombieKillRequirement);
 
         if (treeGrowthState === TREE_GROWTH_DEPLETED) {
           // 3번 베어 고갈된 뒤 첫 탐험 완료: 부분 회복
@@ -7554,6 +8604,7 @@
         }
 
         awardExplorationRewards(completedDestination);
+        applyWeatherState();
         commitResourceState({ animateDay: true });
         setNightMode(false);
         exploringStatus.classList.remove("is-visible");
@@ -9711,18 +10762,14 @@
           bgmFadeFrameId = null;
         }
 
-        dayBgmAudio.pause();
-        nightBgmAudio.pause();
-        try {
-          dayBgmAudio.currentTime = 0;
-          nightBgmAudio.currentTime = 0;
-        } catch (_) {}
-        dayBgmAudio.volume = document.body.classList.contains("is-night")
-          ? 0
-          : 1;
-        nightBgmAudio.volume = document.body.classList.contains("is-night")
-          ? 1
-          : 0;
+        for (const audio of bgmAudios) {
+          audio.pause();
+          audio.volume = 0;
+          try {
+            audio.currentTime = 0;
+          } catch (_) {}
+        }
+        activeBgmAudio = null;
         bgmStartScheduled = false;
         bgmStarted = false;
       }
@@ -9738,24 +10785,24 @@
         }
 
         bgmStartScheduled = true;
-        const isNight = document.body.classList.contains("is-night");
-        const incomingAudio = isNight ? nightBgmAudio : dayBgmAudio;
-        const outgoingAudio = isNight ? dayBgmAudio : nightBgmAudio;
+        const incomingAudio = getCurrentBgmAudio();
 
-        dayBgmAudio.volume = isNight ? 0 : 1;
-        nightBgmAudio.volume = isNight ? 1 : 0;
-        outgoingAudio.pause();
-        try {
-          outgoingAudio.currentTime = 0;
-          incomingAudio.currentTime = 0;
-        } catch (_) {}
+        for (const audio of bgmAudios) {
+          audio.pause();
+          audio.volume = audio === incomingAudio ? 1 : 0;
+          try {
+            audio.currentTime = 0;
+          } catch (_) {}
+        }
 
         try {
           await incomingAudio.play();
+          activeBgmAudio = incomingAudio;
           bgmStarted = true;
         } catch (_) {
           // 저장 상태가 On이어도 자동 재생이 차단될 수 있습니다.
           // 이후 사용자 클릭에서 다시 재생을 시도합니다.
+          activeBgmAudio = null;
           bgmStarted = false;
         } finally {
           bgmStartScheduled = false;
@@ -10310,8 +11357,11 @@
         bgmStartTimerId = window.setTimeout(() => {
           bgmStartTimerId = null;
           bgmStartScheduled = false;
-          dayBgmAudio.currentTime = 0;
-          nightBgmAudio.currentTime = 0;
+          for (const audio of bgmAudios) {
+            try {
+              audio.currentTime = 0;
+            } catch (_) {}
+          }
           startBgmPlayback();
         }, FIRST_KILL_BGM_DELAY_MS);
       }
@@ -13336,6 +14386,12 @@
           startBgmPlayback();
         }
         if (
+          document.body.classList.contains("is-rainy") &&
+          !rainAmbientStarted
+        ) {
+          startRainAmbientPlayback();
+        }
+        if (
           isChainsawEquipped &&
           chainsawBatteryPercent > 0 &&
           chainsawIdleAudio.paused
@@ -13376,6 +14432,8 @@
 
       window.addEventListener("resize", () => {
         updateWorldScale();
+        syncRainDropCount();
+        updateRainDropViewportMotion();
         refreshStructureSafeZones();
         updateInventoryPagePosition(false);
         if (isRepairOpen) applyRepairState();
@@ -13430,12 +14488,23 @@
       });
 
       async function initializeGame() {
+        // 이미지 로딩 전에도 개별 빗줄기를 만듭니다.
+        initializeRainDrops();
+
         // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
         await preloadGameSprites();
 
         // 구조물 안전영역은 개체 복원·생성 전에 한 번 계산해 공유합니다.
         refreshStructureSafeZones();
         loadResourceState();
+
+        // 저장된 날씨까지 복원한 뒤 첫 화면의 날씨 전환을 활성화합니다.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            document.body.classList.remove("is-initializing-weather");
+          });
+        });
+
         if (isChainsawEquipped && chainsawBatteryPercent > 0) {
           startChainsawBatteryDrain();
           startChainsawIdleSound();
