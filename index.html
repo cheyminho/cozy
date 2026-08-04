@@ -2771,7 +2771,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.101"
+  data-game-version="0.102"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3261,7 +3261,7 @@
         rifleAmmo: Object.freeze({ min: 2, max: 10 }),
         chainsawBattery: Object.freeze({ min: 10, max: 60 }),
         repairKit: Object.freeze({ min: 1, max: 1 }),
-        fuel: Object.freeze({ min: 1, max: 10 })
+        fuel: Object.freeze({ min: 10, max: 50 })
       });
 
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
@@ -7407,7 +7407,7 @@
       }
 
       function openExplorationMenu() {
-        if (isExplorationMenuOpen || isExploring) return;
+        if (isExplorationMenuOpen) return;
 
         closeInventory(false);
         closeRepair(false);
@@ -8389,7 +8389,39 @@
         carTravelAnimationFrameId = requestAnimationFrame(step);
       }
 
+      function makeNearbyDeerFleeFromCar() {
+        const carCenterX = carObject.offsetLeft + carObject.offsetWidth / 2;
+        const carCenterY = carObject.offsetTop + carObject.offsetHeight / 2;
+
+        for (const deer of deerMap.values()) {
+          if (
+            deer.state === "dying" ||
+            deer.state === "leaving" ||
+            deer.state === "removed"
+          ) {
+            continue;
+          }
+
+          const deerCenterX = deer.x + DEER_HALF_W;
+          const deerCenterY = deer.y + DEER_HALF_H;
+          const isNearCar =
+            Math.abs(deerCenterX - carCenterX) <= DEER_ALERT_HALF_SIZE &&
+            Math.abs(deerCenterY - carCenterY) <= DEER_ALERT_HALF_SIZE;
+          if (!isNearCar) continue;
+
+          // 자동차 왼쪽의 사슴은 왼쪽으로, 오른쪽의 사슴은 오른쪽으로 도망갑니다.
+          const escapeDirection = deerCenterX < carCenterX ? -1 : 1;
+          beginDeerRunInDirection(deer, escapeDirection, "leaving");
+          deer.element.style.opacity = "1";
+          deer.hitbox.style.pointerEvents = "none";
+          deer.hitbox.tabIndex = -1;
+          showSingleDeerFrame(deer, DEER_RUN_INTRO_FRAME_START);
+          renderDeer(deer);
+        }
+      }
+
       function startCityCarDeparture() {
+        makeNearbyDeerFleeFromCar();
         animateCarTravel({
           fromX: 0,
           fromY: 0,
@@ -8872,6 +8904,11 @@
       }
 
       function handleExplorationDestination(destination) {
+        if (isExploring) {
+          showExploringBusyToast();
+          return;
+        }
+
         if (zombieCount < zombieKillRequirement) {
           showToast(EXPLORE_BLOCKED_TOAST_MESSAGE);
           return;
@@ -10667,15 +10704,8 @@
         playSound(EXPLORE_BUTTON_SOUND);
         clearExploreButtonNewState();
 
-        if (isExploring) {
-          closeInventory(false);
-          closeRepair(false);
-          syncMenuBackdrop();
-          showExploringBusyToast(event);
-          return;
-        }
-
-        // 이미 탐험 목적지 화면이면 닫거나 다시 열지 않고 현재 상태를 유지합니다.
+        // 탐험 중에도 목적지 화면은 확인할 수 있습니다.
+        // 실제 목적지 선택은 handleExplorationDestination에서 차단합니다.
         if (isExplorationMenuOpen) return;
 
         openExplorationMenu();
