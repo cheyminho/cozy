@@ -2771,7 +2771,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.102"
+  data-game-version="0.103"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5422,7 +5422,8 @@
             if (todoSubmittedListId === 2) {
               hasCompass = true;
               markInventoryItemAsNew("compass");
-              syncExplorationUnlockNewState();
+              // 획득 즉시 Forest 조건에서 Compass를 숨기고 잠금 상태도 갱신합니다.
+              updateExplorationRequirements();
               deliverTodoList(3);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
@@ -5445,7 +5446,8 @@
               if (wasMissingMap) {
                 markInventoryItemAsNew("map");
               }
-              syncExplorationUnlockNewState();
+              // 획득 즉시 City 조건에서 Map을 숨기고 잠금 상태도 갱신합니다.
+              updateExplorationRequirements();
               deliverTodoList(5);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
@@ -7409,6 +7411,8 @@
       function openExplorationMenu() {
         if (isExplorationMenuOpen) return;
 
+        // 저장 복원·보상 획득·수리 완료 후에도 메뉴를 열 때 현재 조건을 다시 반영합니다.
+        updateExplorationRequirements();
         closeInventory(false);
         closeRepair(false);
         isExplorationMenuOpen = true;
