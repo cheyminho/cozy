@@ -2771,7 +2771,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.103"
+  data-game-version="0.104"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5337,7 +5337,7 @@
         const rewardTexts = {
           1: "i'll send you a decor blueprint.",
           2: "i'll send you a compass.",
-          3: "i’ll send you a rifle.",
+          3: "i’ll send you a rifle and 10 rifle rounds.",
           4: "i’ll send you a map."
         };
 
@@ -5430,11 +5430,22 @@
             }
 
             if (todoSubmittedListId === 3) {
-              if (!hasRifle) {
-                hasRifle = true;
+              const didNotHaveRifle = !hasRifle;
+              hasRifle = true;
+              if (didNotHaveRifle) {
                 markInventoryItemAsNew("rifle");
-                grantStarterSupplyForWeapon("rifle");
               }
+
+              const previousRifleAmmoCount = rifleAmmoCount;
+              rifleAmmoCount = Math.min(
+                MAX_INVENTORY_QUANTITY,
+                rifleAmmoCount + 10
+              );
+              hasRifleAmmo = rifleAmmoCount > 0;
+              if (rifleAmmoCount > previousRifleAmmoCount) {
+                markInventoryItemAsNew("rifleAmmo");
+              }
+
               deliverTodoList(4);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
