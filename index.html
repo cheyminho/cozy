@@ -2771,7 +2771,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.104"
+  data-game-version="0.105"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3199,8 +3199,19 @@
         bottom: WORLD_SIZE
       };
 
-      // 살아 있는 좀비와 사슴의 합계가 5마리를 넘게 되는 6번째 생성부터
-      // 중앙 1024×1024 대신 월드 전체 2048×2048을 생성·이동 범위로 사용합니다.
+      // 전체 월드 생성 범위를 사용할 때는 사방에서 100px 안쪽만 사용합니다.
+      // 좀비는 생성 당시 이 영역을 movementZone으로 저장하고 경계에서 방향을 반전하므로
+      // 이후에도 이 영역 밖으로 이동하지 않습니다.
+      const EXPANDED_WORLD_ZONE_INSET = 100;
+      const EXPANDED_ENTITY_ZONE = {
+        left: WORLD_ZONE.left + EXPANDED_WORLD_ZONE_INSET,
+        top: WORLD_ZONE.top + EXPANDED_WORLD_ZONE_INSET,
+        right: WORLD_ZONE.right - EXPANDED_WORLD_ZONE_INSET,
+        bottom: WORLD_ZONE.bottom - EXPANDED_WORLD_ZONE_INSET
+      };
+
+      // 살아 있는 좀비와 사슴의 합계가 기준 수 이상이면
+      // 중앙 1024×1024 대신 사방 100px을 제외한 확장 영역을 생성 범위로 사용합니다.
       const EXPANDED_SPAWN_POPULATION_THRESHOLD = 3;
 
       // 월드 중심(1024, 1024)을 기준으로 한 420×300 안전영역입니다.
@@ -10282,7 +10293,7 @@
       function getSpawnZoneForNextEntity() {
         return getActivePopulationCount() >=
           EXPANDED_SPAWN_POPULATION_THRESHOLD
-          ? WORLD_ZONE
+          ? EXPANDED_ENTITY_ZONE
           : GAME_ZONE;
       }
 
