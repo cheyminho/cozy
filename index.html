@@ -2613,7 +2613,7 @@
 -->
 <body
   class="is-initializing-stat9s"
-  data-game-version="0.098"
+  data-game-version="0.099"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2847,6 +2847,18 @@
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Car Parts</span></span>
               <span class="inventory-item__quantity">×0</span>
             </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="fuel" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Fuel</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="repairKit" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Repair Kit</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="map" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Map</span></span>
+              <span class="inventory-item__quantity"></span>
+            </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="flowers" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Flowers</span></span>
               <span class="inventory-item__quantity">×0</span>
@@ -3051,7 +3063,9 @@
         handgunAmmo: Object.freeze({ min: 5, max: 20 }),
         shotgunAmmo: Object.freeze({ min: 3, max: 15 }),
         rifleAmmo: Object.freeze({ min: 2, max: 10 }),
-        chainsawBattery: Object.freeze({ min: 10, max: 60 })
+        chainsawBattery: Object.freeze({ min: 10, max: 60 }),
+        repairKit: Object.freeze({ min: 1, max: 1 }),
+        fuel: Object.freeze({ min: 1, max: 10 })
       });
 
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
@@ -3070,6 +3084,8 @@
         rifleAmmo: 2,
         chainsawBattery: 2,
         carParts: 2,
+        fuel: 2,
+        repairKit: 2,
         flowers: 2,
         whitePaint: 2,
         blackPaint: 2,
@@ -3077,7 +3093,8 @@
         yellowPaint: 2,
         bluePaint: 2,
         greenPaint: 2,
-        compass: 3
+        compass: 3,
+        map: 3
       });
       const INVENTORY_QUANTITY_SORT_GROUPS = Object.freeze({
         chainsawBattery: 0,
@@ -3110,15 +3127,15 @@
       const DEER_SPAWN_INTERVAL_MS = 3 * 60_000;
       const EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS = 5_000;
       const ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS = 1_000;
-      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 3_000;
-      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 5_000;
-      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 5_000;
-      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 7_000;
+      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 7_000;
+      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 9_000;
+      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 7_000;
+      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 15_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
       const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
       const FOREST_EXPLORATION_DURATION_MS = 15 * 60_000;
-      const CITY_EXPLORATION_DURATION_MS = 10 * 60_000;
+      const CITY_EXPLORATION_DURATION_MS = 30 * 60_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
       const GAME_VERSION = String(
         document.body.dataset.gameVersion || ""
@@ -3393,6 +3410,9 @@
       const MAIL_READ_FIRST_TOAST_MESSAGE = "I should read the letter first.";
       const MAIL_WAIT_TOAST_MESSAGE = "Maybe tomorrow.";
       const COMPASS_SELECTED_TOAST_MESSAGE = "Now I know where I’m going.";
+      const FUEL_SELECTED_TOAST_MESSAGE = "More for the tank.";
+      const REPAIR_KIT_SELECTED_TOAST_MESSAGE = "This should do the trick.";
+      const MAP_SELECTED_TOAST_MESSAGE = "Now I know how to get there.";
       const CAR_PARTS_SELECTED_TOAST_MESSAGE = "I might need these for the car.";
       const PAINT_SELECTED_TOAST_MESSAGE = "I could paint something.";
       const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s see what they want.";
@@ -3509,7 +3529,7 @@
       const EXPLORATION_BLUEPRINT_DROP_CHANCE = {
         village: 0.30,
         forest: 0.20,
-        city: 0.50
+        city: 0.60
       };
       const EXPLORATION_BLUEPRINT_REWARDS = [
         { destinations: ["village", "city"], category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID },
@@ -3720,6 +3740,15 @@
       );
       const carPartsInventoryItem = document.querySelector(
         '.inventory-item[data-item="carParts"]'
+      );
+      const fuelInventoryItem = document.querySelector(
+        '.inventory-item[data-item="fuel"]'
+      );
+      const repairKitInventoryItem = document.querySelector(
+        '.inventory-item[data-item="repairKit"]'
+      );
+      const mapInventoryItem = document.querySelector(
+        '.inventory-item[data-item="map"]'
       );
       const flowersInventoryItem = document.querySelector(
         '.inventory-item[data-item="flowers"]'
@@ -4023,7 +4052,7 @@
       const paintCounts = Object.fromEntries(
         Object.keys(PAINT_ITEM_DEFINITIONS).map((itemType) => [itemType, 0])
       );
-      let hasRepairKit = false;
+      let repairKitCount = 0;
       let fuelCount = 0;
       let hasMap = false;
       let isExplorationMenuOpen = false;
@@ -4136,10 +4165,13 @@
       let todoListHideTimerId = null;
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
+      const TODO_SCHEMA_VERSION = 2;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
-        3: { item1: false, item2: false, item3: false }
+        3: { item1: false, item2: false, item3: false },
+        4: { item1: false, item2: false, item3: false },
+        5: { item1: false }
       };
 
       const skyClouds = [];
@@ -4461,7 +4493,7 @@
           return zombieCount >= zombieKillRequirement && foodCount >= 1;
         }
         if (destination === "forest") return hasCompass;
-        if (destination === "city") return hasMap && isCarRepaired();
+        if (destination === "city") return fuelCount >= 10 && hasMap && isCarRepaired();
         return false;
       }
 
@@ -4511,6 +4543,9 @@
         repairCategoryNewByCategory[category] = true;
         hasRepairButtonNew = true;
         updateRepairNewBadgeState();
+        if (getUnlockedBlueprintCount() >= 3) {
+          setTodoProgress(3, "item1", true);
+        }
         return true;
       }
 
@@ -4755,6 +4790,7 @@
         }
 
         currentTodoListId = listId;
+        syncTodoProgressFromCurrentState(listId);
         hasStrangerLetter = true;
         isStrangerLetterOn = true;
         todoSubmittedListId = 0;
@@ -4774,6 +4810,58 @@
           isTodoListRevealDelayed = false;
           updateTodoListUI();
         }, TODO_LIST_MAIL_REVEAL_DELAY_MS);
+      }
+
+      function getUnlockedBlueprintCount() {
+        const unlockedBlueprintIds = new Set();
+
+        for (const [category, items] of Object.entries(repairItemsByCategory)) {
+          for (const item of items || []) {
+            if (!item?.unlocked) continue;
+
+            let blueprintId = item.blueprintId || "";
+            if (!blueprintId && category === "outdoor") {
+              blueprintId = inferOutdoorBlueprintId(item);
+            } else if (!blueprintId && category === "buildings") {
+              blueprintId = inferBuildingBlueprintId(item);
+            } else if (!blueprintId && category === "repair") {
+              blueprintId = inferRepairBlueprintId(item);
+            }
+
+            if (blueprintId) {
+              unlockedBlueprintIds.add(`${category}:${blueprintId}`);
+            }
+          }
+        }
+
+        return unlockedBlueprintIds.size;
+      }
+
+      function syncTodoProgressFromCurrentState(listId) {
+        const list = todoProgress[listId];
+        if (!list) return false;
+        let changed = false;
+
+        const complete = (key, condition) => {
+          if (!condition || !(key in list) || list[key] === true) return;
+          list[key] = true;
+          changed = true;
+        };
+
+        if (listId === 1) {
+          complete("item1", zombieCount > 0);
+          complete("item2", foodCount > 0);
+        } else if (listId === 2) {
+          complete("item1", repairAppliedItemBySection.outdoor.fence >= 0);
+          complete("item3", isShedRepaired());
+        } else if (listId === 3) {
+          complete("item1", getUnlockedBlueprintCount() >= 3);
+        } else if (listId === 4) {
+          complete("item2", fuelCount >= 10);
+          complete("item3", isCarRepaired());
+        }
+
+        return changed;
       }
 
       function setTodoProgress(listId, key, value = true) {
@@ -4838,15 +4926,25 @@
             "repair the shed"
           ],
           3: [
+            "collect 3 blueprints",
+            "kill with a different weapon",
+            "explore the forest"
+          ],
+          4: [
             "headshot",
-            "explore the forest",
+            "collect 10 fuel",
             "repair the car"
+          ],
+          5: [
+            "wait for the next update"
           ]
         };
 
         const rewardTexts = {
           1: "i'll send you a decor blueprint.",
-          2: "i'll send you a compass."
+          2: "i'll send you a compass.",
+          3: "i’ll send you a rifle.",
+          4: "i’ll send you a map."
         };
 
         const visible =
@@ -4861,14 +4959,16 @@
           return;
         }
 
-        const texts = taskTexts[currentTodoListId] || taskTexts[1];
-        const progress = todoProgress[currentTodoListId] || todoProgress[1];
+        const texts = taskTexts[currentTodoListId] || [];
+        const progress = todoProgress[currentTodoListId] || {};
         const keys = ["item1", "item2", "item3"];
 
         todoItemElements.forEach((element, index) => {
           const key = keys[index];
-          element.textContent = texts[index] || "";
-          element.classList.toggle("is-complete", progress[key] === true);
+          const text = texts[index] || "";
+          element.hidden = !text;
+          element.textContent = text;
+          element.classList.toggle("is-complete", Boolean(text) && progress[key] === true);
         });
 
         const isComplete = isTodoListComplete(currentTodoListId);
@@ -4930,6 +5030,34 @@
               markInventoryItemAsNew("compass");
               syncExplorationUnlockNewState();
               deliverTodoList(3);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
+
+            if (todoSubmittedListId === 3) {
+              if (!hasRifle) {
+                hasRifle = true;
+                hasRifleAmmo = true;
+                rifleAmmoCount = Math.min(
+                  MAX_INVENTORY_QUANTITY,
+                  rifleAmmoCount + 20
+                );
+                markInventoryItemAsNew("rifle");
+                markInventoryItemAsNew("rifleAmmo");
+              }
+              deliverTodoList(4);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
+
+            if (todoSubmittedListId === 4) {
+              const wasMissingMap = !hasMap;
+              hasMap = true;
+              if (wasMissingMap) {
+                markInventoryItemAsNew("map");
+              }
+              syncExplorationUnlockNewState();
+              deliverTodoList(5);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
             }
@@ -5418,7 +5546,7 @@
         if (resource === "food") return foodCount;
         if (resource === "carParts") return carPartsCount;
         if (resource === "flowers") return flowerCount;
-        if (resource === "repairKit") return hasRepairKit ? 1 : 0;
+        if (resource === "repairKit") return repairKitCount;
         if (resource in paintCounts) return paintCounts[resource];
         return 0;
       }
@@ -5428,7 +5556,7 @@
         if (resource === "food") foodCount = Math.max(0, amount);
         if (resource === "carParts") carPartsCount = clamp(Math.round(Number(amount) || 0), 0, getMaxCarPartsCount());
         if (resource === "flowers") flowerCount = clamp(Math.round(Number(amount) || 0), 0, MAX_INVENTORY_QUANTITY);
-        if (resource === "repairKit") hasRepairKit = amount > 0;
+        if (resource === "repairKit") repairKitCount = clamp(Math.round(Number(amount) || 0), 0, MAX_INVENTORY_QUANTITY);
         if (resource in paintCounts) {
           paintCounts[resource] = clamp(
             Math.round(Number(amount) || 0),
@@ -5766,7 +5894,7 @@
             setTodoProgress(2, "item3", true);
           }
           if (item.blueprintId === CAR_REPAIR_BLUEPRINT_ID) {
-            setTodoProgress(3, "item3", true);
+            setTodoProgress(4, "item3", true);
             clearCarPartsAfterRepair();
           }
           updateResourceHud();
@@ -5981,15 +6109,19 @@
               MAX_INVENTORY_QUANTITY
             );
           }
-          hasRepairKit = parsed.hasRepairKit === true;
+          repairKitCount = normalizeStoredCount(
+            parsed.repairKit ?? (parsed.hasRepairKit === true ? 1 : 0),
+            MAX_INVENTORY_QUANTITY
+          );
           mailboxIntroTriggered = parsed.mailboxIntroTriggered === true;
-          currentTodoListId = clamp(Math.round(Number(parsed.currentTodoListId) || 0), 0, 3);
-          todoSubmittedListId = clamp(Math.round(Number(parsed.todoSubmittedListId) || 0), 0, 3);
+          currentTodoListId = clamp(Math.round(Number(parsed.currentTodoListId) || 0), 0, 5);
+          todoSubmittedListId = clamp(Math.round(Number(parsed.todoSubmittedListId) || 0), 0, 5);
           todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
           const storedTodoProgress = parsed.todoProgress && typeof parsed.todoProgress === "object"
             ? parsed.todoProgress
             : null;
           if (storedTodoProgress) {
+            const storedTodoSchemaVersion = Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1));
             for (const [listId, tasks] of Object.entries(todoProgress)) {
               const storedTasks = storedTodoProgress[listId];
               if (!storedTasks || typeof storedTasks !== "object") continue;
@@ -5997,14 +6129,20 @@
                 tasks[key] = storedTasks[key] === true;
               }
             }
+
+            if (storedTodoSchemaVersion < TODO_SCHEMA_VERSION) {
+              const previousThirdList = storedTodoProgress[3] || {};
+              todoProgress[3].item1 = false;
+              todoProgress[3].item2 = previousThirdList.item1 === true;
+              todoProgress[3].item3 = previousThirdList.item2 === true;
+              todoProgress[4].item1 = previousThirdList.item1 === true;
+              todoProgress[4].item3 = previousThirdList.item3 === true;
+            }
           }
-          fuelCount = normalizeStoredCount(parsed.fuel, 10);
-          // 이전 Repair Kit 보유 저장값은 새 Map 조건으로 이관합니다.
+          fuelCount = normalizeStoredCount(parsed.fuel, MAX_INVENTORY_QUANTITY);
           hasMap = parsed.hasMap === true ||
             parsed.map === true ||
-            Number(parsed.map) > 0 ||
-            parsed.repairKit === true ||
-            Number(parsed.repairKit) > 0;
+            Number(parsed.map) > 0;
 
           const storedExplorationNewState =
             parsed.explorationNewState &&
@@ -6073,6 +6211,9 @@
           }
           // 이전 저장 파일의 비어 있던 설계도 슬롯이 새 정의를 덮지 않게 다시 적용합니다.
           configureExplorationBlueprintDefinitions();
+          for (const listId of [1, 2, 3, 4]) {
+            syncTodoProgressFromCurrentState(listId);
+          }
           hasRepairButtonNew = REPAIR_CATEGORY_ORDER.some(
             (category) => getRepairCategoryHasNewItems(category)
           );
@@ -6140,11 +6281,13 @@
               carParts: carPartsCount,
               flowers: flowerCount,
               paintCounts: { ...paintCounts },
-              hasRepairKit,
+              repairKit: repairKitCount,
+              hasRepairKit: repairKitCount > 0,
               mailboxIntroTriggered,
               currentTodoListId,
               todoSubmittedListId,
               todoSubmittedDay,
+              todoSchemaVersion: TODO_SCHEMA_VERSION,
               todoProgress,
               fuel: fuelCount,
               hasMap,
@@ -6626,6 +6769,9 @@
           hasStrangerLetter ||
           hasCompass ||
           carPartsCount > 0 ||
+          fuelCount > 0 ||
+          repairKitCount > 0 ||
+          hasMap ||
           Object.values(paintCounts).some((count) => count > 0);
       }
 
@@ -7247,25 +7393,27 @@
         return { min, max };
       }
 
-      function rollExplorationItemQuantity(itemType) {
+      function rollExplorationItemQuantity(itemType, multiplier = 1) {
         const { min, max } = getExplorationItemQuantityRange(itemType);
-        return min + Math.floor(Math.random() * (max - min + 1));
+        const rolledQuantity = min + Math.floor(Math.random() * (max - min + 1));
+        return rolledQuantity * Math.max(1, Math.round(Number(multiplier) || 1));
       }
 
-      function awardExplorationItem() {
+      function awardExplorationItem(destination) {
         const candidates = [];
 
         if (!hasHandgun) candidates.push("handgun");
         if (handgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("handgunAmmo");
         if (!hasShotgun) candidates.push("shotgun");
         if (shotgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("shotgunAmmo");
-        if (!hasRifle) candidates.push("rifle");
         if (rifleAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("rifleAmmo");
         if (!hasChainsaw) candidates.push("chainsaw");
         if (chainsawBatteryPercent < MAX_CHAINSAW_BATTERY) candidates.push("chainsawBattery");
         if (!isCarRepaired() && carPartsCount < getMaxCarPartsCount()) {
           candidates.push("carParts");
         }
+        if (repairKitCount < MAX_INVENTORY_QUANTITY) candidates.push("repairKit");
+        if (fuelCount < MAX_INVENTORY_QUANTITY) candidates.push("fuel");
         for (const itemType of Object.keys(paintCounts)) {
           if (paintCounts[itemType] < MAX_INVENTORY_QUANTITY) {
             candidates.push(itemType);
@@ -7275,13 +7423,14 @@
         if (candidates.length === 0) return false;
 
         const reward = candidates[Math.floor(Math.random() * candidates.length)];
+        const quantityMultiplier = destination === "city" ? 2 : 1;
         if (reward === "handgun") {
           hasHandgun = true;
         } else if (reward === "handgunAmmo") {
           hasHandgunAmmo = true;
           handgunAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            handgunAmmoCount + rollExplorationItemQuantity(reward)
+            handgunAmmoCount + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
         } else if (reward === "shotgun") {
           hasShotgun = true;
@@ -7289,15 +7438,13 @@
           hasShotgunAmmo = true;
           shotgunAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            shotgunAmmoCount + rollExplorationItemQuantity(reward)
+            shotgunAmmoCount + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
-        } else if (reward === "rifle") {
-          hasRifle = true;
         } else if (reward === "rifleAmmo") {
           hasRifleAmmo = true;
           rifleAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            rifleAmmoCount + rollExplorationItemQuantity(reward)
+            rifleAmmoCount + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
         } else if (reward === "chainsaw") {
           hasChainsaw = true;
@@ -7305,17 +7452,30 @@
           hasChainsawBattery = true;
           chainsawBatteryPercent = Math.min(
             MAX_CHAINSAW_BATTERY,
-            chainsawBatteryPercent + rollExplorationItemQuantity(reward)
+            chainsawBatteryPercent + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
         } else if (reward === "carParts") {
           carPartsCount = Math.min(
             getMaxCarPartsCount(),
-            carPartsCount + rollExplorationItemQuantity(reward)
+            carPartsCount + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
+        } else if (reward === "repairKit") {
+          repairKitCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            repairKitCount + rollExplorationItemQuantity(reward, quantityMultiplier)
+          );
+        } else if (reward === "fuel") {
+          fuelCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            fuelCount + rollExplorationItemQuantity(reward, quantityMultiplier)
+          );
+          if (fuelCount >= 10) {
+            setTodoProgress(4, "item2", true);
+          }
         } else if (reward in paintCounts) {
           paintCounts[reward] = Math.min(
             MAX_INVENTORY_QUANTITY,
-            paintCounts[reward] + rollExplorationItemQuantity(reward)
+            paintCounts[reward] + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
         }
 
@@ -7349,7 +7509,7 @@
           return;
         }
 
-        awardExplorationItem();
+        awardExplorationItem(destination);
       }
 
       function finishExploration() {
@@ -7390,7 +7550,7 @@
           setTodoProgress(1, "item3", true);
         } else if (completedDestination === "forest") {
           woodCount = Math.min(getMaxWoodCount(), woodCount + 10);
-          setTodoProgress(3, "item2", true);
+          setTodoProgress(3, "item3", true);
         }
 
         awardExplorationRewards(completedDestination);
@@ -7434,7 +7594,7 @@
         }
 
         if (destination === "city") {
-          return fuelCount >= 10 && hasMap;
+          return fuelCount >= 10 && hasMap && isCarRepaired();
         }
 
         return true;
@@ -7614,7 +7774,7 @@
           (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
           flowerCount > 0 &&
           Object.values(paintCounts).every((count) => count > 0) &&
-          hasRepairKit &&
+          repairKitCount > 0 &&
           hasMap &&
           fuelCount >= 10;
       }
@@ -7677,10 +7837,16 @@
           paintCounts[itemType] = Math.max(paintCounts[itemType], 1);
         }
 
-        // 가방에는 표시되지 않지만 획득·탐험·제작 조건에 쓰이는 항목도 지급합니다.
-        hasRepairKit = true;
-        hasMap = true;
+        markNewIfMissing("repairKit", repairKitCount > 0);
+        repairKitCount = Math.max(repairKitCount, 1);
+
+        markNewIfMissing("fuel", fuelCount > 0);
         fuelCount = Math.max(fuelCount, 10);
+
+        markNewIfMissing("map", hasMap);
+        hasMap = true;
+        syncTodoProgressFromCurrentState(3);
+        syncTodoProgressFromCurrentState(4);
 
         if (newlyObtainedItemTypes.size > 0) {
           for (const itemType of newlyObtainedItemTypes) {
@@ -9458,6 +9624,21 @@
           setInventoryValue(carPartsInventoryItem, `×${carPartsCount}`);
         }
 
+        if (fuelInventoryItem) {
+          fuelInventoryItem.hidden = fuelCount <= 0;
+          setInventoryValue(fuelInventoryItem, `×${fuelCount}`);
+        }
+
+        if (repairKitInventoryItem) {
+          repairKitInventoryItem.hidden = repairKitCount <= 0;
+          setInventoryValue(repairKitInventoryItem, `×${repairKitCount}`);
+        }
+
+        if (mapInventoryItem) {
+          mapInventoryItem.hidden = !hasMap;
+          setInventoryValue(mapInventoryItem, "");
+        }
+
         if (flowersInventoryItem) {
           flowersInventoryItem.hidden = flowerCount <= 0;
           setInventoryValue(flowersInventoryItem, `×${flowerCount}`);
@@ -10970,7 +11151,8 @@
           const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
           deer.health = Math.max(0, deer.health - damage);
           if (deer.health <= 0) {
-            if (isCritical) setTodoProgress(3, "item1", true);
+            recordDifferentWeaponKill(weapon);
+            if (isCritical) setTodoProgress(4, "item1", true);
             beginDeerDeath(deer);
           }
           return;
@@ -10979,7 +11161,8 @@
         if (weapon === "rifle") {
           consumeAmmo("rifle");
           playSound(RIFLE_FIRE_SOUND);
-          setTodoProgress(3, "item1", true);
+          recordDifferentWeaponKill(weapon);
+          setTodoProgress(4, "item1", true);
           deer.health = 0;
           beginDeerDeath(deer);
         }
@@ -11489,10 +11672,17 @@
         });
       }
 
+      function recordDifferentWeaponKill(weapon) {
+        if (weapon && weapon !== "axe") {
+          setTodoProgress(3, "item2", true);
+        }
+      }
+
       function registerPlayerZombieKill(zombie) {
         if (zombie.counted) return;
 
         zombie.counted = true;
+        recordDifferentWeaponKill(zombie.lastPlayerWeapon || getEquippedWeapon());
         awardMusicBox();
         const isFirstZombieKill = triggerFirstKillBirdFlock();
         if (isFirstZombieKill) {
@@ -11613,6 +11803,7 @@
           playSound(HIT_SOUND, 0.5);
           zombie.health = Math.max(0, zombie.health - AXE_DAMAGE);
           if (zombie.health <= 0) {
+            zombie.lastPlayerWeapon = weapon;
             beginDeath(zombie, true, { deathType: "normal" });
             return;
           }
@@ -11638,7 +11829,8 @@
           const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
           zombie.health = Math.max(0, zombie.health - damage);
           if (zombie.health <= 0) {
-            if (isCritical) setTodoProgress(3, "item1", true);
+            zombie.lastPlayerWeapon = weapon;
+            if (isCritical) setTodoProgress(4, "item1", true);
             beginDeath(zombie, true, { deathType: isCritical ? "headshot" : "normal" });
             return;
           }
@@ -11659,6 +11851,7 @@
           }
           alertNearbyDeer(zombie);
           playSound(SHOTGUN_FIRE_SOUND);
+          zombie.lastPlayerWeapon = weapon;
           beginShotgunDeath(zombie);
           return;
         }
@@ -11670,7 +11863,8 @@
           }
           alertNearbyDeer(zombie);
           playSound(RIFLE_FIRE_SOUND);
-          setTodoProgress(3, "item1", true);
+          zombie.lastPlayerWeapon = weapon;
+          setTodoProgress(4, "item1", true);
           zombie.health = 0;
           beginDeath(zombie, true, { deathType: "headshot" });
           return;
@@ -11684,6 +11878,7 @@
           }
           alertNearbyDeer(zombie);
           playSound(CHAINSAW_ATTACK_SOUND);
+          zombie.lastPlayerWeapon = weapon;
           zombie.health = 0;
           beginChainsawAttackDeath(zombie);
         }
@@ -13059,6 +13254,24 @@
         if (itemType === "carParts" && carPartsCount > 0) {
           playSound(INVENTORY_SET_SOUND);
           showToast(CAR_PARTS_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "fuel" && fuelCount > 0) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(FUEL_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "repairKit" && repairKitCount > 0) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(REPAIR_KIT_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "map" && hasMap) {
+          playSound(INVENTORY_SET_SOUND);
+          showToast(MAP_SELECTED_TOAST_MESSAGE);
           return;
         }
 
