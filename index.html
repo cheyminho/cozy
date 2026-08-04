@@ -28,7 +28,10 @@
       --deer-width: 85.3333px;
       --deer-height: 85.3333px;
 
-      /* 좀비·사슴의 밤 전용 밝기와 채도입니다. */
+      /* 개 표시 크기 수정 위치입니다. */
+      --dog-size: 64px;
+
+      /* 좀비·사슴·개의 밤 전용 밝기와 채도입니다. */
       --entity-night-brightness: 0.5;
       --entity-night-saturation: 0.7;
 
@@ -2622,13 +2625,57 @@
       opacity: 0;
     }
 
+    .dog {
+      position: absolute;
+      width: var(--dog-size);
+      height: var(--dog-size);
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      will-change: left, top, opacity;
+      pointer-events: none;
+    }
+
+    .dog::before {
+      content: "";
+      position: absolute;
+      left: calc(24%);
+      bottom: 6%;
+      width: calc(100%);
+      height: 16%;
+      background: #000;
+      border-radius: 50%;
+      opacity: 0.2;
+      filter: blur(5px);
+      transform: skewX(-28deg) scaleY(0.42);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .dog-sprite {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      background-image: url("images/dog_default.png");
+      background-repeat: no-repeat;
+      background-size: 1600% 1600%;
+      background-position: 0 0;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: transform, background-position;
+      pointer-events: none;
+    }
+
     /*
-      좀비와 사슴도 다른 오브젝트처럼 낮/밤 레이어를 겹쳐 놓고
+      좀비와 사슴, 개도 다른 오브젝트처럼 낮/밤 레이어를 겹쳐 놓고
       opacity를 3초 동안 크로스페이드합니다. SVG filter 자체를 전환하지
       않으므로 밤 컬러가 순간적으로 튀지 않습니다.
     */
     .zombie-visual-layer,
-    .deer-visual-layer {
+    .deer-visual-layer,
+    .dog-visual-layer {
       position: absolute;
       inset: 0;
       pointer-events: none;
@@ -2637,13 +2684,15 @@
     }
 
     .zombie-visual-day,
-    .deer-visual-day {
+    .deer-visual-day,
+    .dog-visual-day {
       z-index: 1;
       opacity: 1;
     }
 
     .zombie-visual-night,
-    .deer-visual-night {
+    .deer-visual-night,
+    .dog-visual-night {
       z-index: 2;
       opacity: 0;
     }
@@ -2656,7 +2705,8 @@
     .zombie-visual-night .zombie-sprite,
     .zombie-visual-night .zombie-sprite-overlay,
     .deer-visual-night .deer-sprite,
-    .deer-visual-night .deer-sprite-overlay {
+    .deer-visual-night .deer-sprite-overlay,
+    .dog-visual-night .dog-sprite {
       filter:
         url(#nightCoolBalance)
         brightness(var(--entity-night-brightness))
@@ -2664,12 +2714,14 @@
     }
 
     body.is-night .zombie-visual-day,
-    body.is-night .deer-visual-day {
+    body.is-night .deer-visual-day,
+    body.is-night .dog-visual-day {
       opacity: 0;
     }
 
     body.is-night .zombie-visual-night,
-    body.is-night .deer-visual-night {
+    body.is-night .deer-visual-night,
+    body.is-night .dog-visual-night {
       opacity: 1;
     }
 
@@ -2712,6 +2764,7 @@
     body.is-restored-night .cloud-visual::after,
     body.is-restored-night .zombie-visual-layer,
     body.is-restored-night .deer-visual-layer,
+    body.is-restored-night .dog-visual-layer,
     body.is-restored-night .world-structure,
     body.is-restored-night #houseObject::before,
     body.is-restored-night #houseObject::after,
@@ -2771,7 +2824,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.106"
+  data-game-version="0.107"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3241,6 +3294,44 @@
       const DEER_HALF_H = DEER_HEIGHT / 2;
       const DEER_HITBOX_SIZE = DEER_WIDTH;
 
+      /*
+        개 테스트 및 움직임 수정 위치
+        - DOG_ENABLED: true면 등장, false면 등장하지 않습니다.
+        - 표시 크기는 위 CSS의 --dog-size에서 조절합니다.
+        - 프레임 간격은 50ms(0.05초), 총 10프레임을 반복합니다.
+      */
+      const DOG_ENABLED = false;
+      const DOG_SHEET_COLUMNS = 16;
+      const DOG_SHEET_ROWS = 16;
+      const DOG_RUN_FRAME_COUNT = 10;
+      const DOG_FRAME_INTERVAL_MS = 50;
+      const DOG_SPEED_PX_PER_MS = 0.09;
+      const DOG_MAX_TURN_SPEED_RAD_PER_MS = Math.PI / 450;
+      const DOG_TURN_STEP_RAD = Math.PI / 4;
+      const DOG_BLOCKED_TURN_HOLD_MS = 90;
+      const DOG_WAYPOINT_REACH_DISTANCE = 56;
+      const DOG_WAYPOINT_MIN_DISTANCE = 480;
+      const DOG_AVOIDANCE_MARGIN = 140;
+      const DOG_CONTINUE_DIRECTION_CHANCE = 0.9;
+      const DOG_MAX_STRAIGHT_DISTANCE = 1_100;
+      const DOG_TURN_SEGMENT_MIN_DISTANCE = 120;
+      const DOG_TURN_SEGMENT_MAX_DISTANCE = 220;
+      const DOG_PATH_SCAN_STEP = 10;
+      const DOG_WANDER_AMPLITUDE_RAD = 0;
+      const DOG_WANDER_FREQUENCY_PER_MS = 0;
+
+      // 화면 좌표 기준 시계 방향 8방향입니다: 동→남동→남→남서→서→북서→북→북동.
+      const DOG_DIRECTION_ANIMATIONS = Object.freeze([
+        Object.freeze({ frameStart: 0, flipX: false }),
+        Object.freeze({ frameStart: 64, flipX: false }),
+        Object.freeze({ frameStart: 48, flipX: false }),
+        Object.freeze({ frameStart: 64, flipX: true }),
+        Object.freeze({ frameStart: 0, flipX: true }),
+        Object.freeze({ frameStart: 16, flipX: true }),
+        Object.freeze({ frameStart: 32, flipX: false }),
+        Object.freeze({ frameStart: 16, flipX: false })
+      ]);
+
       // 좀비는 현재 필드 클리어에 필요한 수까지만 생성합니다.
       // 사슴은 기존처럼 최대 3마리이며, 두 종류의 합계만 최종적으로 100마리를 넘지 않습니다.
       const MAX_ACTIVE_POPULATION = 100;
@@ -3509,6 +3600,7 @@
       const BIRTH_DEATH_SHEET =
         "images/zomebie_default_birthdeath.png";
       const DEER_SHEET = "images/deer_default.png";
+      const DOG_SHEET = "images/dog_default.png";
       const NIGHT_BACKGROUND_IMAGE =
         "images/bg_field_default_nigth.png";
       const NIGHT_CLOUD_SHEET =
@@ -4477,6 +4569,7 @@
       let lastFrameTime = performance.now();
       const zombies = new Map();
       const deerMap = new Map();
+      let dog = null;
       let storedPopulationSnapshot = null;
       let lastZombieSpawnAt = Date.now();
       let lastDeerSpawnAt = Date.now();
@@ -9217,6 +9310,10 @@
         applyInventoryState();
         applyInventoryNewBadgeState();
         applyRepairState();
+
+        // 테스트 모드에서 자원을 충전한 뒤에만 개를 등장시킵니다.
+        createDog(true);
+
         commitResourceState();
       }
 
@@ -9298,6 +9395,7 @@
           preloadImage(ZOMBIE_PARTS_SHEET),
           preloadImage(BIRTH_DEATH_SHEET),
           preloadImage(DEER_SHEET),
+          preloadImage(DOG_SHEET),
           preloadImage("images/house_1_roof.png"),
           preloadImage("images/house_1_walls.png"),
           preloadImage("images/garden_1.png"),
@@ -11872,6 +11970,453 @@
         );
       }
 
+      function getDogRenderSize() {
+        const value = parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue("--dog-size")
+        );
+        return Number.isFinite(value) && value > 0 ? value : 96;
+      }
+
+      function normalizeDogAngle(angle) {
+        let normalized = angle % (Math.PI * 2);
+        if (normalized <= -Math.PI) normalized += Math.PI * 2;
+        if (normalized > Math.PI) normalized -= Math.PI * 2;
+        return normalized;
+      }
+
+      function getShortestDogAngleDelta(fromAngle, toAngle) {
+        return normalizeDogAngle(toAngle - fromAngle);
+      }
+
+      function isDogPositionAllowed(x, y, size = getDogRenderSize()) {
+        const halfSize = size / 2;
+
+        if (
+          x < GAME_ZONE.left + halfSize ||
+          x > GAME_ZONE.right - halfSize ||
+          y < GAME_ZONE.top + halfSize ||
+          y > GAME_ZONE.bottom - halfSize
+        ) {
+          return false;
+        }
+
+        return !getZombieSafeZones().some((zone) =>
+          isInsideInflatedZoneFor(zone, x, y, halfSize, halfSize)
+        );
+      }
+
+      function getRandomDogPosition(options = {}) {
+        const size = options.size || getDogRenderSize();
+        const halfSize = size / 2;
+        const minX = GAME_ZONE.left + halfSize;
+        const maxX = GAME_ZONE.right - halfSize;
+        const minY = GAME_ZONE.top + halfSize;
+        const maxY = GAME_ZONE.bottom - halfSize;
+        const originX = Number(options.originX);
+        const originY = Number(options.originY);
+        const minimumDistance = Math.max(
+          0,
+          Number(options.minimumDistance) || 0
+        );
+        let bestCandidate = null;
+        let bestDistance = -1;
+
+        for (let attempt = 0; attempt < 600; attempt += 1) {
+          const x = randomBetween(minX, maxX);
+          const y = randomBetween(minY, maxY);
+          if (!isDogPositionAllowed(x, y, size)) continue;
+
+          if (!Number.isFinite(originX) || !Number.isFinite(originY)) {
+            return { x, y };
+          }
+
+          const distance = Math.hypot(x - originX, y - originY);
+          if (distance >= minimumDistance) return { x, y };
+
+          if (distance > bestDistance) {
+            bestDistance = distance;
+            bestCandidate = { x, y };
+          }
+        }
+
+        return bestCandidate;
+      }
+
+      function getDogClearRunDistance(
+        activeDog,
+        angle,
+        maximumDistance = DOG_MAX_STRAIGHT_DISTANCE
+      ) {
+        let clearDistance = 0;
+
+        for (
+          let distance = DOG_PATH_SCAN_STEP;
+          distance <= maximumDistance;
+          distance += DOG_PATH_SCAN_STEP
+        ) {
+          const x = activeDog.x + Math.cos(angle) * distance;
+          const y = activeDog.y + Math.sin(angle) * distance;
+          if (!isDogPositionAllowed(x, y, activeDog.size)) break;
+          clearDistance = distance;
+        }
+
+        return clearDistance;
+      }
+
+      function chooseNextDogWaypoint(activeDog, forceTurn = false) {
+        const currentAngle =
+          Math.round(normalizeDogAngle(activeDog.angle) / DOG_TURN_STEP_RAD) *
+          DOG_TURN_STEP_RAD;
+        const currentClearDistance = getDogClearRunDistance(
+          activeDog,
+          currentAngle
+        );
+        let selectedAngle = null;
+        let selectedDistance = 0;
+        let selectedTurnDirection = 0;
+
+        /*
+          개는 정확히 8방향으로만 달립니다.
+          평소에는 현재 방향을 높은 확률로 유지하고, 방향을 바꿀 때는
+          시계 또는 반시계 방향의 인접한 방향으로 45도씩만 전환합니다.
+          따라서 90~180도 방향도 한 번에 바뀌지 않고 여러 짧은 구간에 나뉩니다.
+        */
+        if (
+          !forceTurn &&
+          currentClearDistance >= DOG_WAYPOINT_MIN_DISTANCE &&
+          Math.random() < DOG_CONTINUE_DIRECTION_CHANCE
+        ) {
+          selectedAngle = currentAngle;
+          selectedDistance = currentClearDistance;
+          activeDog.turnStepDirection = 0;
+        } else {
+          const savedTurnDirection =
+            activeDog.turnStepDirection === -1 ||
+            activeDog.turnStepDirection === 1
+              ? activeDog.turnStepDirection
+              : 0;
+          const turnDirections = savedTurnDirection
+            ? [savedTurnDirection]
+            : Math.random() < 0.5
+              ? [1, -1]
+              : [-1, 1];
+          let bestScore = -Infinity;
+
+          for (const turnDirection of turnDirections) {
+            const angle = normalizeDogAngle(
+              currentAngle + turnDirection * DOG_TURN_STEP_RAD
+            );
+            const clearDistance = getDogClearRunDistance(activeDog, angle);
+            const score = clearDistance + Math.random() * 12;
+
+            if (score > bestScore) {
+              bestScore = score;
+              selectedAngle = angle;
+              selectedDistance = clearDistance;
+              selectedTurnDirection = turnDirection;
+            }
+          }
+        }
+
+        if (selectedAngle === null) return false;
+
+        const isTurning = selectedTurnDirection !== 0;
+        let runDistance = 0;
+
+        if (isTurning) {
+          activeDog.turnStepDirection = selectedTurnDirection;
+
+          /*
+            경계 바로 앞처럼 45도 방향으로도 움직일 공간이 없으면
+            한 단계만 방향을 바꾼 뒤 잠깐 유지하고, 다음 단계에서 같은 방향으로
+            다시 45도 회전합니다. 한 프레임에 여러 방향을 건너뛰지 않습니다.
+          */
+          if (selectedDistance < DOG_WAYPOINT_REACH_DISTANCE * 2) {
+            activeDog.angle = selectedAngle;
+            activeDog.waypointX = activeDog.x;
+            activeDog.waypointY = activeDog.y;
+            activeDog.turnHoldUntil =
+              performance.now() + DOG_BLOCKED_TURN_HOLD_MS;
+            return true;
+          }
+
+          runDistance = Math.min(
+            selectedDistance * 0.95,
+            randomBetween(
+              DOG_TURN_SEGMENT_MIN_DISTANCE,
+              DOG_TURN_SEGMENT_MAX_DISTANCE
+            )
+          );
+        } else {
+          const minimumRunDistance = Math.min(
+            DOG_WAYPOINT_MIN_DISTANCE,
+            selectedDistance
+          );
+          runDistance = randomBetween(
+            Math.max(
+              DOG_WAYPOINT_REACH_DISTANCE * 2,
+              minimumRunDistance * 0.86
+            ),
+            Math.max(
+              DOG_WAYPOINT_REACH_DISTANCE * 2,
+              selectedDistance * 0.97
+            )
+          );
+        }
+
+        activeDog.turnHoldUntil = 0;
+        activeDog.angle = selectedAngle;
+        activeDog.waypointX =
+          activeDog.x + Math.cos(selectedAngle) * runDistance;
+        activeDog.waypointY =
+          activeDog.y + Math.sin(selectedAngle) * runDistance;
+        return true;
+      }
+
+      function dogFramePosition(frameIndex) {
+        const normalized = clamp(
+          Math.round(Number(frameIndex) || 0),
+          0,
+          DOG_SHEET_COLUMNS * DOG_SHEET_ROWS - 1
+        );
+        const column = normalized % DOG_SHEET_COLUMNS;
+        const row = Math.floor(normalized / DOG_SHEET_COLUMNS);
+        const xPercent = column / (DOG_SHEET_COLUMNS - 1) * 100;
+        const yPercent = row / (DOG_SHEET_ROWS - 1) * 100;
+        return `${xPercent}% ${yPercent}%`;
+      }
+
+      function getDogDirectionAnimation(angle) {
+        const octant = (
+          Math.round(normalizeDogAngle(angle) / (Math.PI / 4)) + 8
+        ) % 8;
+        return DOG_DIRECTION_ANIMATIONS[octant];
+      }
+
+      function showDogFrame(activeDog) {
+        const animation = getDogDirectionAnimation(activeDog.angle);
+        const frameIndex = animation.frameStart + activeDog.animationFrame;
+        const position = dogFramePosition(frameIndex);
+        const transform = animation.flipX ? "scaleX(-1)" : "scaleX(1)";
+        const renderKey = `${frameIndex}|${transform}`;
+
+        if (activeDog.renderKey === renderKey) return;
+        activeDog.renderKey = renderKey;
+        activeDog.sprite.style.backgroundPosition = position;
+        activeDog.nightSprite.style.backgroundPosition = position;
+        activeDog.sprite.style.transform = transform;
+        activeDog.nightSprite.style.transform = transform;
+      }
+
+      function renderDog(activeDog) {
+        activeDog.element.style.left = `${activeDog.x}px`;
+        activeDog.element.style.top = `${activeDog.y}px`;
+        updateEntityTreeDepth(
+          activeDog.element,
+          activeDog.x,
+          activeDog.y + activeDog.size * 0.34,
+          activeDog.y
+        );
+      }
+
+      function getDogAvoidanceVector(activeDog) {
+        const halfSize = activeDog.size / 2;
+        const margin = DOG_AVOIDANCE_MARGIN;
+        let pushX = 0;
+        let pushY = 0;
+
+        const minX = GAME_ZONE.left + halfSize;
+        const maxX = GAME_ZONE.right - halfSize;
+        const minY = GAME_ZONE.top + halfSize;
+        const maxY = GAME_ZONE.bottom - halfSize;
+
+        const leftDistance = activeDog.x - minX;
+        const rightDistance = maxX - activeDog.x;
+        const topDistance = activeDog.y - minY;
+        const bottomDistance = maxY - activeDog.y;
+
+        if (leftDistance < margin) pushX += (margin - leftDistance) / margin;
+        if (rightDistance < margin) pushX -= (margin - rightDistance) / margin;
+        if (topDistance < margin) pushY += (margin - topDistance) / margin;
+        if (bottomDistance < margin) pushY -= (margin - bottomDistance) / margin;
+
+        for (const zone of getZombieSafeZones()) {
+          const inflated = {
+            left: zone.left - halfSize,
+            top: zone.top - halfSize,
+            right: zone.right + halfSize,
+            bottom: zone.bottom + halfSize
+          };
+          const nearestX = clamp(activeDog.x, inflated.left, inflated.right);
+          const nearestY = clamp(activeDog.y, inflated.top, inflated.bottom);
+          let dx = activeDog.x - nearestX;
+          let dy = activeDog.y - nearestY;
+          let distance = Math.hypot(dx, dy);
+
+          if (distance < 0.0001) {
+            dx = activeDog.x - (inflated.left + inflated.right) / 2;
+            dy = activeDog.y - (inflated.top + inflated.bottom) / 2;
+            distance = Math.max(0.0001, Math.hypot(dx, dy));
+          }
+
+          if (distance >= margin) continue;
+          const strength = (margin - distance) / margin * 2.4;
+          pushX += dx / distance * strength;
+          pushY += dy / distance * strength;
+        }
+
+        return { x: pushX, y: pushY };
+      }
+
+      function findDogMovementAngle(activeDog, stepDistance, desiredAngle) {
+        const candidates = [];
+        const candidateCount = 24;
+
+        for (let index = 0; index < candidateCount; index += 1) {
+          const angle = -Math.PI + index * (Math.PI * 2 / candidateCount);
+          const nextX = activeDog.x + Math.cos(angle) * stepDistance;
+          const nextY = activeDog.y + Math.sin(angle) * stepDistance;
+          if (!isDogPositionAllowed(nextX, nextY, activeDog.size)) continue;
+
+          const desiredDifference = Math.abs(
+            getShortestDogAngleDelta(angle, desiredAngle)
+          );
+          const currentDifference = Math.abs(
+            getShortestDogAngleDelta(angle, activeDog.angle)
+          );
+          candidates.push({
+            angle,
+            score: desiredDifference + currentDifference * 0.35
+          });
+        }
+
+        candidates.sort((a, b) => a.score - b.score);
+        return candidates[0]?.angle ?? null;
+      }
+
+      function moveDog(activeDog, distance) {
+        const stepCount = Math.max(1, Math.ceil(distance / 4));
+        const stepDistance = distance / stepCount;
+
+        for (let step = 0; step < stepCount; step += 1) {
+          const nextX =
+            activeDog.x + Math.cos(activeDog.angle) * stepDistance;
+          const nextY =
+            activeDog.y + Math.sin(activeDog.angle) * stepDistance;
+
+          if (!isDogPositionAllowed(nextX, nextY, activeDog.size)) {
+            /*
+              경계나 안전영역 앞에서는 제자리에서 계속 회전하지 않고,
+              현재 방향을 제외한 새로운 직선 경로를 한 번 선택합니다.
+            */
+            chooseNextDogWaypoint(activeDog, true);
+            return false;
+          }
+
+          activeDog.x = nextX;
+          activeDog.y = nextY;
+        }
+
+        return true;
+      }
+
+      function updateDog(activeDog, deltaMs, now) {
+        const isHoldingTurn = now < activeDog.turnHoldUntil;
+
+        if (!isHoldingTurn) {
+          const distanceToWaypoint = Math.hypot(
+            activeDog.waypointX - activeDog.x,
+            activeDog.waypointY - activeDog.y
+          );
+          if (
+            distanceToWaypoint <= DOG_WAYPOINT_REACH_DISTANCE ||
+            !isDogPositionAllowed(
+              activeDog.waypointX,
+              activeDog.waypointY,
+              activeDog.size
+            )
+          ) {
+            chooseNextDogWaypoint(activeDog);
+          }
+
+          // 선택된 8방향 직선으로만 이동하며, 방향은 한 번에 45도씩만 바뀝니다.
+          if (now >= activeDog.turnHoldUntil) {
+            moveDog(activeDog, DOG_SPEED_PX_PER_MS * deltaMs);
+          }
+        }
+
+        activeDog.animationElapsed += deltaMs;
+        if (activeDog.animationElapsed >= DOG_FRAME_INTERVAL_MS) {
+          const advancedFrames = Math.floor(
+            activeDog.animationElapsed / DOG_FRAME_INTERVAL_MS
+          );
+          activeDog.animationElapsed %= DOG_FRAME_INTERVAL_MS;
+          activeDog.animationFrame = (
+            activeDog.animationFrame + advancedFrames
+          ) % DOG_RUN_FRAME_COUNT;
+        }
+
+        showDogFrame(activeDog);
+        renderDog(activeDog);
+      }
+
+      function createDog(forceEnabled = false) {
+        if ((!DOG_ENABLED && !forceEnabled) || dog) return false;
+
+        const size = getDogRenderSize();
+        const position = getRandomDogPosition({ size });
+        if (!position) return false;
+
+        const element = document.createElement("div");
+        element.className = "dog";
+        element.setAttribute("aria-label", "Dog");
+
+        const dayVisual = document.createElement("div");
+        dayVisual.className = "dog-visual-layer dog-visual-day";
+
+        const nightVisual = document.createElement("div");
+        nightVisual.className = "dog-visual-layer dog-visual-night";
+
+        const sprite = document.createElement("div");
+        sprite.className = "dog-sprite";
+        sprite.style.backgroundImage = `url("${DOG_SHEET}")`;
+
+        const nightSprite = document.createElement("div");
+        nightSprite.className = "dog-sprite";
+        nightSprite.style.backgroundImage = `url("${DOG_SHEET}")`;
+
+        dayVisual.appendChild(sprite);
+        nightVisual.appendChild(nightSprite);
+        element.appendChild(dayVisual);
+        element.appendChild(nightVisual);
+        entities.appendChild(element);
+
+        dog = {
+          element,
+          sprite,
+          nightSprite,
+          size,
+          x: position.x,
+          y: position.y,
+          waypointX: position.x,
+          waypointY: position.y,
+          angle: Math.floor(Math.random() * 8) * DOG_TURN_STEP_RAD,
+          turnStepDirection: 0,
+          turnHoldUntil: 0,
+          animationElapsed: Math.random() * DOG_FRAME_INTERVAL_MS,
+          animationFrame: Math.floor(Math.random() * DOG_RUN_FRAME_COUNT),
+          wanderPhase: Math.random() * Math.PI * 2,
+          renderKey: ""
+        };
+
+        chooseNextDogWaypoint(dog);
+
+        showDogFrame(dog);
+        renderDog(dog);
+        return true;
+      }
+
       function showSingleDeerFrame(deer, frameIndex) {
         const renderState = deer.spriteRenderState;
 
@@ -13748,6 +14293,10 @@
           }
         }
 
+        if (dog) {
+          updateDog(dog, deltaMs, now);
+        }
+
         if (
           now - lastZombieVisibilityCheckAt >=
           ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS
@@ -14782,6 +15331,7 @@
         }
         restoreStoredPopulation();
         updateWorldScale();
+        createDog();
         initializeClouds();
         startSpawner();
         hasGameInitialized = true;
