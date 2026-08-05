@@ -2824,7 +2824,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.108"
+  data-game-version="0.109"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3237,6 +3237,11 @@
       "use strict";
 
       const WORLD_SIZE = 2048;
+
+      /*
+        개체 비어 있음 판정은 현재 화면이 아니라 2048×2048 전체 필드를 기준으로 합니다.
+        도망가는 사슴도 전체 필드 밖으로 완전히 나간 뒤에만 제거됩니다.
+      */
 
       const GAME_ZONE = {
         left: 512,
@@ -7044,45 +7049,17 @@
         return count;
       }
 
-      function isZombieVisibleInCurrentViewport(zombie) {
-        if (
-          zombie.state === "dying" ||
-          zombie.state === "removed"
-        ) {
-          return false;
-        }
-
-        const visibleBounds = getVisibleWorldBounds();
-        const marginX = HALF_W + 16;
-        const marginY = HALF_H + 16;
-
-        return !(
-          zombie.x + marginX < visibleBounds.left ||
-          zombie.x - marginX > visibleBounds.right ||
-          zombie.y + marginY < visibleBounds.top ||
-          zombie.y - marginY > visibleBounds.bottom
-        );
-      }
-
-      function getVisibleLivingZombieCount() {
-        let count = 0;
-
-        for (const zombie of zombies.values()) {
-          if (isZombieVisibleInCurrentViewport(zombie)) {
-            count += 1;
-          }
-        }
-
-        return count;
-      }
 
       function getLivingDeerCount() {
         let count = 0;
 
         for (const deer of deerMap.values()) {
+          /*
+            도망 중인 사슴도 전체 필드 안에 남아 있는 동안에는 살아 있는
+            필드 개체로 계산합니다. 사망 중이거나 제거된 사슴만 제외합니다.
+          */
           if (
             deer.state !== "dying" &&
-            deer.state !== "leaving" &&
             deer.state !== "removed"
           ) {
             count += 1;
@@ -7092,39 +7069,6 @@
         return count;
       }
 
-      function isDeerVisibleInCurrentViewport(deer) {
-        if (
-          deer.state === "dying" ||
-          deer.state === "leaving" ||
-          deer.state === "removed"
-        ) {
-          return false;
-        }
-
-        const visibleBounds = getVisibleWorldBounds();
-        const marginX = DEER_HALF_W + 16;
-        const marginY = DEER_HALF_H + 16;
-
-        return !(
-          deer.x + marginX < visibleBounds.left ||
-          deer.x - marginX > visibleBounds.right ||
-          deer.y + marginY < visibleBounds.top ||
-          deer.y - marginY > visibleBounds.bottom
-        );
-      }
-
-      function getVisibleLivingDeerCount(ignoredDeerId = null) {
-        let count = 0;
-
-        for (const deer of deerMap.values()) {
-          if (deer.id === ignoredDeerId) continue;
-          if (isDeerVisibleInCurrentViewport(deer)) {
-            count += 1;
-          }
-        }
-
-        return count;
-      }
 
       function restoreStoredPopulation() {
         if (!storedPopulationSnapshot) return;
@@ -8899,7 +8843,7 @@
         hasHandgunAmmo = true;
         handgunAmmoCount = Math.min(
           MAX_INVENTORY_QUANTITY,
-          handgunAmmoCount + 3
+          handgunAmmoCount + 5
         );
 
         // 기존 공통 아이템 NEW 규칙을 그대로 적용합니다.
@@ -8924,7 +8868,7 @@
       function awardExplorationRewards(destination, departureDay) {
         /*
           DAY 5 이상에 Village로 출발했고 아직 핸드건이 없다면,
-          설계도와 일반 무작위 아이템 판정을 건너뛰고 핸드건 + 탄약 3발을 지급합니다.
+          설계도와 일반 무작위 아이템 판정을 건너뛰고 핸드건 + 탄약 5발을 지급합니다.
         */
         if (
           destination === "village" &&
@@ -12629,32 +12573,14 @@
         }
       }
 
-      function removeOneHiddenLivingDeer() {
-        for (const deer of deerMap.values()) {
-          if (
-            deer.state !== "dying" &&
-            deer.state !== "leaving" &&
-            deer.state !== "removed" &&
-            !isDeerVisibleInCurrentViewport(deer)
-          ) {
-            removeDeer(deer, {
-              persist: false,
-              scheduleReplacement: false
-            });
-            return true;
-          }
-        }
-
-        return false;
-      }
-
-      function isDeerOutsideVisibleArea(deer) {
-        const visibleBounds = getVisibleWorldBounds();
-        const margin = DEER_HALF_W + 16;
-
+      function isDeerOutsideWorldArea(deer) {
+        /*
+          사슴은 현재 보이는 화면이 아니라 2048×2048 전체 필드를 기준으로
+          몸 전체가 좌우 경계 밖으로 나간 뒤 제거합니다.
+        */
         return (
-          deer.x + margin < visibleBounds.left ||
-          deer.x - margin > visibleBounds.right
+          deer.x + DEER_HALF_W < WORLD_ZONE.left ||
+          deer.x - DEER_HALF_W > WORLD_ZONE.right
         );
       }
 
@@ -12899,11 +12825,10 @@
         deer.runIntroComplete = false;
         setDeerFacing(deer);
 
-        // 마지막으로 보이던 사슴이 도망가기 시작한 순간부터
-        // 해당 사슴을 빈 화면 판정에서 제외하고 보충 타이머를 계산합니다.
-        if (state === "evading" || state === "leaving") {
-          scheduleEmptyFieldDeerSpawn({ ignoredDeerId: deer.id });
-        }
+        /*
+          도망 중인 사슴은 전체 필드 밖으로 완전히 나가기 전까지 필드에
+          존재하는 것으로 판정하므로, 여기서는 보충 타이머를 시작하지 않습니다.
+        */
       }
 
       function beginDeerEvadeInDirection(deer, direction) {
@@ -12951,9 +12876,8 @@
         deer.element.style.opacity = "1";
         showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[0]);
 
-        // 마지막으로 보이던 살아 있는 사슴이 죽기 시작한 순간부터
-        // 시체 제거를 기다리지 않고 빈 화면 보충 타이머를 계산합니다.
-        scheduleEmptyFieldDeerSpawn({ ignoredDeerId: deer.id });
+        // 살아 있는 사슴이 모두 사망 상태가 되면 전체 필드 보충 타이머를 계산합니다.
+        scheduleEmptyFieldDeerSpawn();
 
         if (!deer.counted) {
           deer.counted = true;
@@ -13166,7 +13090,7 @@
           return;
         }
 
-        if (isDeerOutsideVisibleArea(deer)) {
+        if (isDeerOutsideWorldArea(deer)) {
           removeDeer(deer);
         }
       }
@@ -13199,7 +13123,7 @@
         showSingleDeerFrame(deer, currentRunFrame);
         renderDeer(deer);
 
-        if (isDeerOutsideVisibleArea(deer)) {
+        if (isDeerOutsideWorldArea(deer)) {
           removeDeer(deer);
         }
       }
@@ -13844,24 +13768,6 @@
         if (options.scheduleReplacement !== false) {
           scheduleEmptyFieldZombieSpawn();
         }
-      }
-
-      function removeOneHiddenLivingZombie() {
-        for (const zombie of zombies.values()) {
-          if (
-            zombie.state !== "dying" &&
-            zombie.state !== "removed" &&
-            !isZombieVisibleInCurrentViewport(zombie)
-          ) {
-            removeZombie(zombie, {
-              persist: false,
-              scheduleReplacement: false
-            });
-            return true;
-          }
-        }
-
-        return false;
       }
 
       function resolveOuterBounds(zombie) {
@@ -14672,7 +14578,8 @@
           Date.now() < zombieSpawnBlockedUntil ||
           zombieCount >= zombieKillRequirement;
 
-        if (getVisibleLivingZombieCount() > 0 || cannotShowZombie) {
+        // 현재 카메라가 아니라 전체 필드의 살아 있는 좀비 수를 확인합니다.
+        if (getLivingZombieCount() > 0 || cannotShowZombie) {
           if (pendingEmptyZombieSpawnTimerId !== null) {
             clearTimeout(pendingEmptyZombieSpawnTimerId);
             pendingEmptyZombieSpawnTimerId = null;
@@ -14680,7 +14587,7 @@
           return;
         }
 
-        // 이미 보충 생성이 예약되어 있다면 주기적인 화면 검사로 타이머를 밀지 않습니다.
+        // 이미 보충 생성이 예약되어 있다면 반복 검사로 타이머를 밀지 않습니다.
         if (pendingEmptyZombieSpawnTimerId !== null) return;
 
         const delay = EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS +
@@ -14689,8 +14596,7 @@
               EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS);
         const regularSpawnRemaining = getRemainingUntilRegularZombieSpawn();
 
-        // 정규 생성이 실제로 가능한 경우에만 5초 중복 방지 규칙을 적용합니다.
-        // 화면 밖 좀비 때문에 최대 필요 수에 도달한 경우에는 숨은 개체를 교체해야 합니다.
+        // 정규 생성이 가까우면 두 생성이 겹치지 않도록 빈 필드 보충을 생략합니다.
         if (
           canCreateZombie() &&
           regularSpawnRemaining <=
@@ -14713,7 +14619,7 @@
             isExploring ||
             Date.now() < zombieSpawnBlockedUntil ||
             zombieCount >= zombieKillRequirement ||
-            getVisibleLivingZombieCount() > 0
+            getLivingZombieCount() > 0
           ) {
             return;
           }
@@ -14726,26 +14632,23 @@
             return;
           }
 
-          // 남은 필요 처치 수만큼의 좀비가 모두 화면 밖에 있으면 한 마리를
-          // 정리한 뒤 현재 화면 안에 다시 생성해 총 개체 수는 늘리지 않습니다.
-          if (!canCreateZombie()) {
-            removeOneHiddenLivingZombie();
-          }
-
-          const created = createZombie({ preferVisible: true, forceVisibleWhenExpanded: true });
+          const created = createZombie({
+            preferVisible: true,
+            forceVisibleWhenExpanded: true
+          });
           if (created) {
-            // 빈 화면 보충도 실제 생성으로 간주해 다음 정규 생성은 1분 뒤로 미룹니다.
+            // 빈 필드 보충도 실제 생성으로 간주해 다음 정규 생성은 1분 뒤로 미룹니다.
             lastZombieSpawnAt = Date.now();
             scheduleNextZombieSpawnTick();
             saveResourceState();
           } else {
-            // 생성 위치나 조건이 일시적으로 맞지 않으면 다음 화면 검사에서 재시도합니다.
+            // 전체 개체 제한 등으로 생성할 수 없다면 다음 검사에서 다시 시도합니다.
             scheduleEmptyFieldZombieSpawn();
           }
         }, delay);
       }
 
-      function scheduleEmptyFieldDeerSpawn(options = {}) {
+      function scheduleEmptyFieldDeerSpawn() {
         if (
           populationTimersPausedForBackground ||
           document.visibilityState === "hidden"
@@ -14757,18 +14660,15 @@
           return;
         }
 
-        // 이미 사망·이탈 시작 시 예약된 타이머가 있다면
-        // 시체 제거 또는 주기적인 화면 검사로 시간을 다시 밀지 않습니다.
+        // 이미 예약된 타이머가 있다면 반복 검사로 시간을 다시 밀지 않습니다.
         if (pendingEmptyDeerSpawnTimerId !== null) return;
 
-        const ignoredDeerId = Number.isFinite(Number(options.ignoredDeerId))
-          ? Number(options.ignoredDeerId)
-          : null;
-
+        // 현재 카메라가 아니라 전체 필드의 살아 있는 사슴 수를 확인합니다.
+        // 도망 중인 사슴도 전체 필드 안에 있는 동안에는 이 수에 포함됩니다.
         if (
           !firstKillBirdFlockPlayed ||
           isExploring ||
-          getVisibleLivingDeerCount(ignoredDeerId) > 0
+          getLivingDeerCount() > 0
         ) {
           return;
         }
@@ -14791,13 +14691,13 @@
           if (
             !firstKillBirdFlockPlayed ||
             isExploring ||
-            getVisibleLivingDeerCount(ignoredDeerId) > 0
+            getLivingDeerCount() > 0
           ) {
             return;
           }
 
-          // 사망 모션이나 이탈 중인 개체가 전체 개체 수 제한을 잠시 차지한다면
-          // 최초 5~7초 타이머를 다시 시작하지 않고 자리가 생길 때까지 짧게 재확인합니다.
+          // 사망 모션 등의 개체가 전체 개체 수 제한을 잠시 차지하면
+          // 최초 지연을 다시 시작하지 않고 자리가 생길 때까지 짧게 재확인합니다.
           if (!hasActivePopulationCapacity()) {
             pendingEmptyDeerSpawnTimerId = window.setTimeout(
               trySpawnEmptyFieldDeer,
@@ -14806,20 +14706,17 @@
             return;
           }
 
-          // 최대 3마리가 모두 현재 화면 밖에 남아 있으면 한 마리를 정리해
-          // 화면 안에 새 사슴이 들어올 자리를 확보합니다.
-          if (getLivingDeerCount() >= MAX_ACTIVE_DEER) {
-            removeOneHiddenLivingDeer();
-          }
-
-          const created = createDeer({ preferVisible: true, forceVisibleWhenExpanded: true });
+          const created = createDeer({
+            preferVisible: true,
+            forceVisibleWhenExpanded: true
+          });
           if (created) {
-            // 빈 화면 보충도 실제 생성으로 간주해 정규 3분 생성과 겹치지 않게 합니다.
+            // 빈 필드 보충도 실제 생성으로 간주해 정규 3분 생성과 겹치지 않게 합니다.
             lastDeerSpawnAt = Date.now();
             scheduleNextDeerSpawnTick();
             saveResourceState();
           } else {
-            // 생성 위치를 일시적으로 찾지 못한 경우 최초 지연을 다시 적용하지 않고 재시도합니다.
+            // 생성 위치를 찾지 못한 경우 최초 지연 없이 짧게 다시 시도합니다.
             pendingEmptyDeerSpawnTimerId = window.setTimeout(
               trySpawnEmptyFieldDeer,
               250
