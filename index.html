@@ -2824,7 +2824,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.109"
+  data-game-version="0.110"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4364,10 +4364,22 @@
         { passive: false }
       );
 
-      // Safari가 합성하는 더블클릭 확대도 별도로 차단합니다.
+      const NATIVE_TAP_CONTROL_SELECTOR =
+        'button, a[href], input, select, textarea, label, [role="button"], [role="link"], [contenteditable="true"]';
+
+      function isNativeTapControl(target) {
+        return target instanceof Element &&
+          Boolean(target.closest(NATIVE_TAP_CONTROL_SELECTOR));
+      }
+
+      // 실제 UI 컨트롤의 연속 탭은 확대 차단 대상에서 제외합니다.
+      // 버튼 탭의 click 합성이 취소되는 모바일 Safari 문제를 방지합니다.
       document.addEventListener(
         "dblclick",
-        preventZoomGesture,
+        (event) => {
+          if (isNativeTapControl(event.target)) return;
+          preventZoomGesture(event);
+        },
         { passive: false, capture: true }
       );
 
@@ -4410,6 +4422,14 @@
 
           const touch = changedTouches[0];
           if (!touch) return;
+
+          // 실제 버튼·링크·입력 요소는 기본 탭 흐름을 유지합니다.
+          // 이 경로에서 preventDefault()를 호출하면 :active는 보여도
+          // 뒤따르는 click이 생성되지 않을 수 있습니다.
+          if (isNativeTapControl(event.target)) {
+            lastTapStartedAt = -Infinity;
+            return;
+          }
 
           const now = performance.now();
           const elapsed = now - lastTapStartedAt;
@@ -4462,6 +4482,103 @@
         },
         { passive: true, capture: true }
       );
+
+      const RELIABLE_TAP_MOVE_TOLERANCE_PX = 14;
+      const RELIABLE_TAP_CLICK_SUPPRESSION_MS = 700;
+
+      /*
+        모바일에서는 pointerup에서 기능을 직접 실행하고, 이어서 합성되는
+        click은 한 번만 차단합니다. 마우스·키보드는 기존 click 흐름을 사용합니다.
+      */
+      function bindReliableTap(element, activate) {
+        let activePointerId = null;
+        let startX = 0;
+        let startY = 0;
+        let didMove = false;
+        let suppressClickUntil = -Infinity;
+
+        function clearPointerState(event) {
+          if (
+            activePointerId !== null &&
+            element.hasPointerCapture?.(activePointerId)
+          ) {
+            try {
+              element.releasePointerCapture(activePointerId);
+            } catch (_) {
+              // 이미 해제된 포인터 캡처는 무시합니다.
+            }
+          }
+
+          if (!event || event.pointerId === activePointerId) {
+            activePointerId = null;
+            didMove = false;
+          }
+        }
+
+        function isEnabled() {
+          return !element.disabled &&
+            element.getAttribute("aria-disabled") !== "true";
+        }
+
+        element.addEventListener("pointerdown", (event) => {
+          if (event.pointerType === "mouse" || !event.isPrimary) return;
+
+          activePointerId = event.pointerId;
+          startX = event.clientX;
+          startY = event.clientY;
+          didMove = false;
+
+          try {
+            element.setPointerCapture(event.pointerId);
+          } catch (_) {
+            // 일부 구형 브라우저의 포인터 캡처 실패는 무시합니다.
+          }
+        });
+
+        element.addEventListener("pointermove", (event) => {
+          if (event.pointerId !== activePointerId || didMove) return;
+
+          didMove = Math.hypot(
+            event.clientX - startX,
+            event.clientY - startY
+          ) > RELIABLE_TAP_MOVE_TOLERANCE_PX;
+        });
+
+        element.addEventListener("pointercancel", clearPointerState);
+
+        element.addEventListener("pointerup", (event) => {
+          if (
+            event.pointerType === "mouse" ||
+            event.pointerId !== activePointerId
+          ) {
+            return;
+          }
+
+          const rect = element.getBoundingClientRect();
+          const endedInside =
+            event.clientX >= rect.left &&
+            event.clientX <= rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom;
+          const shouldActivate = !didMove && endedInside && isEnabled();
+
+          clearPointerState(event);
+          if (!shouldActivate) return;
+
+          suppressClickUntil =
+            performance.now() + RELIABLE_TAP_CLICK_SUPPRESSION_MS;
+          activate(event);
+        });
+
+        element.addEventListener("click", (event) => {
+          if (performance.now() < suppressClickUntil) {
+            event.preventDefault();
+            return;
+          }
+          if (!isEnabled()) return;
+          activate(event);
+        });
+      }
 
       let zombieCount = 0;
       let zombieKillRequirement = INITIAL_ZOMBIE_KILL_REQUIREMENT;
@@ -6190,6 +6307,10 @@
             item.unlocked && item.built && index === getAppliedRepairItemIndex(repairSelectedCategory, index)
           );
           button.setAttribute("aria-disabled", item.unlocked ? "false" : "true");
+          bindReliableTap(button, () => {
+            playSound(INVENTORY_SET_SOUND);
+            selectRepairItem(button.dataset.repairItemIndex);
+          });
 
           if (isSectionedLayout) {
             const section = getRepairSectionDefinition(repairSelectedCategory, index);
@@ -7379,7 +7500,7 @@
             "aria-current",
             index === inventoryCurrentPage ? "page" : "false"
           );
-          dot.addEventListener("click", () => {
+          bindReliableTap(dot, () => {
             goToInventoryPage(index, true);
           });
           inventoryPagination.append(dot);
@@ -14800,9 +14921,9 @@
         if (event.key !== "Enter" && event.key !== " ") return;
         handleMailboxInteraction(event);
       });
-      repairButton.addEventListener("click", handleRepairButton);
-      inventoryButton.addEventListener("click", handleInventoryButton);
-      exploreButton.addEventListener("click", handleExploreButton);
+      bindReliableTap(repairButton, handleRepairButton);
+      bindReliableTap(inventoryButton, handleInventoryButton);
+      bindReliableTap(exploreButton, handleExploreButton);
 
       explorationOverlay.addEventListener("pointerdown", (event) => {
         if (event.target === explorationOverlay) {
@@ -14835,7 +14956,7 @@
       });
 
       for (const categoryButton of repairCategories) {
-        categoryButton.addEventListener("click", () => {
+        bindReliableTap(categoryButton, () => {
           playSound(INVENTORY_SET_SOUND);
           selectRepairCategory(
             categoryButton.dataset.repairCategory || "outdoor"
@@ -14854,15 +14975,7 @@
         saveResourceState();
       });
 
-      repairGrid.addEventListener("click", (event) => {
-        const target = event.target.closest(".repair-grid-item");
-        if (!target || !repairGrid.contains(target)) return;
-
-        playSound(INVENTORY_SET_SOUND);
-        selectRepairItem(target.dataset.repairItemIndex);
-      });
-
-      repairActionButton.addEventListener("click", handleRepairAction);
+      bindReliableTap(repairActionButton, handleRepairAction);
 
       function startInventoryPageDrag(event) {
         if (
@@ -15190,7 +15303,7 @@
           clearExplorationDestinationNewState(destination);
         });
 
-        option.addEventListener("click", () => {
+        bindReliableTap(option, () => {
           clearExplorationDestinationNewState(destination);
           handleExplorationDestination(destination);
         });
