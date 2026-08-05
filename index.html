@@ -2824,7 +2824,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.107"
+  data-game-version="0.108"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3307,7 +3307,9 @@
       const DOG_FRAME_INTERVAL_MS = 50;
       const DOG_SPEED_PX_PER_MS = 0.09;
       const DOG_MAX_TURN_SPEED_RAD_PER_MS = Math.PI / 450;
-      const DOG_TURN_STEP_RAD = Math.PI / 4;
+      // 이동 방향은 16방향이며, 방향 전환은 한 번에 22.5도씩 진행합니다.
+      const DOG_MOVEMENT_DIRECTION_COUNT = 16;
+      const DOG_TURN_STEP_RAD = Math.PI / 8;
       const DOG_BLOCKED_TURN_HOLD_MS = 90;
       const DOG_WAYPOINT_REACH_DISTANCE = 56;
       const DOG_WAYPOINT_MIN_DISTANCE = 480;
@@ -3320,7 +3322,7 @@
       const DOG_WANDER_AMPLITUDE_RAD = 0;
       const DOG_WANDER_FREQUENCY_PER_MS = 0;
 
-      // 화면 좌표 기준 시계 방향 8방향입니다: 동→남동→남→남서→서→북서→북→북동.
+      // 화면 좌표 기준 시계 방향 8개 리소스입니다: 동→남동→남→남서→서→북서→북→북동.
       const DOG_DIRECTION_ANIMATIONS = Object.freeze([
         Object.freeze({ frameStart: 0, flipX: false }),
         Object.freeze({ frameStart: 64, flipX: false }),
@@ -3330,6 +3332,18 @@
         Object.freeze({ frameStart: 16, flipX: true }),
         Object.freeze({ frameStart: 32, flipX: false }),
         Object.freeze({ frameStart: 16, flipX: false })
+      ]);
+
+      /*
+        16개 이동 방향을 8개 방향 리소스에 연결합니다.
+        각 두 방위 사이의 22.5도·45도·67.5도 방향은 가운데 대각선 리소스를 공유합니다.
+        예: 동쪽과 남쪽 사이는 모두 남동 리소스, 북쪽과 동쪽 사이는 모두 북동 리소스입니다.
+      */
+      const DOG_MOVEMENT_TO_RESOURCE_DIRECTION = Object.freeze([
+        0, 1, 1, 1,
+        2, 3, 3, 3,
+        4, 5, 5, 5,
+        6, 7, 7, 7
       ]);
 
       // 좀비는 현재 필드 클리어에 필요한 수까지만 생성합니다.
@@ -4550,6 +4564,8 @@
       let isExploring = false;
       let explorationDestination = "";
       let explorationEndsAt = 0;
+      // DAY 5 보상 판정은 귀환 후 증가한 DAY가 아니라 출발 시점의 DAY를 사용합니다.
+      let explorationDepartureDay = 0;
       let explorationTimerId = null;
       let explorationCompleteToastTimerId = null;
       let returnZombieSpawnTimerId = null;
@@ -6701,6 +6717,9 @@
           explorationEndsAt = Number.isFinite(Number(parsed.explorationEndsAt))
             ? Math.max(0, Number(parsed.explorationEndsAt))
             : 0;
+          explorationDepartureDay = explorationEndsAt > 0
+            ? normalizeDayCount(parsed.explorationDepartureDay ?? dayCount)
+            : 0;
           if (explorationEndsAt > 0 && isChainsawEquipped) {
             isChainsawEquipped = false;
           }
@@ -6829,6 +6848,7 @@
               firstKillBirdFlockPlayed,
               explorationDestination,
               explorationEndsAt: isExploring ? explorationEndsAt : 0,
+              explorationDepartureDay: isExploring ? explorationDepartureDay : 0,
               activeZombies: getLivingZombieCount(),
               activeDeer: getLivingDeerCount(),
               lastZombieSpawnAt,
@@ -8619,6 +8639,7 @@
         zombieCount = 0;
         isExploring = true;
         explorationDestination = destination;
+        explorationDepartureDay = dayCount;
         explorationEndsAt = Date.now() + getExplorationDurationMs(destination);
         if (isCityExploration) {
           startCityCarDeparture();
@@ -8651,6 +8672,7 @@
           isExploring = false;
           explorationDestination = "";
           explorationEndsAt = 0;
+          explorationDepartureDay = 0;
           resetCarToHomePosition();
           setNightMode(false);
           updateDayStatus();
@@ -8872,6 +8894,21 @@
         return true;
       }
 
+      function awardDayFiveVillageHandgunReward() {
+        hasHandgun = true;
+        hasHandgunAmmo = true;
+        handgunAmmoCount = Math.min(
+          MAX_INVENTORY_QUANTITY,
+          handgunAmmoCount + 3
+        );
+
+        // 기존 공통 아이템 NEW 규칙을 그대로 적용합니다.
+        markInventoryItemAsNew("handgun");
+        markInventoryItemAsNew("handgunAmmo");
+        applyInventoryState();
+        return true;
+      }
+
       function awardForestFlower() {
         if (flowerCount >= MAX_INVENTORY_QUANTITY) return false;
 
@@ -8884,7 +8921,20 @@
         return true;
       }
 
-      function awardExplorationRewards(destination) {
+      function awardExplorationRewards(destination, departureDay) {
+        /*
+          DAY 5 이상에 Village로 출발했고 아직 핸드건이 없다면,
+          설계도와 일반 무작위 아이템 판정을 건너뛰고 핸드건 + 탄약 3발을 지급합니다.
+        */
+        if (
+          destination === "village" &&
+          departureDay >= 5 &&
+          !hasHandgun
+        ) {
+          awardDayFiveVillageHandgunReward();
+          return;
+        }
+
         configureExplorationBlueprintDefinitions();
         if (tryAwardExplorationBlueprint(destination)) {
           // 설계도를 얻은 탐험에서는 아이템을 함께 얻지 않습니다.
@@ -8904,6 +8954,9 @@
         if (!isExploring) return;
 
         const completedDestination = explorationDestination;
+        const completedDepartureDay = explorationDepartureDay > 0
+          ? explorationDepartureDay
+          : dayCount;
         playSound(
           completedDestination === "city"
             ? CITY_EXPLORATION_STOP_SOUND
@@ -8918,6 +8971,7 @@
         isExploring = false;
         explorationDestination = "";
         explorationEndsAt = 0;
+        explorationDepartureDay = 0;
         dayCount += 1;
         const shouldResetZombieRequirementToday =
           zombieKillRequirementResetPending;
@@ -8959,7 +9013,7 @@
           setTodoProgress(3, "item3", true);
         }
 
-        awardExplorationRewards(completedDestination);
+        awardExplorationRewards(completedDestination, completedDepartureDay);
         applyWeatherState();
         setNightMode(false);
         commitResourceState({ animateDay: true });
@@ -12077,10 +12131,10 @@
         let selectedTurnDirection = 0;
 
         /*
-          개는 정확히 8방향으로만 달립니다.
+          개는 정확히 16방향으로만 달립니다.
           평소에는 현재 방향을 높은 확률로 유지하고, 방향을 바꿀 때는
-          시계 또는 반시계 방향의 인접한 방향으로 45도씩만 전환합니다.
-          따라서 90~180도 방향도 한 번에 바뀌지 않고 여러 짧은 구간에 나뉩니다.
+          시계 또는 반시계 방향의 인접한 방향으로 22.5도씩만 전환합니다.
+          따라서 반대 방향도 180도로 한 번에 바뀌지 않고 여러 짧은 구간에 나뉩니다.
         */
         if (
           !forceTurn &&
@@ -12128,9 +12182,9 @@
           activeDog.turnStepDirection = selectedTurnDirection;
 
           /*
-            경계 바로 앞처럼 45도 방향으로도 움직일 공간이 없으면
+            경계 바로 앞처럼 다음 22.5도 방향으로도 움직일 공간이 없으면
             한 단계만 방향을 바꾼 뒤 잠깐 유지하고, 다음 단계에서 같은 방향으로
-            다시 45도 회전합니다. 한 프레임에 여러 방향을 건너뛰지 않습니다.
+            다시 22.5도 회전합니다. 한 프레임에 여러 방향을 건너뛰지 않습니다.
           */
           if (selectedDistance < DOG_WAYPOINT_REACH_DISTANCE * 2) {
             activeDog.angle = selectedAngle;
@@ -12188,10 +12242,13 @@
       }
 
       function getDogDirectionAnimation(angle) {
-        const octant = (
-          Math.round(normalizeDogAngle(angle) / (Math.PI / 4)) + 8
-        ) % 8;
-        return DOG_DIRECTION_ANIMATIONS[octant];
+        const movementDirection = (
+          Math.round(normalizeDogAngle(angle) / DOG_TURN_STEP_RAD) +
+          DOG_MOVEMENT_DIRECTION_COUNT
+        ) % DOG_MOVEMENT_DIRECTION_COUNT;
+        const resourceDirection =
+          DOG_MOVEMENT_TO_RESOURCE_DIRECTION[movementDirection];
+        return DOG_DIRECTION_ANIMATIONS[resourceDirection];
       }
 
       function showDogFrame(activeDog) {
@@ -12340,7 +12397,7 @@
             chooseNextDogWaypoint(activeDog);
           }
 
-          // 선택된 8방향 직선으로만 이동하며, 방향은 한 번에 45도씩만 바뀝니다.
+          // 선택된 16방향 직선으로만 이동하며, 방향은 한 번에 22.5도씩만 바뀝니다.
           if (now >= activeDog.turnHoldUntil) {
             moveDog(activeDog, DOG_SPEED_PX_PER_MS * deltaMs);
           }
@@ -12401,7 +12458,9 @@
           y: position.y,
           waypointX: position.x,
           waypointY: position.y,
-          angle: Math.floor(Math.random() * 8) * DOG_TURN_STEP_RAD,
+          angle:
+            Math.floor(Math.random() * DOG_MOVEMENT_DIRECTION_COUNT) *
+            DOG_TURN_STEP_RAD,
           turnStepDirection: 0,
           turnHoldUntil: 0,
           animationElapsed: Math.random() * DOG_FRAME_INTERVAL_MS,
