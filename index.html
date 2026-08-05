@@ -2639,9 +2639,9 @@
       content: "";
       position: absolute;
       left: calc(24%);
-      bottom: 6%;
-      width: calc(100%);
-      height: 16%;
+      bottom: 15%;
+      width: calc(90%);
+      height: 20%;
       background: #000;
       border-radius: 50%;
       opacity: 0.2;
@@ -2824,7 +2824,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.111"
+  data-game-version="0.112"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3303,52 +3303,61 @@
         개 테스트 및 움직임 수정 위치
         - DOG_ENABLED: true면 등장, false면 등장하지 않습니다.
         - 표시 크기는 위 CSS의 --dog-size에서 조절합니다.
-        - 프레임 간격은 50ms(0.05초), 총 10프레임을 반복합니다.
+        - 달리기: 각 방향 줄의 1~6번째 이미지를 50ms 간격 looping 으로 사용합니다.
+        - 서 있기 idle: 각 방향 줄의 7~11번째 이미지를 pingpong 으로 사용합니다.
+        - 북북서/북서/북서서/서/남서서/남서/남남서 방향은 동쪽 계열 줄을 좌우 반전해 사용합니다.
       */
       const DOG_ENABLED = false;
       const DOG_SHEET_COLUMNS = 16;
       const DOG_SHEET_ROWS = 16;
-      const DOG_RUN_FRAME_COUNT = 10;
-      const DOG_FRAME_INTERVAL_MS = 50;
+      const DOG_RUN_FRAME_START_COLUMN = 0;
+      const DOG_RUN_FRAME_COUNT = 6;
+      const DOG_RUN_FRAME_INTERVAL_MS = 100;
+      const DOG_IDLE_FRAME_START_COLUMN = 6;
+      const DOG_IDLE_PINGPONG_SEQUENCE = Object.freeze([0, 1, 2, 3, 4, 3, 2, 1]);
+      const DOG_IDLE_FRAME_INTERVAL_MS = 100;
       const DOG_SPEED_PX_PER_MS = 0.09;
-      const DOG_MAX_TURN_SPEED_RAD_PER_MS = Math.PI / 450;
       // 이동 방향은 16방향이며, 방향 전환은 한 번에 22.5도씩 진행합니다.
       const DOG_MOVEMENT_DIRECTION_COUNT = 16;
       const DOG_TURN_STEP_RAD = Math.PI / 8;
       const DOG_BLOCKED_TURN_HOLD_MS = 90;
       const DOG_WAYPOINT_REACH_DISTANCE = 56;
-      const DOG_WAYPOINT_MIN_DISTANCE = 480;
+      const DOG_WAYPOINT_MIN_DISTANCE = 220;
       const DOG_AVOIDANCE_MARGIN = 140;
-      const DOG_CONTINUE_DIRECTION_CHANCE = 0.9;
+      const DOG_CONTINUE_DIRECTION_CHANCE = 0.7;
       const DOG_MAX_STRAIGHT_DISTANCE = 1_100;
-      const DOG_TURN_SEGMENT_MIN_DISTANCE = 120;
-      const DOG_TURN_SEGMENT_MAX_DISTANCE = 220;
+      const DOG_TURN_SEGMENT_MIN_DISTANCE = 70;
+      const DOG_TURN_SEGMENT_MAX_DISTANCE = 130;
       const DOG_PATH_SCAN_STEP = 10;
-      const DOG_WANDER_AMPLITUDE_RAD = 0;
-      const DOG_WANDER_FREQUENCY_PER_MS = 0;
-
-      // 화면 좌표 기준 시계 방향 8개 리소스입니다: 동→남동→남→남서→서→북서→북→북동.
-      const DOG_DIRECTION_ANIMATIONS = Object.freeze([
-        Object.freeze({ frameStart: 0, flipX: false }),
-        Object.freeze({ frameStart: 64, flipX: false }),
-        Object.freeze({ frameStart: 48, flipX: false }),
-        Object.freeze({ frameStart: 64, flipX: true }),
-        Object.freeze({ frameStart: 0, flipX: true }),
-        Object.freeze({ frameStart: 16, flipX: true }),
-        Object.freeze({ frameStart: 32, flipX: false }),
-        Object.freeze({ frameStart: 16, flipX: false })
-      ]);
+      const DOG_IDLE_CHANCE_AT_WAYPOINT = 0.82;
+      const DOG_IDLE_MIN_DURATION_MS = 1800;
+      const DOG_IDLE_MAX_DURATION_MS = 4_200;
+      const DOG_BLOCKED_IDLE_MIN_DURATION_MS = 1200;
+      const DOG_BLOCKED_IDLE_MAX_DURATION_MS = 2200;
 
       /*
-        16개 이동 방향을 8개 방향 리소스에 연결합니다.
-        각 두 방위 사이의 22.5도·45도·67.5도 방향은 가운데 대각선 리소스를 공유합니다.
-        예: 동쪽과 남쪽 사이는 모두 남동 리소스, 북쪽과 동쪽 사이는 모두 북동 리소스입니다.
+        이동 방향 인덱스는 화면 좌표 기준 시계 방향 16개입니다.
+        0부터 순서대로: 동, 남동동, 남동, 남남동, 남, 남남서, 남서, 남서서,
+        서, 북서서, 북서, 북북서, 북, 북북동, 북동, 북동동.
+        rowIndex는 실제 사용할 줄 번호(0-base)이며, flipX가 true면 해당 줄을 좌우 반전합니다.
       */
-      const DOG_MOVEMENT_TO_RESOURCE_DIRECTION = Object.freeze([
-        0, 1, 1, 1,
-        2, 3, 3, 3,
-        4, 5, 5, 5,
-        6, 7, 7, 7
+      const DOG_DIRECTION_ANIMATIONS = Object.freeze([
+        Object.freeze({ rowIndex: 4, flipX: false }),
+        Object.freeze({ rowIndex: 5, flipX: false }),
+        Object.freeze({ rowIndex: 6, flipX: false }),
+        Object.freeze({ rowIndex: 7, flipX: false }),
+        Object.freeze({ rowIndex: 8, flipX: false }),
+        Object.freeze({ rowIndex: 7, flipX: true }),
+        Object.freeze({ rowIndex: 6, flipX: true }),
+        Object.freeze({ rowIndex: 5, flipX: true }),
+        Object.freeze({ rowIndex: 4, flipX: true }),
+        Object.freeze({ rowIndex: 3, flipX: true }),
+        Object.freeze({ rowIndex: 2, flipX: true }),
+        Object.freeze({ rowIndex: 1, flipX: true }),
+        Object.freeze({ rowIndex: 0, flipX: false }),
+        Object.freeze({ rowIndex: 1, flipX: false }),
+        Object.freeze({ rowIndex: 2, flipX: false }),
+        Object.freeze({ rowIndex: 3, flipX: false })
       ]);
 
       // 좀비는 현재 필드 클리어에 필요한 수까지만 생성합니다.
@@ -4717,6 +4726,8 @@
       const zombies = new Map();
       const deerMap = new Map();
       let dog = null;
+      // 기본값은 false이며, 테스트 모드에서 개를 등장시킨 뒤에만 저장·복원합니다.
+      let isDogEnabledByTest = false;
       let storedPopulationSnapshot = null;
       let lastZombieSpawnAt = Date.now();
       let lastDeerSpawnAt = Date.now();
@@ -6653,6 +6664,8 @@
             return;
           }
 
+          isDogEnabledByTest = parsed.isDogEnabledByTest === true;
+
           zombieKillRequirement = normalizeZombieKillRequirement(
             parsed.zombieKillRequirement
           );
@@ -6926,6 +6939,7 @@
             RESOURCE_STORAGE_KEY,
             JSON.stringify({
               version: GAME_VERSION,
+              isDogEnabledByTest,
               zombies: zombieCount,
               zombieKillRequirement,
               dayCount,
@@ -9441,7 +9455,9 @@
         applyInventoryNewBadgeState();
         applyRepairState();
 
-        // 테스트 모드에서 자원을 충전한 뒤에만 개를 등장시킵니다.
+        // 테스트 모드에서 자원을 충전한 뒤 개를 등장시키고,
+        // 새로고침이나 재접속 후에도 다시 나타나도록 활성 상태를 저장합니다.
+        isDogEnabledByTest = true;
         createDog(true);
 
         commitResourceState();
@@ -12322,17 +12338,28 @@
           Math.round(normalizeDogAngle(angle) / DOG_TURN_STEP_RAD) +
           DOG_MOVEMENT_DIRECTION_COUNT
         ) % DOG_MOVEMENT_DIRECTION_COUNT;
-        const resourceDirection =
-          DOG_MOVEMENT_TO_RESOURCE_DIRECTION[movementDirection];
-        return DOG_DIRECTION_ANIMATIONS[resourceDirection];
+        return DOG_DIRECTION_ANIMATIONS[movementDirection];
+      }
+
+      function getDogCurrentFrameIndex(activeDog) {
+        const animation = getDogDirectionAnimation(activeDog.angle);
+        const rowStart = animation.rowIndex * DOG_SHEET_COLUMNS;
+        const columnIndex = activeDog.state === "idle"
+          ? DOG_IDLE_FRAME_START_COLUMN +
+            DOG_IDLE_PINGPONG_SEQUENCE[
+              activeDog.animationFrame % DOG_IDLE_PINGPONG_SEQUENCE.length
+            ]
+          : DOG_RUN_FRAME_START_COLUMN +
+            (activeDog.animationFrame % DOG_RUN_FRAME_COUNT);
+        return rowStart + columnIndex;
       }
 
       function showDogFrame(activeDog) {
         const animation = getDogDirectionAnimation(activeDog.angle);
-        const frameIndex = animation.frameStart + activeDog.animationFrame;
+        const frameIndex = getDogCurrentFrameIndex(activeDog);
         const position = dogFramePosition(frameIndex);
         const transform = animation.flipX ? "scaleX(-1)" : "scaleX(1)";
-        const renderKey = `${frameIndex}|${transform}`;
+        const renderKey = `${activeDog.state}|${frameIndex}|${transform}`;
 
         if (activeDog.renderKey === renderKey) return;
         activeDog.renderKey = renderKey;
@@ -12351,6 +12378,46 @@
           activeDog.y + activeDog.size * 0.34,
           activeDog.y
         );
+      }
+
+      function getRandomDogIdleDuration() {
+        return randomBetween(
+          DOG_IDLE_MIN_DURATION_MS,
+          DOG_IDLE_MAX_DURATION_MS
+        );
+      }
+
+      function getBlockedDogIdleDuration() {
+        return randomBetween(
+          DOG_BLOCKED_IDLE_MIN_DURATION_MS,
+          DOG_BLOCKED_IDLE_MAX_DURATION_MS
+        );
+      }
+
+      function startDogRun(activeDog, now = performance.now()) {
+        activeDog.state = "run";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed %= DOG_RUN_FRAME_INTERVAL_MS;
+        activeDog.animationFrame %= DOG_RUN_FRAME_COUNT;
+        activeDog.lastStateChangeAt = now;
+      }
+
+      function startDogIdle(
+        activeDog,
+        now = performance.now(),
+        duration = getRandomDogIdleDuration()
+      ) {
+        activeDog.state = "idle";
+        activeDog.stateUntil = now + duration;
+        activeDog.animationElapsed %= DOG_IDLE_FRAME_INTERVAL_MS;
+        activeDog.animationFrame %= DOG_IDLE_PINGPONG_SEQUENCE.length;
+        activeDog.lastStateChangeAt = now;
+      }
+
+      function maybeStartDogIdle(activeDog, now) {
+        if (Math.random() >= DOG_IDLE_CHANCE_AT_WAYPOINT) return false;
+        startDogIdle(activeDog, now, getRandomDogIdleDuration());
+        return true;
       }
 
       function getDogAvoidanceVector(activeDog) {
@@ -12455,36 +12522,59 @@
       }
 
       function updateDog(activeDog, deltaMs, now) {
-        const isHoldingTurn = now < activeDog.turnHoldUntil;
-
-        if (!isHoldingTurn) {
-          const distanceToWaypoint = Math.hypot(
-            activeDog.waypointX - activeDog.x,
-            activeDog.waypointY - activeDog.y
-          );
-          if (
-            distanceToWaypoint <= DOG_WAYPOINT_REACH_DISTANCE ||
-            !isDogPositionAllowed(
-              activeDog.waypointX,
-              activeDog.waypointY,
-              activeDog.size
-            )
-          ) {
+        if (activeDog.state === "idle") {
+          if (now >= activeDog.stateUntil) {
+            startDogRun(activeDog, now);
             chooseNextDogWaypoint(activeDog);
           }
+        }
 
-          // 선택된 16방향 직선으로만 이동하며, 방향은 한 번에 22.5도씩만 바뀝니다.
-          if (now >= activeDog.turnHoldUntil) {
-            moveDog(activeDog, DOG_SPEED_PX_PER_MS * deltaMs);
+        if (activeDog.state === "run") {
+          const isHoldingTurn = now < activeDog.turnHoldUntil;
+
+          if (!isHoldingTurn) {
+            const distanceToWaypoint = Math.hypot(
+              activeDog.waypointX - activeDog.x,
+              activeDog.waypointY - activeDog.y
+            );
+            if (
+              distanceToWaypoint <= DOG_WAYPOINT_REACH_DISTANCE ||
+              !isDogPositionAllowed(
+                activeDog.waypointX,
+                activeDog.waypointY,
+                activeDog.size
+              )
+            ) {
+              if (!maybeStartDogIdle(activeDog, now)) {
+                chooseNextDogWaypoint(activeDog);
+              }
+            }
+
+            if (activeDog.state === "run" && now >= activeDog.turnHoldUntil) {
+              const moved = moveDog(activeDog, DOG_SPEED_PX_PER_MS * deltaMs);
+              if (!moved && activeDog.state === "run") {
+                startDogIdle(activeDog, now, getBlockedDogIdleDuration());
+              }
+            }
           }
         }
 
         activeDog.animationElapsed += deltaMs;
-        if (activeDog.animationElapsed >= DOG_FRAME_INTERVAL_MS) {
+        if (activeDog.state === "idle") {
+          if (activeDog.animationElapsed >= DOG_IDLE_FRAME_INTERVAL_MS) {
+            const advancedFrames = Math.floor(
+              activeDog.animationElapsed / DOG_IDLE_FRAME_INTERVAL_MS
+            );
+            activeDog.animationElapsed %= DOG_IDLE_FRAME_INTERVAL_MS;
+            activeDog.animationFrame = (
+              activeDog.animationFrame + advancedFrames
+            ) % DOG_IDLE_PINGPONG_SEQUENCE.length;
+          }
+        } else if (activeDog.animationElapsed >= DOG_RUN_FRAME_INTERVAL_MS) {
           const advancedFrames = Math.floor(
-            activeDog.animationElapsed / DOG_FRAME_INTERVAL_MS
+            activeDog.animationElapsed / DOG_RUN_FRAME_INTERVAL_MS
           );
-          activeDog.animationElapsed %= DOG_FRAME_INTERVAL_MS;
+          activeDog.animationElapsed %= DOG_RUN_FRAME_INTERVAL_MS;
           activeDog.animationFrame = (
             activeDog.animationFrame + advancedFrames
           ) % DOG_RUN_FRAME_COUNT;
@@ -12539,11 +12629,24 @@
             DOG_TURN_STEP_RAD,
           turnStepDirection: 0,
           turnHoldUntil: 0,
-          animationElapsed: Math.random() * DOG_FRAME_INTERVAL_MS,
-          animationFrame: Math.floor(Math.random() * DOG_RUN_FRAME_COUNT),
-          wanderPhase: Math.random() * Math.PI * 2,
+          state: Math.random() < 0.68 ? "idle" : "run",
+          stateUntil: 0,
+          lastStateChangeAt: performance.now(),
+          animationElapsed: 0,
+          animationFrame: 0,
           renderKey: ""
         };
+
+        if (dog.state === "idle") {
+          dog.animationElapsed = Math.random() * DOG_IDLE_FRAME_INTERVAL_MS;
+          dog.animationFrame = Math.floor(
+            Math.random() * DOG_IDLE_PINGPONG_SEQUENCE.length
+          );
+          dog.stateUntil = performance.now() + getRandomDogIdleDuration();
+        } else {
+          dog.animationElapsed = Math.random() * DOG_RUN_FRAME_INTERVAL_MS;
+          dog.animationFrame = Math.floor(Math.random() * DOG_RUN_FRAME_COUNT);
+        }
 
         chooseNextDogWaypoint(dog);
 
@@ -15463,7 +15566,7 @@
         }
         restoreStoredPopulation();
         updateWorldScale();
-        createDog();
+        createDog(isDogEnabledByTest);
         initializeClouds();
         startSpawner();
         hasGameInitialized = true;
