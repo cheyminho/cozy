@@ -580,7 +580,7 @@
 
     #carObject::before,
     #carObject::after {
-      background-image: url("images/car.png");
+      background-image: var(--car-image, url("images/car.png"));
       background-position: var(--car-frame-position, left top);
     }
 
@@ -2831,7 +2831,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.113"
+  data-game-version="0.114"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3681,6 +3681,7 @@
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
       const MAILBOX_SOUND = "sounds/sfx_mailbox.wav";
       const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
+      const CAR_PAINT_SOUND = "sounds/sfx_paint.wav";
       const CAR_FAIL_SOUND = "sounds/sfx_car_fail.wav";
       const CAR_HORN_SOUND = "sounds/sfx_car_horn.wav";
       const CITY_EXPLORATION_START_SOUND = "sounds/sfx_car_start.wav";
@@ -3924,6 +3925,58 @@
       const REPAIR_SECTION_SPAN = 5;
       const SHED_REPAIR_BLUEPRINT_ID = "shedRepair";
       const CAR_REPAIR_BLUEPRINT_ID = "carRepair";
+      const CAR_PAINT_WHITE_BLUEPRINT_ID = "carPaintWhite";
+      const CAR_PAINT_BLACK_BLUEPRINT_ID = "carPaintBlack";
+      const CAR_PAINT_BLUE_BLUEPRINT_ID = "carPaintBlue";
+      const CAR_PAINT_GREEN_BLUEPRINT_ID = "carPaintGreen";
+      const CAR_PAINT_RED_BLUEPRINT_ID = "carPaintRed";
+      const CAR_PAINT_YELLOW_BLUEPRINT_ID = "carPaintYellow";
+      const CAR_PAINT_BLUEPRINT_IDS = Object.freeze([
+        CAR_PAINT_WHITE_BLUEPRINT_ID,
+        CAR_PAINT_BLACK_BLUEPRINT_ID,
+        CAR_PAINT_BLUE_BLUEPRINT_ID,
+        CAR_PAINT_GREEN_BLUEPRINT_ID,
+        CAR_PAINT_RED_BLUEPRINT_ID,
+        CAR_PAINT_YELLOW_BLUEPRINT_ID
+      ]);
+      const CAR_PAINT_BLUEPRINT_DEFINITIONS = Object.freeze({
+        [CAR_PAINT_WHITE_BLUEPRINT_ID]: Object.freeze({
+          name: "Car Paint: White",
+          materials: { whitePaint: 3 },
+          builtDescription: "A fresh coat for the old car.",
+          image: "images/car.png"
+        }),
+        [CAR_PAINT_BLACK_BLUEPRINT_ID]: Object.freeze({
+          name: "Car Paint: Black",
+          materials: { blackPaint: 3 },
+          builtDescription: "A fresh coat for the old car.",
+          image: "images/car_black.png"
+        }),
+        [CAR_PAINT_BLUE_BLUEPRINT_ID]: Object.freeze({
+          name: "Car Paint: Blue",
+          materials: { bluePaint: 3 },
+          builtDescription: "A fresh coat for the old car.",
+          image: "images/car_blue.png"
+        }),
+        [CAR_PAINT_GREEN_BLUEPRINT_ID]: Object.freeze({
+          name: "Car Paint: Green",
+          materials: { greenPaint: 3 },
+          builtDescription: "A fresh coat for the old car.",
+          image: "images/car_green.png"
+        }),
+        [CAR_PAINT_RED_BLUEPRINT_ID]: Object.freeze({
+          name: "Car Paint: Red",
+          materials: { redPaint: 3 },
+          builtDescription: "A fresh coat for the old car.",
+          image: "images/car_red.png"
+        }),
+        [CAR_PAINT_YELLOW_BLUEPRINT_ID]: Object.freeze({
+          name: "Car Paint: Yellow",
+          materials: { yellowPaint: 3 },
+          builtDescription: "A fresh coat for the old car.",
+          image: "images/car_yellow.png"
+        })
+      });
       const REPAIR_BLUEPRINT_DEFINITIONS = {
         [SHED_REPAIR_BLUEPRINT_ID]: {
           name: "Shed Repair",
@@ -3934,7 +3987,8 @@
           name: "Car Repair",
           materials: { repairKit: 1, carParts: 3 },
           builtDescription: "Might get it running again."
-        }
+        },
+        ...CAR_PAINT_BLUEPRINT_DEFINITIONS
       };
       const WOODEN_FENCE_BLUEPRINT_ID = "woodenFence";
       const WHITE_FENCE_BLUEPRINT_ID = "whiteFence";
@@ -4014,6 +4068,12 @@
         { destinations: ["village", "city"], category: "buildings", blueprintId: CHARCOAL_ROOF_BLUEPRINT_ID },
         { destinations: ["village", "city"], category: "buildings", blueprintId: TIMBER_WALLS_BLUEPRINT_ID },
         { destinations: ["village", "city"], category: "buildings", blueprintId: MINT_WALLS_BLUEPRINT_ID },
+        { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_WHITE_BLUEPRINT_ID },
+        { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_BLACK_BLUEPRINT_ID },
+        { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_BLUE_BLUEPRINT_ID },
+        { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_GREEN_BLUEPRINT_ID },
+        { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_RED_BLUEPRINT_ID },
+        { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_YELLOW_BLUEPRINT_ID },
         { destinations: ["forest"], category: "outdoor", blueprintId: FLOWER_BED_BLUEPRINT_ID },
         { destinations: ["forest"], category: "outdoor", blueprintId: WOODEN_FLOWER_BED_BLUEPRINT_ID }
       ];
@@ -4649,6 +4709,8 @@
       const paintCounts = Object.fromEntries(
         Object.keys(PAINT_ITEM_DEFINITIONS).map((itemType) => [itemType, 0])
       );
+      // 기본 흰색 외형은 White 도색이 적용된 상태로 취급합니다.
+      let activeCarPaintBlueprintId = CAR_PAINT_WHITE_BLUEPRINT_ID;
       let repairKitCount = 0;
       let fuelCount = 0;
       let hasMap = false;
@@ -5099,6 +5161,28 @@
         return getRepairBlueprintItem(CAR_REPAIR_BLUEPRINT_ID)?.built === true;
       }
 
+      function isCarPaintBlueprintId(blueprintId) {
+        return CAR_PAINT_BLUEPRINT_IDS.includes(blueprintId);
+      }
+
+      function isActiveCarPaintBlueprint(blueprintId) {
+        return isCarPaintBlueprintId(blueprintId) &&
+          blueprintId === activeCarPaintBlueprintId;
+      }
+
+      function getActiveCarPaintDefinition() {
+        return CAR_PAINT_BLUEPRINT_DEFINITIONS[activeCarPaintBlueprintId] ||
+          CAR_PAINT_BLUEPRINT_DEFINITIONS[CAR_PAINT_WHITE_BLUEPRINT_ID];
+      }
+
+      function applyCarPaintVisual() {
+        const definition = getActiveCarPaintDefinition();
+        carObject.style.setProperty(
+          "--car-image",
+          `url("${definition.image}")`
+        );
+      }
+
       function getRepairCategoryHasNewItems(category) {
         return repairCategoryNewByCategory[category] === true;
       }
@@ -5453,14 +5537,25 @@
       }
 
       function configureExplorationBlueprintDefinitions() {
-        // 이미 슬롯에 등록된 House 설계도에만 최신 정의를 다시 적용합니다.
+        // 이미 슬롯에 등록된 설계도에만 최신 정의를 다시 적용합니다.
         // 아직 획득하지 않은 설계도는 미리 슬롯을 차지하지 않습니다.
-        const items = repairItemsByCategory.buildings || [];
-        for (let index = 0; index < items.length; index += 1) {
-          const blueprintId = inferBuildingBlueprintId(items[index]);
+        const buildingItems = repairItemsByCategory.buildings || [];
+        for (let index = 0; index < buildingItems.length; index += 1) {
+          const blueprintId = inferBuildingBlueprintId(buildingItems[index]);
           const definition = BUILDING_BLUEPRINT_DEFINITIONS[blueprintId];
           if (!definition) continue;
           configureRepairItem("buildings", index, {
+            ...definition,
+            blueprintId
+          });
+        }
+
+        const repairItems = repairItemsByCategory.repair || [];
+        for (let index = 0; index < repairItems.length; index += 1) {
+          const blueprintId = inferRepairBlueprintId(repairItems[index]);
+          const definition = REPAIR_BLUEPRINT_DEFINITIONS[blueprintId];
+          if (!definition) continue;
+          configureRepairItem("repair", index, {
             ...definition,
             blueprintId
           });
@@ -5826,13 +5921,14 @@
         }
 
         const normalizedName = String(item?.name || "").trim().toLowerCase();
-        if (normalizedName === "shed repair" || normalizedName === "repaired shed") {
+        if (normalizedName === "repaired shed") {
           return SHED_REPAIR_BLUEPRINT_ID;
         }
-        if (normalizedName === "car repair") {
-          return CAR_REPAIR_BLUEPRINT_ID;
-        }
-        return item?.blueprintId || "";
+
+        return Object.keys(REPAIR_BLUEPRINT_DEFINITIONS).find(
+          (blueprintId) =>
+            REPAIR_BLUEPRINT_DEFINITIONS[blueprintId].name.toLowerCase() === normalizedName
+        ) || item?.blueprintId || "";
       }
 
       function resetRepairBlueprintItem(item) {
@@ -6325,13 +6421,95 @@
         }
       }
 
+      function getRepairItemSortName(item) {
+        const repairBlueprintId = inferRepairBlueprintId(item);
+        if (repairBlueprintId && REPAIR_BLUEPRINT_DEFINITIONS[repairBlueprintId]) {
+          return REPAIR_BLUEPRINT_DEFINITIONS[repairBlueprintId].name;
+        }
+
+        const outdoorBlueprintId = inferOutdoorBlueprintId(item);
+        if (outdoorBlueprintId && OUTDOOR_BLUEPRINT_DEFINITIONS[outdoorBlueprintId]) {
+          return OUTDOOR_BLUEPRINT_DEFINITIONS[outdoorBlueprintId].name;
+        }
+
+        const buildingBlueprintId = inferBuildingBlueprintId(item);
+        if (buildingBlueprintId && BUILDING_BLUEPRINT_DEFINITIONS[buildingBlueprintId]) {
+          return BUILDING_BLUEPRINT_DEFINITIONS[buildingBlueprintId].name;
+        }
+
+        return String(item?.name || "");
+      }
+
+      function compareRepairDisplayEntries(a, b, pinnedIndex = -1) {
+        if (a.index === pinnedIndex) return -1;
+        if (b.index === pinnedIndex) return 1;
+
+        const aVisible = a.item?.unlocked === true && Boolean(a.item?.name);
+        const bVisible = b.item?.unlocked === true && Boolean(b.item?.name);
+        if (aVisible !== bVisible) return aVisible ? -1 : 1;
+
+        if (aVisible && bVisible) {
+          const nameCompare = getRepairItemSortName(a.item).localeCompare(
+            getRepairItemSortName(b.item),
+            "en",
+            { sensitivity: "base" }
+          );
+          if (nameCompare !== 0) return nameCompare;
+        }
+
+        return a.index - b.index;
+      }
+
+      function getRepairDisplayEntries(category) {
+        const items = repairItemsByCategory[category] || [];
+        const definition = REPAIR_CATEGORY_DEFINITIONS[category];
+
+        if (!Array.isArray(definition.sections)) {
+          return items
+            .map((item, index) => ({ item, index }))
+            .sort((a, b) => compareRepairDisplayEntries(a, b));
+        }
+
+        const entries = [];
+        definition.sections.forEach((section, sectionOrder) => {
+          const sectionEntries = [];
+          for (
+            let index = section.startIndex;
+            index < section.startIndex + REPAIR_SECTION_SPAN;
+            index += 1
+          ) {
+            const item = items[index];
+            if (!item) continue;
+            sectionEntries.push({ item, index });
+          }
+
+          sectionEntries.sort((a, b) =>
+            compareRepairDisplayEntries(
+              a,
+              b,
+              section.initialItemName ? section.startIndex : -1
+            )
+          );
+
+          sectionEntries.forEach((entry, displayColumn) => {
+            entries.push({
+              ...entry,
+              section,
+              sectionOrder,
+              displayColumn
+            });
+          });
+        });
+        return entries;
+      }
+
       function renderRepairGrid() {
         repairGrid.replaceChildren();
 
         const selectedIndex = repairSelectedItemByCategory[repairSelectedCategory];
-        const items = repairItemsByCategory[repairSelectedCategory];
         const definition = REPAIR_CATEGORY_DEFINITIONS[repairSelectedCategory];
         const isSectionedLayout = Array.isArray(definition.sections);
+        const displayEntries = getRepairDisplayEntries(repairSelectedCategory);
 
         repairGrid.classList.toggle("is-sectioned-layout", isSectionedLayout);
         repairGrid.style.gridTemplateRows = isSectionedLayout
@@ -6349,11 +6527,15 @@
           });
         }
 
-        items.forEach((item, index) => {
-          if (isSectionedLayout && !getRepairSectionDefinition(repairSelectedCategory, index)) {
-            return;
-          }
-          if (isSectionedLayout && index >= definition.sections.length * REPAIR_SECTION_SPAN) return;
+        for (const entry of displayEntries) {
+          const { item, index } = entry;
+          const isCarPaintItem = repairSelectedCategory === "repair" &&
+            isCarPaintBlueprintId(item.blueprintId);
+          const isActiveCarPaint = isCarPaintItem &&
+            isActiveCarPaintBlueprint(item.blueprintId);
+          const isCompletedRestoreItem = repairSelectedCategory === "repair" &&
+            !isCarPaintItem &&
+            item.built;
 
           const button = document.createElement("button");
           button.type = "button";
@@ -6367,10 +6549,17 @@
           button.classList.toggle("is-selected", item.unlocked && index === selectedIndex);
           button.classList.toggle("is-disabled", !item.unlocked);
           button.classList.toggle("is-new", item.unlocked && item.isNew);
-          button.classList.toggle("is-uncrafted", item.unlocked && !item.built);
+          button.classList.toggle(
+            "is-uncrafted",
+            item.unlocked && !item.built && !isActiveCarPaint
+          );
           button.classList.toggle(
             "is-applied",
-            item.unlocked && item.built && index === getAppliedRepairItemIndex(repairSelectedCategory, index)
+            item.unlocked && (
+              isActiveCarPaint ||
+              isCompletedRestoreItem ||
+              (item.built && index === getAppliedRepairItemIndex(repairSelectedCategory, index))
+            )
           );
           button.setAttribute("aria-disabled", item.unlocked ? "false" : "true");
           bindReliableTap(button, () => {
@@ -6379,14 +6568,39 @@
           });
 
           if (isSectionedLayout) {
-            const section = getRepairSectionDefinition(repairSelectedCategory, index);
-            const sectionOrder = definition.sections.findIndex((entry) => entry.key === section.key);
-            button.style.gridColumn = String((index % REPAIR_SECTION_SPAN) + 1);
-            button.style.gridRow = String(sectionOrder * 2 + 2);
+            button.style.gridColumn = String(entry.displayColumn + 1);
+            button.style.gridRow = String(entry.sectionOrder * 2 + 2);
           }
 
           repairGrid.append(button);
-        });
+        }
+      }
+
+      function renderRepairMaterialLines(item) {
+        const labels = {
+          wood: "Wood",
+          food: "Food",
+          stone: "Stone",
+          carParts: "Car Parts",
+          flowers: "Flowers",
+          repairKit: "Repair Kit",
+          whitePaint: "White Paint",
+          blackPaint: "Black Paint",
+          redPaint: "Red Paint",
+          yellowPaint: "Yellow Paint",
+          bluePaint: "Blue Paint",
+          greenPaint: "Green Paint"
+        };
+        const materialEntries = Object.entries(item.materials || {});
+        for (const [resource, required] of materialEntries) {
+          const current = getRepairResourceAmount(resource);
+          const line = document.createElement("span");
+          line.className = "repair-material-line";
+          line.textContent = `${labels[resource] || resource} ${current}/${required}`;
+          line.classList.toggle("is-complete", current >= required);
+          repairItemDescription.append(line);
+        }
+        return materialEntries.length;
       }
 
       function renderRepairItemInfo() {
@@ -6407,43 +6621,42 @@
 
         const appliedIndex = getAppliedRepairItemIndex(repairSelectedCategory, selectedIndex);
         const sectionDefinition = getRepairSectionDefinition(repairSelectedCategory, selectedIndex);
+        const isCarPaintItem = repairSelectedCategory === "repair" &&
+          isCarPaintBlueprintId(item.blueprintId);
+        const isActiveCarPaint = isCarPaintItem &&
+          isActiveCarPaintBlueprint(item.blueprintId);
 
         repairItemName.textContent = item.name || "Unnamed";
         repairItemMeta.textContent = "";
         repairItemMeta.removeAttribute("aria-label");
         repairItemDescription.replaceChildren();
 
+        if (isCarPaintItem) {
+          if (isActiveCarPaint) {
+            repairItemDescription.textContent = item.builtDescription ||
+              "A fresh coat for the old car.";
+          } else {
+            renderRepairMaterialLines(item);
+          }
+          repairActionButton.textContent = isActiveCarPaint ? "Painted" : "Paint";
+          repairActionButton.disabled = isActiveCarPaint ||
+            !item.unlocked ||
+            !canAffordRepairMaterials(item.materials);
+          return;
+        }
+
         if (item.built) {
-          repairItemDescription.textContent = item.builtDescription || item.description || sectionDefinition?.initialItemDescription || REPAIR_CATEGORY_DEFINITIONS[repairSelectedCategory].initialItemDescription || "";
+          repairItemDescription.textContent = item.builtDescription ||
+            item.description ||
+            sectionDefinition?.initialItemDescription ||
+            REPAIR_CATEGORY_DEFINITIONS[repairSelectedCategory].initialItemDescription ||
+            "";
         } else {
-          const labels = {
-            wood: "Wood",
-            food: "Food",
-            carParts: "Car Parts",
-            flowers: "Flowers",
-            repairKit: "Repair Kit",
-            whitePaint: "White Paint",
-            blackPaint: "Black Paint",
-            redPaint: "Red Paint",
-            yellowPaint: "Yellow Paint",
-            bluePaint: "Blue Paint",
-            greenPaint: "Green Paint"
-          };
-          const materialEntries = Object.entries(item.materials);
-          if (materialEntries.length === 0) {
+          const materialCount = renderRepairMaterialLines(item);
+          if (materialCount === 0) {
             repairItemDescription.textContent = repairSelectedCategory === "repair"
               ? ""
               : item.description || "—";
-          } else {
-            for (const [resource, required] of materialEntries) {
-              const current = getRepairResourceAmount(resource);
-              const line = document.createElement("span");
-              line.className = "repair-material-line";
-              line.textContent = `${labels[resource] || resource} ${current}/${required}`;
-              line.classList.toggle("is-complete", current >= required);
-              repairItemDescription.append(line);
-            }
-            // 획득 직후에는 이름과 재료만 표시하고, 제작 후 재료 대신 설명을 표시합니다.
           }
         }
 
@@ -6489,6 +6702,7 @@
       }
 
       function updateInstalledStructureVisibility() {
+        applyCarPaintVisual();
         const appliedFenceIndex = repairAppliedItemBySection.outdoor.fence ?? -1;
         const appliedFenceItem = appliedFenceIndex >= 0
           ? repairItemsByCategory.outdoor[appliedFenceIndex]
@@ -6602,6 +6816,27 @@
         const selectedIndex = repairSelectedItemByCategory[repairSelectedCategory];
         const item = getSelectedRepairItem();
         if (!item) return;
+
+        if (
+          repairSelectedCategory === "repair" &&
+          isCarPaintBlueprintId(item.blueprintId)
+        ) {
+          if (!item.unlocked || isActiveCarPaintBlueprint(item.blueprintId)) return;
+          if (!canAffordRepairMaterials(item.materials)) {
+            showToast(REPAIR_MATERIALS_TOAST_MESSAGE);
+            return;
+          }
+
+          playSound(CAR_PAINT_SOUND);
+          consumeRepairMaterials(item.materials);
+          activeCarPaintBlueprintId = item.blueprintId;
+          item.isNew = false;
+          updateResourceHud();
+          applyRepairState();
+          applyInventoryState();
+          saveResourceState();
+          return;
+        }
 
         if (repairSelectedCategory === "repair") {
           if (!item.unlocked || item.built) return;
@@ -6844,6 +7079,11 @@
               MAX_INVENTORY_QUANTITY
             );
           }
+          activeCarPaintBlueprintId = isCarPaintBlueprintId(
+            parsed.activeCarPaintBlueprintId
+          )
+            ? parsed.activeCarPaintBlueprintId
+            : CAR_PAINT_WHITE_BLUEPRINT_ID;
           repairKitCount = normalizeStoredCount(
             parsed.repairKit ?? (parsed.hasRepairKit === true ? 1 : 0),
             MAX_INVENTORY_QUANTITY
@@ -7024,6 +7264,7 @@
               carParts: carPartsCount,
               flowers: flowerCount,
               paintCounts: { ...paintCounts },
+              activeCarPaintBlueprintId,
               repairKit: repairKitCount,
               hasRepairKit: repairKitCount > 0,
               mailboxIntroTriggered,
@@ -9457,7 +9698,7 @@
 
         for (const itemType of Object.keys(paintCounts)) {
           markNewIfMissing(itemType, paintCounts[itemType] > 0);
-          paintCounts[itemType] = Math.max(paintCounts[itemType], 1);
+          paintCounts[itemType] = Math.max(paintCounts[itemType], 3);
         }
 
         markNewIfMissing("repairKit", repairKitCount > 0);
