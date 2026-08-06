@@ -2831,7 +2831,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.114"
+  data-game-version="0.115"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3264,19 +3264,13 @@
         bottom: WORLD_SIZE
       };
 
-      // 전체 월드 생성 범위를 사용할 때는 사방에서 100px 안쪽만 사용합니다.
-      // 좀비는 생성 당시 이 영역을 movementZone으로 저장하고 경계에서 방향을 반전하므로
-      // 이후에도 이 영역 밖으로 이동하지 않습니다.
-      const EXPANDED_WORLD_ZONE_INSET = 100;
-      const EXPANDED_ENTITY_ZONE = {
-        left: WORLD_ZONE.left + EXPANDED_WORLD_ZONE_INSET,
-        top: WORLD_ZONE.top + EXPANDED_WORLD_ZONE_INSET,
-        right: WORLD_ZONE.right - EXPANDED_WORLD_ZONE_INSET,
-        bottom: WORLD_ZONE.bottom - EXPANDED_WORLD_ZONE_INSET
-      };
+      // 확장 생성 범위는 2048×2048 전체 월드가 아니라,
+      // 현재 해상도에서 드래그하여 확인할 수 있는 전체 영역을 기준으로 합니다.
+      // 그 영역의 사방 가장자리에서 다시 100px 안쪽만 실제 생성에 사용합니다.
+      const DRAGGABLE_VIEW_SPAWN_INSET = 100;
 
       // 살아 있는 좀비와 사슴의 합계가 기준 수 이상이면
-      // 중앙 1024×1024 대신 사방 100px을 제외한 확장 영역을 생성 범위로 사용합니다.
+      // 중앙 1024×1024 대신 드래그로 확인 가능한 확장 영역을 생성 범위로 사용합니다.
       const EXPANDED_SPAWN_POPULATION_THRESHOLD = 3;
 
       // 월드 중심(1024, 1024)을 기준으로 한 420×300 안전영역입니다.
@@ -4452,15 +4446,16 @@
       );
 
       const NATIVE_TAP_CONTROL_SELECTOR =
-        'button, a[href], input, select, textarea, label, [role="button"], [role="link"], [contenteditable="true"]';
+        'button, a[href], input, select, textarea, label, [contenteditable="true"]';
 
       function isNativeTapControl(target) {
         return target instanceof Element &&
           Boolean(target.closest(NATIVE_TAP_CONTROL_SELECTOR));
       }
 
-      // 실제 UI 컨트롤의 연속 탭은 확대 차단 대상에서 제외합니다.
-      // 버튼 탭의 click 합성이 취소되는 모바일 Safari 문제를 방지합니다.
+      // 실제 HTML UI 컨트롤의 연속 탭은 확대 차단 대상에서 제외합니다.
+      // 필드 오브젝트는 접근성을 위해 role="button"을 사용하지만 네이티브 버튼은 아니므로
+      // 이 예외에 포함하지 않고 더블탭 확대 차단을 유지합니다.
       document.addEventListener(
         "dblclick",
         (event) => {
@@ -10121,6 +10116,59 @@
         };
       }
 
+      // 현재 화면 한 장이 아니라, 카메라를 양 끝까지 드래그했을 때
+      // 한 번이라도 확인할 수 있는 월드 좌표 전체를 반환합니다.
+      function getDraggableVisibleWorldBounds() {
+        const safeScale = Math.max(worldScale, 0.001);
+        const worldCenter = WORLD_SIZE / 2;
+        const halfReachableWidth =
+          (window.innerWidth / 2 + maxPanX) / safeScale;
+        const halfReachableHeight =
+          (window.innerHeight / 2 + maxPanY) / safeScale;
+
+        return {
+          left: clamp(
+            worldCenter - halfReachableWidth,
+            WORLD_ZONE.left,
+            WORLD_ZONE.right
+          ),
+          top: clamp(
+            worldCenter - halfReachableHeight,
+            WORLD_ZONE.top,
+            WORLD_ZONE.bottom
+          ),
+          right: clamp(
+            worldCenter + halfReachableWidth,
+            WORLD_ZONE.left,
+            WORLD_ZONE.right
+          ),
+          bottom: clamp(
+            worldCenter + halfReachableHeight,
+            WORLD_ZONE.top,
+            WORLD_ZONE.bottom
+          )
+        };
+      }
+
+      function getDraggableViewSpawnZone() {
+        const visibleBounds = getDraggableVisibleWorldBounds();
+        const horizontalInset = Math.min(
+          DRAGGABLE_VIEW_SPAWN_INSET,
+          Math.max(0, (visibleBounds.right - visibleBounds.left) / 2)
+        );
+        const verticalInset = Math.min(
+          DRAGGABLE_VIEW_SPAWN_INSET,
+          Math.max(0, (visibleBounds.bottom - visibleBounds.top) / 2)
+        );
+
+        return {
+          left: visibleBounds.left + horizontalInset,
+          top: visibleBounds.top + verticalInset,
+          right: visibleBounds.right - horizontalInset,
+          bottom: visibleBounds.bottom - verticalInset
+        };
+      }
+
       function getCloudHalfSize(scale) {
         return (CLOUD_FRAME_SIZE * scale) / 2;
       }
@@ -10851,7 +10899,7 @@
       function getSpawnZoneForNextEntity() {
         return getActivePopulationCount() >=
           EXPANDED_SPAWN_POPULATION_THRESHOLD
-          ? EXPANDED_ENTITY_ZONE
+          ? getDraggableViewSpawnZone()
           : GAME_ZONE;
       }
 
