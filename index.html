@@ -1475,6 +1475,13 @@
         cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
+    #exploreNewBadge.is-ready,
+    .exploration-option-new-badge.is-ready {
+      background: #276ebd;
+      color: #fff;
+      font-weight: 700;
+    }
+
     @keyframes inventory-new-badge-pop {
       from {
         transform: scale(0);
@@ -2824,7 +2831,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.112"
+  data-game-version="0.113"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2981,9 +2988,9 @@
   </div>
 
   <div id="hud">
-    <span class="hud-resource">Zombies <span><span id="zombieCount">0</span>/<span id="zombieGoal">2</span></span></span>
     <span class="hud-resource">Food <span><span id="foodCount">0</span>/3</span></span>
     <span class="hud-resource">Wood <span><span id="woodCount">0</span>/10</span></span>
+    <span class="hud-resource">Stone <span><span id="stoneCount">0</span>/5</span></span>
   </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   <div id="menuBackdrop" aria-hidden="true"></div>
@@ -3371,11 +3378,14 @@
       const MAX_ZOMBIE_COUNT = Number.MAX_SAFE_INTEGER;
       const INITIAL_ZOMBIE_KILL_REQUIREMENT = 2;
       const BASE_MAX_FOOD_COUNT = 3;
-      const UPGRADED_MAX_FOOD_COUNT = 5;
+      const UPGRADED_MAX_FOOD_COUNT = 10;
       const BASE_MAX_WOOD_COUNT = 10;
-      const UPGRADED_MAX_WOOD_COUNT = 15;
+      const UPGRADED_MAX_WOOD_COUNT = 30;
+      const BASE_MAX_STONE_COUNT = 5;
+      const UPGRADED_MAX_STONE_COUNT = 20;
       const STORAGE_MAX_FOOD_COUNT = UPGRADED_MAX_FOOD_COUNT;
       const STORAGE_MAX_WOOD_COUNT = UPGRADED_MAX_WOOD_COUNT;
+      const STORAGE_MAX_STONE_COUNT = UPGRADED_MAX_STONE_COUNT;
       const MAX_INVENTORY_QUANTITY = 99;
       const INVENTORY_ITEMS_PER_PAGE = 5;
       const INVENTORY_DOT_PAGE_LIMIT = 5;
@@ -3918,7 +3928,7 @@
         [SHED_REPAIR_BLUEPRINT_ID]: {
           name: "Shed Repair",
           materials: { wood: 7 },
-          builtDescription: "Get the old shed standing again.\nMax Food +2\nMax Wood +5"
+          builtDescription: "Get the old shed standing again.\nMax Food +7\nMax Wood +20\nMax Stone +15"
         },
         [CAR_REPAIR_BLUEPRINT_ID]: {
           name: "Car Repair",
@@ -4137,10 +4147,9 @@
       const entities = document.getElementById("entities");
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
-      const countElement = document.getElementById("zombieCount");
-      const zombieGoalElement = document.getElementById("zombieGoal");
       const foodCountElement = document.getElementById("foodCount");
       const woodCountElement = document.getElementById("woodCount");
+      const stoneCountElement = document.getElementById("stoneCount");
       const toastLayer = document.getElementById("toastLayer");
       const menuBackdrop = document.getElementById("menuBackdrop");
       const explorationOverlay = document.getElementById("explorationOverlay");
@@ -4603,10 +4612,9 @@
       let dayCount = 1;
       let rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
       let isRainyToday = false;
-      // 비가 온 날의 다음 날 낮에 좀비 처치 요구량을 2로 초기화합니다.
-      let zombieKillRequirementResetPending = false;
       let foodCount = 0;
       let woodCount = 0;
+      let stoneCount = 0;
       let hasAxe = false;
       let isAxeEquipped = false;
       let hasHandgun = false;
@@ -5011,6 +5019,12 @@
           : BASE_MAX_WOOD_COUNT;
       }
 
+      function getMaxStoneCount() {
+        return isShedRepaired()
+          ? UPGRADED_MAX_STONE_COUNT
+          : BASE_MAX_STONE_COUNT;
+      }
+
       function getMaxCarPartsCount() {
         return 3;
       }
@@ -5115,11 +5129,35 @@
         repairNewBadgeStateInitialized = true;
       }
 
-      function updateExploreNewBadgeState(animate = hasGameInitialized) {
+      function setExplorationStatusBadge(
+        badge,
+        status,
+        animate,
+        wasInitialized
+      ) {
+        if (!badge) return;
+
+        const normalizedStatus = status === "NEW" || status === "READY"
+          ? status
+          : "";
+        badge.textContent = normalizedStatus;
+        badge.classList.toggle("is-ready", normalizedStatus === "READY");
         setAnimatedNewBadgeVisibility(
+          badge,
+          normalizedStatus !== "",
+          wasInitialized && animate
+        );
+      }
+
+      function updateExploreNewBadgeState(animate = hasGameInitialized) {
+        const status = hasExploreButtonNew
+          ? "NEW"
+          : (hasAnyReadyExplorationDestination() ? "READY" : "");
+        setExplorationStatusBadge(
           exploreNewBadge,
-          hasExploreButtonNew,
-          exploreNewBadgeStateInitialized && animate
+          status,
+          animate,
+          exploreNewBadgeStateInitialized
         );
         exploreNewBadgeStateInitialized = true;
       }
@@ -5131,10 +5169,14 @@
         const badge = explorationOptionNewBadges[destination];
         if (!badge) return;
 
-        setAnimatedNewBadgeVisibility(
+        const status = explorationDestinationNewState[destination] === true
+          ? "NEW"
+          : (isExplorationDestinationReady(destination) ? "READY" : "");
+        setExplorationStatusBadge(
           badge,
-          explorationDestinationNewState[destination] === true,
-          explorationOptionNewBadgeStateInitialized[destination] && animate
+          status,
+          animate,
+          explorationOptionNewBadgeStateInitialized[destination]
         );
         explorationOptionNewBadgeStateInitialized[destination] = true;
       }
@@ -6210,6 +6252,7 @@
       function getRepairResourceAmount(resource) {
         if (resource === "wood") return woodCount;
         if (resource === "food") return foodCount;
+        if (resource === "stone") return stoneCount;
         if (resource === "carParts") return carPartsCount;
         if (resource === "flowers") return flowerCount;
         if (resource === "repairKit") return repairKitCount;
@@ -6220,6 +6263,7 @@
       function setRepairResourceAmount(resource, amount) {
         if (resource === "wood") woodCount = Math.max(0, amount);
         if (resource === "food") foodCount = Math.max(0, amount);
+        if (resource === "stone") stoneCount = Math.max(0, amount);
         if (resource === "carParts") carPartsCount = clamp(Math.round(Number(amount) || 0), 0, getMaxCarPartsCount());
         if (resource === "flowers") flowerCount = clamp(Math.round(Number(amount) || 0), 0, MAX_INVENTORY_QUANTITY);
         if (resource === "repairKit") repairKitCount = clamp(Math.round(Number(amount) || 0), 0, MAX_INVENTORY_QUANTITY);
@@ -6439,7 +6483,7 @@
             : "Shed Repair";
           if (shedRepairItem.built) {
             shedRepairItem.builtDescription =
-              "Get the old shed standing again.\nMax Food +2\nMax Wood +5";
+              "Get the old shed standing again.\nMax Food +7\nMax Wood +20\nMax Stone +15";
           }
         }
       }
@@ -6669,28 +6713,28 @@
           zombieKillRequirement = normalizeZombieKillRequirement(
             parsed.zombieKillRequirement
           );
-          zombieCount = Math.min(
-            normalizeStoredCount(parsed.zombies, MAX_ZOMBIE_COUNT),
-            zombieKillRequirement
-          );
           dayCount = normalizeDayCount(parsed.dayCount);
           rainChancePercent = normalizeRainChancePercent(
             parsed.rainChancePercent
           );
           isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
-          zombieKillRequirementResetPending =
-            Object.prototype.hasOwnProperty.call(
-              parsed,
-              "zombieKillRequirementResetPending"
-            )
-              ? parsed.zombieKillRequirementResetPending === true
-              : isRainyToday;
+          if (isRainyToday) {
+            zombieKillRequirement = INITIAL_ZOMBIE_KILL_REQUIREMENT;
+          }
+          zombieCount = Math.min(
+            normalizeStoredCount(parsed.zombies, MAX_ZOMBIE_COUNT),
+            zombieKillRequirement
+          );
           foodCount = normalizeStoredCount(parsed.food, STORAGE_MAX_FOOD_COUNT);
           // 테스트 모드에서 모든 설계도 제작 재료를 한 번에 지급하면
           // Wood가 일반 최대치를 넘을 수 있으므로 해당 저장값을 그대로 복원합니다.
           woodCount = normalizeStoredCount(
             parsed.wood,
             TEST_MODE ? MAX_INVENTORY_QUANTITY : STORAGE_MAX_WOOD_COUNT
+          );
+          stoneCount = normalizeStoredCount(
+            parsed.stone,
+            TEST_MODE ? MAX_INVENTORY_QUANTITY : STORAGE_MAX_STONE_COUNT
           );
           treeChopCount = clamp(
             Math.round(Number(parsed.treeChopCount) || 0),
@@ -6945,9 +6989,9 @@
               dayCount,
               rainChancePercent,
               isRainyToday,
-              zombieKillRequirementResetPending,
               food: foodCount,
               wood: woodCount,
+              stone: stoneCount,
               treeChopCount,
               treeGrowthState,
               hasAxe,
@@ -7056,19 +7100,33 @@
         });
       }
 
+      function updateWeatherLabel() {
+        if (!weatherLabel) return;
+        const shouldRain = dayCount > 1 && isRainyToday;
+        const remainingZombieKills = Math.max(
+          0,
+          zombieKillRequirement - zombieCount
+        );
+        weatherLabel.textContent = `${shouldRain ? "Rainy" : "Sunny"} ${remainingZombieKills}`;
+      }
+
       function updateResourceHud() {
-        countElement.textContent = String(zombieCount);
-        zombieGoalElement.textContent = String(zombieKillRequirement);
         foodCountElement.textContent = String(foodCount);
         woodCountElement.textContent = String(woodCount);
+        stoneCountElement.textContent = String(stoneCount);
         const foodContainer = foodCountElement.parentElement;
         const woodContainer = woodCountElement.parentElement;
+        const stoneContainer = stoneCountElement.parentElement;
         if (foodContainer && foodContainer.lastChild) {
           foodContainer.lastChild.textContent = `/${getMaxFoodCount()}`;
         }
         if (woodContainer && woodContainer.lastChild) {
           woodContainer.lastChild.textContent = `/${getMaxWoodCount()}`;
         }
+        if (stoneContainer && stoneContainer.lastChild) {
+          stoneContainer.lastChild.textContent = `/${getMaxStoneCount()}`;
+        }
+        updateWeatherLabel();
         updateExplorationRequirements();
       }
 
@@ -8517,9 +8575,7 @@
         const shouldRain = dayCount > 1 && isRainyToday;
         const wasRainy = document.body.classList.contains("is-rainy");
         document.body.classList.toggle("is-rainy", shouldRain);
-        if (weatherLabel) {
-          weatherLabel.textContent = shouldRain ? "Rainy" : "Sunny";
-        }
+        updateWeatherLabel();
 
         syncRainAmbientForWeather();
         if (wasRainy !== shouldRain) {
@@ -9063,16 +9119,13 @@
         explorationEndsAt = 0;
         explorationDepartureDay = 0;
         dayCount += 1;
-        const shouldResetZombieRequirementToday =
-          zombieKillRequirementResetPending;
         const isNewDayRainy = rollWeatherForNewDay();
 
-        // 비가 내린 당일에는 기존 증가 규칙을 유지하고,
-        // 비가 온 날의 다음 날 낮이 시작될 때 2마리로 초기화합니다.
-        zombieKillRequirement = shouldResetZombieRequirementToday
+        // 새 날에 비가 오면 당일 즉시 2마리로 초기화하고,
+        // 맑은 날이면 기존처럼 다음 소수로 증가시킵니다.
+        zombieKillRequirement = isNewDayRainy
           ? INITIAL_ZOMBIE_KILL_REQUIREMENT
           : getNextPrime(zombieKillRequirement);
-        zombieKillRequirementResetPending = isNewDayRainy;
 
         if (treeGrowthState === TREE_GROWTH_DEPLETED) {
           // 3번 베어 고갈된 뒤 첫 탐험 완료: 부분 회복
@@ -9100,6 +9153,7 @@
           setTodoProgress(1, "item3", true);
         } else if (completedDestination === "forest") {
           woodCount = Math.min(getMaxWoodCount(), woodCount + 10);
+          stoneCount = Math.min(getMaxStoneCount(), stoneCount + 3);
           setTodoProgress(3, "item3", true);
         }
 
@@ -9156,6 +9210,19 @@
         if (destination === "forest") return 3;
         if (destination === "city") return 5;
         return 0;
+      }
+
+      function isExplorationDestinationReady(destination) {
+        if (isExploring) return false;
+        if (zombieCount < zombieKillRequirement) return false;
+        if (!hasDestinationItems(destination)) return false;
+        return foodCount >= getDestinationFoodRequirement(destination);
+      }
+
+      function hasAnyReadyExplorationDestination() {
+        return ["village", "forest", "city"].some(
+          isExplorationDestinationReady
+        );
       }
 
 
@@ -9425,7 +9492,8 @@
         return hasAllCraftingMaterials &&
           zombieCount >= zombieKillRequirement &&
           foodCount >= getMaxFoodCount() &&
-          woodCount >= getMaxWoodCount();
+          woodCount >= getMaxWoodCount() &&
+          stoneCount >= getMaxStoneCount();
       }
 
       function fillResourcesForTest() {
@@ -9448,6 +9516,11 @@
           woodCount,
           getMaxWoodCount(),
           requiredMaterials.wood || 0
+        );
+        stoneCount = Math.max(
+          stoneCount,
+          getMaxStoneCount(),
+          requiredMaterials.stone || 0
         );
 
         applyAxeState();
