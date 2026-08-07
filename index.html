@@ -1821,6 +1821,7 @@
     }
 
     .repair-grid-item.is-new::before {
+      z-index: 3;
       border-color: #f6c062;
       background: #f6c062;
     }
@@ -2670,7 +2671,9 @@
       transform: translate(-50%, -50%);
       transform-origin: center center;
       will-change: left, top, opacity;
-      pointer-events: none;
+      cursor: pointer;
+      touch-action: none;
+      pointer-events: auto;
     }
 
     .dog::before {
@@ -2862,7 +2865,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.121"
+  data-game-version="0.122"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3380,6 +3383,16 @@
       const DOG_IDLE_MAX_DURATION_MS = 4_200;
       const DOG_BLOCKED_IDLE_MIN_DURATION_MS = 1200;
       const DOG_BLOCKED_IDLE_MAX_DURATION_MS = 2200;
+      const DOG_SIT_TRANSITION_FRAME_COUNT = 3;
+      const DOG_SIT_TRANSITION_FRAME_INTERVAL_MS = 100;
+      const DOG_SIT_IDLE_ROW_INDEX = 12;
+      const DOG_SIT_IDLE_FRAME_START_COLUMN = 0;
+      const DOG_SIT_IDLE_PINGPONG_SEQUENCE = Object.freeze([
+        0, 1, 2, 3, 4, 5, 4, 3, 2, 1
+      ]);
+      const DOG_SIT_IDLE_FRAME_INTERVAL_MS = 100;
+      const DOG_SIT_MIN_DURATION_MS = 3_000;
+      const DOG_SIT_MAX_DURATION_MS = 7_000;
 
       /*
         이동 방향 인덱스는 화면 좌표 기준 시계 방향 16개입니다.
@@ -3404,6 +3417,29 @@
         Object.freeze({ rowIndex: 1, flipX: false }),
         Object.freeze({ rowIndex: 2, flipX: false }),
         Object.freeze({ rowIndex: 3, flipX: false })
+      ]);
+
+      /*
+        클릭 앉기 전환은 10~12번째 줄의 3프레임 묶음을 사용합니다.
+        서쪽 계열 7방향은 대응하는 동쪽 계열 전환을 좌우 반전합니다.
+      */
+      const DOG_SIT_TRANSITION_ANIMATIONS = Object.freeze([
+        Object.freeze({ rowIndex: 10, startColumn: 3, flipX: false }), // E
+        Object.freeze({ rowIndex: 10, startColumn: 6, flipX: false }), // SEE
+        Object.freeze({ rowIndex: 11, startColumn: 0, flipX: false }), // SE
+        Object.freeze({ rowIndex: 11, startColumn: 3, flipX: false }), // SSE
+        Object.freeze({ rowIndex: 11, startColumn: 6, flipX: false }), // S
+        Object.freeze({ rowIndex: 11, startColumn: 3, flipX: true }),  // SSW
+        Object.freeze({ rowIndex: 11, startColumn: 0, flipX: true }),  // SW
+        Object.freeze({ rowIndex: 10, startColumn: 6, flipX: true }),  // SWW
+        Object.freeze({ rowIndex: 10, startColumn: 3, flipX: true }),  // W
+        Object.freeze({ rowIndex: 10, startColumn: 0, flipX: true }),  // NWW
+        Object.freeze({ rowIndex: 9, startColumn: 6, flipX: true }),   // NW
+        Object.freeze({ rowIndex: 9, startColumn: 3, flipX: true }),   // NNW
+        Object.freeze({ rowIndex: 9, startColumn: 0, flipX: false }),  // N
+        Object.freeze({ rowIndex: 9, startColumn: 3, flipX: false }),  // NNE
+        Object.freeze({ rowIndex: 9, startColumn: 6, flipX: false }),  // NE
+        Object.freeze({ rowIndex: 10, startColumn: 0, flipX: false })  // NEE
       ]);
 
       // 좀비는 현재 필드 클리어에 필요한 수까지만 생성합니다.
@@ -12779,15 +12815,58 @@
         return `${xPercent}% ${yPercent}%`;
       }
 
-      function getDogDirectionAnimation(angle) {
-        const movementDirection = (
+      function getDogMovementDirectionIndex(angle) {
+        return (
           Math.round(normalizeDogAngle(angle) / DOG_TURN_STEP_RAD) +
           DOG_MOVEMENT_DIRECTION_COUNT
         ) % DOG_MOVEMENT_DIRECTION_COUNT;
-        return DOG_DIRECTION_ANIMATIONS[movementDirection];
       }
 
-      function getDogCurrentFrameIndex(activeDog) {
+      function getDogDirectionAnimation(angle) {
+        return DOG_DIRECTION_ANIMATIONS[getDogMovementDirectionIndex(angle)];
+      }
+
+      function getDogSitTransitionAnimation(angle) {
+        return DOG_SIT_TRANSITION_ANIMATIONS[
+          getDogMovementDirectionIndex(angle)
+        ];
+      }
+
+      function getDogRenderFrame(activeDog) {
+        if (activeDog.state === "sitDown" || activeDog.state === "standUp") {
+          const animation = getDogSitTransitionAnimation(activeDog.angle);
+          const transitionFrame = activeDog.state === "standUp"
+            ? DOG_SIT_TRANSITION_FRAME_COUNT - 1 - activeDog.animationFrame
+            : activeDog.animationFrame;
+          return {
+            frameIndex:
+              animation.rowIndex * DOG_SHEET_COLUMNS +
+              animation.startColumn +
+              clamp(
+                transitionFrame,
+                0,
+                DOG_SIT_TRANSITION_FRAME_COUNT - 1
+              ),
+            flipX: animation.flipX
+          };
+        }
+
+        if (activeDog.state === "sitIdle") {
+          const movementDirection = getDogMovementDirectionIndex(activeDog.angle);
+          // 앉기 idle 원본은 좌우 두 방향만 사용합니다.
+          // S와 서쪽 계열 7방향은 좌우 반전합니다.
+          const flipX = movementDirection >= 4 && movementDirection <= 11;
+          const columnIndex =
+            DOG_SIT_IDLE_FRAME_START_COLUMN +
+            DOG_SIT_IDLE_PINGPONG_SEQUENCE[
+              activeDog.animationFrame % DOG_SIT_IDLE_PINGPONG_SEQUENCE.length
+            ];
+          return {
+            frameIndex: DOG_SIT_IDLE_ROW_INDEX * DOG_SHEET_COLUMNS + columnIndex,
+            flipX
+          };
+        }
+
         const animation = getDogDirectionAnimation(activeDog.angle);
         const rowStart = animation.rowIndex * DOG_SHEET_COLUMNS;
         const columnIndex = activeDog.state === "idle"
@@ -12797,15 +12876,17 @@
             ]
           : DOG_RUN_FRAME_START_COLUMN +
             (activeDog.animationFrame % DOG_RUN_FRAME_COUNT);
-        return rowStart + columnIndex;
+        return {
+          frameIndex: rowStart + columnIndex,
+          flipX: animation.flipX
+        };
       }
 
       function showDogFrame(activeDog) {
-        const animation = getDogDirectionAnimation(activeDog.angle);
-        const frameIndex = getDogCurrentFrameIndex(activeDog);
-        const position = dogFramePosition(frameIndex);
-        const transform = animation.flipX ? "scaleX(-1)" : "scaleX(1)";
-        const renderKey = `${activeDog.state}|${frameIndex}|${transform}`;
+        const renderFrame = getDogRenderFrame(activeDog);
+        const position = dogFramePosition(renderFrame.frameIndex);
+        const transform = renderFrame.flipX ? "scaleX(-1)" : "scaleX(1)";
+        const renderKey = `${activeDog.state}|${renderFrame.frameIndex}|${transform}`;
 
         if (activeDog.renderKey === renderKey) return;
         activeDog.renderKey = renderKey;
@@ -12838,6 +12919,65 @@
           DOG_BLOCKED_IDLE_MIN_DURATION_MS,
           DOG_BLOCKED_IDLE_MAX_DURATION_MS
         );
+      }
+
+      function getRandomDogSitDuration() {
+        return randomBetween(DOG_SIT_MIN_DURATION_MS, DOG_SIT_MAX_DURATION_MS);
+      }
+
+      function startDogSitDown(activeDog, now = performance.now()) {
+        activeDog.state = "sitDown";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.turnHoldUntil = 0;
+        activeDog.renderKey = "";
+      }
+
+      function startDogSitIdle(
+        activeDog,
+        now = performance.now(),
+        duration = getRandomDogSitDuration()
+      ) {
+        activeDog.state = "sitIdle";
+        activeDog.stateUntil = now + duration;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function refreshDogSitIdleDuration(activeDog, now = performance.now()) {
+        activeDog.stateUntil = now + getRandomDogSitDuration();
+        activeDog.lastStateChangeAt = now;
+      }
+
+      function startDogStandUp(activeDog, now = performance.now()) {
+        activeDog.state = "standUp";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function activateDog(activeDog, now = performance.now()) {
+        if (!activeDog) return false;
+
+        // 앉거나 일어나는 전환 중에는 재입력을 소비하되 상태는 바꾸지 않습니다.
+        if (activeDog.state === "sitDown" || activeDog.state === "standUp") {
+          return true;
+        }
+
+        if (activeDog.state === "sitIdle") {
+          refreshDogSitIdleDuration(activeDog, now);
+          return true;
+        }
+
+        startDogSitDown(activeDog, now);
+        showDogFrame(activeDog);
+        return true;
       }
 
       function startDogRun(activeDog, now = performance.now()) {
@@ -12968,6 +13108,64 @@
       }
 
       function updateDog(activeDog, deltaMs, now) {
+        if (activeDog.state === "sitDown") {
+          activeDog.animationElapsed += deltaMs;
+          while (
+            activeDog.animationElapsed >= DOG_SIT_TRANSITION_FRAME_INTERVAL_MS &&
+            activeDog.state === "sitDown"
+          ) {
+            activeDog.animationElapsed -= DOG_SIT_TRANSITION_FRAME_INTERVAL_MS;
+            activeDog.animationFrame += 1;
+            if (activeDog.animationFrame >= DOG_SIT_TRANSITION_FRAME_COUNT) {
+              startDogSitIdle(activeDog, now);
+            }
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "sitIdle") {
+          if (now >= activeDog.stateUntil) {
+            startDogStandUp(activeDog, now);
+          } else {
+            activeDog.animationElapsed += deltaMs;
+            if (activeDog.animationElapsed >= DOG_SIT_IDLE_FRAME_INTERVAL_MS) {
+              const advancedFrames = Math.floor(
+                activeDog.animationElapsed / DOG_SIT_IDLE_FRAME_INTERVAL_MS
+              );
+              activeDog.animationElapsed %= DOG_SIT_IDLE_FRAME_INTERVAL_MS;
+              activeDog.animationFrame = (
+                activeDog.animationFrame + advancedFrames
+              ) % DOG_SIT_IDLE_PINGPONG_SEQUENCE.length;
+            }
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "standUp") {
+          activeDog.animationElapsed += deltaMs;
+          while (
+            activeDog.animationElapsed >= DOG_SIT_TRANSITION_FRAME_INTERVAL_MS &&
+            activeDog.state === "standUp"
+          ) {
+            activeDog.animationElapsed -= DOG_SIT_TRANSITION_FRAME_INTERVAL_MS;
+            activeDog.animationFrame += 1;
+            if (activeDog.animationFrame >= DOG_SIT_TRANSITION_FRAME_COUNT) {
+              startDogRun(activeDog, now);
+              chooseNextDogWaypoint(activeDog);
+            }
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
         if (activeDog.state === "idle") {
           if (now >= activeDog.stateUntil) {
             startDogRun(activeDog, now);
@@ -13098,6 +13296,10 @@
 
         showDogFrame(dog);
         renderDog(dog);
+
+        element.addEventListener("pointerdown", startFieldEntityPress);
+        element.addEventListener("pointerup", activatePressedFieldEntity);
+
         return true;
       }
 
@@ -13300,6 +13502,13 @@
         return candidates.sort((a, b) => b.y - a.y || b.id - a.id)[0] || null;
       }
 
+      function getDogAtClientPoint(clientX, clientY) {
+        if (!dog || !(dog.element instanceof Element)) return null;
+        return isClientPointInsideElement(clientX, clientY, dog.element)
+          ? dog
+          : null;
+      }
+
       function clearFieldEntityPressState(pointerId = null) {
         if (
           pointerId !== null &&
@@ -13318,7 +13527,8 @@
       function startFieldEntityPress(event) {
         if (event.button !== undefined && event.button !== 0) return;
 
-        // 겹친 위치에서는 기존 규칙대로 살아 있는 좀비를 사슴보다 우선합니다.
+        // 겹친 위치에서는 기존 좀비 > 사슴 순서를 유지하고 개를 그다음으로 처리합니다.
+        // 이 좌표 판정은 표시 레이어와 독립적이라 자동차·창고 뒤의 엔티티도 우선 입력됩니다.
         const zombie = getLivingZombieAtClientPoint(
           event.clientX,
           event.clientY
@@ -13326,16 +13536,27 @@
         const deer = zombie
           ? null
           : getLivingDeerAtClientPoint(event.clientX, event.clientY);
+        const pressedDog = zombie || deer
+          ? null
+          : getDogAtClientPoint(event.clientX, event.clientY);
 
-        if (!zombie && !deer) {
+        if (!zombie && !deer && !pressedDog) {
           clearFieldEntityPressState();
           return;
         }
 
         fieldEntityPressState.active = true;
         fieldEntityPressState.pointerId = event.pointerId;
-        fieldEntityPressState.entityType = zombie ? "zombie" : "deer";
-        fieldEntityPressState.entityId = zombie ? zombie.id : deer.id;
+        fieldEntityPressState.entityType = zombie
+          ? "zombie"
+          : deer
+            ? "deer"
+            : "dog";
+        fieldEntityPressState.entityId = zombie
+          ? zombie.id
+          : deer
+            ? deer.id
+            : null;
       }
 
       function activatePressedFieldEntity(event) {
@@ -13343,7 +13564,7 @@
           !fieldEntityPressState.active ||
           event.pointerId !== fieldEntityPressState.pointerId
         ) {
-          return;
+          return false;
         }
 
         const entityType = fieldEntityPressState.entityType;
@@ -13351,20 +13572,27 @@
         clearFieldEntityPressState(event.pointerId);
 
         // 뗀 위치가 이동한 엔티티 위인지 다시 검사하지 않고 드래그 여부만 확인합니다.
-        if (!shouldActivateFieldObject(event, null)) return;
+        if (!shouldActivateFieldObject(event, null)) return false;
 
         event.preventDefault();
 
         if (entityType === "zombie") {
           const zombie = zombies.get(entityId);
           if (zombie) attackZombie(zombie);
-          return;
+          return true;
         }
 
         if (entityType === "deer") {
           const deer = deerMap.get(entityId);
           if (deer) attackDeer(deer);
+          return true;
         }
+
+        if (entityType === "dog") {
+          return activateDog(dog, performance.now());
+        }
+
+        return false;
       }
 
       function createDeer(options = {}) {
@@ -15490,7 +15718,9 @@
         playTreeChopAnimation(event);
       });
       treeHitArea.addEventListener("keydown", handleTreeKeydown);
+      shedObject.addEventListener("pointerdown", startFieldEntityPress);
       shedObject.addEventListener("pointerup", (event) => {
+        if (activatePressedFieldEntity(event)) return;
         if (!shouldActivateFieldObject(event, shedObject)) return;
         if (isShedRepaired()) {
           handleStructureInteraction(event, SHED_REPAIRED_TOAST_MESSAGE, SHED_OLD_SOUND);
@@ -15508,8 +15738,10 @@
         }
         handleStructureKeydown(event, isShedRepaired() ? SHED_REPAIRED_TOAST_MESSAGE : SHED_REPAIR_TOAST_MESSAGE, SHED_OLD_SOUND);
       });
+      carObject.addEventListener("pointerdown", startFieldEntityPress);
       carObject.addEventListener("pointerup", (event) => {
         if (isCarTraveling) return;
+        if (activatePressedFieldEntity(event)) return;
         if (!shouldActivateFieldObject(event, carObject)) return;
         handleStructureInteraction(
           event,
