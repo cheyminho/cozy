@@ -2883,7 +2883,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.124"
+  data-game-version="0.125"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3977,6 +3977,7 @@
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE = "Need a gun.";
+      const SUPPLY_BOX_STEADY_TOAST_MESSAGE = "Steady...";
       const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
       const TREE_GROW_TOAST_MESSAGE = "Let it grow.";
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
@@ -14612,6 +14613,7 @@
           supplyBox.state === "flying" &&
           !isSupplyBoxShootXAllowed(supplyBox, supplyBox.x)
         ) {
+          showToast(SUPPLY_BOX_STEADY_TOAST_MESSAGE);
           return null;
         }
         return supplyBox;
