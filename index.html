@@ -2862,7 +2862,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.120"
+  data-game-version="0.121"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -16014,8 +16014,10 @@
           startChainsawBatteryDrain();
           startChainsawIdleSound();
         }
-        restoreStoredPopulation();
+        // 드래그 가능한 전체 생성 영역을 먼저 계산한 뒤 저장 개체를 복원합니다.
+        // 그래야 새로고침 복원에서도 확장 생성 범위와 가장자리 20px inset이 정확히 적용됩니다.
         updateWorldScale();
+        restoreStoredPopulation();
         createDog(isDogEnabledByTest);
         initializeClouds();
         startSpawner();
