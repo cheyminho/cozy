@@ -866,6 +866,54 @@
       z-index: 18;
     }
 
+    /* 서플라이 박스 그림자는 모든 구조물보다 아래에서 독립적으로 표시합니다. */
+    #supplyBoxShadowLayer,
+    #supplyBoxLayer {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+    }
+
+    #supplyBoxShadowLayer {
+      /* #props(구조물)가 z-index: 2이므로 그림자는 확실히 그 아래에 둡니다. */
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* 비행 중이거나 낙하 중인 박스는 구조물보다 위에 표시합니다. */
+    #supplyBoxLayer {
+      z-index: 19;
+      pointer-events: none;
+    }
+
+    .supply-box,
+    .supply-box-shadow {
+      position: absolute;
+      background-image: url("images/supplybox.png");
+      background-repeat: no-repeat;
+      background-size: 268.8px 179.2px;
+      will-change: left, top, opacity, transform;
+    }
+
+    .supply-box {
+      pointer-events: none;
+    }
+
+    .supply-box-hit-area {
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .supply-box-shadow {
+      pointer-events: none;
+      opacity: 1;
+    }
+
     .zombie-falling-part {
       position: absolute;
       width: 32px;
@@ -1777,42 +1825,12 @@
     }
 
     /*
-      획득했지만 아직 제작하지 않은 설계도는 선택 전 점선 외곽선으로 표시합니다.
-      --dash-length와 --dash-gap 값으로 점선 길이와 간격을 직접 조절할 수 있습니다.
+      획득했지만 아직 제작하지 않은 설계도도 점선 없이 실선 외곽선을 유지합니다.
     */
     .repair-grid-item.is-uncrafted:not(.is-selected):not(.is-new)::before {
-      --dash-length: 5px;
-      --dash-gap: 3px;
-      --dash-thickness: 1px;
-	  
-	  opacity: 0.5;
-
-      border-color: transparent;
-      background:
-        repeating-linear-gradient(
-          to right,
-          #fff 0 var(--dash-length),
-          transparent var(--dash-length)
-            calc(var(--dash-length) + var(--dash-gap))
-        ) left top / 100% var(--dash-thickness) no-repeat,
-        repeating-linear-gradient(
-          to right,
-          #fff 0 var(--dash-length),
-          transparent var(--dash-length)
-            calc(var(--dash-length) + var(--dash-gap))
-        ) left bottom / 100% var(--dash-thickness) no-repeat,
-        repeating-linear-gradient(
-          to bottom,
-          #fff 0 var(--dash-length),
-          transparent var(--dash-length)
-            calc(var(--dash-length) + var(--dash-gap))
-        ) left top / var(--dash-thickness) 100% no-repeat,
-        repeating-linear-gradient(
-          to bottom,
-          #fff 0 var(--dash-length),
-          transparent var(--dash-length)
-            calc(var(--dash-length) + var(--dash-gap))
-        ) right top / var(--dash-thickness) 100% no-repeat;
+      opacity: 0.5;
+      border-color: #fff;
+      background: transparent;
     }
 
     .repair-grid-item.is-selected::before {
@@ -2865,7 +2883,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.123"
+  data-game-version="0.124"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2979,6 +2997,7 @@
           ></div>
         </div>
       </div>
+      <div id="supplyBoxShadowLayer" aria-hidden="true"></div>
       <div
         id="treeHitArea"
         class="world-interactive"
@@ -3013,6 +3032,7 @@
       <div id="treePartLayer" aria-hidden="true"></div>
       <div id="zombiePartShadowLayer" aria-hidden="true"></div>
       <div id="zombiePartLayer" aria-hidden="true"></div>
+      <div id="supplyBoxLayer" aria-hidden="true"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
@@ -3732,6 +3752,28 @@
       const TREE_DAY_STAGE_TWO_IMAGE = "images/bg_tree_2.png";
       const TREE_DAY_STAGE_THREE_IMAGE = "images/bg_tree_3.png";
       const TREE_PART_IMAGE = "images/bg_tree_part.png";
+      const SUPPLY_BOX_IMAGE = "images/supplybox.png";
+      const SUPPLY_BOX_BROKEN_IMAGE = "images/supplybox_broken.png";
+
+      const SUPPLY_BOX_SPAWN_INTERVAL_MS = 3 * 60 * 1000;
+      const SUPPLY_BOX_SCALE = 0.7;
+      const SUPPLY_BOX_SPEED_PX_PER_MS = 0.03;
+      const SUPPLY_BOX_FLYING_WIDTH = 128 * SUPPLY_BOX_SCALE;
+      const SUPPLY_BOX_FLYING_HEIGHT = 256 * SUPPLY_BOX_SCALE;
+      const SUPPLY_BOX_FALLEN_SIZE = 128 * SUPPLY_BOX_SCALE;
+      const SUPPLY_BOX_FLYING_SHADOW_WIDTH = 256 * SUPPLY_BOX_SCALE;
+      const SUPPLY_BOX_FLYING_SHADOW_HEIGHT = 128 * SUPPLY_BOX_SCALE;
+      const SUPPLY_BOX_DROP_OFFSET_Y = 170;
+      const SUPPLY_BOX_FLYING_OFFSET_Y = 420;
+      const SUPPLY_BOX_FLYING_SHADOW_OFFSET_X = 150;
+      const SUPPLY_BOX_FLYING_SHADOW_OFFSET_Y = -28;
+      const SUPPLY_BOX_FALL_DURATION_MS = 620;
+      const SUPPLY_BOX_BOUNCE_DURATION_MS = 320;
+      const SUPPLY_BOX_BOUNCE_HEIGHT_PX = 20;
+      const SUPPLY_BOX_SHADOW_ENTRY_OFFSET_X = 150;
+      const SUPPLY_BOX_CLICK_PADDING = 0;
+      const SUPPLY_BOX_BROKEN_HOLD_MS = 1_000;
+      const SUPPLY_BOX_BROKEN_FADE_MS = 2_000;
 
       // 좀비와 사슴 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
       const PRELOADED_ZOMBIE_IMAGES = new Map();
@@ -3766,6 +3808,8 @@
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
       const EXPLORING_FOOTSTEPS_SOUND =
         "sounds/sfx_exploringfootsteps.wav";
+      const SUPPLY_BOX_DROP_SOUND = "sounds/sfx_supplybox_drop.wav";
+      const SUPPLY_BOX_OPEN_SOUND = "sounds/sfx_supplybox_open.wav";
 
       const CAR_TRAVEL_DURATION_MS = 5_000;
       const CAR_DRIVE_FRAME_INTERVAL_MS = 150;
@@ -3932,6 +3976,7 @@
       const TREE_GROWTH_REGROWING_HOLD = "regrowingHold";
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
+      const SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE = "Need a gun.";
       const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
       const TREE_GROW_TOAST_MESSAGE = "Let it grow.";
       const EXPLORE_BLOCKED_TOAST_MESSAGE =
@@ -4285,6 +4330,8 @@
       const entitiesFrontStructures = document.getElementById("entitiesFrontStructures");
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
+      const supplyBoxShadowLayer = document.getElementById("supplyBoxShadowLayer");
+      const supplyBoxLayer = document.getElementById("supplyBoxLayer");
       const foodCountElement = document.getElementById("foodCount");
       const woodCountElement = document.getElementById("woodCount");
       const stoneCountElement = document.getElementById("stoneCount");
@@ -4880,7 +4927,9 @@
       let storedPopulationSnapshot = null;
       let lastZombieSpawnAt = Date.now();
       let lastDeerSpawnAt = Date.now();
+      let lastSupplyBoxSpawnAt = Date.now();
       let zombieSpawnTimerId = null;
+      let supplyBoxSpawnTimerId = null;
       let hasGameInitialized = false;
       let deerSpawnTimerId = null;
       let populationTimersPausedForBackground = false;
@@ -4941,6 +4990,8 @@
 
       const birds = [];
       let firstKillBirdFlockPlayed = false;
+      let nextSupplyBoxId = 1;
+      let supplyBox = null;
       let skipFirstStartSequence = false;
       let ambientBirdTimer = null;
 
@@ -7256,6 +7307,9 @@
           lastDeerSpawnAt = Number.isFinite(Number(parsed.lastDeerSpawnAt))
             ? Math.max(0, Number(parsed.lastDeerSpawnAt))
             : savedAt;
+          lastSupplyBoxSpawnAt = Number.isFinite(Number(parsed.lastSupplyBoxSpawnAt))
+            ? Math.max(0, Number(parsed.lastSupplyBoxSpawnAt))
+            : savedAt;
           storedPopulationSnapshot = {
             savedAt,
             explorationEndsAt,
@@ -7378,6 +7432,7 @@
               activeDeer: getLivingDeerCount(),
               lastZombieSpawnAt,
               lastDeerSpawnAt,
+              lastSupplyBoxSpawnAt,
               savedAt: Date.now()
             })
           );
@@ -9867,6 +9922,7 @@
         // 새로고침이나 재접속 후에도 다시 나타나도록 활성 상태를 저장합니다.
         isDogEnabledByTest = true;
         createDog(true);
+        spawnOrReplaceSupplyBox({ resetTimer: true });
 
         commitResourceState();
       }
@@ -9910,6 +9966,31 @@
 
       function easeOutSine(progress) {
         return Math.sin((clamp(progress, 0, 1) * Math.PI) / 2);
+      }
+
+      function easeInQuad(progress) {
+        const clamped = clamp(progress, 0, 1);
+        return clamped * clamped;
+      }
+
+      function easeOutBounce(progress) {
+        const clamped = clamp(progress, 0, 1);
+        const n1 = 7.5625;
+        const d1 = 2.75;
+
+        if (clamped < 1 / d1) {
+          return n1 * clamped * clamped;
+        }
+        if (clamped < 2 / d1) {
+          const value = clamped - 1.5 / d1;
+          return n1 * value * value + 0.75;
+        }
+        if (clamped < 2.5 / d1) {
+          const value = clamped - 2.25 / d1;
+          return n1 * value * value + 0.9375;
+        }
+        const value = clamped - 2.625 / d1;
+        return n1 * value * value + 0.984375;
       }
 
       function preloadImage(path) {
@@ -13528,36 +13609,46 @@
       function startFieldEntityPress(event) {
         if (event.button !== undefined && event.button !== 0) return;
 
-        // 겹친 위치에서는 기존 좀비 > 사슴 순서를 유지하고 개를 그다음으로 처리합니다.
-        // 이 좌표 판정은 표시 레이어와 독립적이라 자동차·창고 뒤의 엔티티도 우선 입력됩니다.
-        const zombie = getLivingZombieAtClientPoint(
+        // 겹친 위치에서는 떨어진 서플라이 박스를 최우선으로 처리하고,
+        // 그다음 순서를 기존 좀비 > 사슴 > 개로 유지합니다.
+        const pressedSupplyBox = getSupplyBoxAtClientPoint(
           event.clientX,
           event.clientY
         );
-        const deer = zombie
+        const zombie = pressedSupplyBox
+          ? null
+          : getLivingZombieAtClientPoint(
+              event.clientX,
+              event.clientY
+            );
+        const deer = pressedSupplyBox || zombie
           ? null
           : getLivingDeerAtClientPoint(event.clientX, event.clientY);
-        const pressedDog = zombie || deer
+        const pressedDog = pressedSupplyBox || zombie || deer
           ? null
           : getDogAtClientPoint(event.clientX, event.clientY);
 
-        if (!zombie && !deer && !pressedDog) {
+        if (!pressedSupplyBox && !zombie && !deer && !pressedDog) {
           clearFieldEntityPressState();
           return;
         }
 
         fieldEntityPressState.active = true;
         fieldEntityPressState.pointerId = event.pointerId;
-        fieldEntityPressState.entityType = zombie
-          ? "zombie"
-          : deer
-            ? "deer"
-            : "dog";
-        fieldEntityPressState.entityId = zombie
-          ? zombie.id
-          : deer
-            ? deer.id
-            : null;
+        fieldEntityPressState.entityType = pressedSupplyBox
+          ? "supplyBox"
+          : zombie
+            ? "zombie"
+            : deer
+              ? "deer"
+              : "dog";
+        fieldEntityPressState.entityId = pressedSupplyBox
+          ? pressedSupplyBox.id
+          : zombie
+            ? zombie.id
+            : deer
+              ? deer.id
+              : null;
       }
 
       function activatePressedFieldEntity(event) {
@@ -13576,6 +13667,13 @@
         if (!shouldActivateFieldObject(event, null)) return false;
 
         event.preventDefault();
+
+        if (entityType === "supplyBox") {
+          if (supplyBox && supplyBox.id === entityId) {
+            return activateSupplyBox(supplyBox);
+          }
+          return false;
+        }
 
         if (entityType === "zombie") {
           const zombie = zombies.get(entityId);
@@ -14257,6 +14355,481 @@
         }
 
         return true;
+      }
+
+      function getSupplyBoxSpawnZone() {
+        return getDraggableViewSpawnZone();
+      }
+
+      function subtractForbiddenSupplyBoxRange(ranges, forbiddenStart, forbiddenEnd) {
+        const nextRanges = [];
+        for (const range of ranges) {
+          if (forbiddenEnd <= range.start || forbiddenStart >= range.end) {
+            nextRanges.push(range);
+            continue;
+          }
+          if (forbiddenStart > range.start) {
+            nextRanges.push({ start: range.start, end: forbiddenStart });
+          }
+          if (forbiddenEnd < range.end) {
+            nextRanges.push({ start: forbiddenEnd, end: range.end });
+          }
+        }
+        return nextRanges.filter((range) => range.end - range.start >= 1);
+      }
+
+      function getSupplyBoxShootRanges(spawnZone, landingY) {
+        let ranges = [{
+          start: spawnZone.left,
+          end: spawnZone.right - SUPPLY_BOX_FALLEN_SIZE
+        }];
+
+        for (const zone of getDeerSafeZones()) {
+          const overlapsVertically = !(
+            landingY + SUPPLY_BOX_FALLEN_SIZE <= zone.top ||
+            landingY >= zone.bottom
+          );
+          if (!overlapsVertically) continue;
+
+          const forbiddenStart = zone.left - SUPPLY_BOX_FALLEN_SIZE;
+          const forbiddenEnd = zone.right;
+          ranges = subtractForbiddenSupplyBoxRange(
+            ranges,
+            forbiddenStart,
+            forbiddenEnd
+          );
+          if (ranges.length === 0) {
+            break;
+          }
+        }
+
+        return ranges;
+      }
+
+      function getSupplyBoxLandingPosition() {
+        const spawnZone = getSupplyBoxSpawnZone();
+        const minY = Math.max(
+          spawnZone.top + SUPPLY_BOX_FLYING_OFFSET_Y,
+          spawnZone.top + SUPPLY_BOX_FALLEN_SIZE,
+          spawnZone.top + 28
+        );
+        const maxY = spawnZone.bottom - SUPPLY_BOX_FALLEN_SIZE;
+
+        if (spawnZone.right - SUPPLY_BOX_FALLEN_SIZE < spawnZone.left || maxY < minY) {
+          return null;
+        }
+
+        for (let attempt = 0; attempt < 500; attempt += 1) {
+          const y = minY + Math.random() * (maxY - minY);
+          const shootRanges = getSupplyBoxShootRanges(spawnZone, y);
+          if (shootRanges.length > 0) {
+            return { y, spawnZone, shootRanges };
+          }
+        }
+
+        const fallbackShootRanges = getSupplyBoxShootRanges(spawnZone, minY);
+        if (fallbackShootRanges.length > 0) {
+          return { y: minY, spawnZone, shootRanges: fallbackShootRanges };
+        }
+        return null;
+      }
+
+      function isSupplyBoxShootXAllowed(activeSupplyBox, x) {
+        return activeSupplyBox.shootRanges.some(
+          (range) => x >= range.start && x <= range.end
+        );
+      }
+
+      function ensureSupplyBoxParent(activeSupplyBox, targetLayer) {
+        if (!activeSupplyBox || !activeSupplyBox.element || !targetLayer) return;
+        if (activeSupplyBox.element.parentElement !== targetLayer) {
+          targetLayer.appendChild(activeSupplyBox.element);
+        }
+      }
+
+      function renderSupplyBox(activeSupplyBox) {
+        if (!activeSupplyBox) return;
+
+        if (
+          activeSupplyBox.state === "landed" ||
+          activeSupplyBox.state === "broken"
+        ) {
+          updateEntityTreeDepth(
+            activeSupplyBox.element,
+            activeSupplyBox.x + SUPPLY_BOX_FALLEN_SIZE / 2,
+            activeSupplyBox.y + SUPPLY_BOX_FALLEN_SIZE,
+            activeSupplyBox.y + SUPPLY_BOX_FALLEN_SIZE
+          );
+        } else {
+          ensureSupplyBoxParent(activeSupplyBox, supplyBoxLayer);
+        }
+
+        activeSupplyBox.element.style.left = `${activeSupplyBox.x}px`;
+        activeSupplyBox.element.style.top = `${activeSupplyBox.y}px`;
+        activeSupplyBox.shadowElement.style.left = `${activeSupplyBox.shadowX}px`;
+        activeSupplyBox.shadowElement.style.top = `${activeSupplyBox.shadowY}px`;
+        activeSupplyBox.shadowElement.style.opacity = String(activeSupplyBox.shadowOpacity);
+      }
+
+      function setSupplyBoxFlyingVisual(activeSupplyBox) {
+        activeSupplyBox.element.className = "supply-box is-flying";
+        activeSupplyBox.element.style.width = `${SUPPLY_BOX_FLYING_WIDTH}px`;
+        activeSupplyBox.element.style.height = `${SUPPLY_BOX_FLYING_HEIGHT}px`;
+        activeSupplyBox.element.style.backgroundPosition = "0px 0px";
+        activeSupplyBox.element.style.zIndex = "1";
+        activeSupplyBox.hitArea.style.width = `${128 * SUPPLY_BOX_SCALE}px`;
+        activeSupplyBox.hitArea.style.height = `${128 * SUPPLY_BOX_SCALE}px`;
+        activeSupplyBox.hitArea.style.pointerEvents = "auto";
+
+        activeSupplyBox.shadowElement.className = "supply-box-shadow is-flying-shadow";
+        activeSupplyBox.shadowElement.style.width = `${SUPPLY_BOX_FLYING_SHADOW_WIDTH}px`;
+        activeSupplyBox.shadowElement.style.height = `${SUPPLY_BOX_FLYING_SHADOW_HEIGHT}px`;
+        activeSupplyBox.shadowElement.style.backgroundPosition = "-89.6px -89.6px";
+      }
+
+      function setSupplyBoxFallenVisual(activeSupplyBox) {
+        activeSupplyBox.element.className = "supply-box is-fallen";
+        activeSupplyBox.element.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.element.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.element.style.backgroundPosition = "-89.6px 0px";
+        activeSupplyBox.hitArea.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.hitArea.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.hitArea.style.pointerEvents = "auto";
+
+        activeSupplyBox.shadowElement.className = "supply-box-shadow is-fallen-shadow";
+        activeSupplyBox.shadowElement.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.shadowElement.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.shadowElement.style.backgroundPosition = "-179.2px 0px";
+      }
+
+      function setSupplyBoxBrokenVisual(activeSupplyBox) {
+        activeSupplyBox.element.className = "supply-box is-broken";
+        activeSupplyBox.element.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.element.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.element.style.backgroundImage = `url("${SUPPLY_BOX_BROKEN_IMAGE}")`;
+        activeSupplyBox.element.style.backgroundSize = `${SUPPLY_BOX_FALLEN_SIZE}px ${SUPPLY_BOX_FALLEN_SIZE}px`;
+        activeSupplyBox.element.style.backgroundPosition = "0px 0px";
+        activeSupplyBox.element.style.opacity = "1";
+        activeSupplyBox.hitArea.style.pointerEvents = "none";
+      }
+
+      function removeSupplyBox() {
+        if (!supplyBox) return;
+        if (fieldEntityPressState.entityType === "supplyBox") {
+          clearFieldEntityPressState();
+        }
+        supplyBox.element.remove();
+        supplyBox.shadowElement.remove();
+        supplyBox = null;
+      }
+
+      function createSupplyBox() {
+        if (!supplyBoxLayer || !supplyBoxShadowLayer) return false;
+
+        const landingPosition = getSupplyBoxLandingPosition();
+        if (!landingPosition) return false;
+
+        const direction = 1;
+        const pathLeft = landingPosition.spawnZone.left - SUPPLY_BOX_FLYING_WIDTH;
+        const pathRight = landingPosition.spawnZone.right;
+        const startX = pathLeft;
+        const endX = pathRight;
+        const flyingY = landingPosition.y - SUPPLY_BOX_FLYING_OFFSET_Y;
+
+        const element = document.createElement("div");
+        element.setAttribute("role", "button");
+        element.setAttribute("aria-label", "Supply box");
+        element.className = "supply-box";
+
+        const hitArea = document.createElement("div");
+        hitArea.className = "supply-box-hit-area";
+        element.appendChild(hitArea);
+
+        const shadowElement = document.createElement("div");
+        shadowElement.className = "supply-box-shadow";
+
+        const activeSupplyBox = {
+          id: nextSupplyBoxId++,
+          element,
+          hitArea,
+          shadowElement,
+          state: "flying",
+          x: startX,
+          y: flyingY,
+          shadowX: startX + SUPPLY_BOX_FLYING_SHADOW_OFFSET_X,
+          shadowY: landingPosition.y + SUPPLY_BOX_FLYING_SHADOW_OFFSET_Y,
+          shadowOpacity: 1,
+          speedPxPerMs: SUPPLY_BOX_SPEED_PX_PER_MS,
+          direction,
+          startX,
+          endX,
+          minShootX: landingPosition.spawnZone.left,
+          maxShootX: landingPosition.spawnZone.right - SUPPLY_BOX_FALLEN_SIZE,
+          shootRanges: landingPosition.shootRanges,
+          landingY: landingPosition.y,
+          fallingStartedAt: 0,
+          fallingStartY: 0,
+          fallingStartX: 0,
+          dropSoundPlayed: false,
+          brokenStartedAt: 0
+        };
+
+        setSupplyBoxFlyingVisual(activeSupplyBox);
+        supplyBoxLayer.appendChild(element);
+        supplyBoxShadowLayer.appendChild(shadowElement);
+
+        element.addEventListener("pointerdown", startFieldEntityPress);
+        element.addEventListener("pointerup", activatePressedFieldEntity);
+
+        supplyBox = activeSupplyBox;
+        renderSupplyBox(activeSupplyBox);
+        return true;
+      }
+
+      function spawnOrReplaceSupplyBox(options = {}) {
+        removeSupplyBox();
+        if (options.resetTimer === true) {
+          lastSupplyBoxSpawnAt = Date.now();
+        }
+        const created = createSupplyBox();
+        if (created && options.resetTimer === true) {
+          scheduleNextSupplyBoxSpawnTick();
+        }
+        saveResourceState();
+        return created;
+      }
+
+      function getSupplyBoxAtClientPoint(clientX, clientY) {
+        if (!supplyBox) return null;
+        if (supplyBox.state !== "flying" && supplyBox.state !== "landed") {
+          return null;
+        }
+        if (!(supplyBox.hitArea instanceof Element)) return null;
+        if (!isClientPointInsideElement(clientX, clientY, supplyBox.hitArea)) {
+          return null;
+        }
+        if (
+          supplyBox.state === "flying" &&
+          !isSupplyBoxShootXAllowed(supplyBox, supplyBox.x)
+        ) {
+          return null;
+        }
+        return supplyBox;
+      }
+
+      function beginSupplyBoxFall(activeSupplyBox, now = performance.now()) {
+        if (!activeSupplyBox || activeSupplyBox.state !== "flying") return false;
+
+        activeSupplyBox.state = "falling";
+        activeSupplyBox.fallingStartedAt = now;
+        activeSupplyBox.fallingStartX = activeSupplyBox.x;
+        activeSupplyBox.fallingStartY = activeSupplyBox.y + SUPPLY_BOX_DROP_OFFSET_Y;
+        activeSupplyBox.x = activeSupplyBox.fallingStartX;
+        activeSupplyBox.y = activeSupplyBox.fallingStartY;
+        activeSupplyBox.shadowX = activeSupplyBox.fallingStartX + SUPPLY_BOX_SHADOW_ENTRY_OFFSET_X;
+        activeSupplyBox.shadowY = activeSupplyBox.landingY;
+        activeSupplyBox.shadowOpacity = 0;
+        activeSupplyBox.dropSoundPlayed = false;
+        setSupplyBoxFallenVisual(activeSupplyBox);
+        activeSupplyBox.hitArea.style.pointerEvents = "none";
+        renderSupplyBox(activeSupplyBox);
+        return true;
+      }
+
+      function getEquippedGunForSupplyBox() {
+        const weapon = getEquippedWeapon();
+        if (weapon === "handgun" || weapon === "shotgun" || weapon === "rifle") {
+          return weapon;
+        }
+        return "";
+      }
+
+      function tryShootSupplyBox(activeSupplyBox) {
+        const weapon = getEquippedGunForSupplyBox();
+        if (!weapon) {
+          showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
+          return false;
+        }
+
+        if (weapon === "handgun") {
+          if (!consumeAmmo("handgun")) {
+            showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
+            return false;
+          }
+          playSound(HANDGUN_SOUND);
+        } else if (weapon === "shotgun") {
+          if (!consumeAmmo("shotgun")) {
+            showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
+            return false;
+          }
+          playSound(SHOTGUN_FIRE_SOUND);
+        } else if (weapon === "rifle") {
+          if (!consumeAmmo("rifle")) {
+            showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
+            return false;
+          }
+          playSound(RIFLE_FIRE_SOUND);
+        }
+
+        return beginSupplyBoxFall(activeSupplyBox);
+      }
+
+      function openSupplyBox(activeSupplyBox) {
+        if (!activeSupplyBox || activeSupplyBox.state !== "landed") return false;
+        playSound(SUPPLY_BOX_OPEN_SOUND);
+        awardExplorationRewards("village", dayCount);
+        showToast("Lucky me.");
+
+        activeSupplyBox.state = "broken";
+        activeSupplyBox.brokenStartedAt = performance.now();
+        activeSupplyBox.shadowOpacity = 1;
+        setSupplyBoxBrokenVisual(activeSupplyBox);
+        renderSupplyBox(activeSupplyBox);
+
+        commitResourceState();
+        return true;
+      }
+
+      function activateSupplyBox(activeSupplyBox) {
+        if (!activeSupplyBox) return false;
+        if (activeSupplyBox.state === "flying") {
+          return tryShootSupplyBox(activeSupplyBox);
+        }
+        if (activeSupplyBox.state === "landed") {
+          return openSupplyBox(activeSupplyBox);
+        }
+        return false;
+      }
+
+      function updateSupplyBox(activeSupplyBox, deltaMs, now) {
+        if (!activeSupplyBox) return;
+
+        if (activeSupplyBox.state === "flying") {
+          activeSupplyBox.x += activeSupplyBox.direction * activeSupplyBox.speedPxPerMs * deltaMs;
+          activeSupplyBox.shadowX = activeSupplyBox.x + SUPPLY_BOX_FLYING_SHADOW_OFFSET_X;
+          activeSupplyBox.shadowY = activeSupplyBox.landingY + SUPPLY_BOX_FLYING_SHADOW_OFFSET_Y;
+          activeSupplyBox.shadowOpacity = 1;
+          renderSupplyBox(activeSupplyBox);
+
+          const passedEnd = activeSupplyBox.direction > 0
+            ? activeSupplyBox.x >= activeSupplyBox.endX
+            : activeSupplyBox.x <= activeSupplyBox.endX;
+          if (passedEnd) {
+            removeSupplyBox();
+          }
+          return;
+        }
+
+        if (activeSupplyBox.state === "falling") {
+          const elapsed = now - activeSupplyBox.fallingStartedAt;
+          const fallProgress = clamp(elapsed / SUPPLY_BOX_FALL_DURATION_MS, 0, 1);
+          const easedFall = easeInQuad(fallProgress);
+          activeSupplyBox.x = activeSupplyBox.fallingStartX;
+          activeSupplyBox.y = activeSupplyBox.fallingStartY +
+            (activeSupplyBox.landingY - activeSupplyBox.fallingStartY) * easedFall;
+          activeSupplyBox.shadowX = activeSupplyBox.fallingStartX +
+            SUPPLY_BOX_SHADOW_ENTRY_OFFSET_X * (1 - easedFall);
+          activeSupplyBox.shadowY = activeSupplyBox.landingY;
+          activeSupplyBox.shadowOpacity = easedFall;
+
+          if (fallProgress >= 1 && !activeSupplyBox.dropSoundPlayed) {
+            activeSupplyBox.dropSoundPlayed = true;
+            playSound(SUPPLY_BOX_DROP_SOUND);
+          }
+
+          if (fallProgress >= 1) {
+            const bounceProgress = clamp(
+              (elapsed - SUPPLY_BOX_FALL_DURATION_MS) / SUPPLY_BOX_BOUNCE_DURATION_MS,
+              0,
+              1
+            );
+            activeSupplyBox.y = activeSupplyBox.landingY -
+              Math.sin(bounceProgress * Math.PI) * (1 - bounceProgress) * SUPPLY_BOX_BOUNCE_HEIGHT_PX;
+            if (bounceProgress >= 1) {
+              activeSupplyBox.state = "landed";
+              activeSupplyBox.y = activeSupplyBox.landingY;
+              activeSupplyBox.shadowX = activeSupplyBox.x;
+              activeSupplyBox.shadowY = activeSupplyBox.landingY;
+              activeSupplyBox.shadowOpacity = 1;
+              activeSupplyBox.hitArea.style.pointerEvents = "auto";
+            }
+          }
+
+          renderSupplyBox(activeSupplyBox);
+          return;
+        }
+
+        if (activeSupplyBox.state === "broken") {
+          const brokenElapsed = now - activeSupplyBox.brokenStartedAt;
+          activeSupplyBox.x = clamp(activeSupplyBox.x, activeSupplyBox.minShootX, activeSupplyBox.maxShootX);
+          activeSupplyBox.y = activeSupplyBox.landingY;
+          activeSupplyBox.shadowX = activeSupplyBox.x;
+          activeSupplyBox.shadowY = activeSupplyBox.landingY;
+
+          if (brokenElapsed <= SUPPLY_BOX_BROKEN_HOLD_MS) {
+            activeSupplyBox.element.style.opacity = "1";
+            activeSupplyBox.shadowOpacity = 1;
+            renderSupplyBox(activeSupplyBox);
+            return;
+          }
+
+          const fadeProgress = clamp(
+            (brokenElapsed - SUPPLY_BOX_BROKEN_HOLD_MS) /
+              SUPPLY_BOX_BROKEN_FADE_MS,
+            0,
+            1
+          );
+          const opacity = Math.max(0, 1 - fadeProgress);
+          activeSupplyBox.element.style.opacity = String(opacity);
+          activeSupplyBox.shadowOpacity = opacity;
+          renderSupplyBox(activeSupplyBox);
+
+          if (fadeProgress >= 1) {
+            removeSupplyBox();
+          }
+          return;
+        }
+
+        if (activeSupplyBox.state === "landed") {
+          activeSupplyBox.x = clamp(activeSupplyBox.x, activeSupplyBox.minShootX, activeSupplyBox.maxShootX);
+          activeSupplyBox.y = activeSupplyBox.landingY;
+          activeSupplyBox.shadowX = activeSupplyBox.x;
+          activeSupplyBox.shadowY = activeSupplyBox.landingY;
+          activeSupplyBox.shadowOpacity = 1;
+          renderSupplyBox(activeSupplyBox);
+        }
+      }
+
+      function scheduleNextSupplyBoxSpawnTick() {
+        if (supplyBoxSpawnTimerId !== null) {
+          clearTimeout(supplyBoxSpawnTimerId);
+          supplyBoxSpawnTimerId = null;
+        }
+
+        if (
+          populationTimersPausedForBackground ||
+          document.visibilityState === "hidden"
+        ) {
+          return;
+        }
+
+        const elapsed = Math.max(0, Date.now() - lastSupplyBoxSpawnAt);
+        const delay = Math.max(0, SUPPLY_BOX_SPAWN_INTERVAL_MS - elapsed);
+
+        supplyBoxSpawnTimerId = window.setTimeout(() => {
+          supplyBoxSpawnTimerId = null;
+
+          if (
+            populationTimersPausedForBackground ||
+            document.visibilityState === "hidden"
+          ) {
+            return;
+          }
+
+          lastSupplyBoxSpawnAt = Date.now();
+          spawnOrReplaceSupplyBox();
+          scheduleNextSupplyBoxSpawnTick();
+        }, delay);
       }
 
       function getZombiePartFramePosition(frameIndex) {
@@ -15198,6 +15771,10 @@
           updateDog(dog, deltaMs, now);
         }
 
+        if (supplyBox) {
+          updateSupplyBox(supplyBox, deltaMs, now);
+        }
+
         if (
           now - lastZombieVisibilityCheckAt >=
           ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS
@@ -15262,6 +15839,10 @@
         if (deerSpawnTimerId !== null) {
           clearTimeout(deerSpawnTimerId);
           deerSpawnTimerId = null;
+        }
+        if (supplyBoxSpawnTimerId !== null) {
+          clearTimeout(supplyBoxSpawnTimerId);
+          supplyBoxSpawnTimerId = null;
         }
 
         if (
@@ -15390,6 +15971,7 @@
             // 귀환 직후에는 기존 7초 생성 지연 규칙을 그대로 사용합니다.
             scheduleNextZombieSpawnTick();
             scheduleNextDeerSpawnTick();
+            scheduleNextSupplyBoxSpawnTick();
             scheduleEmptyFieldZombieSpawn();
             scheduleEmptyFieldDeerSpawn();
             saveResourceState();
@@ -15399,8 +15981,21 @@
           // 아직 탐험 중이라면 백그라운드에 있던 시간을 생성 주기에서 제외합니다.
           lastZombieSpawnAt = now;
           lastDeerSpawnAt = now;
+          const elapsedSupplyTicks = Math.max(
+            0,
+            Math.floor((now - lastSupplyBoxSpawnAt) / SUPPLY_BOX_SPAWN_INTERVAL_MS)
+          );
+          if (elapsedSupplyTicks > 0) {
+            lastSupplyBoxSpawnAt = Math.min(
+              now,
+              lastSupplyBoxSpawnAt +
+                elapsedSupplyTicks * SUPPLY_BOX_SPAWN_INTERVAL_MS
+            );
+            spawnOrReplaceSupplyBox();
+          }
           scheduleNextZombieSpawnTick();
           scheduleNextDeerSpawnTick();
+          scheduleNextSupplyBoxSpawnTick();
           saveResourceState();
           return;
         }
@@ -15493,9 +16088,23 @@
           pendingEmptyDeerSpawnTimerId = null;
         }
 
+        const elapsedSupplyTicks = Math.max(
+          0,
+          Math.floor((now - lastSupplyBoxSpawnAt) / SUPPLY_BOX_SPAWN_INTERVAL_MS)
+        );
+        if (elapsedSupplyTicks > 0) {
+          lastSupplyBoxSpawnAt = Math.min(
+            now,
+            lastSupplyBoxSpawnAt +
+              elapsedSupplyTicks * SUPPLY_BOX_SPAWN_INTERVAL_MS
+          );
+          spawnOrReplaceSupplyBox();
+        }
+
         // 정지되었던 기존 타이머를 현재 타임스탬프 기준으로 다시 예약합니다.
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
+        scheduleNextSupplyBoxSpawnTick();
         scheduleEmptyFieldZombieSpawn();
         scheduleEmptyFieldDeerSpawn();
         saveResourceState();
@@ -15707,6 +16316,7 @@
         scheduleNextAmbientBirdFlock();
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
+        scheduleNextSupplyBoxSpawnTick();
       }
 
       axePickupHitArea.addEventListener("pointerup", (event) => {
