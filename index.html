@@ -1883,16 +1883,16 @@
         );
     }
 
-    /* House > Type에서 적용 중인 네모는 기존 20px 테두리 바깥 2px 간격에 외곽선을 한 번 더 표시합니다. */
+    /* House > Type에서 적용 중인 네모는 기존 20px 테두리 바깥 3px 간격에 외곽선을 한 번 더 표시합니다. */
     .repair-grid-item-applied-outline {
       position: absolute;
       left: 50%;
       top: 50%;
       z-index: 2;
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       border: 1px solid #fff;
-      border-radius: 5px;
+      border-radius: 6px;
       transform: translate(-50%, -50%) scale(1);
       transition: transform 90ms ease-out;
       pointer-events: none;
@@ -2862,7 +2862,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.119"
+  data-game-version="0.120"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3672,7 +3672,9 @@
 
       // 이동 속도: 2초에 1px
       const MOVE_SPEED_PX_PER_MS = 1 / 2_000;
-      const DEER_EVADE_SPEED_PX_PER_MS = 0.3;
+      // 사슴마다 생성 시 초당 200~300px 사이의 고유 도망 속도를 정합니다.
+      const DEER_EVADE_SPEED_MIN_PX_PER_MS = 0.2;
+      const DEER_EVADE_SPEED_MAX_PX_PER_MS = 0.3;
       const DEER_ALERT_AREA_SIZE = 512;
       const DEER_ALERT_HALF_SIZE = DEER_ALERT_AREA_SIZE / 2;
 
@@ -13453,6 +13455,10 @@
           health: DEER_MAX_HEALTH,
           axeAttackCount: 0,
           evadeCount: 0,
+          evadeSpeedPxPerMs:
+            DEER_EVADE_SPEED_MIN_PX_PER_MS +
+            Math.random() *
+              (DEER_EVADE_SPEED_MAX_PX_PER_MS - DEER_EVADE_SPEED_MIN_PX_PER_MS),
           evadeDirection: 0,
           runElapsed: 0,
           runFrame: 0,
@@ -13745,7 +13751,7 @@
 
         deer.x +=
           deer.turnDirection *
-          DEER_EVADE_SPEED_PX_PER_MS *
+          deer.evadeSpeedPxPerMs *
           deltaMs *
           speedFactor;
 
@@ -13775,7 +13781,7 @@
       }
 
       function updateDeerEvading(deer, deltaMs) {
-        deer.x += deer.evadeDirection * DEER_EVADE_SPEED_PX_PER_MS * deltaMs;
+        deer.x += deer.evadeDirection * deer.evadeSpeedPxPerMs * deltaMs;
         deer.runElapsed += deltaMs;
 
         const frameDuration = 1000 / DEER_RUN_FPS;
