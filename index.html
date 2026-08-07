@@ -889,20 +889,58 @@
     .supply-box,
     .supply-box-shadow {
       position: absolute;
-      background-image: url("images/supplybox.png");
-      background-repeat: no-repeat;
-      background-size: 268.8px 179.2px;
       will-change: left, top, opacity, transform;
     }
 
+    /*
+      서플라이 박스도 건물과 동일하게 낮/밤 비주얼을 겹쳐 두고
+      밤 레이어의 opacity를 3초 동안 전환합니다.
+    */
     .supply-box {
+      --supply-box-image: url("images/supplybox.png");
+      --supply-box-background-size: 268.8px 179.2px;
+      --supply-box-background-position: 0 0;
       pointer-events: none;
+      background: none;
+    }
+
+    .supply-box::before,
+    .supply-box::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: var(--supply-box-image);
+      background-repeat: no-repeat;
+      background-size: var(--supply-box-background-size);
+      background-position: var(--supply-box-background-position);
+      pointer-events: none;
+      transition: opacity 3s ease;
+      will-change: opacity;
+    }
+
+    .supply-box::before {
+      opacity: 1;
+    }
+
+    .supply-box::after {
+      opacity: 0;
+      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+    }
+
+    body.is-night .supply-box::before {
+      opacity: 0;
+    }
+
+    body.is-night .supply-box::after {
+      opacity: 1;
     }
 
     .supply-box-hit-area {
       position: absolute;
       left: 0;
       top: 0;
+      z-index: 1;
       pointer-events: auto;
       touch-action: none;
       cursor: pointer;
@@ -910,7 +948,43 @@
     }
 
     .supply-box-shadow {
+      --supply-box-image: url("images/supplybox.png");
+      --supply-box-background-size: 268.8px 179.2px;
+      --supply-box-background-position: 0 0;
       pointer-events: none;
+      opacity: 1;
+      background: none;
+    }
+
+    .supply-box-shadow::before,
+    .supply-box-shadow::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: var(--supply-box-image);
+      background-repeat: no-repeat;
+      background-size: var(--supply-box-background-size);
+      background-position: var(--supply-box-background-position);
+      pointer-events: none;
+      transition: opacity 3s ease;
+      will-change: opacity;
+    }
+
+    .supply-box-shadow::before {
+      opacity: 1;
+    }
+
+    .supply-box-shadow::after {
+      opacity: 0;
+      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+    }
+
+    body.is-night .supply-box-shadow::before {
+      opacity: 0;
+    }
+
+    body.is-night .supply-box-shadow::after {
       opacity: 1;
     }
 
@@ -2883,7 +2957,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.125"
+  data-game-version="0.126"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3774,6 +3848,7 @@
       const SUPPLY_BOX_CLICK_PADDING = 0;
       const SUPPLY_BOX_BROKEN_HOLD_MS = 1_000;
       const SUPPLY_BOX_BROKEN_FADE_MS = 2_000;
+      const SUPPLY_BOX_EXPLORATION_FADE_MS = 1_000;
 
       // 좀비와 사슴 스프라이트를 메모리에 유지해 공격 순간 빈 프레임이 보이지 않게 합니다.
       const PRELOADED_ZOMBIE_IMAGES = new Map();
@@ -9174,6 +9249,7 @@
         const requiredFood = getDestinationFoodRequirement(destination);
         foodCount = Math.max(0, foodCount - requiredFood);
         zombieCount = 0;
+        fadeOutLandedSupplyBoxForExploration();
         isExploring = true;
         explorationDestination = destination;
         explorationDepartureDay = dayCount;
@@ -14451,6 +14527,13 @@
       function renderSupplyBox(activeSupplyBox) {
         if (!activeSupplyBox) return;
 
+        if (activeSupplyBox.hitArea instanceof Element) {
+          const canInteract =
+            !isExploring &&
+            (activeSupplyBox.state === "flying" || activeSupplyBox.state === "landed");
+          activeSupplyBox.hitArea.style.pointerEvents = canInteract ? "auto" : "none";
+        }
+
         if (
           activeSupplyBox.state === "landed" ||
           activeSupplyBox.state === "broken"
@@ -14476,7 +14559,18 @@
         activeSupplyBox.element.className = "supply-box is-flying";
         activeSupplyBox.element.style.width = `${SUPPLY_BOX_FLYING_WIDTH}px`;
         activeSupplyBox.element.style.height = `${SUPPLY_BOX_FLYING_HEIGHT}px`;
-        activeSupplyBox.element.style.backgroundPosition = "0px 0px";
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-image",
+          `url("${SUPPLY_BOX_IMAGE}")`
+        );
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-background-size",
+          "268.8px 179.2px"
+        );
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-background-position",
+          "0px 0px"
+        );
         activeSupplyBox.element.style.zIndex = "1";
         activeSupplyBox.hitArea.style.width = `${128 * SUPPLY_BOX_SCALE}px`;
         activeSupplyBox.hitArea.style.height = `${128 * SUPPLY_BOX_SCALE}px`;
@@ -14485,14 +14579,36 @@
         activeSupplyBox.shadowElement.className = "supply-box-shadow is-flying-shadow";
         activeSupplyBox.shadowElement.style.width = `${SUPPLY_BOX_FLYING_SHADOW_WIDTH}px`;
         activeSupplyBox.shadowElement.style.height = `${SUPPLY_BOX_FLYING_SHADOW_HEIGHT}px`;
-        activeSupplyBox.shadowElement.style.backgroundPosition = "-89.6px -89.6px";
+        activeSupplyBox.shadowElement.style.setProperty(
+          "--supply-box-image",
+          `url("${SUPPLY_BOX_IMAGE}")`
+        );
+        activeSupplyBox.shadowElement.style.setProperty(
+          "--supply-box-background-size",
+          "268.8px 179.2px"
+        );
+        activeSupplyBox.shadowElement.style.setProperty(
+          "--supply-box-background-position",
+          "-89.6px -89.6px"
+        );
       }
 
       function setSupplyBoxFallenVisual(activeSupplyBox) {
         activeSupplyBox.element.className = "supply-box is-fallen";
         activeSupplyBox.element.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
         activeSupplyBox.element.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
-        activeSupplyBox.element.style.backgroundPosition = "-89.6px 0px";
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-image",
+          `url("${SUPPLY_BOX_IMAGE}")`
+        );
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-background-size",
+          "268.8px 179.2px"
+        );
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-background-position",
+          "-89.6px 0px"
+        );
         activeSupplyBox.hitArea.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
         activeSupplyBox.hitArea.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
         activeSupplyBox.hitArea.style.pointerEvents = "auto";
@@ -14500,18 +14616,61 @@
         activeSupplyBox.shadowElement.className = "supply-box-shadow is-fallen-shadow";
         activeSupplyBox.shadowElement.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
         activeSupplyBox.shadowElement.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
-        activeSupplyBox.shadowElement.style.backgroundPosition = "-179.2px 0px";
+        activeSupplyBox.shadowElement.style.setProperty(
+          "--supply-box-image",
+          `url("${SUPPLY_BOX_IMAGE}")`
+        );
+        activeSupplyBox.shadowElement.style.setProperty(
+          "--supply-box-background-size",
+          "268.8px 179.2px"
+        );
+        activeSupplyBox.shadowElement.style.setProperty(
+          "--supply-box-background-position",
+          "-179.2px 0px"
+        );
       }
 
       function setSupplyBoxBrokenVisual(activeSupplyBox) {
         activeSupplyBox.element.className = "supply-box is-broken";
         activeSupplyBox.element.style.width = `${SUPPLY_BOX_FALLEN_SIZE}px`;
         activeSupplyBox.element.style.height = `${SUPPLY_BOX_FALLEN_SIZE}px`;
-        activeSupplyBox.element.style.backgroundImage = `url("${SUPPLY_BOX_BROKEN_IMAGE}")`;
-        activeSupplyBox.element.style.backgroundSize = `${SUPPLY_BOX_FALLEN_SIZE}px ${SUPPLY_BOX_FALLEN_SIZE}px`;
-        activeSupplyBox.element.style.backgroundPosition = "0px 0px";
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-image",
+          `url("${SUPPLY_BOX_BROKEN_IMAGE}")`
+        );
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-background-size",
+          `${SUPPLY_BOX_FALLEN_SIZE}px ${SUPPLY_BOX_FALLEN_SIZE}px`
+        );
+        activeSupplyBox.element.style.setProperty(
+          "--supply-box-background-position",
+          "0px 0px"
+        );
         activeSupplyBox.element.style.opacity = "1";
         activeSupplyBox.hitArea.style.pointerEvents = "none";
+      }
+
+      function fadeOutLandedSupplyBoxForExploration() {
+        if (!supplyBox || supplyBox.state !== "landed") return;
+
+        const fadingSupplyBoxId = supplyBox.id;
+        supplyBox.state = "exploration-fading";
+        supplyBox.hitArea.style.pointerEvents = "none";
+        supplyBox.element.style.transition =
+          `opacity ${SUPPLY_BOX_EXPLORATION_FADE_MS}ms ease`;
+        supplyBox.shadowElement.style.transition =
+          `opacity ${SUPPLY_BOX_EXPLORATION_FADE_MS}ms ease`;
+
+        requestAnimationFrame(() => {
+          if (!supplyBox || supplyBox.id !== fadingSupplyBoxId) return;
+          supplyBox.element.style.opacity = "0";
+          supplyBox.shadowElement.style.opacity = "0";
+        });
+
+        window.setTimeout(() => {
+          if (!supplyBox || supplyBox.id !== fadingSupplyBoxId) return;
+          removeSupplyBox();
+        }, SUPPLY_BOX_EXPLORATION_FADE_MS);
       }
 
       function removeSupplyBox() {
@@ -14601,7 +14760,7 @@
       }
 
       function getSupplyBoxAtClientPoint(clientX, clientY) {
-        if (!supplyBox) return null;
+        if (isExploring || !supplyBox) return null;
         if (supplyBox.state !== "flying" && supplyBox.state !== "landed") {
           return null;
         }
@@ -14693,7 +14852,7 @@
       }
 
       function activateSupplyBox(activeSupplyBox) {
-        if (!activeSupplyBox) return false;
+        if (isExploring || !activeSupplyBox) return false;
         if (activeSupplyBox.state === "flying") {
           return tryShootSupplyBox(activeSupplyBox);
         }
