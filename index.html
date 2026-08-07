@@ -487,7 +487,8 @@
     #shedObject {
       left: var(--shed-left);
       top: var(--shed-top);
-      z-index: 2;
+      /* 창고 중앙선보다 위의 엔티티는 뒤, 아래의 엔티티는 앞 레이어를 사용합니다. */
+      z-index: 11;
       width: var(--shed-size);
       height: var(--shed-size);
     }
@@ -503,8 +504,8 @@
     #carObject {
       left: var(--car-left);
       top: var(--car-top);
-      /* 자동차는 집과 설치 오브젝트보다 앞에 표시합니다. */
-      z-index: 8;
+      /* 자동차 중앙선보다 위의 엔티티는 뒤, 아래의 엔티티는 앞 레이어를 사용합니다. */
+      z-index: 15;
       width: var(--car-size);
       height: var(--car-size);
     }
@@ -697,7 +698,7 @@
       position: absolute;
       left: var(--tree-left);
       top: var(--tree-top);
-      z-index: 11;
+      z-index: 13;
       width: 512px;
       height: 512px;
       transform: scale(var(--tree-scale));
@@ -791,7 +792,7 @@
     #treePartLayer {
       position: absolute;
       inset: 0;
-      z-index: 16;
+      z-index: 17;
       overflow: visible;
       pointer-events: none;
     }
@@ -900,22 +901,34 @@
       pointer-events: none;
     }
 
+    #entitiesBehindShed,
     #entitiesBehindTree,
-    #entities {
+    #entities,
+    #entitiesFrontStructures {
       position: absolute;
       inset: 0;
       /* 빈 엔티티 레이어가 아래의 필드 입력 영역을 가리지 않도록 합니다. */
       pointer-events: none;
     }
 
-    /* A/B 영역 밖에서 나무와 겹치는 엔티티는 나무 뒤에 표시합니다. */
-    #entitiesBehindTree {
+    /* 창고보다 뒤에 표시되는 엔티티 레이어입니다. */
+    #entitiesBehindShed {
       z-index: 10;
     }
 
-    /* A/B 영역 안의 엔티티는 나무 앞에 표시합니다. */
-    #entities {
+    /* 창고보다 앞이면서 나무보다 뒤에 표시되는 엔티티 레이어입니다. */
+    #entitiesBehindTree {
       z-index: 12;
+    }
+
+    /* 나무보다 앞이면서 자동차보다 뒤에 표시되는 엔티티 레이어입니다. */
+    #entities {
+      z-index: 14;
+    }
+
+    /* 자동차보다 앞에 표시되는 엔티티 레이어입니다. */
+    #entitiesFrontStructures {
+      z-index: 16;
     }
 
     /* 실제 구름은 좀비보다 높은 상공 레이어에 표시합니다. */
@@ -1870,8 +1883,24 @@
         );
     }
 
+    /* House > Type에서 적용 중인 네모는 기존 20px 테두리 바깥 2px 간격에 외곽선을 한 번 더 표시합니다. */
+    .repair-grid-item-applied-outline {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      width: 26px;
+      height: 26px;
+      border: 1px solid #fff;
+      border-radius: 5px;
+      transform: translate(-50%, -50%) scale(1);
+      transition: transform 90ms ease-out;
+      pointer-events: none;
+    }
+
     .repair-grid-item:active::before,
-    .repair-grid-item:active::after {
+    .repair-grid-item:active::after,
+    .repair-grid-item:active .repair-grid-item-applied-outline {
       transform: translate(-50%, -50%) scale(0.82);
     }
 
@@ -1881,7 +1910,8 @@
 
     @media (hover: hover) and (pointer: fine) {
       .repair-grid-item:hover::before,
-      .repair-grid-item:hover::after {
+      .repair-grid-item:hover::after,
+      .repair-grid-item:hover .repair-grid-item-applied-outline {
         transform: translate(-50%, -50%) scale(1.38);
       }
 
@@ -1905,7 +1935,8 @@
       }
 
       .repair-grid-item:active::before,
-      .repair-grid-item:active::after {
+      .repair-grid-item:active::after,
+      .repair-grid-item:active .repair-grid-item-applied-outline {
         transform: translate(-50%, -50%) scale(0.82);
       }
     }
@@ -2831,7 +2862,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.118"
+  data-game-version="0.119"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -2926,21 +2957,7 @@
           <div id="wallsObject" class="world-structure" hidden></div>
           <div id="roofObject" class="world-structure" hidden></div>
           <div id="gardenObject" class="world-structure" hidden></div>
-          <div
-            id="shedObject"
-            class="world-structure world-interactive"
-            role="button"
-            tabindex="0"
-            aria-label="창고 확인"
-          ></div>
           <div id="fenceObject" class="world-structure" hidden></div>
-          <div
-            id="carObject"
-            class="world-structure world-interactive"
-            role="button"
-            tabindex="0"
-            aria-label="자동차 확인"
-          ></div>
           <div
             id="mailboxObject"
             class="world-structure world-interactive"
@@ -2967,6 +2984,14 @@
         aria-label="나무 베기"
       ></div>
       <div id="treePartShadowLayer" aria-hidden="true"></div>
+      <div id="entitiesBehindShed"></div>
+      <div
+        id="shedObject"
+        class="world-structure world-interactive"
+        role="button"
+        tabindex="0"
+        aria-label="창고 확인"
+      ></div>
       <div id="entitiesBehindTree"></div>
       <div id="tree" aria-hidden="false">
         <div id="treeDayVisual" aria-hidden="true"></div>
@@ -2974,6 +2999,14 @@
         <div id="treeNightVisual" aria-hidden="true"></div>
       </div>
       <div id="entities"></div>
+      <div
+        id="carObject"
+        class="world-structure world-interactive"
+        role="button"
+        tabindex="0"
+        aria-label="자동차 확인"
+      ></div>
+      <div id="entitiesFrontStructures"></div>
       <div id="treePartLayer" aria-hidden="true"></div>
       <div id="zombiePartShadowLayer" aria-hidden="true"></div>
       <div id="zombiePartLayer" aria-hidden="true"></div>
@@ -3281,9 +3314,21 @@
         bottom: 1174
       };
 
-      // 자동차와 창고의 표시 영역 중앙에도 각각 128×128 크기의
-      // 좀비·사슴 공용 안전 구역을 둡니다.
-      const STRUCTURE_SAFE_ZONE_SIZE = 128;
+      // 자동차·창고 안전 구역은 각 256×256 원본 리소스의 로컬 좌표로 정의합니다.
+      // 실제 표시 크기가 달라도 같은 이미지 부위를 사용하도록 표시 크기에 비례 환산합니다.
+      const STRUCTURE_RESOURCE_SIZE = 256;
+      const CAR_SAFE_ZONE_LOCAL = Object.freeze({
+        left: 49,
+        top: 121,
+        right: 177,
+        bottom: 185
+      });
+      const SHED_SAFE_ZONE_LOCAL = Object.freeze({
+        left: 24,
+        top: 137,
+        right: 152,
+        bottom: 201
+      });
 
       const ZOMBIE_WIDTH = 64;
       const ZOMBIE_HEIGHT = 128;
@@ -3486,11 +3531,11 @@
       /*
         비 발생 확률 수정 위치
         - 첫째 날에는 비가 오지 않습니다.
-        - 둘째 날부터 10%로 시작하며, 맑은 날이 지날 때마다 1%씩 증가합니다.
+        - 둘째 날부터 10%로 시작하며, 맑은 날이 지날 때마다 5%씩 증가합니다.
         - 비가 온 날에는 다음 날 확률을 다시 10%로 낮춥니다.
       */
       const INITIAL_RAIN_CHANCE_PERCENT = 10;
-      const RAIN_CHANCE_DAILY_INCREASE_PERCENT = 1;
+      const RAIN_CHANCE_DAILY_INCREASE_PERCENT = 5;
       const MAX_RAIN_CHANCE_PERCENT = 100;
 
       /*
@@ -3601,11 +3646,10 @@
       const DEATH_FPS = 5;
       const HIT_REACTION_MS = 200;
 
-      // 가능하면 기존 개체의 중심에서 아래 거리 이상 떨어져 생성합니다.
+      // 가능하면 같은 종류의 기존 개체와 160px 이상 떨어져 생성합니다.
       const MIN_SPAWN_DISTANCE = 160;
       const MIN_DEER_SPAWN_DISTANCE = 180;
-      // 사슴끼리는 다른 개체보다 더 넓은 간격을 우선합니다.
-      const MIN_DEER_TO_DEER_SPAWN_DISTANCE = 320;
+      const MIN_DEER_TO_DEER_SPAWN_DISTANCE = 160;
 
       // 생성 모션 프레임별 유지 시간
       // 기존 유지 시간의 2배: 1번 4초 / 2번 0.5초 / 3번 1초 / 4번 0.5초
@@ -4197,8 +4241,10 @@
       const viewport = document.getElementById("viewport");
       const world = document.getElementById("world");
       const cloudShadowsLayer = document.getElementById("cloudShadows");
+      const entitiesBehindShed = document.getElementById("entitiesBehindShed");
       const entitiesBehindTree = document.getElementById("entitiesBehindTree");
       const entities = document.getElementById("entities");
+      const entitiesFrontStructures = document.getElementById("entitiesFrontStructures");
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
       const foodCountElement = document.getElementById("foodCount");
@@ -6548,14 +6594,24 @@
             "is-uncrafted",
             item.unlocked && !item.built && !isActiveCarPaint
           );
-          button.classList.toggle(
-            "is-applied",
-            item.unlocked && (
-              isActiveCarPaint ||
-              isCompletedRestoreItem ||
-              (item.built && index === getAppliedRepairItemIndex(repairSelectedCategory, index))
-            )
+          const isApplied = item.unlocked && (
+            isActiveCarPaint ||
+            isCompletedRestoreItem ||
+            (item.built && index === getAppliedRepairItemIndex(repairSelectedCategory, index))
           );
+          button.classList.toggle("is-applied", isApplied);
+
+          if (
+            repairSelectedCategory === "buildings" &&
+            entry.section?.key === "type" &&
+            isApplied
+          ) {
+            const appliedOutline = document.createElement("span");
+            appliedOutline.className = "repair-grid-item-applied-outline";
+            appliedOutline.setAttribute("aria-hidden", "true");
+            button.append(appliedOutline);
+          }
+
           button.setAttribute("aria-disabled", item.unlocked ? "false" : "true");
           bindReliableTap(button, () => {
             playSound(INVENTORY_SET_SOUND);
@@ -10854,28 +10910,33 @@
         return isInsideInflatedSafeZoneFor(x, y, HALF_W, HALF_H);
       }
 
-      function getCenteredStructureSafeZone(element) {
-        const halfSafeSize = STRUCTURE_SAFE_ZONE_SIZE / 2;
-        const centerX = element.offsetLeft + element.offsetWidth / 2;
-        const centerY = element.offsetTop + element.offsetHeight / 2;
+      function getStructureSafeZoneFromLocalRect(element, localRect) {
+        const scaleX = element.offsetWidth / STRUCTURE_RESOURCE_SIZE;
+        const scaleY = element.offsetHeight / STRUCTURE_RESOURCE_SIZE;
 
         return {
-          left: centerX - halfSafeSize,
-          top: centerY - halfSafeSize,
-          right: centerX + halfSafeSize,
-          bottom: centerY + halfSafeSize
+          left: element.offsetLeft + localRect.left * scaleX,
+          top: element.offsetTop + localRect.top * scaleY,
+          right: element.offsetLeft + localRect.right * scaleX,
+          bottom: element.offsetTop + localRect.bottom * scaleY
         };
       }
 
-      // 창고와 자동차는 게임 중 위치·크기가 바뀌지 않으므로,
-      // 이동 및 생성 판정마다 offset 값을 다시 읽지 않고 캐시를 공유합니다.
+      // 창고와 자동차의 기본 배치 기준 안전 구역을 캐시해
+      // 좀비·사슴 생성/이동 및 개의 회피 판정에서 공통으로 사용합니다.
       let cachedStructureSafeZones = [];
       let cachedZombieSafeZones = [SAFE_ZONE];
       let cachedDeerSafeZones = [SAFE_ZONE];
 
       function refreshStructureSafeZones() {
-        const shedSafeZone = getCenteredStructureSafeZone(shedObject);
-        const carSafeZone = getCenteredStructureSafeZone(carObject);
+        const shedSafeZone = getStructureSafeZoneFromLocalRect(
+          shedObject,
+          SHED_SAFE_ZONE_LOCAL
+        );
+        const carSafeZone = getStructureSafeZoneFromLocalRect(
+          carObject,
+          CAR_SAFE_ZONE_LOCAL
+        );
 
         cachedStructureSafeZones = [shedSafeZone, carSafeZone];
         cachedZombieSafeZones = [SAFE_ZONE, ...cachedStructureSafeZones];
@@ -11088,8 +11149,8 @@
           }
 
           // 사슴은 좌우로 도망가므로 중앙 안전 구역뿐 아니라
-          // 창고와 자동차 중앙의 128×128 안전 구역도 가로지르지 않도록
-          // 각 안전 구역과 같은 세로 높이에는 생성하지 않습니다.
+          // 창고와 자동차의 현재 로컬 안전 구역도 가로지르지 않도록
+          // 각 안전 구역의 변경된 Y 구간과 같은 세로 높이에는 생성하지 않습니다.
           if (
             deerSafeZones.some((zone) =>
               doesDeerHorizontalPathCrossZone(y, zone)
@@ -12312,7 +12373,7 @@
         );
       }
 
-      function isEntityInTreeFrontZone(worldX, worldGroundY) {
+      function getEntityTreeDepthRelation(worldX, worldGroundY) {
         const treeScale = getTreeRenderScale();
         const localX = (worldX - tree.offsetLeft) / treeScale;
         const localY = (worldGroundY - tree.offsetTop) / treeScale;
@@ -12324,18 +12385,34 @@
           localY <= TREE_FRAME_SIZE
         );
 
-        if (!isInsideTreeBounds) return true;
+        if (!isInsideTreeBounds) return "outside";
 
         return (
           isPointInsideDepthZone(localX, localY, TREE_FRONT_ZONE_A) ||
           isPointInsideDepthZone(localX, localY, TREE_FRONT_ZONE_B)
-        );
+        )
+          ? "front"
+          : "behind";
       }
 
       function updateEntityTreeDepth(element, worldX, worldGroundY, sortY) {
-        const targetLayer = isEntityInTreeFrontZone(worldX, worldGroundY)
-          ? entities
-          : entitiesBehindTree;
+        const shedCenterY = shedObject.offsetTop + shedObject.offsetHeight / 2;
+        const carCenterY = carObject.offsetTop + carObject.offsetHeight / 2;
+        const treeDepthRelation = getEntityTreeDepthRelation(
+          worldX,
+          worldGroundY
+        );
+
+        let targetLayer;
+        if (worldGroundY < shedCenterY) {
+          targetLayer = entitiesBehindShed;
+        } else if (treeDepthRelation === "behind") {
+          targetLayer = entitiesBehindTree;
+        } else if (worldGroundY < carCenterY) {
+          targetLayer = entities;
+        } else {
+          targetLayer = entitiesFrontStructures;
+        }
 
         if (element.parentElement !== targetLayer) {
           targetLayer.appendChild(element);
