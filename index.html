@@ -1075,17 +1075,28 @@
       background: var(--rain-day-tint, rgba(42, 56, 68, 0.16));
       opacity: 0;
       pointer-events: none;
+      /*
+        iPhone Safari에서는 backdrop-filter 안의 SVG url(#...) 조합이
+        전체 필터 선언을 무시할 수 있어, 기본 CSS 필터만 사용합니다.
+      */
       -webkit-backdrop-filter:
-        url(#rainDayColorBalance)
         brightness(var(--rain-day-brightness, 0.88))
         saturate(var(--rain-day-saturation, 0.82))
         contrast(var(--rain-day-contrast, 0.98));
       backdrop-filter:
-        url(#rainDayColorBalance)
         brightness(var(--rain-day-brightness, 0.88))
         saturate(var(--rain-day-saturation, 0.82))
         contrast(var(--rain-day-contrast, 0.98));
       transition: opacity 3s ease, visibility 0s linear 3s;
+    }
+
+    /* RGB 밸런스는 Safari 호환용 별도 반투명 컬러 레이어로 적용합니다. */
+    #rainDayTone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--rain-day-color-balance-overlay, rgba(0, 0, 0, 0));
+      pointer-events: none;
     }
 
     /* 낮에는 비 오는 낮 전용 톤만 적용합니다. */
@@ -1108,16 +1119,22 @@
       opacity: 0;
       pointer-events: none;
       -webkit-backdrop-filter:
-        url(#rainNightColorBalance)
         brightness(var(--rain-night-brightness, 1))
         saturate(var(--rain-night-saturation, 1))
         contrast(var(--rain-night-contrast, 1));
       backdrop-filter:
-        url(#rainNightColorBalance)
         brightness(var(--rain-night-brightness, 1))
         saturate(var(--rain-night-saturation, 1))
         contrast(var(--rain-night-contrast, 1));
       transition: opacity 3s ease, visibility 0s linear 3s;
+    }
+
+    #rainNightTone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--rain-night-color-balance-overlay, rgba(0, 0, 0, 0));
+      pointer-events: none;
     }
 
     body.is-rainy.is-night #rainNightTone {
@@ -3048,7 +3065,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.129"
+  data-game-version="0.130"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3812,9 +3829,9 @@
         - brightness: 전체 밝기. 낮을수록 어두워집니다.
         - saturation: 채도. 낮을수록 흐리고 차분해집니다.
         - contrast: 대비. 1보다 낮으면 대비가 부드러워집니다.
-        - colorBalance: 틴트와 별개인 기본 RGB 컬러 밸런스입니다.
-          red / green / blue가 1이면 원본 유지, 1보다 낮으면 해당 색 감소,
-          1보다 높으면 해당 색이 증가합니다.
+        - colorBalance: 틴트와 별개인 RGB 컬러 밸런스입니다.
+          iPhone Safari 호환을 위해 red / green / blue의 상대 차이를
+          별도 반투명 컬러 레이어로 변환해 적용합니다.
         - tint: 화면 위에 겹치는 색상과 투명도입니다.
         - opacity: 비 오는 낮 톤 전체 강도입니다. 0~1 범위입니다.
         밤에는 이 설정이 적용되지 않고 기존 밤 컬러를 사용합니다.
@@ -9187,36 +9204,45 @@
         updateRainDropViewportMotion();
       }
 
-      function applyRainColorMatrix(matrixElement, colorBalance) {
-        if (!matrixElement || !colorBalance) return;
+      function getRainColorBalanceOverlay(colorBalance) {
+        if (!colorBalance) return "rgba(0, 0, 0, 0)";
 
-        matrixElement.setAttribute(
-          "values",
-          [
-            `${colorBalance.red} 0 0 0 0`,
-            `0 ${colorBalance.green} 0 0 0`,
-            `0 0 ${colorBalance.blue} 0 0`,
-            "0 0 0 1 0"
-          ].join(" ")
+        const red = Number.isFinite(Number(colorBalance.red))
+          ? Math.max(0, Number(colorBalance.red))
+          : 1;
+        const green = Number.isFinite(Number(colorBalance.green))
+          ? Math.max(0, Number(colorBalance.green))
+          : 1;
+        const blue = Number.isFinite(Number(colorBalance.blue))
+          ? Math.max(0, Number(colorBalance.blue))
+          : 1;
+
+        const minimum = Math.min(red, green, blue);
+        const maximum = Math.max(red, green, blue);
+        const spread = maximum - minimum;
+        if (spread < 0.001) return "rgba(0, 0, 0, 0)";
+
+        const toChannel = (value) => Math.round(
+          clamp((value - minimum) / spread, 0, 1) * 255
         );
+        /*
+          RGB 배율 차이를 색상 오버레이로 근사합니다.
+          최대 30%로 제한해 기존 brightness/saturation/contrast가 주 톤을 담당하게 합니다.
+        */
+        const alpha = clamp(spread * 0.35, 0, 0.3);
+        return `rgba(${toChannel(red)}, ${toChannel(green)}, ${toChannel(blue)}, ${alpha.toFixed(3)})`;
       }
 
       function applyWeatherState() {
         const rootStyle = document.documentElement.style;
-        const rainDayColorMatrix = document.getElementById(
-          "rainDayColorMatrix"
-        );
-        const rainNightColorMatrix = document.getElementById(
-          "rainNightColorMatrix"
-        );
 
-        applyRainColorMatrix(
-          rainDayColorMatrix,
-          RAIN_DAY_TONE.colorBalance
+        rootStyle.setProperty(
+          "--rain-day-color-balance-overlay",
+          getRainColorBalanceOverlay(RAIN_DAY_TONE.colorBalance)
         );
-        applyRainColorMatrix(
-          rainNightColorMatrix,
-          RAIN_NIGHT_TONE.colorBalance
+        rootStyle.setProperty(
+          "--rain-night-color-balance-overlay",
+          getRainColorBalanceOverlay(RAIN_NIGHT_TONE.colorBalance)
         );
 
         rootStyle.setProperty(
