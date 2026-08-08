@@ -2801,14 +2801,58 @@
       pointer-events: none;
     }
 
+    .cat {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      will-change: left, top, opacity;
+      pointer-events: none;
+    }
+
+    .cat::before {
+      content: "";
+      position: absolute;
+      left: calc(18%);
+      bottom: 25%;
+      width: calc(75%);
+      height: 20%;
+      background: #000;
+      border-radius: 50%;
+      opacity: 0.2;
+      filter: blur(5px);
+      transform: skewX(-28deg) scaleY(0.42);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .cat-sprite {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      background-image: url("images/cat_default.png");
+      background-repeat: no-repeat;
+      background-size: 512px 256px;
+      background-position: 0 0;
+      image-rendering: auto;
+      transform-origin: center center;
+      will-change: background-position;
+      pointer-events: none;
+    }
+
     /*
-      좀비와 사슴, 개도 다른 오브젝트처럼 낮/밤 레이어를 겹쳐 놓고
+      좀비와 사슴, 개, 고양이도 다른 오브젝트처럼 낮/밤 레이어를 겹쳐 놓고
       opacity를 3초 동안 크로스페이드합니다. SVG filter 자체를 전환하지
       않으므로 밤 컬러가 순간적으로 튀지 않습니다.
     */
     .zombie-visual-layer,
     .deer-visual-layer,
-    .dog-visual-layer {
+    .dog-visual-layer,
+    .cat-visual-layer {
       position: absolute;
       inset: 0;
       pointer-events: none;
@@ -2818,14 +2862,16 @@
 
     .zombie-visual-day,
     .deer-visual-day,
-    .dog-visual-day {
+    .dog-visual-day,
+    .cat-visual-day {
       z-index: 1;
       opacity: 1;
     }
 
     .zombie-visual-night,
     .deer-visual-night,
-    .dog-visual-night {
+    .dog-visual-night,
+    .cat-visual-night {
       z-index: 2;
       opacity: 0;
     }
@@ -2839,7 +2885,8 @@
     .zombie-visual-night .zombie-sprite-overlay,
     .deer-visual-night .deer-sprite,
     .deer-visual-night .deer-sprite-overlay,
-    .dog-visual-night .dog-sprite {
+    .dog-visual-night .dog-sprite,
+    .cat-visual-night .cat-sprite {
       filter:
         url(#nightCoolBalance)
         brightness(var(--entity-night-brightness))
@@ -2848,13 +2895,15 @@
 
     body.is-night .zombie-visual-day,
     body.is-night .deer-visual-day,
-    body.is-night .dog-visual-day {
+    body.is-night .dog-visual-day,
+    body.is-night .cat-visual-day {
       opacity: 0;
     }
 
     body.is-night .zombie-visual-night,
     body.is-night .deer-visual-night,
-    body.is-night .dog-visual-night {
+    body.is-night .dog-visual-night,
+    body.is-night .cat-visual-night {
       opacity: 1;
     }
 
@@ -2898,6 +2947,7 @@
     body.is-restored-night .zombie-visual-layer,
     body.is-restored-night .deer-visual-layer,
     body.is-restored-night .dog-visual-layer,
+    body.is-restored-night .cat-visual-layer,
     body.is-restored-night .world-structure,
     body.is-restored-night #houseObject::before,
     body.is-restored-night #houseObject::after,
@@ -2957,7 +3007,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.126"
+  data-game-version="0.127"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3489,6 +3539,39 @@
       const DOG_SIT_MAX_DURATION_MS = 7_000;
 
       /*
+        고양이 우편 배달 연출 수정 위치
+        - CAT_SIZE: 화면에 표시되는 고양이 크기(px)
+        - CAT_SPEED_PX_PER_MS: 이동 속도
+        - CAT_START_X / CAT_START_Y: 2048×2048 월드 기준 절대 출발 좌표
+        - CAT_TARGET_X / CAT_TARGET_Y: 2048×2048 월드 기준 절대 도착 좌표
+        해상도, 현재 화면 범위, 카메라 드래그 위치와 관계없이 항상 같은 좌표를 사용합니다.
+      */
+      const CAT_SHEET_COLUMNS = 8;
+      const CAT_SHEET_ROWS = 4;
+      const CAT_FRAME_SIZE = 64;
+      const CAT_SIZE = 76;
+      const CAT_FRAME_INTERVAL_MS = 100;
+      const CAT_SPEED_PX_PER_MS = 0.07;
+      const CAT_START_X = 430;
+      const CAT_START_Y = 1280;
+      const CAT_TARGET_X = 956;
+      const CAT_TARGET_Y = 1124;
+      const CAT_WALK_NE_FRAME_SEQUENCE = Object.freeze([
+        0, 1, 2, 3, 4, 5, 6, 7, 8
+      ]);
+      const CAT_WALK_SW_FRAME_SEQUENCE = Object.freeze([
+        9, 10, 11, 12, 13, 14, 15
+      ]);
+      const CAT_DELIVERY_FRAME_SEQUENCE = Object.freeze([
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25
+      ]);
+      // 편지를 우편함에 넣는 동작의 중간 지점에서 실제 배달 완료와 사운드를 한 번 처리합니다.
+      const CAT_MAILBOX_SOUND_DELIVERY_FRAME_INDEX = 5;
+      // 이전 버전은 고양이 출발 시 배달 완료로 저장했기 때문에 새 규칙과 구분합니다.
+      const CAT_MAIL_DELIVERY_SCHEMA_VERSION = 2;
+      const CAT_DEPTH_POINT_OFFSET_Y = CAT_SIZE * 0.34;
+
+      /*
         이동 방향 인덱스는 화면 좌표 기준 시계 방향 16개입니다.
         0부터 순서대로: 동, 남동동, 남동, 남남동, 남, 남남서, 남서, 남서서,
         서, 북서서, 북서, 북북서, 북, 북북동, 북동, 북동동.
@@ -3818,6 +3901,7 @@
         "images/zomebie_default_birthdeath.png";
       const DEER_SHEET = "images/deer_default.png";
       const DOG_SHEET = "images/dog_default.png";
+      const CAT_SHEET = "images/cat_default.png";
       const NIGHT_BACKGROUND_IMAGE =
         "images/bg_field_default_nigth.png";
       const NIGHT_CLOUD_SHEET =
@@ -4083,6 +4167,7 @@
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
       const MAIL_READ_FIRST_TOAST_MESSAGE = "I should read the letter first.";
       const MAIL_WAIT_TOAST_MESSAGE = "Maybe tomorrow.";
+      const MAIL_EMPTY_TOAST_MESSAGE = "Nothing here yet.";
       const COMPASS_SELECTED_TOAST_MESSAGE = "Now I know where I’m going.";
       const FUEL_SELECTED_TOAST_MESSAGE = "More for the tank.";
       const REPAIR_KIT_SELECTED_TOAST_MESSAGE = "This should do the trick.";
@@ -4998,6 +5083,7 @@
       const zombies = new Map();
       const deerMap = new Map();
       let dog = null;
+      let cat = null;
       // 기본값은 false이며, 테스트 모드에서 개를 등장시킨 뒤에만 저장·복원합니다.
       let isDogEnabledByTest = false;
       let storedPopulationSnapshot = null;
@@ -5032,6 +5118,9 @@
       let currentTodoListId = 0;
       let todoSubmittedListId = 0;
       let todoSubmittedDay = 0;
+      // 고양이가 실제로 우편함에 편지를 넣은 메일 ID만 저장합니다.
+      // 이동 중 새로고침하면 저장되지 않으므로 다음 진입에서 배달 연출을 다시 시작합니다.
+      let lastCatDeliveredTodoListId = 0;
       let lastCompletedExplorationDestination = "";
       let pendingEmptyZombieSpawnTimerId = null;
       let pendingEmptyDeerSpawnTimerId = null;
@@ -5782,9 +5871,43 @@
         mailboxObject.classList.remove("is-hidden-visual");
       }
 
-      function deliverTodoList(listId, shouldMarkNew = true) {
-        playSound(MAILBOX_SOUND);
+      function getAvailableMailboxTodoListId() {
+        if (isExploring || document.body.classList.contains("is-night")) {
+          return 0;
+        }
 
+        if (currentTodoListId > 0) {
+          return 0;
+        }
+
+        if (!mailboxIntroTriggered && todoSubmittedListId === 0) {
+          return 1;
+        }
+
+        if (
+          todoSubmittedListId > 0 &&
+          todoSubmittedListId < 5 &&
+          dayCount > todoSubmittedDay
+        ) {
+          return todoSubmittedListId + 1;
+        }
+
+        return 0;
+      }
+
+      function triggerMailboxCatDeliveryIfAvailable() {
+        const availableTodoListId = getAvailableMailboxTodoListId();
+        if (availableTodoListId <= 0) return false;
+        if (lastCatDeliveredTodoListId === availableTodoListId) return false;
+        if (cat?.deliveryTodoListId === availableTodoListId) return false;
+
+        // 출발 시점에는 배달 완료로 저장하지 않습니다.
+        // 실제 편지 투입 프레임에 도달해야만 우편함에서 새 메일을 받을 수 있습니다.
+        startCatDelivery(availableTodoListId);
+        return true;
+      }
+
+      function deliverTodoList(listId, shouldMarkNew = true) {
         if (todoListRevealTimerId !== null) {
           clearTimeout(todoListRevealTimerId);
           todoListRevealTimerId = null;
@@ -5988,6 +6111,18 @@
         }
 
         if (isExploring || document.body.classList.contains("is-night")) {
+          return;
+        }
+
+        const availableTodoListId = getAvailableMailboxTodoListId();
+        if (
+          availableTodoListId > 0 &&
+          lastCatDeliveredTodoListId !== availableTodoListId
+        ) {
+          // 고양이가 아직 편지를 넣지 않았다면 메일/보상을 선획득할 수 없습니다.
+          // 우편함이 아직 비어 있음을 알려주고, 연출이 유실된 예외 상황이면 다시 시작합니다.
+          showToast(MAIL_EMPTY_TOAST_MESSAGE);
+          triggerMailboxCatDeliveryIfAvailable();
           return;
         }
 
@@ -7308,6 +7443,18 @@
           currentTodoListId = clamp(Math.round(Number(parsed.currentTodoListId) || 0), 0, 5);
           todoSubmittedListId = clamp(Math.round(Number(parsed.todoSubmittedListId) || 0), 0, 5);
           todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
+          const storedCatMailDeliverySchemaVersion = Math.max(
+            0,
+            Math.round(Number(parsed.catMailDeliverySchemaVersion) || 0)
+          );
+          lastCatDeliveredTodoListId =
+            storedCatMailDeliverySchemaVersion === CAT_MAIL_DELIVERY_SCHEMA_VERSION
+              ? clamp(
+                  Math.round(Number(parsed.lastCatDeliveredTodoListId) || 0),
+                  0,
+                  5
+                )
+              : 0;
           const storedTodoProgress = parsed.todoProgress && typeof parsed.todoProgress === "object"
             ? parsed.todoProgress
             : null;
@@ -7490,6 +7637,8 @@
               currentTodoListId,
               todoSubmittedListId,
               todoSubmittedDay,
+              lastCatDeliveredTodoListId,
+              catMailDeliverySchemaVersion: CAT_MAIL_DELIVERY_SCHEMA_VERSION,
               todoSchemaVersion: TODO_SCHEMA_VERSION,
               todoProgress,
               fuel: fuelCount,
@@ -9629,6 +9778,7 @@
         setNightMode(false);
         commitResourceState({ animateDay: true });
         exploringStatus.classList.remove("is-visible");
+        triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldDeerSpawn();
 
         if (explorationTimerId !== null) {
@@ -9999,6 +10149,7 @@
         // 새로고침이나 재접속 후에도 다시 나타나도록 활성 상태를 저장합니다.
         isDogEnabledByTest = true;
         createDog(true);
+        startCatDelivery();
         spawnOrReplaceSupplyBox({ resetTimer: true });
 
         commitResourceState();
@@ -10108,6 +10259,7 @@
           preloadImage(BIRTH_DEATH_SHEET),
           preloadImage(DEER_SHEET),
           preloadImage(DOG_SHEET),
+          preloadImage(CAT_SHEET),
           preloadImage("images/house_1_roof.png"),
           preloadImage("images/house_1_walls.png"),
           preloadImage("images/garden_1.png"),
@@ -13462,6 +13614,247 @@
         return true;
       }
 
+      function catFramePosition(frameIndex) {
+        const normalized = clamp(
+          Math.round(Number(frameIndex) || 0),
+          0,
+          CAT_SHEET_COLUMNS * CAT_SHEET_ROWS - 1
+        );
+        const column = normalized % CAT_SHEET_COLUMNS;
+        const row = Math.floor(normalized / CAT_SHEET_COLUMNS);
+        return `${-column * CAT_SIZE}px ${-row * CAT_SIZE}px`;
+      }
+
+      function getCatStartPosition() {
+        return {
+          x: CAT_START_X,
+          y: CAT_START_Y
+        };
+      }
+
+      function getCatTargetPosition() {
+        return {
+          x: CAT_TARGET_X,
+          y: CAT_TARGET_Y
+        };
+      }
+
+      function showCatFrame(activeCat, frameIndex) {
+        const position = catFramePosition(frameIndex);
+        if (activeCat.renderedFramePosition === position) return;
+        activeCat.renderedFramePosition = position;
+        activeCat.sprite.style.backgroundPosition = position;
+        activeCat.nightSprite.style.backgroundPosition = position;
+      }
+
+      function renderCat(activeCat) {
+        activeCat.element.style.left = `${activeCat.x}px`;
+        activeCat.element.style.top = `${activeCat.y}px`;
+        updateEntityTreeDepth(
+          activeCat.element,
+          activeCat.x,
+          activeCat.y + CAT_DEPTH_POINT_OFFSET_Y,
+          activeCat.y
+        );
+      }
+
+      function removeCat(activeCat = cat) {
+        if (!activeCat) return;
+        if (activeCat.element?.parentElement) {
+          activeCat.element.parentElement.removeChild(activeCat.element);
+        }
+        if (cat === activeCat) {
+          cat = null;
+        }
+      }
+
+      function startCatReturn(activeCat) {
+        activeCat.state = "returning";
+        activeCat.frameElapsed = 0;
+        activeCat.animationFrame = 0;
+        activeCat.renderedFramePosition = "";
+        showCatFrame(activeCat, CAT_WALK_SW_FRAME_SEQUENCE[0]);
+      }
+
+      function maybeCompleteCatMailboxDelivery(activeCat) {
+        if (activeCat.mailboxSoundPlayed) return;
+        if (activeCat.animationFrame < CAT_MAILBOX_SOUND_DELIVERY_FRAME_INDEX) return;
+
+        activeCat.mailboxSoundPlayed = true;
+        playSound(MAILBOX_SOUND);
+
+        const deliveredTodoListId = clamp(
+          Math.round(Number(activeCat.deliveryTodoListId) || 0),
+          0,
+          5
+        );
+        if (deliveredTodoListId <= 0) return;
+
+        // 이 순간부터 우편함을 눌러 새 편지와 연결된 보상을 받을 수 있습니다.
+        if (lastCatDeliveredTodoListId !== deliveredTodoListId) {
+          lastCatDeliveredTodoListId = deliveredTodoListId;
+          saveResourceState();
+        }
+      }
+
+      function updateCatMovement(activeCat, deltaMs) {
+        const frameSequence = activeCat.state === "entering"
+          ? CAT_WALK_NE_FRAME_SEQUENCE
+          : CAT_WALK_SW_FRAME_SEQUENCE;
+        activeCat.frameElapsed += deltaMs;
+        while (activeCat.frameElapsed >= CAT_FRAME_INTERVAL_MS) {
+          activeCat.frameElapsed -= CAT_FRAME_INTERVAL_MS;
+          activeCat.animationFrame =
+            (activeCat.animationFrame + 1) % frameSequence.length;
+        }
+        showCatFrame(activeCat, frameSequence[activeCat.animationFrame]);
+
+        const destinationX = activeCat.state === "entering"
+          ? activeCat.targetX
+          : activeCat.startX;
+        const destinationY = activeCat.state === "entering"
+          ? activeCat.targetY
+          : activeCat.startY;
+        const dx = destinationX - activeCat.x;
+        const dy = destinationY - activeCat.y;
+        const distance = Math.hypot(dx, dy);
+        const maxStep = CAT_SPEED_PX_PER_MS * deltaMs;
+
+        if (distance <= Math.max(0.0001, maxStep)) {
+          activeCat.x = destinationX;
+          activeCat.y = destinationY;
+          renderCat(activeCat);
+          if (activeCat.state === "entering") {
+            activeCat.state = "delivering";
+            activeCat.frameElapsed = 0;
+            activeCat.animationFrame = 0;
+            activeCat.renderedFramePosition = "";
+            activeCat.mailboxSoundPlayed = false;
+            showCatFrame(activeCat, CAT_DELIVERY_FRAME_SEQUENCE[0]);
+            maybeCompleteCatMailboxDelivery(activeCat);
+          } else {
+            removeCat(activeCat);
+          }
+          return;
+        }
+
+        const ratio = maxStep / Math.max(distance, 0.0001);
+        activeCat.x += dx * ratio;
+        activeCat.y += dy * ratio;
+        renderCat(activeCat);
+      }
+
+      function updateCatDelivery(activeCat, deltaMs) {
+        activeCat.frameElapsed += deltaMs;
+        while (activeCat.frameElapsed >= CAT_FRAME_INTERVAL_MS) {
+          activeCat.frameElapsed -= CAT_FRAME_INTERVAL_MS;
+          activeCat.animationFrame += 1;
+          maybeCompleteCatMailboxDelivery(activeCat);
+          if (activeCat.animationFrame >= CAT_DELIVERY_FRAME_SEQUENCE.length) {
+            activeCat.animationFrame = CAT_DELIVERY_FRAME_SEQUENCE.length - 1;
+            showCatFrame(
+              activeCat,
+              CAT_DELIVERY_FRAME_SEQUENCE[activeCat.animationFrame]
+            );
+            startCatReturn(activeCat);
+            renderCat(activeCat);
+            return;
+          }
+        }
+
+        showCatFrame(
+          activeCat,
+          CAT_DELIVERY_FRAME_SEQUENCE[activeCat.animationFrame]
+        );
+        renderCat(activeCat);
+      }
+
+      function updateCat(activeCat, deltaMs) {
+        if (activeCat.state === "delivering") {
+          updateCatDelivery(activeCat, deltaMs);
+          return;
+        }
+
+        if (
+          activeCat.state === "entering" ||
+          activeCat.state === "returning"
+        ) {
+          updateCatMovement(activeCat, deltaMs);
+          return;
+        }
+
+        renderCat(activeCat);
+      }
+
+      function startCatDelivery(deliveryTodoListId = null) {
+        const availableTodoListId = getAvailableMailboxTodoListId();
+        const resolvedDeliveryTodoListId = deliveryTodoListId === null
+          ? (
+              availableTodoListId > 0 &&
+              lastCatDeliveredTodoListId !== availableTodoListId
+                ? availableTodoListId
+                : 0
+            )
+          : clamp(Math.round(Number(deliveryTodoListId) || 0), 0, 5);
+
+        removeCat();
+
+        const startPosition = getCatStartPosition();
+        const targetPosition = getCatTargetPosition();
+        const element = document.createElement("div");
+        element.className = "cat";
+        element.setAttribute("aria-hidden", "true");
+        element.style.width = `${CAT_SIZE}px`;
+        element.style.height = `${CAT_SIZE}px`;
+
+        const dayVisual = document.createElement("div");
+        dayVisual.className = "cat-visual-layer cat-visual-day";
+
+        const nightVisual = document.createElement("div");
+        nightVisual.className = "cat-visual-layer cat-visual-night";
+
+        const catBackgroundSize =
+          `${CAT_SIZE * CAT_SHEET_COLUMNS}px ${CAT_SIZE * CAT_SHEET_ROWS}px`;
+
+        const sprite = document.createElement("div");
+        sprite.className = "cat-sprite";
+        sprite.style.backgroundImage = `url("${CAT_SHEET}")`;
+        sprite.style.backgroundSize = catBackgroundSize;
+
+        const nightSprite = document.createElement("div");
+        nightSprite.className = "cat-sprite";
+        nightSprite.style.backgroundImage = `url("${CAT_SHEET}")`;
+        nightSprite.style.backgroundSize = catBackgroundSize;
+
+        dayVisual.appendChild(sprite);
+        nightVisual.appendChild(nightSprite);
+        element.appendChild(dayVisual);
+        element.appendChild(nightVisual);
+        entities.appendChild(element);
+
+        cat = {
+          element,
+          sprite,
+          nightSprite,
+          x: startPosition.x,
+          y: startPosition.y,
+          startX: startPosition.x,
+          startY: startPosition.y,
+          targetX: targetPosition.x,
+          targetY: targetPosition.y,
+          state: "entering",
+          frameElapsed: 0,
+          animationFrame: 0,
+          renderedFramePosition: "",
+          mailboxSoundPlayed: false,
+          deliveryTodoListId: resolvedDeliveryTodoListId
+        };
+
+        showCatFrame(cat, CAT_WALK_NE_FRAME_SEQUENCE[0]);
+        renderCat(cat);
+        return true;
+      }
+
       function showSingleDeerFrame(deer, frameIndex) {
         const renderState = deer.spriteRenderState;
 
@@ -15932,6 +16325,10 @@
           updateDog(dog, deltaMs, now);
         }
 
+        if (cat) {
+          updateCat(cat, deltaMs, now);
+        }
+
         if (supplyBox) {
           updateSupplyBox(supplyBox, deltaMs, now);
         }
@@ -17028,6 +17425,7 @@
         hasGameInitialized = true;
         lastPopulationWallClockAt = Date.now();
         updateTodoListUI();
+        triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldZombieSpawn();
         scheduleEmptyFieldDeerSpawn();
 
