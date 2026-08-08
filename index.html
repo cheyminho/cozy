@@ -142,6 +142,11 @@
       will-change: transform;
     }
 
+    /* 비가 오는 동안 낮 필드 배경을 비 전용 이미지로 교체합니다. */
+    body.is-rainy #world {
+      background-image: url("images/bg_field_default_rainy.png");
+    }
+
     /* 탐험 중에는 밤 배경을 3초 동안 페이드인하고, 귀환 시 반대로 전환합니다. */
     #world::after {
       content: "";
@@ -2492,6 +2497,42 @@
       transform: translateY(5px);
     }
 
+    /* 좀비 처치 시 남은 처치 수 위에서 -1이 떠오르며 사라집니다. */
+    .zombie-kill-delta {
+      position: absolute;
+      right: 0;
+      top: -12px;
+      z-index: 1;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      animation:
+        zombie-kill-delta-rise 1500ms ease-out forwards,
+        zombie-kill-delta-fade 1500ms cubic-bezier(0.12, 0, 0.39, 0) forwards;
+    }
+
+    @keyframes zombie-kill-delta-rise {
+      from {
+        transform: translateY(0);
+      }
+      to {
+        transform: translateY(-15px);
+      }
+    }
+
+    /* 투명도는 EaseInSine 곡선으로 사라집니다. */
+    @keyframes zombie-kill-delta-fade {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+
     #exploringTime {
       width: max-content;
       margin-left: auto;
@@ -3007,7 +3048,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.127"
+  data-game-version="0.128"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3050,6 +3091,16 @@
     </filter>
   </svg>
   <script>
+    /*
+      비 표시 테스트 스위치
+      - TEST_MODE = true일 때 FORCE_RAIN_FOR_TEST 값이 저장된 날씨보다 우선합니다.
+      - FORCE_RAIN_FOR_TEST = false: 저장 상태와 관계없이 맑음으로 표시합니다.
+      - FORCE_RAIN_FOR_TEST = true: 저장 상태와 관계없이 비로 표시합니다.
+      - TEST_MODE = false: FORCE_RAIN_FOR_TEST를 무시하고 실제 저장/확률 날씨를 사용합니다.
+    */
+    const TEST_MODE = true;
+    const FORCE_RAIN_FOR_TEST = false;
+
     (() => {
       try {
         const saved = localStorage.getItem("cozy.resources.v1");
@@ -3081,13 +3132,14 @@
         }
 
         const savedDayCount = Number(parsed.dayCount);
-        if (
-          Number.isFinite(savedDayCount) &&
-          savedDayCount > 1 &&
-          parsed.isRainyToday === true
-        ) {
-          document.body.classList.add("is-rainy");
-        }
+        const shouldRestoreRain = TEST_MODE
+          ? FORCE_RAIN_FOR_TEST
+          : (
+              Number.isFinite(savedDayCount) &&
+              savedDayCount > 1 &&
+              parsed.isRainyToday === true
+            );
+        document.body.classList.toggle("is-rainy", shouldRestoreRain);
       } catch (_) {
         // 저장소를 읽을 수 없어도 기본 낮 화면으로 계속 실행합니다.
       }
@@ -3739,8 +3791,6 @@
       ).trim();
       const RESET_SAVE_ON_VERSION_MISMATCH =
         document.body.dataset.resetSaveOnVersionMismatch === "true";
-      const TEST_MODE = true;
-
       /*
         비 발생 확률 수정 위치
         - 첫째 날에는 비가 오지 않습니다.
@@ -3764,15 +3814,15 @@
         밤에는 이 설정이 적용되지 않고 기존 밤 컬러를 사용합니다.
       */
       const RAIN_DAY_TONE = Object.freeze({
-        brightness: 0.9,
-        saturation: 0.5,
-        contrast: 1.5,
+        brightness: 0.65,
+        saturation: 0.65,
+        contrast: 1.15,
         colorBalance: Object.freeze({
           red: 0.9,
           green: 1,
-          blue: 1.5
+          blue: 1.2
         }),
-        tint: "rgba(20, 70, 95, 0.1)",
+        tint: "rgba(20, 70, 95, 0.0)",
         opacity: 1
       });
 
@@ -7712,12 +7762,24 @@
 
       function updateWeatherLabel() {
         if (!weatherLabel) return;
-        const shouldRain = dayCount > 1 && isRainyToday;
+        const shouldRain = TEST_MODE
+          ? FORCE_RAIN_FOR_TEST
+          : (dayCount > 1 && isRainyToday);
         const remainingZombieKills = Math.max(
           0,
           zombieKillRequirement - zombieCount
         );
         weatherLabel.textContent = `${shouldRain ? "Rainy" : "Sunny"} ${remainingZombieKills}`;
+      }
+
+      function showZombieKillDelta() {
+        if (!dayStatus) return;
+
+        const delta = document.createElement("span");
+        delta.className = "zombie-kill-delta";
+        delta.textContent = "-1";
+        dayStatus.appendChild(delta);
+        delta.addEventListener("animationend", () => delta.remove(), { once: true });
       }
 
       function updateResourceHud() {
@@ -9187,7 +9249,9 @@
           String(RAIN_NIGHT_TONE.opacity)
         );
 
-        const shouldRain = dayCount > 1 && isRainyToday;
+        const shouldRain = TEST_MODE
+          ? FORCE_RAIN_FOR_TEST
+          : (dayCount > 1 && isRainyToday);
         const wasRainy = document.body.classList.contains("is-rainy");
         document.body.classList.toggle("is-rainy", shouldRain);
         updateWeatherLabel();
@@ -15124,6 +15188,7 @@
           fallingStartY: 0,
           fallingStartX: 0,
           dropSoundPlayed: false,
+          impactResolved: false,
           brokenStartedAt: 0
         };
 
@@ -15161,13 +15226,6 @@
         if (!isClientPointInsideElement(clientX, clientY, supplyBox.hitArea)) {
           return null;
         }
-        if (
-          supplyBox.state === "flying" &&
-          !isSupplyBoxShootXAllowed(supplyBox, supplyBox.x)
-        ) {
-          showToast(SUPPLY_BOX_STEADY_TOAST_MESSAGE);
-          return null;
-        }
         return supplyBox;
       }
 
@@ -15184,6 +15242,7 @@
         activeSupplyBox.shadowY = activeSupplyBox.landingY;
         activeSupplyBox.shadowOpacity = 0;
         activeSupplyBox.dropSoundPlayed = false;
+        activeSupplyBox.impactResolved = false;
         setSupplyBoxFallenVisual(activeSupplyBox);
         activeSupplyBox.hitArea.style.pointerEvents = "none";
         renderSupplyBox(activeSupplyBox);
@@ -15198,49 +15257,150 @@
         return "";
       }
 
+      function hasAmmoForSupplyBoxGun(weapon) {
+        if (weapon === "handgun") return handgunAmmoCount > 0;
+        if (weapon === "shotgun") return shotgunAmmoCount > 0;
+        if (weapon === "rifle") return rifleAmmoCount > 0;
+        return false;
+      }
+
       function tryShootSupplyBox(activeSupplyBox) {
         const weapon = getEquippedGunForSupplyBox();
-        if (!weapon) {
+
+        // 총이 없거나 탄약이 없는 상태와 Steady 조건이 동시에 맞으면
+        // 총 필요 메시지를 먼저 보여줍니다.
+        if (!weapon || !hasAmmoForSupplyBoxGun(weapon)) {
           showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
           return false;
         }
 
+        if (!isSupplyBoxShootXAllowed(activeSupplyBox, activeSupplyBox.x)) {
+          showToast(SUPPLY_BOX_STEADY_TOAST_MESSAGE);
+          return false;
+        }
+
         if (weapon === "handgun") {
-          if (!consumeAmmo("handgun")) {
-            showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
-            return false;
-          }
+          if (!consumeAmmo("handgun")) return false;
           playSound(HANDGUN_SOUND);
         } else if (weapon === "shotgun") {
-          if (!consumeAmmo("shotgun")) {
-            showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
-            return false;
-          }
+          if (!consumeAmmo("shotgun")) return false;
           playSound(SHOTGUN_FIRE_SOUND);
         } else if (weapon === "rifle") {
-          if (!consumeAmmo("rifle")) {
-            showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
-            return false;
-          }
+          if (!consumeAmmo("rifle")) return false;
           playSound(RIFLE_FIRE_SOUND);
         }
 
         return beginSupplyBoxFall(activeSupplyBox);
       }
 
-      function openSupplyBox(activeSupplyBox) {
-        if (!activeSupplyBox || activeSupplyBox.state !== "landed") return false;
-        playSound(SUPPLY_BOX_OPEN_SOUND);
+      function breakSupplyBoxAndAward(activeSupplyBox, options = {}) {
+        if (
+          !activeSupplyBox ||
+          activeSupplyBox.state === "broken" ||
+          activeSupplyBox.state === "exploration-fading"
+        ) {
+          return false;
+        }
+
+        if (options.playOpenSound !== false) {
+          playSound(SUPPLY_BOX_OPEN_SOUND);
+        }
         awardExplorationRewards("village", dayCount);
         showToast("Lucky me.");
 
         activeSupplyBox.state = "broken";
         activeSupplyBox.brokenStartedAt = performance.now();
+        activeSupplyBox.x = clamp(
+          activeSupplyBox.x,
+          activeSupplyBox.minShootX,
+          activeSupplyBox.maxShootX
+        );
+        activeSupplyBox.y = activeSupplyBox.landingY;
+        activeSupplyBox.shadowX = activeSupplyBox.x;
+        activeSupplyBox.shadowY = activeSupplyBox.landingY;
         activeSupplyBox.shadowOpacity = 1;
         setSupplyBoxBrokenVisual(activeSupplyBox);
         renderSupplyBox(activeSupplyBox);
 
         commitResourceState();
+        return true;
+      }
+
+      function openSupplyBox(activeSupplyBox) {
+        if (!activeSupplyBox || activeSupplyBox.state !== "landed") return false;
+        return breakSupplyBoxAndAward(activeSupplyBox);
+      }
+
+      function doWorldRectsOverlap(a, b) {
+        return (
+          a.left < b.right &&
+          a.right > b.left &&
+          a.top < b.bottom &&
+          a.bottom > b.top
+        );
+      }
+
+      function resolveSupplyBoxImpact(activeSupplyBox) {
+        if (!activeSupplyBox) return false;
+
+        const boxRect = {
+          left: activeSupplyBox.x,
+          top: activeSupplyBox.landingY,
+          right: activeSupplyBox.x + SUPPLY_BOX_FALLEN_SIZE,
+          bottom: activeSupplyBox.landingY + SUPPLY_BOX_FALLEN_SIZE
+        };
+
+        const hitZombies = Array.from(zombies.values()).filter((zombie) => {
+          if (
+            zombie.state === "dying" ||
+            zombie.state === "chainsawAttacking" ||
+            zombie.state === "removed"
+          ) {
+            return false;
+          }
+          return doWorldRectsOverlap(boxRect, {
+            left: zombie.x - HALF_W,
+            top: zombie.y - HALF_H,
+            right: zombie.x + HALF_W,
+            bottom: zombie.y + HALF_H
+          });
+        });
+
+        const hitDeer = Array.from(deerMap.values()).filter((deer) => {
+          if (deer.state === "dying" || deer.state === "removed") {
+            return false;
+          }
+          return doWorldRectsOverlap(boxRect, {
+            left: deer.x - DEER_HALF_W,
+            top: deer.y - DEER_HALF_H,
+            right: deer.x + DEER_HALF_W,
+            bottom: deer.y + DEER_HALF_H
+          });
+        });
+
+        if (hitZombies.length === 0 && hitDeer.length === 0) {
+          return false;
+        }
+
+        for (const zombie of hitZombies) {
+          zombie.health = 0;
+          beginDeath(zombie, true, {
+            deathType: "normal",
+            countDifferentWeapon: false
+          });
+        }
+
+        for (const deer of hitDeer) {
+          // 사슴에는 별도 사망 전용 SFX가 없으므로 기존 치명타격 때 쓰는
+          // 타격음을 사용하고 즉시 사망 연출로 전환합니다.
+          playSound(HIT_SOUND, 0.5);
+          deer.health = 0;
+          beginDeerDeath(deer);
+        }
+
+        // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
+        // 보상도 즉시 지급합니다. 처치음과 겹치지 않도록 상자 개봉음은 생략합니다.
+        breakSupplyBoxAndAward(activeSupplyBox, { playOpenSound: false });
         return true;
       }
 
@@ -15286,7 +15446,11 @@
           activeSupplyBox.shadowY = activeSupplyBox.landingY;
           activeSupplyBox.shadowOpacity = easedFall;
 
-          if (fallProgress >= 1 && !activeSupplyBox.dropSoundPlayed) {
+          if (fallProgress >= 1 && !activeSupplyBox.impactResolved) {
+            activeSupplyBox.impactResolved = true;
+            if (resolveSupplyBoxImpact(activeSupplyBox)) {
+              return;
+            }
             activeSupplyBox.dropSoundPlayed = true;
             playSound(SUPPLY_BOX_DROP_SOUND);
           }
@@ -15558,11 +15722,13 @@
         }
       }
 
-      function registerPlayerZombieKill(zombie) {
+      function registerPlayerZombieKill(zombie, options = {}) {
         if (zombie.counted) return;
 
         zombie.counted = true;
-        recordDifferentWeaponKill(zombie.lastPlayerWeapon || getEquippedWeapon());
+        if (options.countDifferentWeapon !== false) {
+          recordDifferentWeaponKill(zombie.lastPlayerWeapon || getEquippedWeapon());
+        }
         awardMusicBox();
         const isFirstZombieKill = triggerFirstKillBirdFlock();
         if (isFirstZombieKill) {
@@ -15575,6 +15741,9 @@
         const previousZombieCount = zombieCount;
         zombieCount = Math.min(zombieKillRequirement, zombieCount + 1);
         commitResourceState();
+        if (zombieCount > previousZombieCount) {
+          showZombieKillDelta();
+        }
 
         if (previousZombieCount < zombieKillRequirement && zombieCount >= zombieKillRequirement) {
           window.setTimeout(() => {
@@ -15776,7 +15945,9 @@
         playSound(DEATH_SOUND, 0.5);
 
         if (wasPlayerKill) {
-          registerPlayerZombieKill(zombie);
+          registerPlayerZombieKill(zombie, {
+            countDifferentWeapon: options.countDifferentWeapon
+          });
         }
 
         zombie.element.style.opacity = "1";
