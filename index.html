@@ -28,11 +28,26 @@
       --deer-width: 85.3333px;
       --deer-height: 85.3333px;
 
-      /* 개 표시 크기 수정 위치입니다. */
+      /* 개 표시 크기 / 등장 / 나무 아래 밝기 연출 수정 위치입니다. */
       --dog-size: 64px;
+      --dog-appear-duration: 300ms;
+      --dog-under-tree-brightness: 0.82;
+      --dog-brightness-return-duration: 1s;
+
+      /*
+        날씨 / 무기 / 남은 좀비 수 HUD 간격 수정 위치입니다.
+        - size: 무기 아이콘 표시 크기
+        - gap-left: 날씨 텍스트와 무기 아이콘 사이 간격
+        - gap-right: 무기 아이콘과 남은 좀비 수 사이 간격
+        - offset-y: 무기 아이콘의 세로 위치 보정
+      */
+      --weapon-hud-size: 24px;
+      --weapon-hud-gap-left: 3px;
+      --weapon-hud-gap-right: 2px;
+      --weapon-hud-offset-y: 0px;
 
       /* 좀비·사슴·개의 밤 전용 밝기와 채도입니다. */
-      --entity-night-brightness: 0.5;
+      --entity-night-brightness: 0.42;
       --entity-night-saturation: 0.7;
 
       /*
@@ -2505,13 +2520,43 @@
       transition: opacity 2s ease-out;
     }
 
-    #exploringLabel,
-    #weatherLabel {
+    #exploringLabel {
       margin-bottom: 10px;
       font-size: 14px;
       font-weight: 450;
       line-height: 1;
       transform: translateY(5px);
+    }
+
+    #weatherStatusRow {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      margin-bottom: 10px;
+      font-size: 14px;
+      font-weight: 450;
+      line-height: 1;
+      transform: translateY(5px);
+    }
+
+    #weaponStatusIcon {
+      flex: 0 0 var(--weapon-hud-size);
+      width: var(--weapon-hud-size);
+      height: var(--weapon-hud-size);
+      margin-left: var(--weapon-hud-gap-left);
+      margin-right: var(--weapon-hud-gap-right);
+      background-image: url("images/icon_weapons.png");
+      background-repeat: no-repeat;
+      background-size: 400% 200%;
+      background-position: 0 0;
+      transform: translateY(var(--weapon-hud-offset-y));
+      pointer-events: none;
+    }
+
+    #weatherLabel,
+    #remainingZombieLabel {
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
 
     /* 좀비 처치 시 남은 처치 수 위에서 -1이 떠오르며 사라집니다. */
@@ -2818,12 +2863,19 @@
       position: absolute;
       width: var(--dog-size);
       height: var(--dog-size);
+      opacity: 1;
       transform: translate(-50%, -50%);
       transform-origin: center center;
       will-change: left, top, opacity;
       cursor: pointer;
       touch-action: none;
       pointer-events: auto;
+      transition: opacity var(--dog-appear-duration) ease-out;
+    }
+
+    /* 개가 필드에 새로 나타날 때 짧게 페이드인합니다. */
+    .dog.is-appearing {
+      opacity: 0;
     }
 
     .dog::before {
@@ -2918,6 +2970,19 @@
       will-change: opacity;
     }
 
+    /* 나무 아래 고정 연출 중인 개만 살짝 어둡게 표시합니다. */
+    .dog-visual-layer {
+      filter: brightness(1);
+      transition:
+        opacity 3s ease,
+        filter var(--dog-brightness-return-duration) ease;
+      will-change: opacity, filter;
+    }
+
+    .dog.is-under-tree .dog-visual-layer {
+      filter: brightness(var(--dog-under-tree-brightness));
+    }
+
     .zombie-visual-day,
     .deer-visual-day,
     .dog-visual-day,
@@ -2962,6 +3027,16 @@
     body.is-night .deer-visual-night,
     body.is-night .dog-visual-night,
     body.is-night .cat-visual-night {
+      opacity: 1;
+    }
+
+    /* 밤에서 낮으로 돌아올 때 새로 생성되는 개도 먼저 밤 레이어로 시작해
+       배경과 같은 3초 전환을 거친 뒤 낮 레이어로 자연스럽게 돌아옵니다. */
+    .dog.is-starting-from-night .dog-visual-day {
+      opacity: 0;
+    }
+
+    .dog.is-starting-from-night .dog-visual-night {
       opacity: 1;
     }
 
@@ -3065,7 +3140,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.130"
+  data-game-version="0.131"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3482,7 +3557,11 @@
     <div id="exploringTime">10m</div>
   </div>
   <div id="dayStatus" aria-live="polite">
-    <div id="weatherLabel">Sunny</div>
+    <div id="weatherStatusRow">
+      <span id="weatherLabel">Sunny</span>
+      <span id="weaponStatusIcon" aria-hidden="true"></span>
+      <span id="remainingZombieLabel">2</span>
+    </div>
     <div id="dayNumber" aria-label="DAY 1">
       <span class="day-number-prefix">DAY</span>
       <span class="day-number-viewport" aria-hidden="true">
@@ -3568,14 +3647,22 @@
       const DEER_HITBOX_SIZE = DEER_WIDTH;
 
       /*
-        개 테스트 및 움직임 수정 위치
-        - DOG_ENABLED: true면 등장, false면 등장하지 않습니다.
+        개 위치 / 친밀도 연출 수정 위치
+        - DOG_SPAWN_X / DOG_SPAWN_Y: 2048×2048 월드 기준 첫 등장 위치입니다.
+        - DOG_STORY_MIN_DURATION_MS / MAX: "가끔씩", "잠깐" 동작의 1~3초 범위입니다.
         - 표시 크기는 위 CSS의 --dog-size에서 조절합니다.
-        - 달리기: 각 방향 줄의 1~6번째 이미지를 50ms 간격 looping 으로 사용합니다.
+        - DOG_SPEED_PX_PER_MS: 일반 달리기 이동 속도입니다.
+        - DOG_FAST_RUN_SPEED_PX_PER_MS: 빠른 달리기 이동 속도입니다.
+        - DOG_FAST_RUN_FRAME_INTERVAL_MS: 빠른 달리기 프레임 재생 간격입니다.
+        - 달리기: 각 방향 줄의 1~6번째 이미지를 looping 으로 사용합니다.
         - 서 있기 idle: 각 방향 줄의 7~11번째 이미지를 pingpong 으로 사용합니다.
-        - 북북서/북서/북서서/서/남서서/남서/남남서 방향은 동쪽 계열 줄을 좌우 반전해 사용합니다.
       */
-      const DOG_ENABLED = false;
+      const DOG_SPAWN_X = 1250;
+      const DOG_SPAWN_Y = 800;
+      const DOG_FIRST_APPEAR_DAY = 7;
+      const DOG_STORY_MIN_DURATION_MS = 1_000;
+      const DOG_STORY_MAX_DURATION_MS = 3_000;
+      const DOG_STAGE_TWO_RUN_DISTANCE_PX = 100;
       const DOG_SHEET_COLUMNS = 16;
       const DOG_SHEET_ROWS = 16;
       const DOG_RUN_FRAME_START_COLUMN = 0;
@@ -3585,6 +3672,8 @@
       const DOG_IDLE_PINGPONG_SEQUENCE = Object.freeze([0, 1, 2, 3, 4, 3, 2, 1]);
       const DOG_IDLE_FRAME_INTERVAL_MS = 100;
       const DOG_SPEED_PX_PER_MS = 0.09;
+      const DOG_FAST_RUN_SPEED_PX_PER_MS = 0.18;
+      const DOG_FAST_RUN_FRAME_INTERVAL_MS = 70;
       // 이동 방향은 16방향이며, 방향 전환은 한 번에 22.5도씩 진행합니다.
       const DOG_MOVEMENT_DIRECTION_COUNT = 16;
       const DOG_TURN_STEP_RAD = Math.PI / 8;
@@ -3612,6 +3701,34 @@
       const DOG_SIT_IDLE_FRAME_INTERVAL_MS = 100;
       const DOG_SIT_MIN_DURATION_MS = 3_000;
       const DOG_SIT_MAX_DURATION_MS = 7_000;
+
+      // 14번째 줄: 눕기 / 고개 들기 / 꼬리 흔들기
+      const DOG_LIE_ROW_INDEX = 13;
+      const DOG_LIE_IDLE_COLUMN = 0;
+      const DOG_LIE_HEAD_UP_COLUMN = 1;
+      const DOG_LIE_WAG_START_COLUMN = 2;
+      const DOG_LIE_WAG_LOOP_SEQUENCE = Object.freeze([
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+      ]);
+      const DOG_LIE_WAG_FRAME_INTERVAL_MS = 120;
+
+      // 15번째 줄: 앉기 → 배보이기 전환 / 배보이기 유지
+      const DOG_BELLY_ROW_INDEX = 14;
+      const DOG_BELLY_TRANSITION_START_COLUMN = 0;
+      const DOG_BELLY_TRANSITION_FRAME_COUNT = 8;
+      const DOG_BELLY_IDLE_START_COLUMN = 8;
+      const DOG_BELLY_IDLE_PINGPONG_SEQUENCE = Object.freeze([
+        0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1
+      ]);
+      const DOG_STORY_FRAME_INTERVAL_MS = 100;
+      const DOG_STAGE_ADVANCE_DELAY_DAYS = Object.freeze({
+        1: 2,
+        2: 1,
+        3: 3,
+        4: 1,
+        5: 1,
+        6: 1
+      });
 
       /*
         고양이 우편 배달 연출 수정 위치
@@ -4038,6 +4155,8 @@
       const CITY_EXPLORATION_STOP_SOUND = "sounds/sfx_car_stop.wav";
       const SHED_OLD_SOUND = "sounds/sfx_shed_old.wav";
       const EXPLORE_BUTTON_SOUND = "sounds/sfx_btn.wav";
+      const DOG_PANT_SOUND = "sounds/sfx_dog_pant.wav";
+      const DOG_BARK_SOUND = "sounds/sfx_dog_bark.wav";
       const EXPLORING_FOOTSTEPS_SOUND =
         "sounds/sfx_exploringfootsteps.wav";
       const SUPPLY_BOX_DROP_SOUND = "sounds/sfx_supplybox_drop.wav";
@@ -4674,6 +4793,8 @@
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
       const weatherLabel = document.getElementById("weatherLabel");
+      const weaponStatusIcon = document.getElementById("weaponStatusIcon");
+      const remainingZombieLabel = document.getElementById("remainingZombieLabel");
       const rainLayer = document.getElementById("rainLayer");
       const dayStatus = document.getElementById("dayStatus");
       const dayNumber = document.getElementById("dayNumber");
@@ -5157,8 +5278,12 @@
       const deerMap = new Map();
       let dog = null;
       let cat = null;
-      // 기본값은 false이며, 테스트 모드에서 개를 등장시킨 뒤에만 저장·복원합니다.
-      let isDogEnabledByTest = false;
+      // 개 친밀도 진행도: 완료 단계와 다음 단계가 처음 등장할 수 있는 DAY를 저장합니다.
+      let dogCompletedStage = 0;
+      let dogNextStageDay = DOG_FIRST_APPEAR_DAY;
+      // 3~6단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
+      let dogStayStage = 0;
+      let dogStayDay = 0;
       let storedPopulationSnapshot = null;
       let lastZombieSpawnAt = Date.now();
       let lastDeerSpawnAt = Date.now();
@@ -5239,6 +5364,15 @@
         [SHED_OLD_SOUND, new Audio(SHED_OLD_SOUND)]
       ]);
       for (const audio of structureSoundAudioByPath.values()) {
+        audio.preload = "auto";
+      }
+
+      // 개 상호작용 효과음은 같은 재생 객체를 재사용해 연속 클릭으로 겹치지 않게 합니다.
+      const dogInteractAudioByPath = new Map([
+        [DOG_PANT_SOUND, new Audio(DOG_PANT_SOUND)],
+        [DOG_BARK_SOUND, new Audio(DOG_BARK_SOUND)]
+      ]);
+      for (const audio of dogInteractAudioByPath.values()) {
         audio.preload = "auto";
       }
 
@@ -7367,8 +7501,6 @@
             return;
           }
 
-          isDogEnabledByTest = parsed.isDogEnabledByTest === true;
-
           zombieKillRequirement = normalizeZombieKillRequirement(
             parsed.zombieKillRequirement
           );
@@ -7377,6 +7509,27 @@
             parsed.rainChancePercent
           );
           isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
+
+          dogCompletedStage = clamp(
+            Math.round(Number(parsed.dogCompletedStage) || 0),
+            0,
+            6
+          );
+          const storedDogNextStageDay = Math.round(
+            Number(parsed.dogNextStageDay) || 0
+          );
+          dogNextStageDay = storedDogNextStageDay > 0
+            ? storedDogNextStageDay
+            : DOG_FIRST_APPEAR_DAY;
+          dogStayStage = clamp(
+            Math.round(Number(parsed.dogStayStage) || 0),
+            0,
+            6
+          );
+          dogStayDay = Math.max(
+            0,
+            Math.round(Number(parsed.dogStayDay) || 0)
+          );
           if (isRainyToday) {
             zombieKillRequirement = INITIAL_ZOMBIE_KILL_REQUIREMENT;
           }
@@ -7662,7 +7815,10 @@
             RESOURCE_STORAGE_KEY,
             JSON.stringify({
               version: GAME_VERSION,
-              isDogEnabledByTest,
+              dogCompletedStage,
+              dogNextStageDay,
+              dogStayStage,
+              dogStayDay,
               zombies: zombieCount,
               zombieKillRequirement,
               dayCount,
@@ -7783,16 +7939,47 @@
         });
       }
 
-      function updateWeatherLabel() {
-        if (!weatherLabel) return;
-        const shouldRain = TEST_MODE && FORCE_RAIN_FOR_TEST !== null
+      function getCurrentRainState() {
+        return TEST_MODE && FORCE_RAIN_FOR_TEST !== null
           ? FORCE_RAIN_FOR_TEST
           : (dayCount > 1 && isRainyToday);
+      }
+
+      function updateWeaponStatusIcon() {
+        if (!weaponStatusIcon) return;
+
+        const frameByWeapon = {
+          "": 0,
+          axe: 1,
+          handgun: 2,
+          shotgun: 3,
+          rifle: 4,
+          chainsaw: 5
+        };
+        const frameIndex = frameByWeapon[getEquippedWeapon()] ?? 0;
+        const column = frameIndex % 4;
+        const row = Math.floor(frameIndex / 4);
+        const xPercent = column / 3 * 100;
+        const yPercent = row * 100;
+
+        weaponStatusIcon.style.backgroundPosition =
+          `${xPercent}% ${yPercent}%`;
+      }
+
+      function updateWeatherLabel() {
+        const shouldRain = getCurrentRainState();
         const remainingZombieKills = Math.max(
           0,
           zombieKillRequirement - zombieCount
         );
-        weatherLabel.textContent = `${shouldRain ? "Rainy" : "Sunny"} ${remainingZombieKills}`;
+
+        if (weatherLabel) {
+          weatherLabel.textContent = shouldRain ? "Rainy" : "Sunny";
+        }
+        if (remainingZombieLabel) {
+          remainingZombieLabel.textContent = String(remainingZombieKills);
+        }
+        updateWeaponStatusIcon();
       }
 
       function showZombieKillDelta() {
@@ -9495,6 +9682,13 @@
         foodCount = Math.max(0, foodCount - requiredFood);
         zombieCount = 0;
         fadeOutLandedSupplyBoxForExploration();
+        if (dog) {
+          // 탐험 출발 시 친밀도 단계와 관계없이 빠른 달리기로 화면 밖으로 나갑니다.
+          startDogFastRun(dog, {
+            mode: "escape",
+            completeStageOnExit: false
+          });
+        }
         isExploring = true;
         explorationDestination = destination;
         explorationDepartureDay = dayCount;
@@ -9752,7 +9946,7 @@
         return true;
       }
 
-      function awardDayFiveVillageHandgunReward() {
+      function awardDayFiveHandgunReward() {
         hasHandgun = true;
         hasHandgunAmmo = true;
         handgunAmmoCount = Math.min(
@@ -9779,17 +9973,18 @@
         return true;
       }
 
-      function awardExplorationRewards(destination, departureDay) {
+      function awardExplorationRewards(destination, departureDay, options = {}) {
         /*
-          DAY 5 이상에 Village로 출발했고 아직 핸드건이 없다면,
-          설계도와 일반 무작위 아이템 판정을 건너뛰고 핸드건 + 탄약 5발을 지급합니다.
+          실제 탐험에서 DAY 5 이상에 출발했고 아직 핸드건이 없다면,
+          목적지와 관계없이 설계도/일반 아이템 대신 핸드건 + 탄약 5발을 지급합니다.
+          서플라이 박스가 이 보상 함수를 재사용하더라도 해당 보장은 적용하지 않습니다.
         */
         if (
-          destination === "village" &&
+          options.isActualExploration === true &&
           departureDay >= 5 &&
           !hasHandgun
         ) {
-          awardDayFiveVillageHandgunReward();
+          awardDayFiveHandgunReward();
           return;
         }
 
@@ -9824,6 +10019,12 @@
           startCityCarReturn();
         } else {
           resetCarToHomePosition();
+        }
+
+        // 매우 짧은 테스트 탐험 등으로 이탈 중인 개가 남아 있어도
+        // 귀환 후에는 새 낮 상태의 개를 다시 생성해 페이드인하도록 정리합니다.
+        if (dog) {
+          removeDog({ resync: false });
         }
 
         isExploring = false;
@@ -9869,10 +10070,15 @@
           setTodoProgress(3, "item3", true);
         }
 
-        awardExplorationRewards(completedDestination, completedDepartureDay);
+        awardExplorationRewards(
+          completedDestination,
+          completedDepartureDay,
+          { isActualExploration: true }
+        );
         applyWeatherState();
         setNightMode(false);
         commitResourceState({ animateDay: true });
+        syncDogForCurrentDay({ startFromNightTransition: true });
         exploringStatus.classList.remove("is-visible");
         triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldDeerSpawn();
@@ -10241,10 +10447,7 @@
         applyInventoryNewBadgeState();
         applyRepairState();
 
-        // 테스트 모드에서 자원을 충전한 뒤 개를 등장시키고,
-        // 새로고침이나 재접속 후에도 다시 나타나도록 활성 상태를 저장합니다.
-        isDogEnabledByTest = true;
-        createDog(true);
+        // 테스트 모드는 개의 친밀도 진행이나 등장 조건을 강제로 변경하지 않습니다.
         startCatDelivery();
         spawnOrReplaceSupplyBox({ resetTimer: true });
 
@@ -11943,6 +12146,7 @@
         }
 
         if (options.render !== false) applyInventoryState();
+        updateWeaponStatusIcon();
         if (options.save !== false) saveResourceState();
       }
 
@@ -11952,6 +12156,7 @@
         stopChainsawBatteryDrain();
         stopChainsawIdleSound();
         applyInventoryState();
+        updateWeaponStatusIcon();
         saveResourceState();
       }
 
@@ -13024,14 +13229,158 @@
         return normalizeDogAngle(toAngle - fromAngle);
       }
 
-      function isDogPositionAllowed(x, y, size = getDogRenderSize()) {
+      // 7단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
+      // 이전 친밀도 단계는 기존 GAME_ZONE 범위를 그대로 유지합니다.
+      function getDogMovementZone(activeDogOrStage = null) {
+        const activeStage = Number(
+          typeof activeDogOrStage === "number"
+            ? activeDogOrStage
+            : activeDogOrStage?.activeStage
+        ) || 0;
+
+        return activeStage >= 7 ? getDraggableViewSpawnZone() : GAME_ZONE;
+      }
+
+      // 해상도 변경으로 Free Roam 영역이 줄어 개가 새 경계 밖에 놓이면,
+      // 순간이동하지 않고 가장 가까운 유효 경계 안쪽까지 일반 달리기 속도로 복귀합니다.
+      // 탐험 출발처럼 의도적으로 화면 밖으로 나가는 fastRun은 이 보정을 사용하지 않습니다.
+      function findFreeRoamDogBoundaryReturnTarget(activeDog) {
+        const halfSize = activeDog.size / 2;
+        const movementZone = getDogMovementZone(activeDog);
+        const minX = movementZone.left + halfSize;
+        const maxX = movementZone.right - halfSize;
+        const minY = movementZone.top + halfSize;
+        const maxY = movementZone.bottom - halfSize;
+        const clampedX = clamp(activeDog.x, minX, maxX);
+        const clampedY = clamp(activeDog.y, minY, maxY);
+        const candidates = [{ x: clampedX, y: clampedY }];
+        const scanStep = 12;
+
+        for (let x = minX; x <= maxX; x += scanStep) {
+          candidates.push(
+            { x, y: minY },
+            { x, y: maxY }
+          );
+        }
+        candidates.push(
+          { x: maxX, y: minY },
+          { x: maxX, y: maxY }
+        );
+
+        for (let y = minY; y <= maxY; y += scanStep) {
+          candidates.push(
+            { x: minX, y },
+            { x: maxX, y }
+          );
+        }
+        candidates.push(
+          { x: minX, y: maxY },
+          { x: maxX, y: maxY }
+        );
+
+        let nearest = null;
+        let nearestDistance = Infinity;
+        for (const candidate of candidates) {
+          if (
+            !isDogPositionAllowed(
+              candidate.x,
+              candidate.y,
+              activeDog.size,
+              activeDog
+            )
+          ) {
+            continue;
+          }
+
+          const distance = Math.hypot(
+            candidate.x - activeDog.x,
+            candidate.y - activeDog.y
+          );
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = candidate;
+          }
+        }
+
+        if (nearest) return nearest;
+
+        return getRandomDogPosition({
+          size: activeDog.size,
+          activeStage: activeDog.activeStage,
+          originX: clampedX,
+          originY: clampedY
+        });
+      }
+
+      function keepFreeRoamDogInsideMovementZone(activeDog) {
+        if (
+          !activeDog ||
+          activeDog.activeStage < 7 ||
+          activeDog.state === "fastRun"
+        ) {
+          return false;
+        }
+
+        const halfSize = activeDog.size / 2;
+        const movementZone = getDogMovementZone(activeDog);
+        const minX = movementZone.left + halfSize;
+        const maxX = movementZone.right - halfSize;
+        const minY = movementZone.top + halfSize;
+        const maxY = movementZone.bottom - halfSize;
+        const isInsideMovementBounds =
+          activeDog.x >= minX &&
+          activeDog.x <= maxX &&
+          activeDog.y >= minY &&
+          activeDog.y <= maxY;
+
+        if (isInsideMovementBounds) {
+          if (activeDog.state === "boundaryReturn") {
+            activeDog.boundaryReturnTargetX = activeDog.x;
+            activeDog.boundaryReturnTargetY = activeDog.y;
+            startDogRun(activeDog);
+            chooseNextDogWaypoint(activeDog, true);
+          }
+          return false;
+        }
+
+        const target = findFreeRoamDogBoundaryReturnTarget(activeDog);
+        if (!target) return false;
+
+        activeDog.boundaryReturnTargetX = target.x;
+        activeDog.boundaryReturnTargetY = target.y;
+        activeDog.waypointX = target.x;
+        activeDog.waypointY = target.y;
+        activeDog.state = "boundaryReturn";
+        activeDog.stateUntil = 0;
+        activeDog.sitPersistent = false;
+        activeDog.sitReturnMode = "free";
+        activeDog.animationElapsed %= DOG_RUN_FRAME_INTERVAL_MS;
+        activeDog.animationFrame %= DOG_RUN_FRAME_COUNT;
+        activeDog.angle = Math.atan2(
+          target.y - activeDog.y,
+          target.x - activeDog.x
+        );
+        activeDog.lastStateChangeAt = performance.now();
+        activeDog.renderKey = "";
+        showDogFrame(activeDog);
+        renderDog(activeDog);
+        return true;
+      }
+
+      function isDogPositionAllowed(
+        x,
+        y,
+        size = getDogRenderSize(),
+        activeDogOrStage = null
+      ) {
         const halfSize = size / 2;
+        const movementZone = getDogMovementZone(activeDogOrStage);
 
         if (
-          x < GAME_ZONE.left + halfSize ||
-          x > GAME_ZONE.right - halfSize ||
-          y < GAME_ZONE.top + halfSize ||
-          y > GAME_ZONE.bottom - halfSize
+          x < movementZone.left + halfSize ||
+          x > movementZone.right - halfSize ||
+          y < movementZone.top + halfSize ||
+          y > movementZone.bottom - halfSize
         ) {
           return false;
         }
@@ -13044,10 +13393,12 @@
       function getRandomDogPosition(options = {}) {
         const size = options.size || getDogRenderSize();
         const halfSize = size / 2;
-        const minX = GAME_ZONE.left + halfSize;
-        const maxX = GAME_ZONE.right - halfSize;
-        const minY = GAME_ZONE.top + halfSize;
-        const maxY = GAME_ZONE.bottom - halfSize;
+        const activeStage = Number(options.activeStage) || 0;
+        const movementZone = getDogMovementZone(activeStage);
+        const minX = movementZone.left + halfSize;
+        const maxX = movementZone.right - halfSize;
+        const minY = movementZone.top + halfSize;
+        const maxY = movementZone.bottom - halfSize;
         const originX = Number(options.originX);
         const originY = Number(options.originY);
         const minimumDistance = Math.max(
@@ -13060,7 +13411,7 @@
         for (let attempt = 0; attempt < 600; attempt += 1) {
           const x = randomBetween(minX, maxX);
           const y = randomBetween(minY, maxY);
-          if (!isDogPositionAllowed(x, y, size)) continue;
+          if (!isDogPositionAllowed(x, y, size, activeStage)) continue;
 
           if (!Number.isFinite(originX) || !Number.isFinite(originY)) {
             return { x, y };
@@ -13092,7 +13443,7 @@
         ) {
           const x = activeDog.x + Math.cos(angle) * distance;
           const y = activeDog.y + Math.sin(angle) * distance;
-          if (!isDogPositionAllowed(x, y, activeDog.size)) break;
+          if (!isDogPositionAllowed(x, y, activeDog.size, activeDog)) break;
           clearDistance = distance;
         }
 
@@ -13261,7 +13612,6 @@
         if (activeDog.state === "sitIdle") {
           const movementDirection = getDogMovementDirectionIndex(activeDog.angle);
           // 앉기 idle 원본은 좌우 두 방향만 사용합니다.
-          // S와 서쪽 계열 7방향은 좌우 반전합니다.
           const flipX = movementDirection >= 4 && movementDirection <= 11;
           const columnIndex =
             DOG_SIT_IDLE_FRAME_START_COLUMN +
@@ -13274,9 +13624,83 @@
           };
         }
 
+        const twoDirectionFlip = getDogTwoDirectionFlip(activeDog);
+
+        if (activeDog.state === "storyLieIdle") {
+          return {
+            frameIndex:
+              DOG_LIE_ROW_INDEX * DOG_SHEET_COLUMNS + DOG_LIE_IDLE_COLUMN,
+            flipX: twoDirectionFlip
+          };
+        }
+
+        if (activeDog.state === "storyLieHeadUp") {
+          return {
+            frameIndex:
+              DOG_LIE_ROW_INDEX * DOG_SHEET_COLUMNS + DOG_LIE_HEAD_UP_COLUMN,
+            flipX: twoDirectionFlip
+          };
+        }
+
+        if (
+          activeDog.state === "storyLieWag" ||
+          activeDog.state === "storyTailWagReaction"
+        ) {
+          const columnIndex =
+            DOG_LIE_WAG_START_COLUMN +
+            DOG_LIE_WAG_LOOP_SEQUENCE[
+              activeDog.animationFrame % DOG_LIE_WAG_LOOP_SEQUENCE.length
+            ];
+          return {
+            frameIndex: DOG_LIE_ROW_INDEX * DOG_SHEET_COLUMNS + columnIndex,
+            flipX: twoDirectionFlip
+          };
+        }
+
+        if (activeDog.state === "bellyDown") {
+          return {
+            frameIndex:
+              DOG_BELLY_ROW_INDEX * DOG_SHEET_COLUMNS +
+              DOG_BELLY_TRANSITION_START_COLUMN +
+              clamp(
+                activeDog.animationFrame,
+                0,
+                DOG_BELLY_TRANSITION_FRAME_COUNT - 1
+              ),
+            flipX: twoDirectionFlip
+          };
+        }
+
+        if (activeDog.state === "bellyIdle") {
+          const columnIndex =
+            DOG_BELLY_IDLE_START_COLUMN +
+            DOG_BELLY_IDLE_PINGPONG_SEQUENCE[
+              activeDog.animationFrame % DOG_BELLY_IDLE_PINGPONG_SEQUENCE.length
+            ];
+          return {
+            frameIndex: DOG_BELLY_ROW_INDEX * DOG_SHEET_COLUMNS + columnIndex,
+            flipX: twoDirectionFlip
+          };
+        }
+
+        if (activeDog.state === "bellyUp") {
+          return {
+            frameIndex:
+              DOG_BELLY_ROW_INDEX * DOG_SHEET_COLUMNS +
+              DOG_BELLY_TRANSITION_START_COLUMN +
+              clamp(
+                DOG_BELLY_TRANSITION_FRAME_COUNT - 1 - activeDog.animationFrame,
+                0,
+                DOG_BELLY_TRANSITION_FRAME_COUNT - 1
+              ),
+            flipX: twoDirectionFlip
+          };
+        }
+
         const animation = getDogDirectionAnimation(activeDog.angle);
         const rowStart = animation.rowIndex * DOG_SHEET_COLUMNS;
-        const columnIndex = activeDog.state === "idle"
+        const usesIdleFrames = activeDog.state === "idle";
+        const columnIndex = usesIdleFrames
           ? DOG_IDLE_FRAME_START_COLUMN +
             DOG_IDLE_PINGPONG_SEQUENCE[
               activeDog.animationFrame % DOG_IDLE_PINGPONG_SEQUENCE.length
@@ -13290,6 +13714,7 @@
       }
 
       function showDogFrame(activeDog) {
+        updateDogHorizontalFacing(activeDog);
         const renderFrame = getDogRenderFrame(activeDog);
         const position = dogFramePosition(renderFrame.frameIndex);
         const transform = renderFrame.flipX ? "scaleX(-1)" : "scaleX(1)";
@@ -13332,64 +13757,542 @@
         return randomBetween(DOG_SIT_MIN_DURATION_MS, DOG_SIT_MAX_DURATION_MS);
       }
 
-      function startDogSitDown(activeDog, now = performance.now()) {
+      function getRandomDogStoryDuration() {
+        return randomBetween(
+          DOG_STORY_MIN_DURATION_MS,
+          DOG_STORY_MAX_DURATION_MS
+        );
+      }
+
+      function updateDogHorizontalFacing(activeDog) {
+        const horizontal = Math.cos(activeDog.angle);
+        if (horizontal > 0.2) {
+          activeDog.horizontalFacing = "right";
+        } else if (horizontal < -0.2) {
+          activeDog.horizontalFacing = "left";
+        }
+      }
+
+      function getDogTwoDirectionFlip(activeDog) {
+        return activeDog.horizontalFacing === "left";
+      }
+
+      function getDogStoryBaseState(stage) {
+        if (stage === 4 || stage === 6) return "storyLieWag";
+        return "storyLieIdle";
+      }
+
+      // 1·2·3·4·6단계는 나무 아래에서 머무르는 친밀도 연출입니다.
+      function dogStageUsesUnderTreeShade(stage) {
+        return stage === 1 || stage === 2 || stage === 3 ||
+          stage === 4 || stage === 6;
+      }
+
+      function setDogUnderTreeShade(activeDog, shouldShade) {
+        if (!activeDog?.element) return;
+        activeDog.element.classList.toggle(
+          "is-under-tree",
+          shouldShade === true
+        );
+      }
+
+      function dogStageUsesOccasionalHeadLift(stage) {
+        return stage === 2 || stage === 3 || stage === 4 || stage === 6;
+      }
+
+      function scheduleDogStoryHeadLift(
+        activeDog,
+        now = performance.now()
+      ) {
+        activeDog.nextHeadLiftAt = dogStageUsesOccasionalHeadLift(
+          activeDog.activeStage
+        )
+          ? now + getRandomDogStoryDuration()
+          : Infinity;
+      }
+
+      function returnDogToStoryBase(
+        activeDog,
+        now = performance.now()
+      ) {
+        activeDog.state = getDogStoryBaseState(activeDog.activeStage);
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+        scheduleDogStoryHeadLift(activeDog, now);
+      }
+
+      function startDogStoryHeadUp(
+        activeDog,
+        now = performance.now()
+      ) {
+        activeDog.storyHeadUpReturnState = activeDog.state;
+        activeDog.state = "storyLieHeadUp";
+        activeDog.stateUntil = now + getRandomDogStoryDuration();
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function startDogTailWagReaction(
+        activeDog,
+        now = performance.now()
+      ) {
+        activeDog.state = "storyTailWagReaction";
+        activeDog.stateUntil = now + getRandomDogStoryDuration();
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function startDogBellyDown(
+        activeDog,
+        now = performance.now(),
+        options = {}
+      ) {
+        activeDog.state = "bellyDown";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.bellyReturnPersistent =
+          options.returnPersistent === true;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function startDogBellyIdle(
+        activeDog,
+        now = performance.now()
+      ) {
+        activeDog.state = "bellyIdle";
+        activeDog.stateUntil = now + getRandomDogStoryDuration();
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function startDogBellyUp(
+        activeDog,
+        now = performance.now()
+      ) {
+        activeDog.state = "bellyUp";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+      }
+
+      function finishDogBelly(
+        activeDog,
+        now = performance.now()
+      ) {
+        if (activeDog.bellyReturnPersistent) {
+          startDogSitIdle(activeDog, now, Infinity, {
+            persistent: true,
+            returnMode: "stage6"
+          });
+          return;
+        }
+
+        startDogSitIdle(activeDog, now, getRandomDogSitDuration(), {
+          persistent: false,
+          returnMode: "free"
+        });
+      }
+
+      function getDogStageForCurrentDay() {
+        if (
+          dogStayDay === dayCount &&
+          dogStayStage >= 3 &&
+          dogStayStage <= 6
+        ) {
+          return dogStayStage;
+        }
+
+        const nextStage = Math.min(7, dogCompletedStage + 1);
+        if (dayCount < dogNextStageDay) return 0;
+        return nextStage;
+      }
+
+      function completeDogStage(stage, options = {}) {
+        if (stage < 1 || stage > 6 || dogCompletedStage >= stage) {
+          return false;
+        }
+
+        dogCompletedStage = stage;
+        dogNextStageDay =
+          dayCount + (DOG_STAGE_ADVANCE_DELAY_DAYS[stage] || 1);
+
+        if (options.stayVisible === true && stage >= 3) {
+          dogStayStage = stage;
+          dogStayDay = dayCount;
+        } else if (dogStayDay === dayCount) {
+          dogStayStage = 0;
+          dogStayDay = 0;
+        }
+
+        saveResourceState();
+        return true;
+      }
+
+      function removeDog(options = {}) {
+        if (!dog) return false;
+
+        const removedDog = dog;
+        dog = null;
+
+        if (
+          fieldEntityPressState.active &&
+          fieldEntityPressState.entityType === "dog"
+        ) {
+          clearFieldEntityPressState();
+        }
+
+        removedDog.element.remove();
+
+        if (options.resync !== false && !isExploring) {
+          requestAnimationFrame(() => {
+            syncDogForCurrentDay();
+          });
+        }
+        return true;
+      }
+
+      function startDogFastRun(
+        activeDog,
+        options = {},
+        now = performance.now()
+      ) {
+        if (!activeDog) return false;
+
+        // 나무 아래에서 벗어나기 시작하면 1초 동안 원래 밝기로 돌아옵니다.
+        setDogUnderTreeShade(activeDog, false);
+        activeDog.state = "fastRun";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.angle = 0;
+        activeDog.horizontalFacing = "right";
+        activeDog.fastRunMode = options.mode || "escape";
+        activeDog.fastRunTargetX = Number.isFinite(Number(options.targetX))
+          ? Number(options.targetX)
+          : 0;
+        activeDog.completeStageOnExit =
+          options.completeStageOnExit === true;
+        if (activeDog.fastRunMode === "escape") {
+          activeDog.element.style.pointerEvents = "none";
+        }
+        activeDog.lastStateChangeAt = now;
+        activeDog.renderKey = "";
+        return true;
+      }
+
+      function startDogEscape(activeDog, options = {}) {
+        if (!activeDog) return false;
+
+        // 친밀도 1~2단계에서는 도망가는 상황도 빠른 달리기를 사용합니다.
+        if (activeDog.activeStage === 1 || activeDog.activeStage === 2) {
+          return startDogFastRun(activeDog, {
+            mode: "escape",
+            completeStageOnExit: options.completeStageOnExit === true
+          });
+        }
+
+        // 나무 아래에서 벗어나기 시작하면 1초 동안 원래 밝기로 돌아옵니다.
+        setDogUnderTreeShade(activeDog, false);
+        activeDog.state = "storyEscape";
+        activeDog.stateUntil = 0;
+        activeDog.animationElapsed = 0;
+        activeDog.animationFrame = 0;
+        activeDog.angle = 0;
+        activeDog.horizontalFacing = "right";
+        activeDog.completeStageOnExit =
+          options.completeStageOnExit === true;
+        activeDog.element.style.pointerEvents = "none";
+        activeDog.lastStateChangeAt = performance.now();
+        activeDog.renderKey = "";
+        return true;
+      }
+
+      function startDogStageTwoRun(
+        activeDog,
+        now = performance.now()
+      ) {
+        return startDogFastRun(
+          activeDog,
+          {
+            mode: "distance",
+            targetX: activeDog.x + DOG_STAGE_TWO_RUN_DISTANCE_PX
+          },
+          now
+        );
+      }
+
+      function advanceDogAnimation(
+        activeDog,
+        deltaMs,
+        intervalMs,
+        frameCount
+      ) {
+        activeDog.animationElapsed += deltaMs;
+        if (activeDog.animationElapsed < intervalMs) return;
+
+        const advancedFrames = Math.floor(
+          activeDog.animationElapsed / intervalMs
+        );
+        activeDog.animationElapsed %= intervalMs;
+        activeDog.animationFrame =
+          (activeDog.animationFrame + advancedFrames) % frameCount;
+      }
+
+      function startDogSitDown(
+        activeDog,
+        now = performance.now(),
+        options = {}
+      ) {
         activeDog.state = "sitDown";
         activeDog.stateUntil = 0;
         activeDog.animationElapsed = 0;
         activeDog.animationFrame = 0;
         activeDog.lastStateChangeAt = now;
         activeDog.turnHoldUntil = 0;
+        activeDog.sitPersistent = options.persistent === true;
+        activeDog.sitReturnMode = options.returnMode || "free";
         activeDog.renderKey = "";
       }
 
       function startDogSitIdle(
         activeDog,
         now = performance.now(),
-        duration = getRandomDogSitDuration()
+        duration = getRandomDogSitDuration(),
+        options = {}
       ) {
         activeDog.state = "sitIdle";
-        activeDog.stateUntil = now + duration;
+        activeDog.sitPersistent =
+          options.persistent === true || duration === Infinity;
+        activeDog.sitReturnMode =
+          options.returnMode || activeDog.sitReturnMode || "free";
+        activeDog.stateUntil = activeDog.sitPersistent
+          ? Infinity
+          : now + duration;
         activeDog.animationElapsed = 0;
         activeDog.animationFrame = 0;
         activeDog.lastStateChangeAt = now;
         activeDog.renderKey = "";
       }
 
-      function refreshDogSitIdleDuration(activeDog, now = performance.now()) {
+      function refreshDogSitIdleDuration(
+        activeDog,
+        now = performance.now()
+      ) {
+        if (activeDog.sitPersistent) return;
         activeDog.stateUntil = now + getRandomDogSitDuration();
         activeDog.lastStateChangeAt = now;
       }
 
-      function startDogStandUp(activeDog, now = performance.now()) {
+      function startDogStandUp(
+        activeDog,
+        now = performance.now(),
+        afterMode = activeDog.sitReturnMode || "free"
+      ) {
         activeDog.state = "standUp";
         activeDog.stateUntil = 0;
         activeDog.animationElapsed = 0;
         activeDog.animationFrame = 0;
+        activeDog.afterStandMode = afterMode;
+        activeDog.sitPersistent = false;
         activeDog.lastStateChangeAt = now;
         activeDog.renderKey = "";
       }
 
-      function activateDog(activeDog, now = performance.now()) {
+      function playDogInteractSound(activeDog) {
         if (!activeDog) return false;
 
-        // 앉거나 일어나는 전환 중에는 재입력을 소비하되 상태는 바꾸지 않습니다.
-        if (activeDog.state === "sitDown" || activeDog.state === "standUp") {
+        // bark/pant 중 어느 하나라도 재생 중이면 새 효과음을 겹쳐 재생하지 않습니다.
+        const isDogSoundPlaying = Array.from(
+          dogInteractAudioByPath.values()
+        ).some((audio) => !audio.paused && !audio.ended);
+        if (isDogSoundPlaying) return false;
+
+        const path =
+          activeDog.activeStage === 1 || activeDog.activeStage === 2
+            ? DOG_BARK_SOUND
+            : DOG_PANT_SOUND;
+        const audio = dogInteractAudioByPath.get(path);
+        if (!audio) return false;
+
+        try {
+          if (audio.ended) {
+            audio.currentTime = 0;
+          }
+          audio.volume = 1;
+          audio.play().catch(() => {});
+          return true;
+        } catch (_) {
+          // 개 효과음 재생 실패는 상호작용 자체에 영향을 주지 않습니다.
+          return false;
+        }
+      }
+
+      function activateDog(activeDog, now = performance.now()) {
+        if (!activeDog || isExploring) return false;
+
+        // 전환·강제 이동 중에는 재입력을 소비하되 동작은 바꾸지 않습니다.
+        if (
+          activeDog.state === "sitDown" ||
+          activeDog.state === "standUp" ||
+          activeDog.state === "bellyDown" ||
+          activeDog.state === "bellyIdle" ||
+          activeDog.state === "bellyUp" ||
+          activeDog.state === "fastRun" ||
+          activeDog.state === "storyEscape"
+        ) {
           return true;
         }
 
-        if (activeDog.state === "sitIdle") {
-          refreshDogSitIdleDuration(activeDog, now);
+        playDogInteractSound(activeDog);
+        const stage = activeDog.activeStage;
+
+        if (stage === 1) {
+          if (activeDog.state === "storyLieIdle") {
+            startDogEscape(activeDog, { completeStageOnExit: true });
+            showDogFrame(activeDog);
+          }
           return true;
         }
 
-        startDogSitDown(activeDog, now);
-        showDogFrame(activeDog);
-        return true;
+        if (stage === 2) {
+          if (
+            activeDog.state === "sitIdle" &&
+            activeDog.sitReturnMode === "stage2"
+          ) {
+            startDogEscape(activeDog, { completeStageOnExit: true });
+            showDogFrame(activeDog);
+            return true;
+          }
+
+          if (
+            activeDog.state === "storyLieIdle" ||
+            activeDog.state === "storyLieHeadUp"
+          ) {
+            startDogStageTwoRun(activeDog, now);
+            showDogFrame(activeDog);
+          }
+          return true;
+        }
+
+        if (stage === 3) {
+          if (
+            activeDog.state === "storyLieIdle" ||
+            activeDog.state === "storyLieHeadUp" ||
+            activeDog.state === "storyTailWagReaction"
+          ) {
+            completeDogStage(3, { stayVisible: true });
+            startDogTailWagReaction(activeDog, now);
+            showDogFrame(activeDog);
+          }
+          return true;
+        }
+
+        if (stage === 4) {
+          if (activeDog.state === "sitIdle") {
+            refreshDogSitIdleDuration(activeDog, now);
+            return true;
+          }
+
+          if (
+            activeDog.state === "storyLieWag" ||
+            activeDog.state === "storyLieHeadUp"
+          ) {
+            completeDogStage(4, { stayVisible: true });
+            startDogSitIdle(activeDog, now, getRandomDogSitDuration(), {
+              persistent: false,
+              returnMode: "storyBase"
+            });
+            showDogFrame(activeDog);
+          }
+          return true;
+        }
+
+        if (stage === 5) {
+          if (activeDog.state === "sitIdle") {
+            refreshDogSitIdleDuration(activeDog, now);
+            return true;
+          }
+
+          if (activeDog.state === "run" || activeDog.state === "idle") {
+            completeDogStage(5, { stayVisible: true });
+            startDogSitDown(activeDog, now, {
+              persistent: false,
+              returnMode: "free"
+            });
+            showDogFrame(activeDog);
+          }
+          return true;
+        }
+
+        if (stage === 6) {
+          if (
+            activeDog.state === "sitIdle" &&
+            activeDog.sitReturnMode === "stage6"
+          ) {
+            completeDogStage(6, { stayVisible: true });
+            startDogBellyDown(activeDog, now, {
+              returnPersistent: true
+            });
+            showDogFrame(activeDog);
+            return true;
+          }
+
+          if (
+            activeDog.state === "storyLieWag" ||
+            activeDog.state === "storyLieHeadUp"
+          ) {
+            startDogSitIdle(activeDog, now, Infinity, {
+              persistent: true,
+              returnMode: "stage6"
+            });
+            showDogFrame(activeDog);
+          }
+          return true;
+        }
+
+        // 7단계부터는 자유 이동 → 앉기 → 배보이기 → 앉기 → 자유 이동을 반복합니다.
+        if (stage === 7) {
+          if (activeDog.state === "sitIdle") {
+            startDogBellyDown(activeDog, now, {
+              returnPersistent: false
+            });
+            showDogFrame(activeDog);
+            return true;
+          }
+
+          if (activeDog.state === "run" || activeDog.state === "idle") {
+            startDogSitDown(activeDog, now, {
+              persistent: false,
+              returnMode: "free"
+            });
+            showDogFrame(activeDog);
+          }
+          return true;
+        }
+
+        return false;
       }
 
       function startDogRun(activeDog, now = performance.now()) {
+        // 자유 이동 상태에서는 나무 아래 전용 밝기 보정을 사용하지 않습니다.
+        setDogUnderTreeShade(activeDog, false);
         activeDog.state = "run";
         activeDog.stateUntil = 0;
+        activeDog.sitPersistent = false;
+        activeDog.sitReturnMode = "free";
         activeDog.animationElapsed %= DOG_RUN_FRAME_INTERVAL_MS;
         activeDog.animationFrame %= DOG_RUN_FRAME_COUNT;
         activeDog.lastStateChangeAt = now;
@@ -13402,6 +14305,8 @@
       ) {
         activeDog.state = "idle";
         activeDog.stateUntil = now + duration;
+        activeDog.sitPersistent = false;
+        activeDog.sitReturnMode = "free";
         activeDog.animationElapsed %= DOG_IDLE_FRAME_INTERVAL_MS;
         activeDog.animationFrame %= DOG_IDLE_PINGPONG_SEQUENCE.length;
         activeDog.lastStateChangeAt = now;
@@ -13419,10 +14324,11 @@
         let pushX = 0;
         let pushY = 0;
 
-        const minX = GAME_ZONE.left + halfSize;
-        const maxX = GAME_ZONE.right - halfSize;
-        const minY = GAME_ZONE.top + halfSize;
-        const maxY = GAME_ZONE.bottom - halfSize;
+        const movementZone = getDogMovementZone(activeDog);
+        const minX = movementZone.left + halfSize;
+        const maxX = movementZone.right - halfSize;
+        const minY = movementZone.top + halfSize;
+        const maxY = movementZone.bottom - halfSize;
 
         const leftDistance = activeDog.x - minX;
         const rightDistance = maxX - activeDog.x;
@@ -13470,7 +14376,7 @@
           const angle = -Math.PI + index * (Math.PI * 2 / candidateCount);
           const nextX = activeDog.x + Math.cos(angle) * stepDistance;
           const nextY = activeDog.y + Math.sin(angle) * stepDistance;
-          if (!isDogPositionAllowed(nextX, nextY, activeDog.size)) continue;
+          if (!isDogPositionAllowed(nextX, nextY, activeDog.size, activeDog)) continue;
 
           const desiredDifference = Math.abs(
             getShortestDogAngleDelta(angle, desiredAngle)
@@ -13498,7 +14404,7 @@
           const nextY =
             activeDog.y + Math.sin(activeDog.angle) * stepDistance;
 
-          if (!isDogPositionAllowed(nextX, nextY, activeDog.size)) {
+          if (!isDogPositionAllowed(nextX, nextY, activeDog.size, activeDog)) {
             /*
               경계나 안전영역 앞에서는 제자리에서 계속 회전하지 않고,
               현재 방향을 제외한 새로운 직선 경로를 한 번 선택합니다.
@@ -13515,6 +14421,206 @@
       }
 
       function updateDog(activeDog, deltaMs, now) {
+        if (activeDog.state === "boundaryReturn") {
+          const deltaX = activeDog.boundaryReturnTargetX - activeDog.x;
+          const deltaY = activeDog.boundaryReturnTargetY - activeDog.y;
+          const remainingDistance = Math.hypot(deltaX, deltaY);
+          const stepDistance = DOG_SPEED_PX_PER_MS * deltaMs;
+
+          if (remainingDistance <= Math.max(0.01, stepDistance)) {
+            activeDog.x = activeDog.boundaryReturnTargetX;
+            activeDog.y = activeDog.boundaryReturnTargetY;
+            startDogRun(activeDog, now);
+            chooseNextDogWaypoint(activeDog, true);
+          } else {
+            activeDog.angle = Math.atan2(deltaY, deltaX);
+            activeDog.x += deltaX / remainingDistance * stepDistance;
+            activeDog.y += deltaY / remainingDistance * stepDistance;
+            advanceDogAnimation(
+              activeDog,
+              deltaMs,
+              DOG_RUN_FRAME_INTERVAL_MS,
+              DOG_RUN_FRAME_COUNT
+            );
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "storyEscape") {
+          activeDog.x += DOG_SPEED_PX_PER_MS * deltaMs;
+          advanceDogAnimation(
+            activeDog,
+            deltaMs,
+            DOG_RUN_FRAME_INTERVAL_MS,
+            DOG_RUN_FRAME_COUNT
+          );
+
+          if (activeDog.x - activeDog.size / 2 > GAME_ZONE.right) {
+            if (activeDog.completeStageOnExit) {
+              completeDogStage(activeDog.activeStage);
+            }
+            removeDog();
+            return;
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "fastRun") {
+          advanceDogAnimation(
+            activeDog,
+            deltaMs,
+            DOG_FAST_RUN_FRAME_INTERVAL_MS,
+            DOG_RUN_FRAME_COUNT
+          );
+
+          if (activeDog.fastRunMode === "distance") {
+            const remaining = activeDog.fastRunTargetX - activeDog.x;
+            const step = Math.min(
+              Math.max(0, remaining),
+              DOG_FAST_RUN_SPEED_PX_PER_MS * deltaMs
+            );
+            activeDog.x += step;
+
+            if (activeDog.x >= activeDog.fastRunTargetX - 0.01) {
+              activeDog.x = activeDog.fastRunTargetX;
+              activeDog.fastRunMode = "";
+              startDogSitDown(activeDog, now, {
+                persistent: true,
+                returnMode: "stage2"
+              });
+            }
+          } else {
+            activeDog.x += DOG_FAST_RUN_SPEED_PX_PER_MS * deltaMs;
+
+            if (activeDog.x - activeDog.size / 2 > GAME_ZONE.right) {
+              if (activeDog.completeStageOnExit) {
+                completeDogStage(activeDog.activeStage);
+              }
+              removeDog();
+              return;
+            }
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (
+          activeDog.state === "storyLieIdle" ||
+          activeDog.state === "storyLieWag"
+        ) {
+          if (
+            dogStageUsesOccasionalHeadLift(activeDog.activeStage) &&
+            now >= activeDog.nextHeadLiftAt
+          ) {
+            startDogStoryHeadUp(activeDog, now);
+          } else if (activeDog.state === "storyLieWag") {
+            advanceDogAnimation(
+              activeDog,
+              deltaMs,
+              DOG_LIE_WAG_FRAME_INTERVAL_MS,
+              DOG_LIE_WAG_LOOP_SEQUENCE.length
+            );
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "storyLieHeadUp") {
+          if (now >= activeDog.stateUntil) {
+            returnDogToStoryBase(activeDog, now);
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "storyTailWagReaction") {
+          if (now >= activeDog.stateUntil) {
+            returnDogToStoryBase(activeDog, now);
+          } else {
+            advanceDogAnimation(
+              activeDog,
+              deltaMs,
+              DOG_LIE_WAG_FRAME_INTERVAL_MS,
+              DOG_LIE_WAG_LOOP_SEQUENCE.length
+            );
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "bellyDown") {
+          activeDog.animationElapsed += deltaMs;
+          while (
+            activeDog.animationElapsed >= DOG_STORY_FRAME_INTERVAL_MS &&
+            activeDog.state === "bellyDown"
+          ) {
+            activeDog.animationElapsed -= DOG_STORY_FRAME_INTERVAL_MS;
+            activeDog.animationFrame += 1;
+            if (
+              activeDog.animationFrame >=
+              DOG_BELLY_TRANSITION_FRAME_COUNT
+            ) {
+              startDogBellyIdle(activeDog, now);
+            }
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "bellyIdle") {
+          if (now >= activeDog.stateUntil) {
+            startDogBellyUp(activeDog, now);
+          } else {
+            advanceDogAnimation(
+              activeDog,
+              deltaMs,
+              DOG_STORY_FRAME_INTERVAL_MS,
+              DOG_BELLY_IDLE_PINGPONG_SEQUENCE.length
+            );
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
+        if (activeDog.state === "bellyUp") {
+          activeDog.animationElapsed += deltaMs;
+          while (
+            activeDog.animationElapsed >= DOG_STORY_FRAME_INTERVAL_MS &&
+            activeDog.state === "bellyUp"
+          ) {
+            activeDog.animationElapsed -= DOG_STORY_FRAME_INTERVAL_MS;
+            activeDog.animationFrame += 1;
+            if (
+              activeDog.animationFrame >=
+              DOG_BELLY_TRANSITION_FRAME_COUNT
+            ) {
+              finishDogBelly(activeDog, now);
+            }
+          }
+
+          showDogFrame(activeDog);
+          renderDog(activeDog);
+          return;
+        }
+
         if (activeDog.state === "sitDown") {
           activeDog.animationElapsed += deltaMs;
           while (
@@ -13524,7 +14630,17 @@
             activeDog.animationElapsed -= DOG_SIT_TRANSITION_FRAME_INTERVAL_MS;
             activeDog.animationFrame += 1;
             if (activeDog.animationFrame >= DOG_SIT_TRANSITION_FRAME_COUNT) {
-              startDogSitIdle(activeDog, now);
+              startDogSitIdle(
+                activeDog,
+                now,
+                activeDog.sitPersistent
+                  ? Infinity
+                  : getRandomDogSitDuration(),
+                {
+                  persistent: activeDog.sitPersistent,
+                  returnMode: activeDog.sitReturnMode
+                }
+              );
             }
           }
 
@@ -13534,19 +14650,23 @@
         }
 
         if (activeDog.state === "sitIdle") {
-          if (now >= activeDog.stateUntil) {
-            startDogStandUp(activeDog, now);
-          } else {
-            activeDog.animationElapsed += deltaMs;
-            if (activeDog.animationElapsed >= DOG_SIT_IDLE_FRAME_INTERVAL_MS) {
-              const advancedFrames = Math.floor(
-                activeDog.animationElapsed / DOG_SIT_IDLE_FRAME_INTERVAL_MS
+          if (!activeDog.sitPersistent && now >= activeDog.stateUntil) {
+            if (activeDog.sitReturnMode === "storyBase") {
+              returnDogToStoryBase(activeDog, now);
+            } else {
+              startDogStandUp(
+                activeDog,
+                now,
+                activeDog.sitReturnMode || "free"
               );
-              activeDog.animationElapsed %= DOG_SIT_IDLE_FRAME_INTERVAL_MS;
-              activeDog.animationFrame = (
-                activeDog.animationFrame + advancedFrames
-              ) % DOG_SIT_IDLE_PINGPONG_SEQUENCE.length;
             }
+          } else {
+            advanceDogAnimation(
+              activeDog,
+              deltaMs,
+              DOG_SIT_IDLE_FRAME_INTERVAL_MS,
+              DOG_SIT_IDLE_PINGPONG_SEQUENCE.length
+            );
           }
 
           showDogFrame(activeDog);
@@ -13563,8 +14683,12 @@
             activeDog.animationElapsed -= DOG_SIT_TRANSITION_FRAME_INTERVAL_MS;
             activeDog.animationFrame += 1;
             if (activeDog.animationFrame >= DOG_SIT_TRANSITION_FRAME_COUNT) {
-              startDogRun(activeDog, now);
-              chooseNextDogWaypoint(activeDog);
+              if (activeDog.afterStandMode === "storyBase") {
+                returnDogToStoryBase(activeDog, now);
+              } else {
+                startDogRun(activeDog, now);
+                chooseNextDogWaypoint(activeDog);
+              }
             }
           }
 
@@ -13593,7 +14717,8 @@
               !isDogPositionAllowed(
                 activeDog.waypointX,
                 activeDog.waypointY,
-                activeDog.size
+                activeDog.size,
+                activeDog
               )
             ) {
               if (!maybeStartDogIdle(activeDog, now)) {
@@ -13602,9 +14727,16 @@
             }
 
             if (activeDog.state === "run" && now >= activeDog.turnHoldUntil) {
-              const moved = moveDog(activeDog, DOG_SPEED_PX_PER_MS * deltaMs);
+              const moved = moveDog(
+                activeDog,
+                DOG_SPEED_PX_PER_MS * deltaMs
+              );
               if (!moved && activeDog.state === "run") {
-                startDogIdle(activeDog, now, getBlockedDogIdleDuration());
+                startDogIdle(
+                  activeDog,
+                  now,
+                  getBlockedDogIdleDuration()
+                );
               }
             }
           }
@@ -13635,15 +14767,41 @@
         renderDog(activeDog);
       }
 
-      function createDog(forceEnabled = false) {
-        if ((!DOG_ENABLED && !forceEnabled) || dog) return false;
+      function createDog(options = {}) {
+        if (dog || isExploring || document.body.classList.contains("is-night")) {
+          return false;
+        }
+        if (getCurrentRainState()) return false;
+
+        const activeStage = getDogStageForCurrentDay();
+        if (activeStage <= 0) return false;
 
         const size = getDogRenderSize();
-        const position = getRandomDogPosition({ size });
-        if (!position) return false;
+        const halfSize = size / 2;
+        const freeRoamSpawnPosition = activeStage >= 7
+          ? getRandomDogPosition({ size, activeStage })
+          : null;
+        const position = freeRoamSpawnPosition || {
+          x: clamp(
+            DOG_SPAWN_X,
+            GAME_ZONE.left + halfSize,
+            GAME_ZONE.right - halfSize
+          ),
+          y: clamp(
+            DOG_SPAWN_Y,
+            GAME_ZONE.top + halfSize,
+            GAME_ZONE.bottom - halfSize
+          )
+        };
 
         const element = document.createElement("div");
-        element.className = "dog";
+        element.className = "dog is-appearing";
+        if (options.startFromNightTransition === true) {
+          element.classList.add("is-starting-from-night");
+        }
+        if (dogStageUsesUnderTreeShade(activeStage)) {
+          element.classList.add("is-under-tree");
+        }
         element.setAttribute("aria-label", "Dog");
 
         const dayVisual = document.createElement("div");
@@ -13666,6 +14824,20 @@
         element.appendChild(nightVisual);
         entities.appendChild(element);
 
+        const now = performance.now();
+        const shouldRestoreCompletedStageSixSit =
+          activeStage === 6 &&
+          dogCompletedStage >= 6 &&
+          dogStayStage === 6 &&
+          dogStayDay === dayCount;
+
+        let initialState = getDogStoryBaseState(activeStage);
+        if (activeStage === 5 || activeStage === 7) {
+          initialState = Math.random() < 0.68 ? "idle" : "run";
+        } else if (shouldRestoreCompletedStageSixSit) {
+          initialState = "sitIdle";
+        }
+
         dog = {
           element,
           sprite,
@@ -13675,39 +14847,93 @@
           y: position.y,
           waypointX: position.x,
           waypointY: position.y,
-          angle:
-            Math.floor(Math.random() * DOG_MOVEMENT_DIRECTION_COUNT) *
-            DOG_TURN_STEP_RAD,
+          angle: 0,
+          horizontalFacing: "right",
+          activeStage,
           turnStepDirection: 0,
           turnHoldUntil: 0,
-          state: Math.random() < 0.68 ? "idle" : "run",
+          state: initialState,
           stateUntil: 0,
-          lastStateChangeAt: performance.now(),
+          lastStateChangeAt: now,
           animationElapsed: 0,
           animationFrame: 0,
+          nextHeadLiftAt: Infinity,
+          storyHeadUpReturnState: "",
+          fastRunMode: "",
+          fastRunTargetX: position.x,
+          boundaryReturnTargetX: position.x,
+          boundaryReturnTargetY: position.y,
+          completeStageOnExit: false,
+          sitPersistent: false,
+          sitReturnMode: "free",
+          afterStandMode: "free",
+          bellyReturnPersistent: false,
           renderKey: ""
         };
 
-        if (dog.state === "idle") {
-          dog.animationElapsed = Math.random() * DOG_IDLE_FRAME_INTERVAL_MS;
+        if (shouldRestoreCompletedStageSixSit) {
+          dog.sitPersistent = true;
+          dog.sitReturnMode = "stage6";
+          dog.stateUntil = Infinity;
+        } else if (dog.state === "idle") {
+          dog.angle =
+            Math.floor(Math.random() * DOG_MOVEMENT_DIRECTION_COUNT) *
+            DOG_TURN_STEP_RAD;
+          updateDogHorizontalFacing(dog);
+          dog.animationElapsed =
+            Math.random() * DOG_IDLE_FRAME_INTERVAL_MS;
           dog.animationFrame = Math.floor(
             Math.random() * DOG_IDLE_PINGPONG_SEQUENCE.length
           );
-          dog.stateUntil = performance.now() + getRandomDogIdleDuration();
+          dog.stateUntil = now + getRandomDogIdleDuration();
+          chooseNextDogWaypoint(dog);
+        } else if (dog.state === "run") {
+          dog.angle =
+            Math.floor(Math.random() * DOG_MOVEMENT_DIRECTION_COUNT) *
+            DOG_TURN_STEP_RAD;
+          updateDogHorizontalFacing(dog);
+          dog.animationElapsed =
+            Math.random() * DOG_RUN_FRAME_INTERVAL_MS;
+          dog.animationFrame = Math.floor(
+            Math.random() * DOG_RUN_FRAME_COUNT
+          );
+          chooseNextDogWaypoint(dog);
         } else {
-          dog.animationElapsed = Math.random() * DOG_RUN_FRAME_INTERVAL_MS;
-          dog.animationFrame = Math.floor(Math.random() * DOG_RUN_FRAME_COUNT);
+          scheduleDogStoryHeadLift(dog, now);
         }
-
-        chooseNextDogWaypoint(dog);
 
         showDogFrame(dog);
         renderDog(dog);
+
+        // 첫 프레임을 투명하게 그린 뒤 다음 프레임부터 짧게 페이드인합니다.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (element.isConnected) {
+              element.classList.remove("is-appearing");
+              if (element.classList.contains("is-starting-from-night")) {
+                element.classList.remove("is-starting-from-night");
+              }
+            }
+          });
+        });
 
         element.addEventListener("pointerdown", startFieldEntityPress);
         element.addEventListener("pointerup", activatePressedFieldEntity);
 
         return true;
+      }
+
+      function syncDogForCurrentDay(options = {}) {
+        if (dog) return true;
+        if (
+          isExploring ||
+          document.body.classList.contains("is-night") ||
+          getCurrentRainState()
+        ) {
+          return false;
+        }
+
+        return createDog(options);
       }
 
       function catFramePosition(frameIndex) {
@@ -15429,6 +16655,9 @@
           deer.health = 0;
           beginDeerDeath(deer);
         }
+
+        // 보급품 상자로 좀비 또는 사슴을 실제로 처치해도 다른 무기 처치로 인정합니다.
+        setTodoProgress(3, "item2", true);
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
         // 보상도 즉시 지급합니다. 처치음과 겹치지 않도록 상자 개봉음은 생략합니다.
@@ -17541,6 +18770,7 @@
 
       window.addEventListener("resize", () => {
         updateWorldScale();
+        keepFreeRoamDogInsideMovementZone(dog);
         syncRainDropCount();
         updateRainDropViewportMotion();
         refreshStructureSafeZones();
@@ -17622,7 +18852,7 @@
         // 그래야 새로고침 복원에서도 확장 생성 범위와 가장자리 20px inset이 정확히 적용됩니다.
         updateWorldScale();
         restoreStoredPopulation();
-        createDog(isDogEnabledByTest);
+        syncDogForCurrentDay();
         initializeClouds();
         startSpawner();
         hasGameInitialized = true;
