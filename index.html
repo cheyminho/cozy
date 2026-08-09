@@ -2563,7 +2563,7 @@
     .zombie-kill-delta {
       position: absolute;
       right: 0;
-      top: -12px;
+      top: -8px;
       z-index: 1;
       color: #fff;
       font-size: 14px;
@@ -3140,7 +3140,7 @@
 -->
 <body
   class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.131"
+  data-game-version="0.132"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4345,7 +4345,7 @@
       const RIFLE_AMMO_SELECTED_TOAST_MESSAGE = "A few more rounds.";
       const CHAINSAW_SELECTED_TOAST_MESSAGE = "Let’s cut this short.";
       const CHAINSAW_BATTERY_SELECTED_TOAST_MESSAGE = "This should keep it running.";
-      const EMPTY_WEAPON_TOAST_MESSAGE = "Empty.";
+      const EMPTY_WEAPON_TOAST_MESSAGE = "No ammo.";
       const CHAINSAW_NO_POWER_TOAST_MESSAGE = "No power.";
       const OVERKILL_TOAST_MESSAGE = "It would be overkill.";
       const REPAIR_BLOCKED_TOAST_MESSAGE = "I need the blueprints.";
@@ -16525,10 +16525,16 @@
       function tryShootSupplyBox(activeSupplyBox) {
         const weapon = getEquippedGunForSupplyBox();
 
-        // 총이 없거나 탄약이 없는 상태와 Steady 조건이 동시에 맞으면
-        // 총 필요 메시지를 먼저 보여줍니다.
-        if (!weapon || !hasAmmoForSupplyBoxGun(weapon)) {
+        // 총기를 장착하지 않은 경우에만 총 필요 메시지를 보여줍니다.
+        if (!weapon) {
           showToast(SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE);
+          return false;
+        }
+
+        // 총기는 장착했지만 탄약이 없으면 기존 총기 공격과 동일한
+        // no-ammo 효과음과 Empty. 메시지를 사용합니다.
+        if (!hasAmmoForSupplyBoxGun(weapon)) {
+          showNoAmmoFeedback();
           return false;
         }
 
@@ -16660,8 +16666,8 @@
         setTodoProgress(3, "item2", true);
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
-        // 보상도 즉시 지급합니다. 처치음과 겹치지 않도록 상자 개봉음은 생략합니다.
-        breakSupplyBoxAndAward(activeSupplyBox, { playOpenSound: false });
+        // 보상도 즉시 지급하며, 일반 상자 파손과 동일하게 개봉음을 재생합니다.
+        breakSupplyBoxAndAward(activeSupplyBox);
         return true;
       }
 
