@@ -34,17 +34,8 @@
       --dog-under-tree-brightness: 0.82;
       --dog-brightness-return-duration: 1s;
 
-      /*
-        날씨 / 무기 / 남은 좀비 수 HUD 간격 수정 위치입니다.
-        - size: 무기 아이콘 표시 크기
-        - gap-left: 날씨 텍스트와 무기 아이콘 사이 간격
-        - gap-right: 무기 아이콘과 남은 좀비 수 사이 간격
-        - offset-y: 무기 아이콘의 세로 위치 보정
-      */
-      --weapon-hud-size: 24px;
-      --weapon-hud-gap-left: 3px;
-      --weapon-hud-gap-right: 2px;
-      --weapon-hud-offset-y: 0px;
+      /* 가방 아이콘 중앙에 겹쳐 표시되는 현재 장착 무기 아이콘 크기입니다. */
+      --weapon-hud-size: 26px;
 
       /* 좀비·사슴·개의 밤 전용 밝기와 채도입니다. */
       --entity-night-brightness: 0.42;
@@ -98,6 +89,34 @@
       --tree-left: 1103px;
       --tree-top: 562px;
       --tree-scale: 0.6;
+
+      /*
+        시작화면 수정 위치
+        - title-top: DEAD COZY 제목 묶음의 상단 위치
+        - title-size / title-weight / title-color / title-letter-spacing: 제목 폰트 설정
+        - survived-gap / survived-size / survived-weight / survived-color: 생존일 문구 설정
+        - menu-bottom: 시작 버튼 묶음의 하단 위치
+        - menu-width: 시작 버튼 묶음의 폭
+        - button-size / button-weight: 시작화면 버튼 폰트 설정
+        - fade-duration: 시작화면 페이드아웃 시간
+        - ui-entry-duration: 게임 UI가 화면 밖에서 들어오는 시간
+      */
+      --start-screen-title-top: 80px;
+      --start-screen-title-size: 70px;
+      --start-screen-title-weight: 650;
+      --start-screen-title-color: #fff;
+      --start-screen-title-letter-spacing: 0.07em;
+      --start-screen-survived-gap: 9px;
+      --start-screen-survived-size: 14px;
+      --start-screen-survived-weight: 450;
+      --start-screen-survived-color: rgba(255, 255, 255, 0.9);
+	  --start-screen-survived-letter-spacing: 0.05em;
+      --start-screen-menu-bottom: 110px;
+      --start-screen-menu-width: 240px;
+      --start-screen-button-size: 16px;
+      --start-screen-button-weight: 350;
+      --start-screen-fade-duration: 500ms;
+      --game-ui-entry-duration: 1000ms;
     }
 
     * {
@@ -1333,6 +1352,266 @@
         contrast(88%);
     }
 
+    /* =========================================================
+       시작화면 스타일 / 게임 진입 UI 모션
+       위치·폰트 값은 위쪽 :root의 --start-screen-* 값을 수정합니다.
+       ========================================================= */
+    #startScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      touch-action: none;
+      transition:
+        opacity var(--start-screen-fade-duration) ease-out,
+        visibility 0s linear var(--start-screen-fade-duration);
+    }
+
+    #startScreen[hidden] {
+      display: none;
+    }
+
+    #startScreen.is-leaving {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: auto;
+    }
+
+    #startScreen.is-auto-starting #startScreenMenu {
+      visibility: hidden;
+    }
+
+    /* 게임 플레이 중 F5 새로고침은 시작화면을 다시 노출하지 않습니다. */
+    body.is-gameplay-reload #startScreen {
+      display: none !important;
+    }
+
+    #startScreenHeader {
+      position: absolute;
+      top: max(
+        var(--start-screen-title-top),
+        calc(env(safe-area-inset-top) + 24px)
+      );
+      left: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    #startScreenTitle {
+      color: var(--start-screen-title-color);
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: var(--start-screen-title-size);
+      font-weight: var(--start-screen-title-weight);
+      line-height: 1;
+      letter-spacing: var(--start-screen-title-letter-spacing);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    #startScreenSurvived {
+      margin-top: var(--start-screen-survived-gap);
+      color: var(--start-screen-survived-color);
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: var(--start-screen-survived-size);
+      font-weight: var(--start-screen-survived-weight);
+      line-height: 1;
+      letter-spacing: var(--start-screen-survived-letter-spacing);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    #startScreenCredit {
+      position: absolute;
+      left: 50%;
+      bottom: max(25px, calc(env(safe-area-inset-bottom) + 8px));
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.9);
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: 8px;
+      font-weight: 300;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    #startScreenMenu {
+      position: absolute;
+      left: 50%;
+      bottom: max(
+        var(--start-screen-menu-bottom),
+        calc(env(safe-area-inset-bottom) + 34px)
+      );
+      width: min(var(--start-screen-menu-width), calc(100vw - 48px));
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .start-menu-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 31px;
+    }
+
+    .start-menu-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 6px 4px;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: var(--start-screen-button-size);
+      font-weight: var(--start-screen-button-weight);
+      line-height: 1.2;
+      text-align: center;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    .start-menu-button[hidden] {
+      display: none;
+    }
+
+    .start-menu-button__label {
+      display: inline-block;
+      font-weight: inherit;
+      transform: scale(1);
+      transform-origin: center center;
+      transition:
+        font-weight 120ms ease-out,
+        transform 120ms ease-out;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .start-menu-button:hover .start-menu-button__label {
+        font-weight: 600;
+      }
+    }
+
+    .start-menu-button:active .start-menu-button__label {
+      transform: scale(0.95);
+      transition-duration: 70ms;
+    }
+
+    .start-menu-button:focus-visible .start-menu-button__label {
+      font-weight: 600;
+    }
+
+    #startNewGameWarning {
+      width: 100%;
+      color: rgba(255, 255, 255, 0.78);
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: var(--start-screen-button-size);
+      font-weight: var(--start-screen-button-weight);
+      line-height: 1.2;
+      text-align: center;
+      white-space: nowrap;
+      translate: 0 -5px;
+    }
+
+    #startNewGameWarning[hidden],
+    #startNewGameConfirm[hidden] {
+      display: none;
+    }
+
+    #startNewGameConfirm {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #startNewGameConfirm .start-menu-button {
+      width: auto;
+      padding-left: 7px;
+      padding-right: 7px;
+    }
+
+    .start-new-game-separator {
+      color: rgba(255, 255, 255, 0.72);
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: var(--start-screen-button-size);
+      font-weight: var(--start-screen-button-weight);
+      line-height: 1.2;
+      pointer-events: none;
+    }
+
+    /* 시작화면에서는 게임 HUD와 필드 입력을 완전히 감춥니다. */
+    body.is-start-screen #hud,
+    body.is-start-screen #todoListOverlay,
+    body.is-start-screen #repairButton,
+    body.is-start-screen #inventoryButton,
+    body.is-start-screen #exploreButton,
+    body.is-start-screen #exploringStatus,
+    body.is-start-screen #dayStatus,
+    body.is-start-screen #versionLabel,
+    body.is-start-screen #toastLayer {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    body.is-start-screen #viewport {
+      cursor: default !important;
+    }
+
+    /*
+      게임 진입 모션은 기존 transform/animation을 덮지 않도록 개별 translate 속성을 사용합니다.
+      상단 중앙 HUD는 위치 이동 없이 제자리에서 페이드인합니다.
+      easeOutExpo: cubic-bezier(0.16, 1, 0.3, 1)
+    */
+    body.is-start-screen #hud {
+      translate: 0 0;
+    }
+
+    body.is-start-screen #todoListOverlay,
+    body.is-start-screen #repairButton,
+    body.is-start-screen #inventoryButton,
+    body.is-start-screen #exploreButton {
+      translate: -140px 0;
+    }
+
+    body.is-start-screen #dayStatus,
+    body.is-start-screen #exploringStatus,
+    body.is-start-screen #versionLabel {
+      translate: 140px 0;
+    }
+
+    body.is-entering-game #hud {
+      translate: 0 0;
+      transition:
+        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body.is-entering-game #todoListOverlay,
+    body.is-entering-game #repairButton,
+    body.is-entering-game #inventoryButton,
+    body.is-entering-game #exploreButton,
+    body.is-entering-game #dayStatus,
+    body.is-entering-game #exploringStatus,
+    body.is-entering-game #versionLabel {
+      translate: 0 0;
+      transition:
+        translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
     #hud {
       position: fixed;
       top: max(30px, calc(env(safe-area-inset-top) + 16px));
@@ -2539,17 +2818,20 @@
       transform: translateY(5px);
     }
 
+    /* 현재 장착 무기는 가방 아이콘 정중앙에 겹쳐 표시합니다.
+       크기는 :root의 --weapon-hud-size 값으로 조정합니다. */
     #weaponStatusIcon {
-      flex: 0 0 var(--weapon-hud-size);
+      position: absolute;
+      left: 28px;
+      top: 29px;
+      z-index: 3;
       width: var(--weapon-hud-size);
       height: var(--weapon-hud-size);
-      margin-left: var(--weapon-hud-gap-left);
-      margin-right: var(--weapon-hud-gap-right);
       background-image: url("images/icon_weapons.png");
       background-repeat: no-repeat;
       background-size: 400% 200%;
       background-position: 0 0;
-      transform: translateY(var(--weapon-hud-offset-y));
+      transform: translate(-50%, -50%);
       pointer-events: none;
     }
 
@@ -2557,6 +2839,10 @@
     #remainingZombieLabel {
       flex: 0 0 auto;
       white-space: nowrap;
+    }
+
+    #remainingZombieLabel {
+      margin-left: 5px;
     }
 
     /* 좀비 처치 시 남은 처치 수 위에서 -1이 떠오르며 사라집니다. */
@@ -2636,12 +2922,14 @@
     }
 
     #dayNumber {
+      /* DAY + 숫자가 화면 너비의 70%를 넘을 때만 JavaScript에서 이 배율을 낮춥니다. */
+      --day-number-scale: 1;
       display: flex;
       align-items: flex-start;
       justify-content: flex-end;
       height: 0.9em;
       overflow: visible;
-      font-size: 59px;
+      font-size: calc(59px * var(--day-number-scale));
       font-weight: 500;
       line-height: 0.9;
       letter-spacing: -0.03em;
@@ -3139,8 +3427,8 @@
   data-reset-save-on-version-mismatch="false" : 버전이 달라도 저장 유지
 -->
 <body
-  class="is-initializing-stat9s is-initializing-weather"
-  data-game-version="0.132"
+  class="is-initializing-status is-initializing-weather is-start-screen"
+  data-game-version="0.133"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3194,11 +3482,35 @@
     const TEST_MODE = true;
     const FORCE_RAIN_FOR_TEST = null;
 
+    /*
+      우하단 DAY 표시 숫자 테스트
+      - 0: 실제 저장된 DAY 값을 표시합니다.
+      - 0보다 큰 숫자: 실제 DAY 값은 건드리지 않고 화면 표시만 해당 숫자로 대체합니다.
+      - 예: const FORCE_DAY_NUMBER_FOR_TEST = 123456789;
+    */
+    const FORCE_DAY_NUMBER_FOR_TEST = 0;
+
     (() => {
       try {
         const hasForcedRainTest = TEST_MODE && FORCE_RAIN_FOR_TEST !== null;
         if (hasForcedRainTest) {
           document.body.classList.toggle("is-rainy", FORCE_RAIN_FOR_TEST);
+        }
+
+        // 같은 탭에서 실제 게임 플레이 중 F5로 새로고침한 경우에는
+        // 시작화면을 다시 그리지 않고 게임 화면 상태로 바로 준비합니다.
+        const navigationEntry = performance.getEntriesByType?.("navigation")?.[0];
+        let isGameplayReload = false;
+        try {
+          isGameplayReload =
+            navigationEntry?.type === "reload" &&
+            sessionStorage.getItem("cozy.start.gameplay-active.v1") === "1";
+        } catch (_) {
+          isGameplayReload = false;
+        }
+        if (isGameplayReload) {
+          document.body.classList.remove("is-start-screen");
+          document.body.classList.add("is-gameplay-reload");
         }
 
         const saved = localStorage.getItem("cozy.resources.v1");
@@ -3536,6 +3848,7 @@
       alt=""
       draggable="false"
     />
+    <span id="weaponStatusIcon" aria-hidden="true"></span>
     <span class="hud-action-button__label">Bag</span>
   </button>
   <button
@@ -3559,7 +3872,6 @@
   <div id="dayStatus" aria-live="polite">
     <div id="weatherStatusRow">
       <span id="weatherLabel">Sunny</span>
-      <span id="weaponStatusIcon" aria-hidden="true"></span>
       <span id="remainingZombieLabel">2</span>
     </div>
     <div id="dayNumber" aria-label="DAY 1">
@@ -3572,6 +3884,39 @@
     </div>
   </div>
   <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span id="versionNumber"></span></div>
+
+  <div id="startScreen" aria-label="Start menu">
+    <div id="startScreenHeader">
+      <div id="startScreenTitle">COZZY</div>
+      <div id="startScreenSurvived">0 Days Survived</div>
+    </div>
+    <div id="startScreenMenu">
+      <div class="start-menu-slot">
+        <button id="startGameButton" class="start-menu-button" type="button">
+          <span class="start-menu-button__label">Press to Start</span>
+        </button>
+        <button id="continueGameButton" class="start-menu-button" type="button" hidden>
+          <span class="start-menu-button__label">Continue</span>
+        </button>
+        <div id="startNewGameWarning" hidden>Your progress will be lost.</div>
+      </div>
+      <div class="start-menu-slot">
+        <button id="newGameButton" class="start-menu-button" type="button" hidden>
+          <span class="start-menu-button__label">New Game</span>
+        </button>
+        <div id="startNewGameConfirm" hidden>
+          <button id="cancelNewGameButton" class="start-menu-button" type="button">
+            <span class="start-menu-button__label">No</span>
+          </button>
+          <span class="start-new-game-separator" aria-hidden="true">/</span>
+          <button id="confirmNewGameButton" class="start-menu-button" type="button">
+            <span class="start-menu-button__label">Yes</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="startScreenCredit">A MINHO CHEY GAME</div>
+  </div>
 
   <script>
     (() => {
@@ -3926,6 +4271,10 @@
       const FOREST_EXPLORATION_DURATION_MS = 15 * 60_000;
       const CITY_EXPLORATION_DURATION_MS = 30 * 60_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
+      const START_SCREEN_NEW_GAME_SESSION_KEY = "cozy.start.new-game.v1";
+      const START_SCREEN_GAMEPLAY_SESSION_KEY = "cozy.start.gameplay-active.v1";
+      const START_SCREEN_FADE_MS = 500;
+      const GAME_UI_ENTRY_CLEANUP_MS = 750;
       const GAME_VERSION = String(
         document.body.dataset.gameVersion || ""
       ).trim();
@@ -4041,6 +4390,7 @@
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
       const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
       const DAY_NUMBER_ROLL_FALLBACK_MS = 1_100;
+      const DAY_NUMBER_MAX_VIEWPORT_WIDTH_RATIO = 0.7;
 
       // 기본 걷기 애니메이션: 2fps
       const WALK_FPS = 2;
@@ -4804,6 +5154,15 @@
       const dayNumberTrack = document.getElementById("dayNumberTrack");
       const versionTestButton = document.getElementById("versionTestButton");
       const versionNumber = document.getElementById("versionNumber");
+      const startScreen = document.getElementById("startScreen");
+      const startScreenSurvived = document.getElementById("startScreenSurvived");
+      const startGameButton = document.getElementById("startGameButton");
+      const continueGameButton = document.getElementById("continueGameButton");
+      const newGameButton = document.getElementById("newGameButton");
+      const startNewGameWarning = document.getElementById("startNewGameWarning");
+      const startNewGameConfirm = document.getElementById("startNewGameConfirm");
+      const cancelNewGameButton = document.getElementById("cancelNewGameButton");
+      const confirmNewGameButton = document.getElementById("confirmNewGameButton");
       const houseObject = document.getElementById("houseObject");
       const wallsObject = document.getElementById("wallsObject");
       const roofObject = document.getElementById("roofObject");
@@ -5298,7 +5657,10 @@
       let lastPopulationWallClockAt = Date.now();
       let versionTestClickCount = 0;
       let versionTestLastClickAt = -Infinity;
-      let isStateSaveSuppressed = false;
+      // 시작화면에 머무는 동안에는 어떤 자동 저장도 새 저장 데이터를 만들지 않습니다.
+      let isStateSaveSuppressed = true;
+      let isGameplayStarting = false;
+      let startScreenShownAt = Date.now();
       let hasRepairButtonNew = false;
       let hasExploreButtonNew = false;
       const explorationDestinationNewState = {
@@ -5465,6 +5827,7 @@
         city: false
       };
       let renderedDayCount = 1;
+      let dayNumberScale = 1;
       let dayNumberAnimationToken = 0;
       let dayNumberAnimationTimerId = null;
       const inventoryPageDragState = {
@@ -6220,10 +6583,16 @@
         todoListOverlay.classList.remove("is-hiding");
         todoListOverlay.hidden = false;
 
-        if (wasHidden) {
+        if (
+          wasHidden &&
+          hasGameInitialized &&
+          !document.body.classList.contains("is-start-screen")
+        ) {
           todoListOverlay.classList.remove("is-showing");
           void todoListOverlay.offsetWidth;
           todoListOverlay.classList.add("is-showing");
+        } else if (wasHidden) {
+          todoListOverlay.classList.remove("is-showing");
         }
       }
 
@@ -8012,6 +8381,39 @@
         updateExplorationRequirements();
       }
 
+      function getDisplayedDayCount() {
+        const forcedDayNumber = Number(FORCE_DAY_NUMBER_FOR_TEST);
+        return Number.isFinite(forcedDayNumber) && forcedDayNumber > 0
+          ? Math.floor(forcedDayNumber)
+          : dayCount;
+      }
+
+      function getDayNumberValueWidthEm(element) {
+        if (!element || !dayNumber) return 0;
+        const fontSize = parseFloat(getComputedStyle(dayNumber).fontSize) || 59;
+        return element.getBoundingClientRect().width / fontSize;
+      }
+
+      function setDayNumberViewportWidth(widthEm) {
+        dayNumberViewport.style.width = `${Math.max(0, widthEm)}em`;
+      }
+
+      function updateDayNumberScale() {
+        if (!dayNumber) return;
+
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+        const maxWidth = viewportWidth * DAY_NUMBER_MAX_VIEWPORT_WIDTH_RATIO;
+        const safeCurrentScale = dayNumberScale > 0 ? dayNumberScale : 1;
+        const currentRenderedWidth = dayNumber.scrollWidth;
+        const naturalWidth = currentRenderedWidth / safeCurrentScale;
+        const nextScale = naturalWidth > maxWidth && naturalWidth > 0
+          ? maxWidth / naturalWidth
+          : 1;
+
+        dayNumberScale = Math.min(1, Math.max(0.01, nextScale));
+        dayNumber.style.setProperty("--day-number-scale", String(dayNumberScale));
+      }
+
       function createDayNumberValue(value) {
         const element = document.createElement("span");
         element.className = "day-number-value";
@@ -8029,10 +8431,12 @@
 
         dayNumberTrack.classList.remove("is-rolling");
         dayNumberViewport.classList.remove("is-resizing");
-        dayNumberTrack.replaceChildren(createDayNumberValue(value));
-        dayNumberViewport.style.width = `${dayNumberTrack.scrollWidth}px`;
+        const valueElement = createDayNumberValue(value);
+        dayNumberTrack.replaceChildren(valueElement);
+        setDayNumberViewportWidth(getDayNumberValueWidthEm(valueElement));
         renderedDayCount = value;
         dayNumber.setAttribute("aria-label", `DAY ${value}`);
+        updateDayNumberScale();
       }
 
       function animateDayNumberTo(value) {
@@ -8059,10 +8463,11 @@
           nextValueElement
         );
 
-        const previousNumberWidth = previousValueElement.getBoundingClientRect().width;
-        const nextNumberWidth = nextValueElement.getBoundingClientRect().width;
-        dayNumberViewport.style.width = `${previousNumberWidth}px`;
+        const previousNumberWidthEm = getDayNumberValueWidthEm(previousValueElement);
+        const nextNumberWidthEm = getDayNumberValueWidthEm(nextValueElement);
+        setDayNumberViewportWidth(previousNumberWidthEm);
         dayNumber.setAttribute("aria-label", `DAY ${value}`);
+        updateDayNumberScale();
 
         const finishAnimation = () => {
           if (animationToken !== dayNumberAnimationToken) return;
@@ -8075,8 +8480,9 @@
           dayNumberTrack.classList.remove("is-rolling");
           dayNumberViewport.classList.remove("is-resizing");
           dayNumberTrack.replaceChildren(createDayNumberValue(value));
-          dayNumberViewport.style.width = `${nextNumberWidth}px`;
+          setDayNumberViewportWidth(nextNumberWidthEm);
           renderedDayCount = value;
+          updateDayNumberScale();
         };
 
         nextValueElement.addEventListener("animationend", finishAnimation, {
@@ -8091,7 +8497,7 @@
           void dayNumberTrack.offsetHeight;
           dayNumberViewport.classList.add("is-resizing");
           dayNumberTrack.classList.add("is-rolling");
-          dayNumberViewport.style.width = `${nextNumberWidth}px`;
+          setDayNumberViewportWidth(nextNumberWidthEm);
 
           dayNumberAnimationTimerId = window.setTimeout(
             finishAnimation,
@@ -8102,17 +8508,20 @@
 
       function updateDayStatus(options = {}) {
         dayStatus.classList.toggle("is-hidden", isExploring);
+        const displayedDayCount = getDisplayedDayCount();
 
         if (
           options.animateDay === true &&
           !isExploring &&
-          dayCount !== renderedDayCount
+          displayedDayCount !== renderedDayCount
         ) {
-          animateDayNumberTo(dayCount);
+          animateDayNumberTo(displayedDayCount);
         } else {
-          setDayNumberImmediately(dayCount);
+          setDayNumberImmediately(displayedDayCount);
         }
       }
+
+      window.addEventListener("resize", updateDayNumberScale, { passive: true });
 
       function commitResourceState(options = {}) {
         updateResourceHud();
@@ -10666,6 +11075,7 @@
       }
 
       function startBackgroundDrag(event) {
+        if (!hasGameInitialized) return;
         if (event.button !== undefined && event.button !== 0) return;
         if (maxPanX <= 0 && maxPanY <= 0) return;
 
@@ -18301,6 +18711,237 @@
         );
       }
 
+      function getSavedProgressForStartScreen() {
+        try {
+          const saved = localStorage.getItem(RESOURCE_STORAGE_KEY);
+          if (!saved) return null;
+
+          const parsed = JSON.parse(saved);
+          if (!parsed || typeof parsed !== "object") return null;
+
+          const savedGameVersion = String(parsed.version || "").trim();
+          if (
+            RESET_SAVE_ON_VERSION_MISMATCH &&
+            (!GAME_VERSION || savedGameVersion !== GAME_VERSION)
+          ) {
+            localStorage.removeItem(RESOURCE_STORAGE_KEY);
+            return null;
+          }
+
+          return parsed;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function hasSavedProgressForStartScreen() {
+        return Boolean(getSavedProgressForStartScreen());
+      }
+
+      function updateStartScreenSurvivedDays(savedProgress = null) {
+        const storedDayCount = Number(savedProgress?.dayCount);
+        const survivedDays = Number.isFinite(storedDayCount)
+          ? Math.max(0, Math.round(storedDayCount))
+          : 0;
+        const dayLabel = survivedDays === 1 ? "Day" : "Days";
+        startScreenSurvived.textContent = `${survivedDays} ${dayLabel} Survived`;
+      }
+
+      function rememberGameplaySession() {
+        try {
+          sessionStorage.setItem(START_SCREEN_GAMEPLAY_SESSION_KEY, "1");
+        } catch (_) {}
+      }
+
+      function shouldResumeGameplayAfterReload() {
+        try {
+          const navigationEntry = performance.getEntriesByType?.("navigation")?.[0];
+          return navigationEntry?.type === "reload" &&
+            sessionStorage.getItem(START_SCREEN_GAMEPLAY_SESSION_KEY) === "1";
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function setNewGameConfirmationVisible(visible) {
+        const shouldShow = visible === true;
+        continueGameButton.hidden = shouldShow;
+        newGameButton.hidden = shouldShow;
+        startNewGameWarning.hidden = !shouldShow;
+        startNewGameConfirm.hidden = !shouldShow;
+      }
+
+      function configureStartScreenMenu() {
+        const savedProgress = getSavedProgressForStartScreen();
+        const hasSavedProgress = Boolean(savedProgress);
+        updateStartScreenSurvivedDays(savedProgress);
+        startGameButton.hidden = hasSavedProgress;
+        continueGameButton.hidden = !hasSavedProgress;
+        newGameButton.hidden = !hasSavedProgress;
+        startNewGameWarning.hidden = true;
+        startNewGameConfirm.hidden = true;
+      }
+
+      function lockGameForStartScreen() {
+        document.body.classList.add("is-start-screen");
+        viewport.setAttribute("inert", "");
+        viewport.classList.remove("can-pan", "is-panning");
+        dragState.active = false;
+        dragState.moved = false;
+        dragState.pointerId = null;
+        dragState.captureTarget = null;
+      }
+
+      function consumeNewGameAutoStartFlag() {
+        try {
+          const shouldAutoStart =
+            sessionStorage.getItem(START_SCREEN_NEW_GAME_SESSION_KEY) === "1";
+          if (shouldAutoStart) {
+            sessionStorage.removeItem(START_SCREEN_NEW_GAME_SESSION_KEY);
+          }
+          return shouldAutoStart;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function rememberNewGameAutoStart() {
+        try {
+          sessionStorage.setItem(START_SCREEN_NEW_GAME_SESSION_KEY, "1");
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function offsetHomePopulationTimersForStartScreen() {
+        if (isExploring) return;
+        const pausedForStartScreenMs = Math.max(0, Date.now() - startScreenShownAt);
+        if (pausedForStartScreenMs <= 0) return;
+
+        lastZombieSpawnAt += pausedForStartScreenMs;
+        lastDeerSpawnAt += pausedForStartScreenMs;
+        lastSupplyBoxSpawnAt += pausedForStartScreenMs;
+        if (storedPopulationSnapshot) {
+          storedPopulationSnapshot.savedAt += pausedForStartScreenMs;
+        }
+      }
+
+      function startGameUiEntryTransition() {
+        document.body.classList.add("is-entering-game");
+        document.body.classList.remove("is-start-screen");
+        startScreen.classList.add("is-leaving");
+
+        window.setTimeout(() => {
+          startScreen.hidden = true;
+          viewport.removeAttribute("inert");
+        }, START_SCREEN_FADE_MS);
+
+        window.setTimeout(() => {
+          document.body.classList.remove("is-entering-game");
+        }, GAME_UI_ENTRY_CLEANUP_MS);
+      }
+
+      function activateGameplayFromStartScreen(options = {}) {
+        if (isGameplayStarting || hasGameInitialized) return;
+        isGameplayStarting = true;
+        const skipStartTransition = options?.skipStartTransition === true;
+        const skipStartScreenPauseOffset =
+          options?.skipStartScreenPauseOffset === true;
+
+        // 실제 플레이를 시작하는 순간에만 저장 상태와 게임 시스템을 복원·시작합니다.
+        loadResourceState();
+        if (!skipStartScreenPauseOffset) {
+          offsetHomePopulationTimersForStartScreen();
+        }
+        updateWorldScale();
+
+        isStateSaveSuppressed = false;
+        hasGameInitialized = true;
+        rememberGameplaySession();
+        lastPopulationWallClockAt = Date.now();
+
+        restoreStoredPopulation();
+        syncDogForCurrentDay();
+        initializeClouds();
+        startSpawner();
+        updateTodoListUI();
+        triggerMailboxCatDeliveryIfAvailable();
+        scheduleEmptyFieldZombieSpawn();
+        scheduleEmptyFieldDeerSpawn();
+
+        if (isChainsawEquipped && chainsawBatteryPercent > 0) {
+          startChainsawBatteryDrain();
+          startChainsawIdleSound();
+        }
+
+        if (hasMusicBox && isMusicOn) {
+          startBgmPlayback();
+        }
+
+        if (document.body.classList.contains("is-restored-night")) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              document.body.classList.remove("is-restored-night");
+            });
+          });
+        }
+
+        document.body.classList.remove(
+          "is-initializing-weather",
+          "is-initializing-status"
+        );
+
+        lastFrameTime = performance.now();
+        requestAnimationFrame(gameLoop);
+
+        if (skipStartTransition) {
+          document.body.classList.remove(
+            "is-start-screen",
+            "is-entering-game",
+            "is-gameplay-reload"
+          );
+          startScreen.hidden = true;
+          viewport.removeAttribute("inert");
+        } else {
+          startGameUiEntryTransition();
+        }
+        isGameplayStarting = false;
+      }
+
+      function requestNewGameFromStartScreen() {
+        setNewGameConfirmationVisible(true);
+      }
+
+      function cancelNewGameFromStartScreen() {
+        setNewGameConfirmationVisible(false);
+      }
+
+      function confirmNewGameFromStartScreen() {
+        if (isGameplayStarting) return;
+        isGameplayStarting = true;
+        isStateSaveSuppressed = true;
+        confirmNewGameButton.disabled = true;
+        cancelNewGameButton.disabled = true;
+
+        const canAutoStartAfterReload = rememberNewGameAutoStart();
+
+        try {
+          localStorage.removeItem(RESOURCE_STORAGE_KEY);
+        } catch (_) {
+          // 저장소 접근이 막혀 있어도 아래 재시작은 그대로 시도합니다.
+        }
+
+        if (!canAutoStartAfterReload) {
+          // sessionStorage가 차단된 환경에서는 최소한 새 저장으로 메뉴를 다시 표시합니다.
+          try {
+            startScreen.classList.add("is-auto-starting");
+          } catch (_) {}
+        }
+
+        location.reload();
+      }
+
       function startSpawner() {
         // 새 게임에서만 첫 좀비를 즉시 생성합니다.
         // 페이지를 열 때 이미 Axe를 보유했다면 첫 시작용 즉시 생성은 건너뜁니다.
@@ -18330,7 +18971,7 @@
         if (activatePressedFieldEntity(event)) return;
         if (!shouldActivateFieldObject(event, shedObject)) return;
         if (isShedRepaired()) {
-          handleStructureInteraction(event, SHED_REPAIRED_TOAST_MESSAGE, SHED_OLD_SOUND);
+          handleStructureInteraction(event, SHED_REPAIRED_TOAST_MESSAGE);
           return;
         }
         unlockShedRepairBlueprint();
@@ -18343,7 +18984,11 @@
           unlockShedRepairBlueprint();
           applyRepairState();
         }
-        handleStructureKeydown(event, isShedRepaired() ? SHED_REPAIRED_TOAST_MESSAGE : SHED_REPAIR_TOAST_MESSAGE, SHED_OLD_SOUND);
+        handleStructureKeydown(
+          event,
+          isShedRepaired() ? SHED_REPAIRED_TOAST_MESSAGE : SHED_REPAIR_TOAST_MESSAGE,
+          isShedRepaired() ? "" : SHED_OLD_SOUND
+        );
       });
       carObject.addEventListener("pointerdown", startFieldEntityPress);
       carObject.addEventListener("pointerup", (event) => {
@@ -18379,6 +19024,11 @@
       bindReliableTap(repairButton, handleRepairButton);
       bindReliableTap(inventoryButton, handleInventoryButton);
       bindReliableTap(exploreButton, handleExploreButton);
+      bindReliableTap(startGameButton, activateGameplayFromStartScreen);
+      bindReliableTap(continueGameButton, activateGameplayFromStartScreen);
+      bindReliableTap(newGameButton, requestNewGameFromStartScreen);
+      bindReliableTap(cancelNewGameButton, cancelNewGameFromStartScreen);
+      bindReliableTap(confirmNewGameButton, confirmNewGameFromStartScreen);
 
       explorationOverlay.addEventListener("pointerdown", (event) => {
         if (event.target === explorationOverlay) {
@@ -18833,62 +19483,45 @@
       });
 
       async function initializeGame() {
-        // 이미지 로딩 전에도 개별 빗줄기를 만듭니다.
-        initializeRainDrops();
+        startScreenShownAt = Date.now();
+        const shouldAutoStartNewGame = consumeNewGameAutoStartFlag();
+        const shouldResumeGameplay =
+          !shouldAutoStartNewGame && shouldResumeGameplayAfterReload();
 
-        // 공격에 쓰이는 좀비/사슴 스프라이트까지 디코딩된 뒤 게임을 시작합니다.
+        if (shouldResumeGameplay) {
+          // F5 새로고침에서는 시작화면과 UI 진입 모션을 모두 건너뜁니다.
+          document.body.classList.remove("is-start-screen");
+          document.body.classList.add("is-gameplay-reload");
+          startScreen.hidden = true;
+          viewport.removeAttribute("inert");
+        } else {
+          lockGameForStartScreen();
+          configureStartScreenMenu();
+        }
+
+        // 이미지 로딩 전에도 시작화면 뒤의 비 표현은 준비합니다.
+        initializeRainDrops();
+        updateWorldScale();
+        refreshStructureSafeZones();
+
+        if (shouldAutoStartNewGame) {
+          startScreen.classList.add("is-auto-starting");
+        }
+
+        // 공격에 쓰이는 좀비/사슴 스프라이트까지 준비한 뒤에만 플레이 진입을 허용합니다.
         await preloadGameSprites();
 
-        // 구조물 안전영역은 개체 복원·생성 전에 한 번 계산해 공유합니다.
-        refreshStructureSafeZones();
-        loadResourceState();
-
-        // 저장된 날씨까지 복원한 뒤 첫 화면의 날씨 전환을 활성화합니다.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            document.body.classList.remove("is-initializing-weather");
-          });
-        });
-
-        if (isChainsawEquipped && chainsawBatteryPercent > 0) {
-          startChainsawBatteryDrain();
-          startChainsawIdleSound();
-        }
-        // 드래그 가능한 전체 생성 영역을 먼저 계산한 뒤 저장 개체를 복원합니다.
-        // 그래야 새로고침 복원에서도 확장 생성 범위와 가장자리 20px inset이 정확히 적용됩니다.
-        updateWorldScale();
-        restoreStoredPopulation();
-        syncDogForCurrentDay();
-        initializeClouds();
-        startSpawner();
-        hasGameInitialized = true;
-        lastPopulationWallClockAt = Date.now();
-        updateTodoListUI();
-        triggerMailboxCatDeliveryIfAvailable();
-        scheduleEmptyFieldZombieSpawn();
-        scheduleEmptyFieldDeerSpawn();
-
-        if (hasMusicBox && isMusicOn) {
-          startBgmPlayback();
+        if (shouldAutoStartNewGame) {
+          activateGameplayFromStartScreen();
+          return;
         }
 
-        if (document.body.classList.contains("is-restored-night")) {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              document.body.classList.remove("is-restored-night");
-            });
+        if (shouldResumeGameplay) {
+          activateGameplayFromStartScreen({
+            skipStartTransition: true,
+            skipStartScreenPauseOffset: true
           });
         }
-
-        // 초기 저장 상태가 화면에 적용된 다음부터만 우하단 등장 페이드를 허용합니다.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            document.body.classList.remove("is-initializing-status");
-          });
-        });
-
-        lastFrameTime = performance.now();
-        requestAnimationFrame(gameLoop);
       }
 
       initializeGame();
