@@ -117,6 +117,19 @@
       --start-screen-button-weight: 350;
       --start-screen-fade-duration: 500ms;
       --game-ui-entry-duration: 1000ms;
+
+      /*
+        시작화면 게임 장면 확대/위치 수정 위치
+        - world-scale: 시작화면에서 UI를 제외한 게임 장면 배율
+        - world-offset-x/y: 시작화면 장면 위치 보정(px)
+        - world-zoom-duration: 게임 시작 시 100%로 돌아오는 시간
+        - field-background-size: 2048 좌표계는 유지하고 필드 배경 그림만 확대
+      */
+      --start-screen-world-scale: 0.6;
+      --start-screen-world-offset-x: 0px;
+      --start-screen-world-offset-y: 0px;
+      --start-screen-world-zoom-duration: 1000ms;
+      --field-background-size: 170%;
     }
 
     * {
@@ -163,36 +176,59 @@
     }
 
     #world {
+      --world-pan-x: 0px;
+      --world-pan-y: 0px;
+      --world-runtime-scale: 1;
+      --world-entry-scale: 1;
+      --world-entry-offset-x: 0px;
+      --world-entry-offset-y: 0px;
       position: absolute;
-      left: 50%;
-      top: 50%;
+      left: calc(50% + var(--world-pan-x) + var(--world-entry-offset-x));
+      top: calc(50% + var(--world-pan-y) + var(--world-entry-offset-y));
       width: var(--world-size);
       height: var(--world-size);
       transform-origin: center center;
-      background-image: url("images/bg_field_default_day.png");
+      transform:
+        translate(-50%, -50%)
+        scale(var(--world-runtime-scale))
+        scale(var(--world-entry-scale));
+      will-change: left, top, transform;
+    }
+
+    /*
+      필드 좌표계는 2048×2048 그대로 두고 배경 그림만 중앙 기준 112%로 확장합니다.
+      시작화면에서 #world가 90%로 축소되어도 배경 레이어는 월드 경계 밖까지 그려져
+      정사각형/대형 화면에서도 가장자리가 비지 않게 합니다.
+    */
+    #world::before,
+    #world::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: var(--field-background-size);
+      height: var(--field-background-size);
+      z-index: 0;
+      transform: translate(-50%, -50%);
       background-repeat: no-repeat;
       background-position: center;
-      background-size: 2048px 2048px;
-      will-change: transform;
+      background-size: 100% 100%;
+      pointer-events: none;
+    }
+
+    #world::before {
+      background-image: url("images/bg_field_default_day.png");
     }
 
     /* 비가 오는 동안 낮 필드 배경을 비 전용 이미지로 교체합니다. */
-    body.is-rainy #world {
+    body.is-rainy #world::before {
       background-image: url("images/bg_field_default_rainy.png");
     }
 
     /* 탐험 중에는 밤 배경을 3초 동안 페이드인하고, 귀환 시 반대로 전환합니다. */
     #world::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 0;
       background-image: url("images/bg_field_default_nigth.png");
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 2048px 2048px;
       opacity: 0;
-      pointer-events: none;
       transition: opacity 3s ease;
     }
 
@@ -1569,6 +1605,24 @@
 
     body.is-start-screen #viewport {
       cursor: default !important;
+    }
+
+    /* 시작화면에서는 게임 UI를 제외한 월드 장면만 축소/이동합니다. */
+    body.is-start-screen #world {
+      --world-entry-scale: var(--start-screen-world-scale);
+      --world-entry-offset-x: var(--start-screen-world-offset-x);
+      --world-entry-offset-y: var(--start-screen-world-offset-y);
+    }
+
+    /* 게임 시작 시 easeOutCubic으로 원래 100% 배율/기준 위치로 돌아옵니다. */
+    body.is-entering-game #world {
+      --world-entry-scale: 1;
+      --world-entry-offset-x: 0px;
+      --world-entry-offset-y: 0px;
+      transition:
+        left var(--start-screen-world-zoom-duration) cubic-bezier(0.33, 1, 0.68, 1),
+        top var(--start-screen-world-zoom-duration) cubic-bezier(0.33, 1, 0.68, 1),
+        transform var(--start-screen-world-zoom-duration) cubic-bezier(0.33, 1, 0.68, 1);
     }
 
     /*
@@ -3428,7 +3482,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.133"
+  data-game-version="0.135"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4274,7 +4328,7 @@
       const START_SCREEN_NEW_GAME_SESSION_KEY = "cozy.start.new-game.v1";
       const START_SCREEN_GAMEPLAY_SESSION_KEY = "cozy.start.gameplay-active.v1";
       const START_SCREEN_FADE_MS = 500;
-      const GAME_UI_ENTRY_CLEANUP_MS = 750;
+      const GAME_UI_ENTRY_CLEANUP_MS = 1_050;
       const GAME_VERSION = String(
         document.body.dataset.gameVersion || ""
       ).trim();
@@ -5661,6 +5715,7 @@
       let isStateSaveSuppressed = true;
       let isGameplayStarting = false;
       let startScreenShownAt = Date.now();
+      let hasStartScreenScenePreview = false;
       let hasRepairButtonNew = false;
       let hasExploreButtonNew = false;
       const explorationDestinationNewState = {
@@ -7832,7 +7887,7 @@
         saveResourceState();
       }
 
-      function loadResourceState() {
+      function loadResourceState(options = {}) {
         configureExplorationBlueprintDefinitions();
 
         try {
@@ -7845,8 +7900,8 @@
             applyTreeVisualState();
             updateResourceHud();
             updateDayStatus();
-            applyWeatherState();
-            restoreExplorationState();
+            applyWeatherState({ previewOnly: options.previewOnly === true });
+            restoreExplorationState({ previewOnly: options.previewOnly === true });
             return;
           }
 
@@ -7865,8 +7920,8 @@
             applyTreeVisualState();
             updateResourceHud();
             updateDayStatus();
-            applyWeatherState();
-            restoreExplorationState();
+            applyWeatherState({ previewOnly: options.previewOnly === true });
+            restoreExplorationState({ previewOnly: options.previewOnly === true });
             return;
           }
 
@@ -8172,8 +8227,10 @@
         updateTodoListUI();
         updateResourceHud();
         updateDayStatus();
-        applyWeatherState();
-        restoreExplorationState();
+        applyWeatherState({ previewOnly: options.previewOnly === true });
+        restoreExplorationState({
+          previewOnly: options.previewOnly === true
+        });
       }
 
       function saveResourceState() {
@@ -8564,6 +8621,65 @@
         return count;
       }
 
+
+      function restoreStoredPopulationForStartScreenPreview() {
+        if (!storedPopulationSnapshot) return;
+
+        const targetZombieCount = Math.min(
+          storedPopulationSnapshot.activeZombies,
+          MAX_ACTIVE_ZOMBIES,
+          MAX_ACTIVE_POPULATION
+        );
+        const targetDeerCount = firstKillBirdFlockPlayed
+          ? Math.min(
+              storedPopulationSnapshot.activeDeer,
+              MAX_ACTIVE_DEER,
+              Math.max(0, MAX_ACTIVE_POPULATION - targetZombieCount)
+            )
+          : 0;
+
+        for (let index = 0; index < targetZombieCount; index += 1) {
+          if (!createZombie({
+            force: true,
+            silent: true,
+            persist: false,
+            skipBirth: true,
+            preferVisible: true
+          })) {
+            break;
+          }
+        }
+
+        for (let index = 0; index < targetDeerCount; index += 1) {
+          if (!createDeer({
+            force: true,
+            persist: false,
+            skipBirth: true,
+            preferVisible: index === 0
+          })) {
+            break;
+          }
+        }
+      }
+
+      function clearStartScreenScenePreview() {
+        for (const zombie of zombies.values()) {
+          zombie.element?.remove();
+        }
+        zombies.clear();
+
+        for (const deer of deerMap.values()) {
+          deer.element?.remove();
+        }
+        deerMap.clear();
+
+        if (dog) {
+          removeDog({ resync: false });
+        }
+
+        nextZombieId = 1;
+        nextDeerId = 1;
+      }
 
       function restoreStoredPopulation() {
         if (!storedPopulationSnapshot) return;
@@ -9829,7 +9945,7 @@
         return `rgba(${toChannel(red)}, ${toChannel(green)}, ${toChannel(blue)}, ${alpha.toFixed(3)})`;
       }
 
-      function applyWeatherState() {
+      function applyWeatherState(options = {}) {
         const rootStyle = document.documentElement.style;
 
         rootStyle.setProperty(
@@ -9884,9 +10000,11 @@
         document.body.classList.toggle("is-rainy", shouldRain);
         updateWeatherLabel();
 
-        syncRainAmbientForWeather();
-        if (wasRainy !== shouldRain) {
-          transitionBgmForCurrentState();
+        if (options.previewOnly !== true) {
+          syncRainAmbientForWeather();
+          if (wasRainy !== shouldRain) {
+            transitionBgmForCurrentState();
+          }
         }
       }
 
@@ -10121,7 +10239,34 @@
         );
       }
 
-      function restoreExplorationState() {
+      function restoreExplorationState(options = {}) {
+        const previewOnly = options.previewOnly === true;
+
+        if (previewOnly) {
+          if (explorationTimerId !== null) {
+            clearInterval(explorationTimerId);
+            explorationTimerId = null;
+          }
+
+          const isSavedExplorationStillActive = explorationEndsAt > Date.now();
+          isExploring = isSavedExplorationStillActive;
+
+          if (isSavedExplorationStillActive) {
+            if (explorationDestination === "city") {
+              setCarAwayForRestoredCityExploration();
+            } else {
+              resetCarToHomePosition();
+            }
+            setNightMode(true);
+          } else {
+            resetCarToHomePosition();
+            setNightMode(false);
+          }
+
+          updateDayStatus();
+          return;
+        }
+
         if (explorationEndsAt <= Date.now()) {
           if (explorationEndsAt > 0) {
             // 페이지가 닫혀 있는 동안 탐험이 끝난 경우에도 귀환 1회로 처리합니다.
@@ -10983,10 +11128,9 @@
       }
 
       function applyWorldTransform() {
-        world.style.left = `calc(50% + ${panX}px)`;
-        world.style.top = `calc(50% + ${panY}px)`;
-        world.style.transform =
-          `translate(-50%, -50%) scale(${worldScale})`;
+        world.style.setProperty("--world-pan-x", `${panX}px`);
+        world.style.setProperty("--world-pan-y", `${panY}px`);
+        world.style.setProperty("--world-runtime-scale", String(worldScale));
       }
 
       function updatePanBounds() {
@@ -18849,6 +18993,12 @@
         const skipStartScreenPauseOffset =
           options?.skipStartScreenPauseOffset === true;
 
+        // 시작화면용 정적 미리보기 개체를 제거한 뒤 실제 플레이 상태를 다시 정확히 복원합니다.
+        if (hasStartScreenScenePreview) {
+          clearStartScreenScenePreview();
+          hasStartScreenScenePreview = false;
+        }
+
         // 실제 플레이를 시작하는 순간에만 저장 상태와 게임 시스템을 복원·시작합니다.
         loadResourceState();
         if (!skipStartScreenPauseOffset) {
@@ -19488,6 +19638,11 @@
         const shouldResumeGameplay =
           !shouldAutoStartNewGame && shouldResumeGameplayAfterReload();
 
+        // 시작화면 미리보기 개체도 현재 해상도의 월드 범위를 기준으로 배치합니다.
+        initializeRainDrops();
+        updateWorldScale();
+        refreshStructureSafeZones();
+
         if (shouldResumeGameplay) {
           // F5 새로고침에서는 시작화면과 UI 진입 모션을 모두 건너뜁니다.
           document.body.classList.remove("is-start-screen");
@@ -19497,12 +19652,16 @@
         } else {
           lockGameForStartScreen();
           configureStartScreenMenu();
-        }
 
-        // 이미지 로딩 전에도 시작화면 뒤의 비 표현은 준비합니다.
-        initializeRainDrops();
-        updateWorldScale();
-        refreshStructureSafeZones();
+          // 저장 데이터가 있으면 게임 시스템은 시작하지 않은 채 현재 저장 모습만 정적으로 복원합니다.
+          if (hasSavedProgressForStartScreen()) {
+            loadResourceState({ previewOnly: true });
+            refreshStructureSafeZones();
+            restoreStoredPopulationForStartScreenPreview();
+            syncDogForCurrentDay();
+            hasStartScreenScenePreview = true;
+          }
+        }
 
         if (shouldAutoStartNewGame) {
           startScreen.classList.add("is-auto-starting");
