@@ -101,7 +101,7 @@
         - fade-duration: 시작화면 페이드아웃 시간
         - ui-entry-duration: 게임 UI가 화면 밖에서 들어오는 시간
       */
-      --start-screen-title-top: 80px;
+      --start-screen-title-top: 70px;
       --start-screen-title-size: 70px;
       --start-screen-title-weight: 650;
       --start-screen-title-color: #fff;
@@ -123,13 +123,17 @@
         - world-scale: 시작화면에서 UI를 제외한 게임 장면 배율
         - world-offset-x/y: 시작화면 장면 위치 보정(px)
         - world-zoom-duration: 게임 시작 시 100%로 돌아오는 시간
-        - field-background-size: 2048 좌표계는 유지하고 필드 배경 그림만 확대
+        - field-background-size: 2048 좌표계는 유지하고 필드 배경 표시 영역만 확대
+        - field-pattern-*-size: 반복 패턴 한 타일의 표시 크기. 값이 클수록 패턴이 크게 보입니다.
       */
-      --start-screen-world-scale: 0.6;
+      --start-screen-world-scale: 0.55;
       --start-screen-world-offset-x: 0px;
       --start-screen-world-offset-y: 0px;
       --start-screen-world-zoom-duration: 1000ms;
-      --field-background-size: 170%;
+      --field-background-size: 185%;
+      --field-pattern-day-size: 384px;
+      --field-pattern-night-size: 384px;
+      --field-pattern-rainy-size: 1280px;
     }
 
     * {
@@ -196,9 +200,9 @@
     }
 
     /*
-      필드 좌표계는 2048×2048 그대로 두고 배경 그림만 중앙 기준 112%로 확장합니다.
-      시작화면에서 #world가 90%로 축소되어도 배경 레이어는 월드 경계 밖까지 그려져
-      정사각형/대형 화면에서도 가장자리가 비지 않게 합니다.
+      필드 좌표계는 2048×2048 그대로 유지합니다.
+      배경 레이어는 시작화면 축소 시에도 가장자리가 비지 않도록 기존 185% 영역을 유지하고,
+      낮/밤/비 이미지는 각각 지정된 크기의 반복 패턴으로 채웁니다.
     */
     #world::before,
     #world::after {
@@ -210,24 +214,26 @@
       height: var(--field-background-size);
       z-index: 0;
       transform: translate(-50%, -50%);
-      background-repeat: no-repeat;
+      background-repeat: repeat;
       background-position: center;
-      background-size: 100% 100%;
       pointer-events: none;
     }
 
     #world::before {
-      background-image: url("images/bg_field_default_day.png");
+      background-image: url("images/bg_field_default_day_pattern.png");
+      background-size: var(--field-pattern-day-size) var(--field-pattern-day-size);
     }
 
-    /* 비가 오는 동안 낮 필드 배경을 비 전용 이미지로 교체합니다. */
+    /* 비가 오는 동안 낮 필드 패턴을 비 전용 패턴으로 교체합니다. */
     body.is-rainy #world::before {
-      background-image: url("images/bg_field_default_rainy.png");
+      background-image: url("images/bg_field_default_rainy_pattern.png");
+      background-size: var(--field-pattern-rainy-size) var(--field-pattern-rainy-size);
     }
 
-    /* 탐험 중에는 밤 배경을 3초 동안 페이드인하고, 귀환 시 반대로 전환합니다. */
+    /* 탐험 중에는 밤 패턴을 3초 동안 페이드인하고, 귀환 시 반대로 전환합니다. */
     #world::after {
-      background-image: url("images/bg_field_default_nigth.png");
+      background-image: url("images/bg_field_default_nigth_pattern.png");
+      background-size: var(--field-pattern-night-size) var(--field-pattern-night-size);
       opacity: 0;
       transition: opacity 3s ease;
     }
@@ -3482,7 +3488,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.135"
+  data-game-version="0.136"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4496,8 +4502,12 @@
       const DEER_SHEET = "images/deer_default.png";
       const DOG_SHEET = "images/dog_default.png";
       const CAT_SHEET = "images/cat_default.png";
+      const DAY_BACKGROUND_IMAGE =
+        "images/bg_field_default_day_pattern.png";
       const NIGHT_BACKGROUND_IMAGE =
-        "images/bg_field_default_nigth.png";
+        "images/bg_field_default_nigth_pattern.png";
+      const RAINY_BACKGROUND_IMAGE =
+        "images/bg_field_default_rainy_pattern.png";
       const NIGHT_CLOUD_SHEET =
         "images/bg_field_default_clouds_night.png";
       const TREE_DAY_SHEET = "images/bg_tree.png";
@@ -11113,6 +11123,8 @@
           preloadImage(DEER_SHEET),
           preloadImage(DOG_SHEET),
           preloadImage(CAT_SHEET),
+          preloadImage(DAY_BACKGROUND_IMAGE),
+          preloadImage(RAINY_BACKGROUND_IMAGE),
           preloadImage("images/house_1_roof.png"),
           preloadImage("images/house_1_walls.png"),
           preloadImage("images/garden_1.png"),
@@ -11671,7 +11683,11 @@
         );
       }
 
-      function createCloud(kind, initialInside = false) {
+      function createCloud(
+        kind,
+        initialInside = false,
+        fadeInInitial = false
+      ) {
         const isShadow = kind === "shadow";
         const group = isShadow ? shadowClouds : skyClouds;
         const layer = isShadow ? cloudShadowsLayer : cloudsLayer;
@@ -11705,7 +11721,9 @@
         layer.appendChild(element);
 
         const now = performance.now();
-        const initialOpacityFactor = initialInside ? 1 : 0;
+        const shouldFadeInInitial = initialInside && fadeInInitial;
+        const initialOpacityFactor =
+          initialInside && !shouldFadeInInitial ? 1 : 0;
 
         const cloud = {
           id: nextCloudId++,
@@ -11720,13 +11738,14 @@
             : 1,
           opacityFactor: initialOpacityFactor,
           /*
-            페이지 최초 로드 시 화면 안에 배치되는 구름과 그림자는
-            즉시 보이도록 페이드인 완료 상태로 시작합니다.
-            이후 새로 생성되는 구름만 1초 페이드인을 사용합니다.
+            시작화면에서 게임으로 정상 진입할 때 생성되는 초기 구름과 그림자는
+            기존 구름 생성 규칙과 같은 1초 페이드인을 사용합니다.
+            F5로 플레이를 바로 복원하는 경우에는 기존처럼 즉시 표시합니다.
           */
-          createdAt: initialInside
-            ? now - CLOUD_FADE_DURATION_MS
-            : now,
+          createdAt:
+            initialInside && !shouldFadeInInitial
+              ? now - CLOUD_FADE_DURATION_MS
+              : now,
           isFadingOut: false,
           fadeOutStartedAt: 0,
           fadeOutStartOpacity: 1
@@ -11816,7 +11835,8 @@
         }
       }
 
-      function initializeClouds() {
+      function initializeClouds(options = {}) {
+        const fadeInInitial = options?.fadeInInitial === true;
         cloudTargetCounts.sky = randomCloudCount(
           CLOUD_MIN_COUNT,
           CLOUD_MAX_COUNT
@@ -11831,7 +11851,7 @@
           index < cloudTargetCounts.sky;
           index += 1
         ) {
-          createCloud("sky", true);
+          createCloud("sky", true, fadeInInitial);
         }
 
         for (
@@ -11839,7 +11859,7 @@
           index < cloudTargetCounts.shadow;
           index += 1
         ) {
-          createCloud("shadow", true);
+          createCloud("shadow", true, fadeInInitial);
         }
       }
 
@@ -19013,7 +19033,7 @@
 
         restoreStoredPopulation();
         syncDogForCurrentDay();
-        initializeClouds();
+        initializeClouds({ fadeInInitial: !skipStartTransition });
         startSpawner();
         updateTodoListUI();
         triggerMailboxCatDeliveryIfAvailable();
