@@ -3513,7 +3513,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.137"
+  data-game-version="0.138"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4289,7 +4289,7 @@
         rifleAmmo: Object.freeze({ min: 2, max: 10 }),
         chainsawBattery: Object.freeze({ min: 10, max: 60 }),
         repairKit: Object.freeze({ min: 1, max: 1 }),
-        fuel: Object.freeze({ min: 10, max: 50 })
+        fuel: Object.freeze({ min: 5, max: 20 })
       });
 
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
@@ -10777,6 +10777,73 @@
         return true;
       }
 
+      /*
+        네 번째 to do list 진행 중 실제 Village 탐험에서만 사용하는 보정 보상입니다.
+        50% 확률로 아직 목표 수량을 채우지 못한 자동차 수리 관련 항목 중 하나를 지급합니다.
+        지급 수량은 기존 탐험 기본 규칙을 그대로 사용합니다.
+      */
+      function tryAwardFourthTodoVillageReward(destination, options = {}) {
+        if (
+          options.isActualExploration !== true ||
+          destination !== "village" ||
+          currentTodoListId !== 4
+        ) {
+          return false;
+        }
+
+        const candidates = [];
+        if (getRepairBlueprintItem(CAR_REPAIR_BLUEPRINT_ID)?.unlocked !== true) {
+          candidates.push("carRepairBlueprint");
+        }
+        if (repairKitCount < 1) {
+          candidates.push("repairKit");
+        }
+        if (!isCarRepaired() && carPartsCount < 3) {
+          candidates.push("carParts");
+        }
+        if (fuelCount < 10) {
+          candidates.push("fuel");
+        }
+
+        if (candidates.length === 0 || Math.random() >= 0.5) {
+          return false;
+        }
+
+        const reward = candidates[Math.floor(Math.random() * candidates.length)];
+
+        if (reward === "carRepairBlueprint") {
+          const awarded = unlockRepairBlueprint(CAR_REPAIR_BLUEPRINT_ID);
+          if (awarded) {
+            applyRepairState();
+          }
+          return awarded;
+        }
+
+        if (reward === "repairKit") {
+          repairKitCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            repairKitCount + rollExplorationItemQuantity("repairKit")
+          );
+        } else if (reward === "carParts") {
+          carPartsCount = Math.min(
+            getMaxCarPartsCount(),
+            carPartsCount + rollExplorationItemQuantity("carParts")
+          );
+        } else if (reward === "fuel") {
+          fuelCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            fuelCount + rollExplorationItemQuantity("fuel")
+          );
+          if (fuelCount >= 10) {
+            setTodoProgress(4, "item2", true);
+          }
+        }
+
+        markInventoryItemAsNew(reward);
+        applyInventoryState();
+        return true;
+      }
+
       function awardExplorationRewards(destination, departureDay, options = {}) {
         /*
           실제 탐험에서 DAY 5 이상에 출발했고 아직 핸드건이 없다면,
@@ -10793,6 +10860,11 @@
         }
 
         configureExplorationBlueprintDefinitions();
+
+        if (tryAwardFourthTodoVillageReward(destination, options)) {
+          return;
+        }
+
         if (tryAwardExplorationBlueprint(destination)) {
           // 설계도를 얻은 탐험에서는 아이템을 함께 얻지 않습니다.
           return;
