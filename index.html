@@ -944,15 +944,38 @@
     }
 
     .tree-falling-part-image {
+      --tree-part-image: url("images/bg_tree_part.png");
       position: absolute;
       inset: 0;
-      background-image: url("images/bg_tree_part.png");
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 256px 256px;
       transform-origin: center center;
       will-change: transform;
       pointer-events: none;
+    }
+
+    /*
+      나무 파츠는 생성 시점부터 나무 본체의 현재 낮/밤 전환 비율을 그대로 따라갑니다.
+      밤→낮 3초 전환 도중 새로 생성되어도 밝기가 즉시 낮 100%로 튀지 않습니다.
+    */
+    .tree-falling-part-image::before,
+    .tree-falling-part-image::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: var(--tree-part-image);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 256px 256px;
+      will-change: opacity;
+      pointer-events: none;
+    }
+
+    .tree-falling-part-image::before {
+      opacity: var(--tree-part-day-opacity, 1);
+    }
+
+    .tree-falling-part-image::after {
+      opacity: var(--tree-part-night-opacity, 0);
+      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
     }
 
     /* 좀비 머리·신체 파츠는 나무 파츠와 분리된 전용 레이어를 사용합니다. */
@@ -3513,7 +3536,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.138"
+  data-game-version="0.139"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -13413,6 +13436,28 @@
         return 1 - Math.pow(1 - normalized, 3);
       }
 
+      function syncTreePartLightMix(imageElement) {
+        if (!imageElement || !treeNightVisual) return;
+
+        const computedNightOpacity = Number.parseFloat(
+          window.getComputedStyle(treeNightVisual).opacity
+        );
+        const nightOpacity = clamp(
+          Number.isFinite(computedNightOpacity) ? computedNightOpacity : 0,
+          0,
+          1
+        );
+
+        imageElement.style.setProperty(
+          "--tree-part-night-opacity",
+          `${nightOpacity}`
+        );
+        imageElement.style.setProperty(
+          "--tree-part-day-opacity",
+          `${1 - nightOpacity}`
+        );
+      }
+
       function spawnTreeFallingPart(hitNumber) {
         if (!treePartLayer || !treePartShadowLayer) return;
 
@@ -13435,7 +13480,8 @@
 
         const image = document.createElement("div");
         image.className = "tree-falling-part-image";
-        image.style.backgroundImage = `url("${TREE_PART_IMAGE}")`;
+        image.style.setProperty("--tree-part-image", `url("${TREE_PART_IMAGE}")`);
+        syncTreePartLightMix(image);
 
         rotator.appendChild(image);
         part.appendChild(rotator);
@@ -13628,6 +13674,9 @@
         let hasPlayedGroundHitSound = false;
 
         const step = (now) => {
+          // 나무 본체가 낮/밤 전환 중이면 새 파츠도 같은 중간 밝기를 계속 유지합니다.
+          syncTreePartLightMix(image);
+
           if (now < dropEndTime) {
             const rawProgress = clamp(
               (now - startTime) / dropDurationMs,
