@@ -124,7 +124,7 @@
         - world-offset-x/y: 시작화면 장면 위치 보정(px)
         - world-zoom-duration: 게임 시작 시 100%로 돌아오는 시간
         - field-background-size: 2048 좌표계는 유지하고 필드 배경 표시 영역만 확대
-        - field-pattern-*-size: 반복 패턴 한 타일의 표시 크기. 값이 클수록 패턴이 크게 보입니다.
+        - field-pattern-day/night-size: 반복 패턴 한 타일의 표시 크기. 값이 클수록 패턴이 크게 보입니다.
       */
       --start-screen-world-scale: 0.55;
       --start-screen-world-offset-x: 0px;
@@ -133,7 +133,6 @@
       --field-background-size: 185%;
       --field-pattern-day-size: 384px;
       --field-pattern-night-size: 384px;
-      --field-pattern-rainy-size: 1280px;
     }
 
     * {
@@ -202,7 +201,7 @@
     /*
       필드 좌표계는 2048×2048 그대로 유지합니다.
       배경 레이어는 시작화면 축소 시에도 가장자리가 비지 않도록 기존 185% 영역을 유지하고,
-      낮/밤/비 이미지는 각각 지정된 크기의 반복 패턴으로 채웁니다.
+      낮/밤 이미지는 각각 지정된 크기의 반복 패턴으로 채웁니다.
     */
     #world::before,
     #world::after {
@@ -224,11 +223,6 @@
       background-size: var(--field-pattern-day-size) var(--field-pattern-day-size);
     }
 
-    /* 비가 오는 동안 낮 필드 패턴을 비 전용 패턴으로 교체합니다. */
-    body.is-rainy #world::before {
-      background-image: url("images/bg_field_default_rainy_pattern.png");
-      background-size: var(--field-pattern-rainy-size) var(--field-pattern-rainy-size);
-    }
 
     /* 탐험 중에는 밤 패턴을 3초 동안 페이드인하고, 귀환 시 반대로 전환합니다. */
     #world::after {
@@ -240,6 +234,37 @@
 
     body.is-night #world::after {
       opacity: 1;
+    }
+
+    /*
+      비 오는 날 물웅덩이 레이어입니다.
+      낮 배경 패턴(#world::before)보다 위, 밤 배경 패턴(#world::after)보다 아래에 표시합니다.
+      물웅덩이 자체에는 밤 컬러 필터나 페이드 전환을 적용하지 않습니다.
+    */
+    #rainSpotLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .rain-spot {
+      position: absolute;
+      width: var(--rain-spot-size);
+      height: var(--rain-spot-size);
+      pointer-events: none;
+    }
+
+    .rain-spot::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url("images/bg_field_default_rainy_spot.png");
+      background-repeat: no-repeat;
+      background-size: 200% 200%;
+      background-position: var(--rain-spot-frame-position, 0% 0%);
+      pointer-events: none;
     }
 
     #cloudShadows,
@@ -3488,7 +3513,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.136"
+  data-game-version="0.137"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3618,6 +3643,7 @@
   <div id="viewport">
     <div id="world">
       <div id="cloudShadows"></div>
+      <div id="rainSpotLayer" aria-hidden="true"></div>
       <div id="props">
         <div id="structures">
           <div id="houseObject" class="world-structure"></div>
@@ -4019,6 +4045,19 @@
         right: 1234,
         bottom: 1174
       };
+
+      /*
+        비 오는 날 물웅덩이 조절 위치
+        - RAIN_SPOT_COUNT: 2048×2048 기준 물웅덩이 수량(필드 배경이 커지면 같은 밀도로 자동 증가)
+        - RAIN_SPOT_SIZE_MIN/MAX: 각 물웅덩이의 랜덤 표시 크기(px)
+        - RAIN_SPOT_SAFE_ZONE_MARGIN: 중앙 안전 지역에서 추가로 띄우는 여백(px)
+      */
+      const RAIN_SPOT_COUNT = 12;
+      const RAIN_SPOT_SIZE_MIN = 120;
+      const RAIN_SPOT_SIZE_MAX = 240;
+      const RAIN_SPOT_SAFE_ZONE_MARGIN = 32;
+      const RAIN_SPOT_WORLD_EDGE_MARGIN = 32;
+      const RAIN_SPOT_PLACEMENT_CANDIDATES = 64;
 
       // 자동차·창고 안전 구역은 각 256×256 원본 리소스의 로컬 좌표로 정의합니다.
       // 실제 표시 크기가 달라도 같은 이미지 부위를 사용하도록 표시 크기에 비례 환산합니다.
@@ -4506,8 +4545,8 @@
         "images/bg_field_default_day_pattern.png";
       const NIGHT_BACKGROUND_IMAGE =
         "images/bg_field_default_nigth_pattern.png";
-      const RAINY_BACKGROUND_IMAGE =
-        "images/bg_field_default_rainy_pattern.png";
+      const RAIN_SPOT_SHEET =
+        "images/bg_field_default_rainy_spot.png";
       const NIGHT_CLOUD_SHEET =
         "images/bg_field_default_clouds_night.png";
       const TREE_DAY_SHEET = "images/bg_tree.png";
@@ -5091,6 +5130,7 @@
       const viewport = document.getElementById("viewport");
       const world = document.getElementById("world");
       const cloudShadowsLayer = document.getElementById("cloudShadows");
+      const rainSpotLayer = document.getElementById("rainSpotLayer");
       const entitiesBehindShed = document.getElementById("entitiesBehindShed");
       const entitiesBehindTree = document.getElementById("entitiesBehindTree");
       const entities = document.getElementById("entities");
@@ -5576,6 +5616,8 @@
       let dayCount = 1;
       let rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
       let isRainyToday = false;
+      let rainSpotSeed = 0;
+      let renderedRainSpotSeed = null;
       let foodCount = 0;
       let woodCount = 0;
       let stoneCount = 0;
@@ -5980,14 +6022,205 @@
           : INITIAL_RAIN_CHANCE_PERCENT;
       }
 
+      function normalizeRainSpotSeed(value) {
+        const number = Math.floor(Number(value));
+        return Number.isFinite(number) && number > 0
+          ? number >>> 0
+          : 0;
+      }
+
+      function createRainSpotSeed() {
+        const randomSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
+        return randomSeed || 1;
+      }
+
+      function createSeededRandom(seed) {
+        let state = normalizeRainSpotSeed(seed) || 1;
+        return () => {
+          state = (state + 0x6d2b79f5) >>> 0;
+          let value = state;
+          value = Math.imul(value ^ (value >>> 15), value | 1);
+          value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+          return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function clearRainSpots() {
+        if (!rainSpotLayer) return;
+        rainSpotLayer.replaceChildren();
+        renderedRainSpotSeed = null;
+      }
+
+      function rainSpotFramePosition(frameIndex) {
+        const column = frameIndex % 2;
+        const row = Math.floor(frameIndex / 2);
+        return `${column * 100}% ${row * 100}%`;
+      }
+
+      function getRainSpotFieldBounds() {
+        const rawSize = getComputedStyle(world)
+          .getPropertyValue("--field-background-size")
+          .trim();
+        let fieldScale = 1;
+
+        if (rawSize.endsWith("%")) {
+          const percent = Number.parseFloat(rawSize);
+          if (Number.isFinite(percent) && percent > 0) {
+            fieldScale = percent / 100;
+          }
+        } else if (rawSize.endsWith("px")) {
+          const pixelSize = Number.parseFloat(rawSize);
+          if (Number.isFinite(pixelSize) && pixelSize > 0) {
+            fieldScale = pixelSize / WORLD_SIZE;
+          }
+        }
+
+        fieldScale = Math.max(1, fieldScale);
+        const fieldSize = WORLD_SIZE * fieldScale;
+        const extension = (fieldSize - WORLD_SIZE) / 2;
+
+        return {
+          left: -extension,
+          top: -extension,
+          right: WORLD_SIZE + extension,
+          bottom: WORLD_SIZE + extension,
+          width: fieldSize,
+          height: fieldSize
+        };
+      }
+
+      function rainSpotOverlapsSafeZone(x, y, size) {
+        const margin = Math.max(0, RAIN_SPOT_SAFE_ZONE_MARGIN);
+        const safeLeft = SAFE_ZONE.left - margin;
+        const safeTop = SAFE_ZONE.top - margin;
+        const safeRight = SAFE_ZONE.right + margin;
+        const safeBottom = SAFE_ZONE.bottom + margin;
+
+        return (
+          x < safeRight &&
+          x + size > safeLeft &&
+          y < safeBottom &&
+          y + size > safeTop
+        );
+      }
+
+      function getRainSpotCandidateScore(candidate, placedSpots) {
+        if (placedSpots.length === 0) return Infinity;
+
+        const centerX = candidate.x + candidate.size / 2;
+        const centerY = candidate.y + candidate.size / 2;
+        let nearestDistance = Infinity;
+
+        for (const spot of placedSpots) {
+          const spotCenterX = spot.x + spot.size / 2;
+          const spotCenterY = spot.y + spot.size / 2;
+          nearestDistance = Math.min(
+            nearestDistance,
+            Math.hypot(centerX - spotCenterX, centerY - spotCenterY)
+          );
+        }
+
+        return nearestDistance;
+      }
+
+      function renderRainSpots() {
+        if (!rainSpotLayer) return;
+
+        const seed = normalizeRainSpotSeed(rainSpotSeed);
+        if (!seed) {
+          clearRainSpots();
+          return;
+        }
+        if (renderedRainSpotSeed === seed && rainSpotLayer.childElementCount > 0) {
+          return;
+        }
+
+        rainSpotLayer.replaceChildren();
+        const random = createSeededRandom(seed);
+        const placedSpots = [];
+        const fieldBounds = getRainSpotFieldBounds();
+        const densityMultiplier =
+          (fieldBounds.width * fieldBounds.height) / (WORLD_SIZE * WORLD_SIZE);
+        const count = Math.max(
+          0,
+          Math.round(RAIN_SPOT_COUNT * densityMultiplier)
+        );
+        const minSize = Math.max(1, Math.min(RAIN_SPOT_SIZE_MIN, RAIN_SPOT_SIZE_MAX));
+        const maxSize = Math.max(minSize, Math.max(RAIN_SPOT_SIZE_MIN, RAIN_SPOT_SIZE_MAX));
+        const worldMargin = Math.max(0, RAIN_SPOT_WORLD_EDGE_MARGIN);
+        const candidateCount = Math.max(1, Math.round(RAIN_SPOT_PLACEMENT_CANDIDATES));
+
+        for (let index = 0; index < count; index += 1) {
+          const size = minSize + random() * (maxSize - minSize);
+          const minX = fieldBounds.left + worldMargin;
+          const minY = fieldBounds.top + worldMargin;
+          const maxX = Math.max(minX, fieldBounds.right - worldMargin - size);
+          const maxY = Math.max(minY, fieldBounds.bottom - worldMargin - size);
+          let bestCandidate = null;
+          let bestScore = -Infinity;
+
+          for (let attempt = 0; attempt < candidateCount; attempt += 1) {
+            const candidate = {
+              x: minX + random() * Math.max(0, maxX - minX),
+              y: minY + random() * Math.max(0, maxY - minY),
+              size
+            };
+
+            if (rainSpotOverlapsSafeZone(candidate.x, candidate.y, candidate.size)) {
+              continue;
+            }
+
+            const score = getRainSpotCandidateScore(candidate, placedSpots);
+            if (score > bestScore) {
+              bestCandidate = candidate;
+              bestScore = score;
+            }
+          }
+
+          if (!bestCandidate) continue;
+
+          const frameIndex = Math.floor(random() * 4);
+          const spotElement = document.createElement("div");
+          spotElement.className = "rain-spot";
+          spotElement.style.left = `${bestCandidate.x.toFixed(2)}px`;
+          spotElement.style.top = `${bestCandidate.y.toFixed(2)}px`;
+          spotElement.style.setProperty(
+            "--rain-spot-size",
+            `${bestCandidate.size.toFixed(2)}px`
+          );
+          spotElement.style.setProperty(
+            "--rain-spot-frame-position",
+            rainSpotFramePosition(frameIndex)
+          );
+          rainSpotLayer.appendChild(spotElement);
+          placedSpots.push(bestCandidate);
+        }
+
+        renderedRainSpotSeed = seed;
+      }
+
+      function syncRainSpots(shouldRain) {
+        if (!shouldRain) {
+          clearRainSpots();
+          return;
+        }
+
+        if (!normalizeRainSpotSeed(rainSpotSeed)) {
+          rainSpotSeed = createRainSpotSeed();
+        }
+        renderRainSpots();
+      }
+
       function rollWeatherForNewDay() {
         if (dayCount <= 1) {
           isRainyToday = false;
+          rainSpotSeed = 0;
           rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
           return false;
         }
 
         isRainyToday = Math.random() * 100 < rainChancePercent;
+        rainSpotSeed = isRainyToday ? createRainSpotSeed() : 0;
         rainChancePercent = isRainyToday
           ? INITIAL_RAIN_CHANCE_PERCENT
           : Math.min(
@@ -7943,6 +8176,11 @@
             parsed.rainChancePercent
           );
           isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
+          const storedRainSpotSeed = normalizeRainSpotSeed(parsed.rainSpotSeed);
+          const shouldKeepRainSpotLayout = getCurrentRainState();
+          rainSpotSeed = shouldKeepRainSpotLayout
+            ? (storedRainSpotSeed || normalizeRainSpotSeed(rainSpotSeed) || createRainSpotSeed())
+            : 0;
 
           dogCompletedStage = clamp(
             Math.round(Number(parsed.dogCompletedStage) || 0),
@@ -8260,6 +8498,7 @@
               dayCount,
               rainChancePercent,
               isRainyToday,
+              rainSpotSeed,
               food: foodCount,
               wood: woodCount,
               stone: stoneCount,
@@ -10008,6 +10247,7 @@
           : (dayCount > 1 && isRainyToday);
         const wasRainy = document.body.classList.contains("is-rainy");
         document.body.classList.toggle("is-rainy", shouldRain);
+        syncRainSpots(shouldRain);
         updateWeatherLabel();
 
         if (options.previewOnly !== true) {
@@ -11124,7 +11364,7 @@
           preloadImage(DOG_SHEET),
           preloadImage(CAT_SHEET),
           preloadImage(DAY_BACKGROUND_IMAGE),
-          preloadImage(RAINY_BACKGROUND_IMAGE),
+          preloadImage(RAIN_SPOT_SHEET),
           preloadImage("images/house_1_roof.png"),
           preloadImage("images/house_1_walls.png"),
           preloadImage("images/garden_1.png"),
