@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.150"
+  data-game-version="0.151"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -12500,13 +12500,10 @@
 
         const flockSlots = [];
 
+        // 먼저 무리 전체의 상대 배치를 확정합니다.
+        // 시작화면에서는 이 배치를 그대로 유지한 채 무리 전체를 같은 거리만큼 이동시켜
+        // 화면의 실제 진입 경계 바로 바깥에서 시작하도록 합니다.
         for (let index = 0; index < count; index += 1) {
-          const element = document.createElement("div");
-          element.className = "bird";
-          birdsLayer.appendChild(element);
-
-          // 진행 방향 앞뒤 간격과 대각선에 수직인 간격을 섞어 자연스러운 무리를 만듭니다.
-          // 이미 뽑힌 새들과 너무 가까운 경로는 다시 뽑아 겹침을 줄입니다.
           let trailOffset = 0;
           let lateralOffset = 0;
           let slotAccepted = false;
@@ -12548,16 +12545,93 @@
 
           flockSlots.push({
             trailOffset,
-            lateralOffset
+            lateralOffset,
+            scale: randomBetween(BIRD_MIN_SCALE, BIRD_MAX_SCALE)
           });
+        }
 
-          let startX =
+        let startScreenFlockAdvance = 0;
+
+        if (isStartScreenFlock && flockSlots.length > 0) {
+          const entryDistances = [];
+          let largestBirdHalfDiagonal = 0;
+
+          for (const slot of flockSlots) {
+            const rawStartX =
+              baseStart.x +
+              direction.x * slot.trailOffset +
+              perpendicular.x * slot.lateralOffset;
+            const rawStartY =
+              baseStart.y +
+              direction.y * slot.trailOffset +
+              perpendicular.y * slot.lateralOffset;
+            const rawEndX =
+              baseEnd.x +
+              direction.x * slot.trailOffset +
+              perpendicular.x * slot.lateralOffset;
+            const rawEndY =
+              baseEnd.y +
+              direction.y * slot.trailOffset +
+              perpendicular.y * slot.lateralOffset;
+
+            const entryPoint = getBirdPathEntryPointToVisibleBounds(
+              rawStartX,
+              rawStartY,
+              rawEndX,
+              rawEndY,
+              visibleBounds
+            );
+
+            if (entryPoint) {
+              const distanceToEntry =
+                (entryPoint.x - rawStartX) * direction.x +
+                (entryPoint.y - rawStartY) * direction.y;
+
+              if (Number.isFinite(distanceToEntry)) {
+                entryDistances.push(distanceToEntry);
+              }
+            }
+
+            largestBirdHalfDiagonal = Math.max(
+              largestBirdHalfDiagonal,
+              (42.6667 * slot.scale * Math.SQRT2) / 2
+            );
+          }
+
+          if (entryDistances.length > 0) {
+            // 무리에서 가장 먼저 화면에 닿는 새를 기준으로 공통 이동량을 한 번만 계산합니다.
+            // 가장 큰 새의 반대각선과 짧은 화면 여백까지 포함해 무리 전체가 화면 밖에 있도록 합니다.
+            const flockLeadDistance =
+              largestBirdHalfDiagonal +
+              START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX / visibleScale;
+            const nearestEntryDistance = Math.min(...entryDistances);
+
+            startScreenFlockAdvance = Math.max(
+              0,
+              nearestEntryDistance - flockLeadDistance
+            );
+          }
+        }
+
+        for (let index = 0; index < count; index += 1) {
+          const element = document.createElement("div");
+          element.className = "bird";
+          birdsLayer.appendChild(element);
+
+          const slot = flockSlots[index];
+          const trailOffset = slot.trailOffset;
+          const lateralOffset = slot.lateralOffset;
+          const scale = slot.scale;
+
+          // 시작화면에서는 모든 새에 동일한 공통 이동량을 적용합니다.
+          // 따라서 각 새가 좌/하단 경계에 따로 붙지 않고 원래 무리 형태를 유지합니다.
+          const startX =
             baseStart.x +
-            direction.x * trailOffset +
+            direction.x * (trailOffset + startScreenFlockAdvance) +
             perpendicular.x * lateralOffset;
-          let startY =
+          const startY =
             baseStart.y +
-            direction.y * trailOffset +
+            direction.y * (trailOffset + startScreenFlockAdvance) +
             perpendicular.y * lateralOffset;
           const endX =
             baseEnd.x +
@@ -12567,33 +12641,6 @@
             baseEnd.y +
             direction.y * trailOffset +
             perpendicular.y * lateralOffset;
-          const scale = randomBetween(
-            BIRD_MIN_SCALE,
-            BIRD_MAX_SCALE
-          );
-
-          if (isStartScreenFlock) {
-            const entryPoint = getBirdPathEntryPointToVisibleBounds(
-              startX,
-              startY,
-              endX,
-              endY,
-              visibleBounds
-            );
-
-            if (entryPoint) {
-              // 새의 전체 이미지가 화면 밖에 있도록 반대 방향으로 반대각선만큼 더 물리고,
-              // 여기에 짧은 화면 기준 여백을 추가합니다.
-              const birdHalfDiagonal =
-                (42.6667 * scale * Math.SQRT2) / 2;
-              const entryLeadDistance =
-                birdHalfDiagonal +
-                START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX / visibleScale;
-
-              startX = entryPoint.x - direction.x * entryLeadDistance;
-              startY = entryPoint.y - direction.y * entryLeadDistance;
-            }
-          }
 
           const delay = randomBetween(0, isFirstKillFlock ? 240 : 180);
           const durationBase = isStartScreenFlock
