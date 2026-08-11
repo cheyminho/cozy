@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.155"
+  data-game-version="0.156"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5060,18 +5060,23 @@
 
       /*
         구름 크기 / 생성 시작 위치 수정 위치
-        - CLOUD_MIN/MAX_SCALE: 실제 구름 크기 범위
+        - 이동 후 화면 X축 중앙을 지날 때 위쪽: CLOUD_UPPER_MIN/MAX_SCALE
+        - 이동 후 화면 X축 중앙을 지날 때 아래쪽: CLOUD_LOWER_MIN/MAX_SCALE
         - CLOUD_START_OFFSET_X/Y_SCREEN_PX: 실제 구름 생성 위치 보정(화면 px)
           +X = 오른쪽 / -X = 왼쪽 / +Y = 아래 / -Y = 위
       */
-      const CLOUD_MIN_SCALE = 0.5;
-      const CLOUD_MAX_SCALE = 1.5;
+      const CLOUD_UPPER_MIN_SCALE = 0.5;
+      const CLOUD_UPPER_MAX_SCALE = 1;
+      const CLOUD_LOWER_MIN_SCALE = 1;
+      const CLOUD_LOWER_MAX_SCALE = 1.5;
       const CLOUD_START_OFFSET_X_SCREEN_PX = 0;
       const CLOUD_START_OFFSET_Y_SCREEN_PX = 0;
 
-      /* 구름 그림자 크기는 필요하면 별도로 조절할 수 있습니다. */
-      const CLOUD_SHADOW_MIN_SCALE = 1.7;
-      const CLOUD_SHADOW_MAX_SCALE = 2;
+      /* 구름 그림자도 화면 X축 중앙을 지날 미래 위치의 위/아래에 따라 크기를 나눕니다. */
+      const CLOUD_SHADOW_UPPER_MIN_SCALE = 1.5;
+      const CLOUD_SHADOW_UPPER_MAX_SCALE = 2;
+      const CLOUD_SHADOW_LOWER_MIN_SCALE = 2;
+      const CLOUD_SHADOW_LOWER_MAX_SCALE = 2.5;
       // 랜덤 생성 구름 그림자는 기존 진입 위치보다 화면 기준 50px 더 바깥에서 시작합니다.
       const CLOUD_SHADOW_SPAWN_EXTRA_MARGIN_SCREEN_PX = 50;
 
@@ -12208,7 +12213,75 @@
         return lineIntersectsRectOnCloudPath(x + y, protectedZone);
       }
 
-      function getRandomCloudPosition(kind, scale, group, initialInside) {
+      function getCloudParallaxWorldOffset(kind) {
+        if (kind !== "sky") {
+          return { x: 0, y: 0 };
+        }
+
+        return {
+          x: (-panX / worldScale) * CLOUD_DRAG_PARALLAX_FACTOR,
+          y: (-panY / worldScale) * CLOUD_DRAG_PARALLAX_FACTOR
+        };
+      }
+
+      function getCloudFutureVerticalRegionAtScreenCenter(
+        kind,
+        x,
+        y,
+        visibleBounds
+      ) {
+        const centerX = (visibleBounds.left + visibleBounds.right) / 2;
+        const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
+        const parallaxOffset = getCloudParallaxWorldOffset(kind);
+        const renderedX = x + parallaxOffset.x;
+        const renderedY = y + parallaxOffset.y;
+        const remainingX = centerX - renderedX;
+
+        // 이미 화면 X축 중앙을 지난 위치라면 "미래의 중앙 위치"가 없으므로 다시 뽑습니다.
+        if (remainingX < 0) {
+          return null;
+        }
+
+        const pathSlope = CLOUD_DIRECTION.y / CLOUD_DIRECTION.x;
+        const futureYAtCenter = renderedY + remainingX * pathSlope;
+
+        return futureYAtCenter < centerY ? "upper" : "lower";
+      }
+
+      function getRandomCloudScale(kind, verticalRegion) {
+        const isShadow = kind === "shadow";
+        const isUpperRegion = verticalRegion === "upper";
+
+        if (isShadow) {
+          return isUpperRegion
+            ? randomBetween(
+                CLOUD_SHADOW_UPPER_MIN_SCALE,
+                CLOUD_SHADOW_UPPER_MAX_SCALE
+              )
+            : randomBetween(
+                CLOUD_SHADOW_LOWER_MIN_SCALE,
+                CLOUD_SHADOW_LOWER_MAX_SCALE
+              );
+        }
+
+        return isUpperRegion
+          ? randomBetween(
+              CLOUD_UPPER_MIN_SCALE,
+              CLOUD_UPPER_MAX_SCALE
+            )
+          : randomBetween(
+              CLOUD_LOWER_MIN_SCALE,
+              CLOUD_LOWER_MAX_SCALE
+            );
+      }
+
+      function getRandomCloudPosition(
+        kind,
+        scale,
+        group,
+        initialInside,
+        futureVerticalRegion = null
+      ) {
         const isShadow = kind === "shadow";
         const startScreenView =
           isShadow &&
@@ -12232,6 +12305,7 @@
         const halfSize = getCloudHalfSize(scale);
         const centerX = (visibleBounds.left + visibleBounds.right) / 2;
         const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
+        const parallaxOffset = getCloudParallaxWorldOffset(kind);
 
         for (let attempt = 0; attempt < 120; attempt += 1) {
           let x;
@@ -12239,13 +12313,16 @@
 
           if (initialInside) {
             const minX = visibleBounds.left + halfSize * 0.55;
-            const maxX = visibleBounds.right - halfSize * 0.55;
+            const visibleMaxX = visibleBounds.right - halfSize * 0.55;
+            // 생성 후 실제로 화면 X축 중앙에 도달할 수 있도록 중앙의 왼쪽에서 시작합니다.
+            const futureCenterMaxX = centerX - parallaxOffset.x;
+            const maxX = Math.min(visibleMaxX, futureCenterMaxX);
             const minY = visibleBounds.top + halfSize * 0.55;
             const maxY = visibleBounds.bottom - halfSize * 0.55;
 
             x = minX <= maxX
               ? randomBetween(minX, maxX)
-              : centerX;
+              : futureCenterMaxX;
             y = minY <= maxY
               ? randomBetween(minY, maxY)
               : centerY;
@@ -12276,6 +12353,20 @@
           if (!isShadow) {
             x += startOffsetX;
             y += startOffsetY;
+          }
+
+          if (futureVerticalRegion) {
+            const predictedRegion =
+              getCloudFutureVerticalRegionAtScreenCenter(
+                kind,
+                x,
+                y,
+                visibleBounds
+              );
+
+            if (predictedRegion !== futureVerticalRegion) {
+              continue;
+            }
           }
 
           if (overlapsCloudGroup(x, y, scale, group)) {
@@ -12410,31 +12501,64 @@
         const group = isShadow ? shadowClouds : skyClouds;
         const layer = isShadow ? cloudShadowsLayer : cloudsLayer;
         const requestedScale = Number(options?.scale);
-        const scale = Number.isFinite(requestedScale) && requestedScale > 0
-          ? requestedScale
-          : isShadow
-            ? randomBetween(
-                CLOUD_SHADOW_MIN_SCALE,
-                CLOUD_SHADOW_MAX_SCALE
-              )
-            : randomBetween(
-                CLOUD_MIN_SCALE,
-                CLOUD_MAX_SCALE
-              );
+        const hasRequestedScale =
+          Number.isFinite(requestedScale) && requestedScale > 0;
         const requestedX = Number(options?.x);
         const requestedY = Number(options?.y);
         const hasFixedPosition =
           Number.isFinite(requestedX) && Number.isFinite(requestedY);
-        const position = hasFixedPosition
+
+        let scale = hasRequestedScale ? requestedScale : null;
+        let position = hasFixedPosition
           ? { x: requestedX, y: requestedY }
-          : getRandomCloudPosition(
+          : null;
+
+        /*
+          초기 고정 그림자처럼 위치/scale이 직접 지정된 경우는 기존 값을 그대로 사용합니다.
+          그 외에는 구름이 현재 이동 방향으로 진행해 화면 X축 중앙에 도달할 때의
+          미래 Y 위치가 위/아래 중 어디인지에 맞는 크기 범위를 사용합니다.
+          우선 한 영역을 시도하고 해당 경로가 나오지 않으면 반대 영역으로 재시도합니다.
+        */
+        if (!position && !hasRequestedScale) {
+          const firstRegion = Math.random() < 0.5 ? "upper" : "lower";
+          const regions = [
+            firstRegion,
+            firstRegion === "upper" ? "lower" : "upper"
+          ];
+
+          for (const futureVerticalRegion of regions) {
+            const candidateScale = getRandomCloudScale(
               kind,
-              scale,
+              futureVerticalRegion
+            );
+            const candidatePosition = getRandomCloudPosition(
+              kind,
+              candidateScale,
               group,
-              initialInside
+              initialInside,
+              futureVerticalRegion
             );
 
-        if (!position) return false;
+            if (!candidatePosition) {
+              continue;
+            }
+
+            scale = candidateScale;
+            position = candidatePosition;
+            break;
+          }
+        } else if (!position) {
+          position = getRandomCloudPosition(
+            kind,
+            scale,
+            group,
+            initialInside
+          );
+        }
+
+        if (!position || !Number.isFinite(scale) || scale <= 0) {
+          return false;
+        }
 
         const variant = Math.floor(
           Math.random() * CLOUD_VARIANT_COUNT
