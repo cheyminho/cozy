@@ -1282,9 +1282,8 @@
       visibility: visible;
     }
 
-    /* 비가 오는 동안 실제 구름과 구름 그림자는 표시하지 않습니다. */
-    body.is-rainy #clouds,
-    body.is-rainy #cloudShadows {
+    /* 비가 오는 동안 실제 구름만 숨기고, 구름 그림자는 계속 표시합니다. */
+    body.is-rainy #clouds {
       display: none;
     }
 
@@ -3536,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.139"
+  data-game-version="0.140"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5057,21 +5056,42 @@
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
 
-      // 실제 구름 크기: 기본 크기의 0.5~1.5배
+      /*
+        구름 크기 / 생성 시작 위치 수정 위치
+        - CLOUD_MIN/MAX_SCALE: 실제 구름 크기 범위
+        - CLOUD_START_OFFSET_X/Y_SCREEN_PX: 실제 구름 생성 위치 보정(화면 px)
+          +X = 오른쪽 / -X = 왼쪽 / +Y = 아래 / -Y = 위
+      */
       const CLOUD_MIN_SCALE = 0.5;
       const CLOUD_MAX_SCALE = 1.5;
+      const CLOUD_START_OFFSET_X_SCREEN_PX = 0;
+      const CLOUD_START_OFFSET_Y_SCREEN_PX = 0;
 
-      // 지상 그림자 크기: 기본 크기의 1~2배
+      /* 구름 그림자 크기는 필요하면 별도로 조절할 수 있습니다. */
       const CLOUD_SHADOW_MIN_SCALE = 1.7;
       const CLOUD_SHADOW_MAX_SCALE = 2;
+
+      /*
+        시작화면 / 게임화면 초기 고정 구름 그림자 3개 수정 위치
+        - x / y: 2048×2048 월드 좌표 기준 중심 위치
+        - scale: 512px 원본 그림자 표시 배율
+        - 이 3개는 초기 생성 시 겹침/안전구역 검사를 하지 않고 반드시 지정 위치에 생성됩니다.
+        - 시작화면에서 게임으로 진입할 때는 기존 그림자가 그대로 이어지고,
+          게임 화면으로 바로 복원되는 경우에도 같은 위치/크기로 생성됩니다.
+      */
+      const INITIAL_FIXED_CLOUD_SHADOWS = Object.freeze([
+        Object.freeze({ x: 400, y: 90, scale: 3 }),
+        Object.freeze({ x: 1200, y: 2000, scale: 3.5 }),
+        Object.freeze({ x: 0, y: 1350, scale: 1.5 })
+      ]);
 
       // 실제 구름은 한 화면에 1~3개를 유지합니다.
       const CLOUD_MIN_COUNT = 1;
       const CLOUD_MAX_COUNT = 3;
 
-      // 구름 그림자는 기존 요청대로 한 화면에 2~3개를 유지합니다.
-      const CLOUD_SHADOW_MIN_COUNT = 2;
-      const CLOUD_SHADOW_MAX_COUNT = 3;
+      // 구름 그림자는 한 화면에 3~5개를 유지합니다.
+      const CLOUD_SHADOW_MIN_COUNT = 3;
+      const CLOUD_SHADOW_MAX_COUNT = 5;
 
       // 모든 구름과 그림자는 화면 기준 초당 5px로 같은 속도로 이동합니다.
       const CLOUD_SPEED_SCREEN_PX_PER_MS = 1 / 200;
@@ -5094,7 +5114,14 @@
       const CLOUD_SHADOW_NIGHT_OPACITY = 0.3;
       const CLOUD_SHADOW_NIGHT_TRANSITION_MS = 3_000;
 
-      // 실제 구름과 구름 그림자는 중앙 안전 구역을 가급적 피하도록 생성합니다.
+      // 실제 구름과 구름 그림자는 각각의 중앙 안전 구역을 가급적 피하도록 생성합니다.
+      // 구름 그림자 전용 영역은 월드 중심(1024, 1024)의 128×128 영역입니다.
+      const CLOUD_SHADOW_SAFE_ZONE = Object.freeze({
+        left: 960,
+        top: 960,
+        right: 1088,
+        bottom: 1088
+      });
       // 0.00 = 침범 불가 / 0.10 = 약 10% 침범 허용 / 1.00 = 제한 없음
       const CLOUD_SAFE_ZONE_INTRUSION_RATIO = 0.90;
       const CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO = 0.60;
@@ -5121,8 +5148,24 @@
       const AMBIENT_BIRD_MAX_INTERVAL_MS = 60_000;
       const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
 
-      // 간헐적 출현 새 떼 전체 경로를 위아래로 최대 600px 정도 이동시킵니다.
-      const AMBIENT_BIRD_FLOCK_VERTICAL_SHIFT_PX = 600;
+      /*
+        시작화면 전용 새 떼 수정 위치
+        - 기존 상시 새 떼 수에 extra-min~extra-max 마리를 추가합니다.
+        - y-offset-min/max: 새 떼 전체 경로의 Y 오프셋 랜덤 범위(px)입니다.
+        - speed: 화면 기준 비행 속도입니다.
+      */
+      const START_SCREEN_BIRD_EXTRA_MIN_COUNT = 1;
+      const START_SCREEN_BIRD_EXTRA_MAX_COUNT = 2;
+      const START_SCREEN_BIRD_Y_OFFSET_MIN_PX = -300;
+      const START_SCREEN_BIRD_Y_OFFSET_MAX_PX = 300;
+      const START_SCREEN_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
+
+      /*
+        상시 새 떼 Y 오프셋 수정 위치
+        - min/max 사이에서 무리마다 랜덤으로 선택합니다.
+      */
+      const AMBIENT_BIRD_Y_OFFSET_MIN_PX = -300;
+      const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 300;
 
       // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 간 최소 간격을 둡니다.
       const BIRD_MIN_TRAIL_GAP_PX = 64;
@@ -5779,6 +5822,8 @@
       let zombieSpawnTimerId = null;
       let supplyBoxSpawnTimerId = null;
       let hasGameInitialized = false;
+      let startScreenSceneAnimationFrameId = null;
+      let startScreenSceneLastFrameTime = performance.now();
       let deerSpawnTimerId = null;
       let populationTimersPausedForBackground = false;
       let lastPopulationResumeRefreshAt = 0;
@@ -11725,6 +11770,43 @@
         };
       }
 
+      function getStartScreenWorldView() {
+        const rootStyle = getComputedStyle(document.documentElement);
+        const entryScaleValue = parseFloat(
+          rootStyle.getPropertyValue("--start-screen-world-scale")
+        );
+        const offsetXValue = parseFloat(
+          rootStyle.getPropertyValue("--start-screen-world-offset-x")
+        );
+        const offsetYValue = parseFloat(
+          rootStyle.getPropertyValue("--start-screen-world-offset-y")
+        );
+        const entryScale =
+          Number.isFinite(entryScaleValue) && entryScaleValue > 0
+            ? entryScaleValue
+            : 1;
+        const offsetX = Number.isFinite(offsetXValue) ? offsetXValue : 0;
+        const offsetY = Number.isFinite(offsetYValue) ? offsetYValue : 0;
+        const effectiveScale = Math.max(0.001, worldScale * entryScale);
+        const screenCenterX = window.innerWidth / 2 + panX + offsetX;
+        const screenCenterY = window.innerHeight / 2 + panY + offsetY;
+        const worldCenter = WORLD_SIZE / 2;
+
+        return {
+          scale: effectiveScale,
+          bounds: {
+            left: worldCenter + (0 - screenCenterX) / effectiveScale,
+            top: worldCenter + (0 - screenCenterY) / effectiveScale,
+            right:
+              worldCenter +
+              (window.innerWidth - screenCenterX) / effectiveScale,
+            bottom:
+              worldCenter +
+              (window.innerHeight - screenCenterY) / effectiveScale
+          }
+        };
+      }
+
       // 현재 화면 한 장이 아니라, 카메라를 양 끝까지 드래그했을 때
       // 한 번이라도 확인할 수 있는 월드 좌표 전체를 반환합니다.
       function getDraggableVisibleWorldBounds() {
@@ -11833,7 +11915,8 @@
         x,
         y,
         scale,
-        intrusionRatio
+        intrusionRatio,
+        safeZone = SAFE_ZONE
       ) {
         const halfSize = getCloudHalfSize(scale);
         const clampedIntrusionRatio = clamp(
@@ -11850,10 +11933,10 @@
           halfSize * (1 - clampedIntrusionRatio);
 
         const protectedZone = {
-          left: SAFE_ZONE.left - protectedMargin,
-          top: SAFE_ZONE.top - protectedMargin,
-          right: SAFE_ZONE.right + protectedMargin,
-          bottom: SAFE_ZONE.bottom + protectedMargin
+          left: safeZone.left - protectedMargin,
+          top: safeZone.top - protectedMargin,
+          right: safeZone.right + protectedMargin,
+          bottom: safeZone.bottom + protectedMargin
         };
 
         // 구름과 그림자는 x + y 값이 일정한 대각선 경로로 이동합니다.
@@ -11862,11 +11945,25 @@
       }
 
       function getRandomCloudPosition(kind, scale, group, initialInside) {
-        const visibleBounds = getVisibleWorldBounds();
+        const isShadow = kind === "shadow";
+        const startScreenView =
+          isShadow &&
+          !hasGameInitialized &&
+          document.body.classList.contains("is-start-screen")
+            ? getStartScreenWorldView()
+            : null;
+        const visibleBounds = startScreenView
+          ? startScreenView.bounds
+          : getVisibleWorldBounds();
+        const visibleScale = Math.max(
+          0.001,
+          startScreenView ? startScreenView.scale : worldScale
+        );
+        const startOffsetX = CLOUD_START_OFFSET_X_SCREEN_PX / visibleScale;
+        const startOffsetY = CLOUD_START_OFFSET_Y_SCREEN_PX / visibleScale;
         const halfSize = getCloudHalfSize(scale);
         const centerX = (visibleBounds.left + visibleBounds.right) / 2;
         const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
-        const isShadow = kind === "shadow";
 
         for (let attempt = 0; attempt < 120; attempt += 1) {
           let x;
@@ -11900,6 +11997,11 @@
             y = visibleBounds.bottom + halfSize * 0.82;
           }
 
+          if (!isShadow) {
+            x += startOffsetX;
+            y += startOffsetY;
+          }
+
           if (overlapsCloudGroup(x, y, scale, group)) {
             continue;
           }
@@ -11907,13 +12009,17 @@
           const safeZoneIntrusionRatio = isShadow
             ? CLOUD_SHADOW_SAFE_ZONE_INTRUSION_RATIO
             : CLOUD_SAFE_ZONE_INTRUSION_RATIO;
+          const cloudSafeZone = isShadow
+            ? CLOUD_SHADOW_SAFE_ZONE
+            : SAFE_ZONE;
 
           if (
             wouldCloudPathIntrudeSafeZone(
               x,
               y,
               scale,
-              safeZoneIntrusionRatio
+              safeZoneIntrusionRatio,
+              cloudSafeZone
             )
           ) {
             continue;
@@ -12021,26 +12127,36 @@
       function createCloud(
         kind,
         initialInside = false,
-        fadeInInitial = false
+        fadeInInitial = false,
+        options = {}
       ) {
         const isShadow = kind === "shadow";
         const group = isShadow ? shadowClouds : skyClouds;
         const layer = isShadow ? cloudShadowsLayer : cloudsLayer;
-        const scale = isShadow
-          ? randomBetween(
-              CLOUD_SHADOW_MIN_SCALE,
-              CLOUD_SHADOW_MAX_SCALE
-            )
-          : randomBetween(
-              CLOUD_MIN_SCALE,
-              CLOUD_MAX_SCALE
+        const requestedScale = Number(options?.scale);
+        const scale = Number.isFinite(requestedScale) && requestedScale > 0
+          ? requestedScale
+          : isShadow
+            ? randomBetween(
+                CLOUD_SHADOW_MIN_SCALE,
+                CLOUD_SHADOW_MAX_SCALE
+              )
+            : randomBetween(
+                CLOUD_MIN_SCALE,
+                CLOUD_MAX_SCALE
+              );
+        const requestedX = Number(options?.x);
+        const requestedY = Number(options?.y);
+        const hasFixedPosition =
+          Number.isFinite(requestedX) && Number.isFinite(requestedY);
+        const position = hasFixedPosition
+          ? { x: requestedX, y: requestedY }
+          : getRandomCloudPosition(
+              kind,
+              scale,
+              group,
+              initialInside
             );
-        const position = getRandomCloudPosition(
-          kind,
-          scale,
-          group,
-          initialInside
-        );
 
         if (!position) return false;
 
@@ -12056,9 +12172,14 @@
         layer.appendChild(element);
 
         const now = performance.now();
-        const shouldFadeInInitial = initialInside && fadeInInitial;
-        const initialOpacityFactor =
-          initialInside && !shouldFadeInInitial ? 1 : 0;
+        // 구름 그림자는 생성 시 페이드인하지 않고 즉시 표시합니다.
+        const shouldFadeInInitial =
+          !isShadow && initialInside && fadeInInitial;
+        const initialOpacityFactor = isShadow
+          ? 1
+          : initialInside && !shouldFadeInInitial
+            ? 1
+            : 0;
 
         const cloud = {
           id: nextCloudId++,
@@ -12078,7 +12199,7 @@
             F5로 플레이를 바로 복원하는 경우에는 기존처럼 즉시 표시합니다.
           */
           createdAt:
-            initialInside && !shouldFadeInInitial
+            isShadow || (initialInside && !shouldFadeInInitial)
               ? now - CLOUD_FADE_DURATION_MS
               : now,
           isFadingOut: false,
@@ -12113,14 +12234,26 @@
       function updateCloudGroup(kind, deltaMs, now) {
         const isShadow = kind === "shadow";
         const group = isShadow ? shadowClouds : skyClouds;
-        const visibleBounds = getVisibleWorldBounds();
+        const startScreenView =
+          isShadow &&
+          !hasGameInitialized &&
+          document.body.classList.contains("is-start-screen")
+            ? getStartScreenWorldView()
+            : null;
+        const visibleBounds = startScreenView
+          ? startScreenView.bounds
+          : getVisibleWorldBounds();
+        const visibleScale = Math.max(
+          0.001,
+          startScreenView ? startScreenView.scale : worldScale
+        );
         const currentShadowOpacity = isShadow
           ? getCloudShadowBaseOpacity(now)
           : 1;
 
-        // 화면에서 보이는 속도가 확대 배율과 관계없이 같도록 보정합니다.
+        // 화면에서 보이는 속도가 시작화면 축소 배율과 관계없이 같도록 보정합니다.
         const worldSpeed =
-          CLOUD_SPEED_SCREEN_PX_PER_MS / worldScale;
+          CLOUD_SPEED_SCREEN_PX_PER_MS / visibleScale;
 
         for (const cloud of [...group]) {
           if (isShadow) {
@@ -12170,15 +12303,42 @@
         }
       }
 
+      function initializeInitialCloudShadows() {
+        if (shadowClouds.length > 0) return;
+
+        cloudTargetCounts.shadow = Math.max(
+          INITIAL_FIXED_CLOUD_SHADOWS.length,
+          randomCloudCount(
+            CLOUD_SHADOW_MIN_COUNT,
+            CLOUD_SHADOW_MAX_COUNT
+          )
+        );
+
+        // 시작화면과 게임화면 모두 첫 3개 그림자를 지정 좌표/배율로 반드시 생성합니다.
+        // 겹침 및 중앙 안전구역 검사는 건너뛰며, 이후에는 같은 기존 이동 규칙을 따릅니다.
+        for (const fixedShadow of INITIAL_FIXED_CLOUD_SHADOWS) {
+          createCloud("shadow", true, false, fixedShadow);
+        }
+
+        // 전체 목표 개수가 4~5개라면 나머지 그림자만 기존 랜덤 규칙으로 추가합니다.
+        for (
+          let index = INITIAL_FIXED_CLOUD_SHADOWS.length;
+          index < cloudTargetCounts.shadow;
+          index += 1
+        ) {
+          createCloud("shadow", true, false);
+        }
+      }
+
       function initializeClouds(options = {}) {
         const fadeInInitial = options?.fadeInInitial === true;
+        const preserveExistingShadows =
+          options?.preserveExistingShadows === true &&
+          shadowClouds.length > 0;
+
         cloudTargetCounts.sky = randomCloudCount(
           CLOUD_MIN_COUNT,
           CLOUD_MAX_COUNT
-        );
-        cloudTargetCounts.shadow = randomCloudCount(
-          CLOUD_SHADOW_MIN_COUNT,
-          CLOUD_SHADOW_MAX_COUNT
         );
 
         for (
@@ -12189,13 +12349,13 @@
           createCloud("sky", true, fadeInInitial);
         }
 
-        for (
-          let index = 0;
-          index < cloudTargetCounts.shadow;
-          index += 1
-        ) {
-          createCloud("shadow", true, fadeInInitial);
+        if (!preserveExistingShadows) {
+          initializeInitialCloudShadows();
         }
+      }
+
+      function initializeStartScreenCloudShadows() {
+        initializeInitialCloudShadows();
       }
 
       function setBirdFrame(bird, frameIndex) {
@@ -12213,12 +12373,25 @@
         bird.element.style.maskPosition = position;
       }
 
-      function createBirdFlock(count, isFirstKillFlock = false) {
-        const visibleBounds = getVisibleWorldBounds();
+      function createBirdFlock(
+        count,
+        isFirstKillFlock = false,
+        options = {}
+      ) {
+        const isStartScreenFlock = options?.startScreen === true;
+        const startScreenWorldView = isStartScreenFlock
+          ? getStartScreenWorldView()
+          : null;
+        const visibleBounds = startScreenWorldView
+          ? startScreenWorldView.bounds
+          : getVisibleWorldBounds();
+        const visibleScale = startScreenWorldView
+          ? startScreenWorldView.scale
+          : worldScale;
         const visibleWidth = visibleBounds.right - visibleBounds.left;
         const visibleHeight = visibleBounds.bottom - visibleBounds.top;
         const margin = Math.max(
-          220 / worldScale,
+          220 / visibleScale,
           Math.min(visibleWidth, visibleHeight) * 0.12
         );
 
@@ -12231,10 +12404,15 @@
         // 같은 높이에서만 지나가지 않도록 합니다.
         const flockVerticalShift = isFirstKillFlock
           ? 0
-          : randomBetween(
-              -AMBIENT_BIRD_FLOCK_VERTICAL_SHIFT_PX,
-              AMBIENT_BIRD_FLOCK_VERTICAL_SHIFT_PX
-            );
+          : isStartScreenFlock
+            ? randomBetween(
+                START_SCREEN_BIRD_Y_OFFSET_MIN_PX,
+                START_SCREEN_BIRD_Y_OFFSET_MAX_PX
+              )
+            : randomBetween(
+                AMBIENT_BIRD_Y_OFFSET_MIN_PX,
+                AMBIENT_BIRD_Y_OFFSET_MAX_PX
+              );
 
         const baseStart = {
           x: visibleBounds.left - margin,
@@ -12257,7 +12435,9 @@
         };
         const speed = isFirstKillFlock
           ? FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS
-          : AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS;
+          : isStartScreenFlock
+            ? START_SCREEN_BIRD_SPEED_SCREEN_PX_PER_MS
+            : AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS;
         const baseDuration = pathLength / speed;
         const now = performance.now();
 
@@ -12350,7 +12530,8 @@
             startedAt: now + delay,
             duration,
             frameOffset,
-            fps: isFirstKillFlock ? FIRST_KILL_BIRD_FPS : BIRD_FPS
+            fps: isFirstKillFlock ? FIRST_KILL_BIRD_FPS : BIRD_FPS,
+            isStartScreenBird: isStartScreenFlock
           };
 
           birds.push(bird);
@@ -12391,6 +12572,96 @@
         }
       }
 
+      function getRandomAmbientBirdCount() {
+        return Math.floor(
+          randomBetween(
+            AMBIENT_BIRD_MIN_COUNT,
+            AMBIENT_BIRD_MAX_COUNT + 1
+          )
+        );
+      }
+
+      function getRandomStartScreenBirdCount() {
+        const baseCount = getRandomAmbientBirdCount();
+        const extraCount = Math.floor(
+          randomBetween(
+            START_SCREEN_BIRD_EXTRA_MIN_COUNT,
+            START_SCREEN_BIRD_EXTRA_MAX_COUNT + 1
+          )
+        );
+        return baseCount + extraCount;
+      }
+
+      function hasStartScreenBirds() {
+        return birds.some((bird) => bird.isStartScreenBird);
+      }
+
+      function createStartScreenBirdFlock() {
+        if (!document.body.classList.contains("is-start-screen")) return;
+        if (hasStartScreenBirds()) return;
+
+        createBirdFlock(
+          getRandomStartScreenBirdCount(),
+          false,
+          { startScreen: true }
+        );
+      }
+
+      function clearStartScreenBirds() {
+        for (let index = birds.length - 1; index >= 0; index -= 1) {
+          const bird = birds[index];
+          if (!bird.isStartScreenBird) continue;
+          bird.element.remove();
+          birds.splice(index, 1);
+        }
+      }
+
+      function updateStartScreenScene(now) {
+        if (
+          hasGameInitialized ||
+          !document.body.classList.contains("is-start-screen")
+        ) {
+          startScreenSceneAnimationFrameId = null;
+          return;
+        }
+
+        const deltaMs = Math.min(
+          100,
+          Math.max(0, now - startScreenSceneLastFrameTime)
+        );
+        startScreenSceneLastFrameTime = now;
+
+        updateCloudGroup("shadow", deltaMs, now);
+        updateBirds(now);
+
+        // 한 무리가 우상단 화면 밖으로 완전히 사라지면
+        // 다음 무리를 좌하단 화면 밖에서 즉시 다시 시작합니다.
+        if (!hasStartScreenBirds()) {
+          createStartScreenBirdFlock();
+        }
+
+        startScreenSceneAnimationFrameId =
+          requestAnimationFrame(updateStartScreenScene);
+      }
+
+      function startStartScreenSceneAnimation() {
+        if (startScreenSceneAnimationFrameId !== null) return;
+
+        initializeStartScreenCloudShadows();
+        createStartScreenBirdFlock();
+        startScreenSceneLastFrameTime = performance.now();
+        startScreenSceneAnimationFrameId =
+          requestAnimationFrame(updateStartScreenScene);
+      }
+
+      function stopStartScreenSceneAnimation() {
+        if (startScreenSceneAnimationFrameId !== null) {
+          cancelAnimationFrame(startScreenSceneAnimationFrameId);
+          startScreenSceneAnimationFrameId = null;
+        }
+        clearStartScreenBirds();
+      }
+
       function scheduleNextAmbientBirdFlock() {
         if (ambientBirdTimer !== null) {
           clearTimeout(ambientBirdTimer);
@@ -12402,12 +12673,7 @@
         );
 
         ambientBirdTimer = window.setTimeout(() => {
-          const count = Math.floor(
-            randomBetween(
-              AMBIENT_BIRD_MIN_COUNT,
-              AMBIENT_BIRD_MAX_COUNT + 1
-            )
-          );
+          const count = getRandomAmbientBirdCount();
 
           createBirdFlock(count, false);
           scheduleNextAmbientBirdFlock();
@@ -19370,6 +19636,7 @@
       function activateGameplayFromStartScreen(options = {}) {
         if (isGameplayStarting || hasGameInitialized) return;
         isGameplayStarting = true;
+        stopStartScreenSceneAnimation();
         const skipStartTransition = options?.skipStartTransition === true;
         const skipStartScreenPauseOffset =
           options?.skipStartScreenPauseOffset === true;
@@ -19394,7 +19661,10 @@
 
         restoreStoredPopulation();
         syncDogForCurrentDay();
-        initializeClouds({ fadeInInitial: !skipStartTransition });
+        initializeClouds({
+          fadeInInitial: !skipStartTransition,
+          preserveExistingShadows: shadowClouds.length > 0
+        });
         startSpawner();
         updateTodoListUI();
         triggerMailboxCatDeliveryIfAvailable();
@@ -20041,6 +20311,10 @@
             restoreStoredPopulationForStartScreenPreview();
             syncDogForCurrentDay();
             hasStartScreenScenePreview = true;
+          }
+
+          if (!shouldAutoStartNewGame) {
+            startStartScreenSceneAnimation();
           }
         }
 
