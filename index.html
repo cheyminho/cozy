@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.151"
+  data-game-version="0.152"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5684,6 +5684,8 @@
       let dayCount = 1;
       let rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
       let isRainyToday = false;
+      // 실제 날씨에서 한 번이라도 비가 온 적이 있는지 저장해 이후 투두에서도 인정합니다.
+      let hasEverRained = false;
       let rainSpotSeed = 0;
       let renderedRainSpotSeed = null;
       let foodCount = 0;
@@ -5814,6 +5816,9 @@
       // 개 친밀도 진행도: 완료 단계와 다음 단계가 처음 등장할 수 있는 DAY를 저장합니다.
       let dogCompletedStage = 0;
       let dogNextStageDay = DOG_FIRST_APPEAR_DAY;
+      // 투두를 받기 전에 했던 개 상호작용도 이후 미션에서 인정하기 위한 기록입니다.
+      let hasGreetedDog = false;
+      let hasSeenDogBelly = false;
       // 3~6단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
       let dogStayStage = 0;
       let dogStayDay = 0;
@@ -5865,13 +5870,17 @@
       let todoListHideTimerId = null;
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
-      const TODO_SCHEMA_VERSION = 2;
+      const TODO_MAX_LIST_ID = 8;
+      const TODO_SCHEMA_VERSION = 3;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
         3: { item1: false, item2: false, item3: false },
         4: { item1: false, item2: false, item3: false },
-        5: { item1: false }
+        5: { item1: false, item2: false, item3: false },
+        6: { item1: false, item2: false, item3: false },
+        7: { item1: false, item2: false, item3: false },
+        8: { item1: false }
       };
 
       const skyClouds = [];
@@ -5892,6 +5901,8 @@
 
       const birds = [];
       let firstKillBirdFlockPlayed = false;
+      // 투두를 받기 전에 보급품 상자로 처치한 기록도 이후 미션에서 인정합니다.
+      let hasKilledWithSupplyBox = false;
       let nextSupplyBoxId = 1;
       let supplyBox = null;
       let skipFirstStartSequence = false;
@@ -6290,6 +6301,10 @@
         }
 
         isRainyToday = Math.random() * 100 < rainChancePercent;
+        if (isRainyToday) {
+          hasEverRained = true;
+          setTodoProgress(5, "item1", true);
+        }
         rainSpotSeed = isRainyToday ? createRainSpotSeed() : 0;
         rainChancePercent = isRainyToday
           ? INITIAL_RAIN_CHANCE_PERCENT
@@ -6803,6 +6818,76 @@
         return false;
       }
 
+      function hasBuiltOutdoorSectionItem(sectionKey) {
+        const section = getOutdoorSectionDefinition(sectionKey);
+        if (!section) return false;
+
+        for (
+          let index = section.startIndex;
+          index < section.startIndex + REPAIR_SECTION_SPAN;
+          index += 1
+        ) {
+          const item = repairItemsByCategory.outdoor[index];
+          if (item?.built === true && Boolean(item.blueprintId)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      function awardTodoBuildingBlueprintOrWood(blueprintId, fallbackWood) {
+        const existingItem = getBuildingBlueprintItem(blueprintId);
+        if (existingItem?.unlocked === true) {
+          woodCount = Math.min(getMaxWoodCount(), woodCount + fallbackWood);
+          updateResourceHud();
+          return "wood";
+        }
+
+        if (unlockBuildingBlueprint(blueprintId)) {
+          return "blueprint";
+        }
+        return "";
+      }
+
+      function awardSeventhTodoReward() {
+        const nonWhiteBlueprintIds = CAR_PAINT_BLUEPRINT_IDS.filter(
+          (blueprintId) => blueprintId !== CAR_PAINT_WHITE_BLUEPRINT_ID
+        );
+        const missingNonWhiteBlueprintIds = nonWhiteBlueprintIds.filter(
+          (blueprintId) => getRepairBlueprintItem(blueprintId)?.unlocked !== true
+        );
+
+        if (missingNonWhiteBlueprintIds.length > 0) {
+          const blueprintId = missingNonWhiteBlueprintIds[
+            Math.floor(Math.random() * missingNonWhiteBlueprintIds.length)
+          ];
+          unlockRepairBlueprint(blueprintId);
+          return "blueprint";
+        }
+
+        if (getRepairBlueprintItem(CAR_PAINT_WHITE_BLUEPRINT_ID)?.unlocked !== true) {
+          unlockRepairBlueprint(CAR_PAINT_WHITE_BLUEPRINT_ID);
+          return "blueprint";
+        }
+
+        let awardedAnyPaint = false;
+        for (const itemType of Object.keys(PAINT_ITEM_DEFINITIONS)) {
+          const previousCount = paintCounts[itemType];
+          paintCounts[itemType] = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            paintCounts[itemType] + 1
+          );
+          if (paintCounts[itemType] > previousCount) {
+            markInventoryItemAsNew(itemType);
+            awardedAnyPaint = true;
+          }
+        }
+        if (awardedAnyPaint) {
+          applyInventoryState();
+        }
+        return awardedAnyPaint ? "paint" : "";
+      }
+
       function applyMailboxVisibility() {
         if (!mailboxObject) return;
         // 울타리 설치 여부와 관계없이 우편함은 계속 표시합니다.
@@ -6824,7 +6909,7 @@
 
         if (
           todoSubmittedListId > 0 &&
-          todoSubmittedListId < 5 &&
+          todoSubmittedListId < TODO_MAX_LIST_ID &&
           dayCount > todoSubmittedDay
         ) {
           return todoSubmittedListId + 1;
@@ -6921,6 +7006,18 @@
         } else if (listId === 4) {
           complete("item2", fuelCount >= 10);
           complete("item3", isCarRepaired());
+        } else if (listId === 5) {
+          // 과거에 실제 비가 왔거나 현재 비가 오는 중이면 바로 인정합니다.
+          complete("item1", hasEverRained || getCurrentRainState());
+        } else if (listId === 6) {
+          // 이미 만든 화단과 기존 개 상호작용은 소급 인정합니다.
+          complete("item1", hasBuiltOutdoorSectionItem("garden"));
+          complete("item2", repairAppliedItemBySection.buildings.roof !== 5);
+          complete("item3", hasGreetedDog || dogCompletedStage > 0);
+        } else if (listId === 7) {
+          complete("item1", hasKilledWithSupplyBox);
+          complete("item2", repairAppliedItemBySection.buildings.walls !== 10);
+          complete("item3", hasSeenDogBelly || dogCompletedStage >= 6);
         }
 
         return changed;
@@ -7004,6 +7101,21 @@
             "repair the car"
           ],
           5: [
+            "get caught in the rain",
+            "find flowers",
+            "explore the city"
+          ],
+          6: [
+            "build a flower bed",
+            "change the roof",
+            "greet the dog"
+          ],
+          7: [
+            "kill with a supply box",
+            "change the walls",
+            "befriend the dog"
+          ],
+          8: [
             "wait for the next update"
           ]
         };
@@ -7012,7 +7124,10 @@
           1: "i'll send you a blueprint.",
           2: "i'll send you a compass.",
           3: "i’ll send you a rifle.",
-          4: "i’ll send you a map."
+          4: "i’ll send you a map.",
+          5: "i’ll send you a timber roof blueprint.",
+          6: "i’ll send you a timber walls blueprint.",
+          7: "i’ll send you a car paint blueprint."
         };
 
         const visible =
@@ -7146,6 +7261,30 @@
               // 획득 즉시 City 조건에서 Map을 숨기고 잠금 상태도 갱신합니다.
               updateExplorationRequirements();
               deliverTodoList(5);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
+
+            if (todoSubmittedListId === 5) {
+              // Timber Roof 설계도가 이미 있으면 동일 제작비인 Wood 10을 대신 지급합니다.
+              awardTodoBuildingBlueprintOrWood(TIMBER_ROOF_BLUEPRINT_ID, 10);
+              deliverTodoList(6);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
+
+            if (todoSubmittedListId === 6) {
+              // Timber Walls 설계도가 이미 있으면 동일 제작비인 Wood 15를 대신 지급합니다.
+              awardTodoBuildingBlueprintOrWood(TIMBER_WALLS_BLUEPRINT_ID, 15);
+              deliverTodoList(7);
+              showToast(MAIL_NEXT_TOAST_MESSAGE);
+              return;
+            }
+
+            if (todoSubmittedListId === 7) {
+              // 미보유 비흰색 카 페인트 → White → 전 색상 Paint 1개씩 순서로 대체합니다.
+              awardSeventhTodoReward();
+              deliverTodoList(8);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
             }
@@ -8164,6 +8303,12 @@
           consumeRepairMaterials(item.materials);
           item.built = true;
           item.isNew = false;
+          if (repairSelectedCategory === "outdoor") {
+            const section = getRepairSectionDefinition("outdoor", selectedIndex);
+            if (section?.key === "garden") {
+              setTodoProgress(6, "item1", true);
+            }
+          }
           updateResourceHud();
           applyRepairState();
           applyInventoryState();
@@ -8189,11 +8334,27 @@
         }
 
         playSound(CRAFTING_SOUND);
+        const previousAppliedIndex = getAppliedRepairItemIndex(
+          repairSelectedCategory,
+          selectedIndex
+        );
+        const appliedSection = getRepairSectionDefinition(
+          repairSelectedCategory,
+          selectedIndex
+        );
         setAppliedRepairItemIndex(repairSelectedCategory, selectedIndex);
         if (repairSelectedCategory === "outdoor") {
-          const section = getRepairSectionDefinition("outdoor", selectedIndex);
-          if (section?.key === "fence") {
+          if (appliedSection?.key === "fence") {
             setTodoProgress(2, "item1", true);
+          }
+        } else if (
+          repairSelectedCategory === "buildings" &&
+          previousAppliedIndex !== selectedIndex
+        ) {
+          if (appliedSection?.key === "roof") {
+            setTodoProgress(6, "item2", true);
+          } else if (appliedSection?.key === "walls") {
+            setTodoProgress(7, "item2", true);
           }
         }
         applyRepairState();
@@ -8246,6 +8407,7 @@
             parsed.rainChancePercent
           );
           isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
+          hasEverRained = parsed.hasEverRained === true || isRainyToday;
           const storedRainSpotSeed = normalizeRainSpotSeed(parsed.rainSpotSeed);
           const shouldKeepRainSpotLayout = getCurrentRainState();
           rainSpotSeed = shouldKeepRainSpotLayout
@@ -8263,6 +8425,8 @@
           dogNextStageDay = storedDogNextStageDay > 0
             ? storedDogNextStageDay
             : DOG_FIRST_APPEAR_DAY;
+          hasGreetedDog = parsed.hasGreetedDog === true || dogCompletedStage > 0;
+          hasSeenDogBelly = parsed.hasSeenDogBelly === true || dogCompletedStage >= 6;
           dogStayStage = clamp(
             Math.round(Number(parsed.dogStayStage) || 0),
             0,
@@ -8408,8 +8572,16 @@
             MAX_INVENTORY_QUANTITY
           );
           mailboxIntroTriggered = parsed.mailboxIntroTriggered === true;
-          currentTodoListId = clamp(Math.round(Number(parsed.currentTodoListId) || 0), 0, 5);
-          todoSubmittedListId = clamp(Math.round(Number(parsed.todoSubmittedListId) || 0), 0, 5);
+          currentTodoListId = clamp(
+            Math.round(Number(parsed.currentTodoListId) || 0),
+            0,
+            TODO_MAX_LIST_ID
+          );
+          todoSubmittedListId = clamp(
+            Math.round(Number(parsed.todoSubmittedListId) || 0),
+            0,
+            TODO_MAX_LIST_ID
+          );
           todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
           const storedCatMailDeliverySchemaVersion = Math.max(
             0,
@@ -8420,7 +8592,7 @@
               ? clamp(
                   Math.round(Number(parsed.lastCatDeliveredTodoListId) || 0),
                   0,
-                  5
+                  TODO_MAX_LIST_ID
                 )
               : 0;
           const storedTodoProgress = parsed.todoProgress && typeof parsed.todoProgress === "object"
@@ -8436,13 +8608,29 @@
               }
             }
 
-            if (storedTodoSchemaVersion < TODO_SCHEMA_VERSION) {
+            if (storedTodoSchemaVersion < 2) {
               const previousThirdList = storedTodoProgress[3] || {};
               todoProgress[3].item1 = false;
               todoProgress[3].item2 = previousThirdList.item1 === true;
               todoProgress[3].item3 = previousThirdList.item2 === true;
               todoProgress[4].item1 = previousThirdList.item1 === true;
               todoProgress[4].item3 = previousThirdList.item3 === true;
+            }
+
+            if (storedTodoSchemaVersion < 3) {
+              // 기존 5차는 업데이트 대기용 한 칸짜리 목록이었으므로 새 5~8차는 새로 시작합니다.
+              for (const listId of [5, 6, 7, 8]) {
+                for (const key of Object.keys(todoProgress[listId])) {
+                  todoProgress[listId][key] = false;
+                }
+              }
+              if (todoSubmittedListId >= 5) {
+                todoSubmittedListId = 0;
+                todoSubmittedDay = 0;
+                currentTodoListId = 5;
+                hasStrangerLetter = true;
+                isStrangerLetterOn = true;
+              }
             }
           }
           fuelCount = normalizeStoredCount(parsed.fuel, MAX_INVENTORY_QUANTITY);
@@ -8517,13 +8705,14 @@
           // 첫 좀비 처치 새 떼 연출은 별도 저장해 게임 초기화 전까지 한 번만 재생합니다.
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
+          hasKilledWithSupplyBox = parsed.hasKilledWithSupplyBox === true;
           loadRepairState(parsed.repairState);
           if (isCarRepaired()) {
             clearCarPartsAfterRepair();
           }
           // 이전 저장 파일의 비어 있던 설계도 슬롯이 새 정의를 덮지 않게 다시 적용합니다.
           configureExplorationBlueprintDefinitions();
-          for (const listId of [1, 2, 3, 4]) {
+          for (let listId = 1; listId <= TODO_MAX_LIST_ID; listId += 1) {
             syncTodoProgressFromCurrentState(listId);
           }
           hasRepairButtonNew = REPAIR_CATEGORY_ORDER.some(
@@ -8561,6 +8750,8 @@
               version: GAME_VERSION,
               dogCompletedStage,
               dogNextStageDay,
+              hasGreetedDog,
+              hasSeenDogBelly,
               dogStayStage,
               dogStayDay,
               zombies: zombieCount,
@@ -8568,6 +8759,7 @@
               dayCount,
               rainChancePercent,
               isRainyToday,
+              hasEverRained,
               rainSpotSeed,
               food: foodCount,
               wood: woodCount,
@@ -8624,6 +8816,7 @@
               },
               repairState: serializeRepairState(),
               firstKillBirdFlockPlayed,
+              hasKilledWithSupplyBox,
               explorationDestination,
               explorationEndsAt: isExploring ? explorationEndsAt : 0,
               explorationDepartureDay: isExploring ? explorationDepartureDay : 0,
@@ -10941,8 +11134,11 @@
         }
 
         if (destination === "forest") {
-          // 숲은 화단 설계도를 얻지 못한 경우에만 꽃 1개를 줍니다.
-          awardForestFlower();
+          // 5차 꽃 찾기 보장 지급을 이미 처리했다면 일반 꽃 보상은 중복 지급하지 않습니다.
+          if (options.skipForestFlower !== true) {
+            // 숲은 화단 설계도를 얻지 못한 경우에만 꽃 1개를 줍니다.
+            awardForestFlower();
+          }
           return;
         }
 
@@ -11008,18 +11204,34 @@
         }
         applyTreeVisualState();
 
+        let didGuaranteeTodoFlower = false;
         if (completedDestination === "village") {
           setTodoProgress(1, "item3", true);
         } else if (completedDestination === "forest") {
           woodCount = Math.min(getMaxWoodCount(), woodCount + 10);
           stoneCount = Math.min(getMaxStoneCount(), stoneCount + 3);
           setTodoProgress(3, "item3", true);
+
+          // 5차를 받은 뒤 첫 Forest 복귀에서는 설계도 보상 여부와 관계없이 꽃 1개를 보장합니다.
+          if (
+            currentTodoListId === 5 &&
+            todoProgress[5].item2 !== true
+          ) {
+            awardForestFlower();
+            setTodoProgress(5, "item2", true);
+            didGuaranteeTodoFlower = true;
+          }
+        } else if (completedDestination === "city") {
+          setTodoProgress(5, "item3", true);
         }
 
         awardExplorationRewards(
           completedDestination,
           completedDepartureDay,
-          { isActualExploration: true }
+          {
+            isActualExploration: true,
+            skipForestFlower: didGuaranteeTodoFlower
+          }
         );
         applyWeatherState();
         setNightMode(false);
@@ -15182,6 +15394,8 @@
         now = performance.now(),
         options = {}
       ) {
+        hasSeenDogBelly = true;
+        setTodoProgress(7, "item3", true);
         activeDog.state = "bellyDown";
         activeDog.stateUntil = 0;
         activeDog.animationElapsed = 0;
@@ -15470,6 +15684,11 @@
 
       function activateDog(activeDog, now = performance.now()) {
         if (!activeDog || isExploring) return false;
+
+        if (!hasGreetedDog) {
+          hasGreetedDog = true;
+          setTodoProgress(6, "item3", true);
+        }
 
         // 전환·강제 이동 중에는 재입력을 소비하되 동작은 바꾸지 않습니다.
         if (
@@ -16445,7 +16664,11 @@
                 ? availableTodoListId
                 : 0
             )
-          : clamp(Math.round(Number(deliveryTodoListId) || 0), 0, 5);
+          : clamp(
+              Math.round(Number(deliveryTodoListId) || 0),
+              0,
+              TODO_MAX_LIST_ID
+            );
 
         removeCat();
 
@@ -17990,8 +18213,10 @@
           beginDeerDeath(deer);
         }
 
-        // 보급품 상자로 좀비 또는 사슴을 실제로 처치해도 다른 무기 처치로 인정합니다.
+        // 보급품 상자로 좀비 또는 사슴을 실제로 처치한 기록을 저장해 이후 7차에서도 인정합니다.
+        hasKilledWithSupplyBox = true;
         setTodoProgress(3, "item2", true);
+        setTodoProgress(7, "item1", true);
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
         // 보상도 즉시 지급하며, 일반 상자 파손과 동일하게 개봉음을 재생합니다.
