@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.142"
+  data-game-version="0.143"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5170,9 +5170,16 @@
       const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 700;
 
       // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 간 최소 간격을 둡니다.
-      const BIRD_MIN_TRAIL_GAP_PX = 32;
-      const BIRD_MIN_LATERAL_GAP_PX = 22;
-      const BIRD_MIN_PATH_DISTANCE_PX = 44;
+      const BIRD_MIN_TRAIL_GAP_PX = 64;
+      const BIRD_MIN_LATERAL_GAP_PX = 44;
+      const BIRD_MIN_PATH_DISTANCE_PX = 88;
+
+      // 새 무리는 선두를 중심으로 좌우 뒤쪽에 퍼지는 V 대형을 우선 사용합니다.
+      // 각 단계마다 약간의 랜덤 흔들림을 줘 너무 기계적으로 보이지 않게 합니다.
+      const BIRD_V_TRAIL_STEP_PX = 92;
+      const BIRD_V_LATERAL_STEP_PX = 68;
+      const BIRD_V_TRAIL_JITTER_PX = 8;
+      const BIRD_V_LATERAL_JITTER_PX = 6;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -12505,23 +12512,41 @@
           element.className = "bird";
           birdsLayer.appendChild(element);
 
-          // 진행 방향 앞뒤 간격과 대각선에 수직인 간격을 섞어 자연스러운 무리를 만듭니다.
-          // 이미 뽑힌 새들과 너무 가까운 경로는 다시 뽑아 겹침을 줄입니다.
+          // 3마리 이상은 선두 1마리를 기준으로 좌우 뒤쪽에 번갈아 배치해
+          // 전체적으로 V 대형이 보이도록 합니다. 2마리는 자연스러운 소편대로 배치합니다.
           let trailOffset = 0;
           let lateralOffset = 0;
-          let slotAccepted = false;
 
-          for (let attempt = 0; attempt < 40; attempt += 1) {
-            const candidateTrailOffset = randomBetween(-80, 130);
-            const candidateLateralOffset = randomBetween(-72, 72);
+          if (count === 2) {
+            const side = index === 0 ? -1 : 1;
+            trailOffset = randomBetween(-6, 6);
+            lateralOffset =
+              side * (BIRD_V_LATERAL_STEP_PX * 0.72) +
+              randomBetween(-BIRD_V_LATERAL_JITTER_PX, BIRD_V_LATERAL_JITTER_PX);
+          } else if (index === 0) {
+            trailOffset = BIRD_V_TRAIL_STEP_PX +
+              randomBetween(-BIRD_V_TRAIL_JITTER_PX, BIRD_V_TRAIL_JITTER_PX);
+            lateralOffset = randomBetween(
+              -BIRD_V_LATERAL_JITTER_PX,
+              BIRD_V_LATERAL_JITTER_PX
+            );
+          } else {
+            const rank = Math.ceil(index / 2);
+            const side = index % 2 === 1 ? -1 : 1;
+            trailOffset =
+              BIRD_V_TRAIL_STEP_PX - rank * BIRD_V_TRAIL_STEP_PX +
+              randomBetween(-BIRD_V_TRAIL_JITTER_PX, BIRD_V_TRAIL_JITTER_PX);
+            lateralOffset =
+              side * rank * BIRD_V_LATERAL_STEP_PX +
+              randomBetween(-BIRD_V_LATERAL_JITTER_PX, BIRD_V_LATERAL_JITTER_PX);
+          }
 
-            const overlapsExistingSlot = flockSlots.some((slot) => {
-              const trailGap = Math.abs(
-                candidateTrailOffset - slot.trailOffset
-              );
-              const lateralGap = Math.abs(
-                candidateLateralOffset - slot.lateralOffset
-              );
+          // 랜덤 흔들림 때문에 최소 간격보다 가까워진 경우에는
+          // 해당 새만 바깥쪽으로 조금 밀어 최소 간격을 다시 확보합니다.
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const overlappingSlot = flockSlots.find((slot) => {
+              const trailGap = Math.abs(trailOffset - slot.trailOffset);
+              const lateralGap = Math.abs(lateralOffset - slot.lateralOffset);
               const pathDistance = Math.hypot(trailGap, lateralGap);
 
               return (
@@ -12531,19 +12556,11 @@
               );
             });
 
-            if (overlapsExistingSlot) {
-              continue;
-            }
+            if (!overlappingSlot) break;
 
-            trailOffset = candidateTrailOffset;
-            lateralOffset = candidateLateralOffset;
-            slotAccepted = true;
-            break;
-          }
-
-          if (!slotAccepted) {
-            trailOffset = randomBetween(-80, 130);
-            lateralOffset = randomBetween(-72, 72);
+            const pushSide = lateralOffset < 0 ? -1 : lateralOffset > 0 ? 1 : (index % 2 === 1 ? -1 : 1);
+            trailOffset -= BIRD_MIN_TRAIL_GAP_PX * 0.35;
+            lateralOffset += pushSide * BIRD_MIN_LATERAL_GAP_PX * 0.65;
           }
 
           flockSlots.push({
