@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.149"
+  data-game-version="0.150"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5153,15 +5153,14 @@
       /*
         시작화면 전용 새 떼 수정 위치
         - 새 수는 상시 새 떼와 같은 2~5마리를 사용합니다.
-        - y-offset-min/max: 두 번째 무리부터 전체 경로의 Y 오프셋 랜덤 범위(px)입니다.
+        - y-offset-min/max: 새 떼 전체 경로의 Y 오프셋 랜덤 범위(px)입니다.
         - speed: 화면 기준 비행 속도입니다.
-        - 첫 무리는 아래 화면 비율 위치에서 이미 화면 안에 보이는 상태로 시작합니다.
       */
       const START_SCREEN_BIRD_Y_OFFSET_MIN_PX = -900;
       const START_SCREEN_BIRD_Y_OFFSET_MAX_PX = 900;
       const START_SCREEN_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
-      const START_SCREEN_FIRST_BIRD_X_RATIO = 0.28;
-      const START_SCREEN_FIRST_BIRD_Y_RATIO = 0.72;
+      // 시작화면 새는 실제 화면 진입 경계보다 이 거리만큼 더 바깥에서 비행을 시작합니다.
+      const START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX = 24;
 
       /*
         상시 새 떼 Y 오프셋 수정 위치
@@ -5170,26 +5169,10 @@
       const AMBIENT_BIRD_Y_OFFSET_MIN_PX = -700;
       const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 700;
 
-      // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 기준 최소 거리를 둡니다.
-      const BIRD_MIN_PATH_DISTANCE_PX = 88;
-
-      // V 대형의 기존 간격을 최대값으로 사용합니다.
-      // 각 가지의 다음 새는 최소 거리(BIRD_MIN_PATH_DISTANCE_PX)부터
-      // 이 최대 간격 사이에서 무작위로 가까워져 등간격 느낌을 줄입니다.
-      const BIRD_V_TRAIL_STEP_PX = 92;
-      const BIRD_V_LATERAL_STEP_PX = 68;
-      const BIRD_V_MAX_STEP_DISTANCE_PX = Math.hypot(
-        BIRD_V_TRAIL_STEP_PX,
-        BIRD_V_LATERAL_STEP_PX
-      );
-      const BIRD_V_MIN_STEP_RATIO = Math.min(
-        1,
-        BIRD_MIN_PATH_DISTANCE_PX / BIRD_V_MAX_STEP_DISTANCE_PX
-      );
-
-      // 첫 좀비 처치 새 무리는 V 대형을 사용하지 않고 이 범위 안에서 자유롭게 흩어집니다.
-      const FIRST_KILL_BIRD_TRAIL_SPREAD_PX = 150;
-      const FIRST_KILL_BIRD_LATERAL_SPREAD_PX = 135;
+      // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 간 최소 간격을 둡니다.
+      const BIRD_MIN_TRAIL_GAP_PX = 48;
+      const BIRD_MIN_LATERAL_GAP_PX = 33;
+      const BIRD_MIN_PATH_DISTANCE_PX = 66;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -12404,6 +12387,49 @@
         bird.element.style.maskPosition = position;
       }
 
+      // 선분이 현재 보이는 화면 사각형에 처음 들어오는 지점을 구합니다.
+      // 시작화면 새를 화면 안이 아니라 실제 진입 경계 바로 바깥에서 출발시키는 데 사용합니다.
+      function getBirdPathEntryPointToVisibleBounds(
+        startX,
+        startY,
+        endX,
+        endY,
+        bounds
+      ) {
+        const dx = endX - startX;
+        const dy = endY - startY;
+        let tEnter = 0;
+        let tExit = 1;
+
+        const clipAxis = (start, delta, min, max) => {
+          if (Math.abs(delta) < 0.000001) {
+            return start >= min && start <= max;
+          }
+
+          let t1 = (min - start) / delta;
+          let t2 = (max - start) / delta;
+          if (t1 > t2) {
+            const swap = t1;
+            t1 = t2;
+            t2 = swap;
+          }
+
+          tEnter = Math.max(tEnter, t1);
+          tExit = Math.min(tExit, t2);
+          return tEnter <= tExit;
+        };
+
+        if (!clipAxis(startX, dx, bounds.left, bounds.right)) return null;
+        if (!clipAxis(startY, dy, bounds.top, bounds.bottom)) return null;
+        if (tExit < 0 || tEnter > 1) return null;
+
+        const t = clamp(tEnter, 0, 1);
+        return {
+          x: startX + dx * t,
+          y: startY + dy * t
+        };
+      }
+
       function createBirdFlock(
         count,
         isFirstKillFlock = false,
@@ -12433,9 +12459,7 @@
 
         // 간헐적 출현 무리는 전체 경로를 위아래로 조금씩 옮겨서
         // 같은 높이에서만 지나가지 않도록 합니다.
-        const spawnInsideStartScreen =
-          isStartScreenFlock && options?.spawnInside === true;
-        const flockVerticalShift = isFirstKillFlock || spawnInsideStartScreen
+        const flockVerticalShift = isFirstKillFlock
           ? 0
           : isStartScreenFlock
             ? randomBetween(
@@ -12447,21 +12471,10 @@
                 AMBIENT_BIRD_Y_OFFSET_MAX_PX
               );
 
-        // 시작화면의 첫 무리만 화면 안쪽에서 시작합니다.
-        // 이후 시작화면 무리와 상시/첫 처치 무리는 기존처럼 화면 밖에서 진입합니다.
-        const baseStart = spawnInsideStartScreen
-          ? {
-              x:
-                visibleBounds.left +
-                visibleWidth * START_SCREEN_FIRST_BIRD_X_RATIO,
-              y:
-                visibleBounds.top +
-                visibleHeight * START_SCREEN_FIRST_BIRD_Y_RATIO
-            }
-          : {
-              x: visibleBounds.left - margin,
-              y: visibleBounds.bottom + verticalMargin + flockVerticalShift
-            };
+        const baseStart = {
+          x: visibleBounds.left - margin,
+          y: visibleBounds.bottom + verticalMargin + flockVerticalShift
+        };
         const baseEnd = {
           x: visibleBounds.right + margin,
           y: visibleBounds.top - verticalMargin + flockVerticalShift
@@ -12484,90 +12497,53 @@
             : AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS;
         const baseDuration = pathLength / speed;
         const now = performance.now();
-        // 무리 전체가 같은 속도/진행률로 움직여 V 대형의 상대 위치가 비행 중에도 유지됩니다.
-        const flockDuration = baseDuration * randomBetween(0.92, 1.08);
 
         const flockSlots = [];
-        const vBranchSlots = {
-          left: { trailOffset: BIRD_V_TRAIL_STEP_PX, lateralOffset: 0 },
-          right: { trailOffset: BIRD_V_TRAIL_STEP_PX, lateralOffset: 0 }
-        };
 
         for (let index = 0; index < count; index += 1) {
           const element = document.createElement("div");
           element.className = "bird";
           birdsLayer.appendChild(element);
 
+          // 진행 방향 앞뒤 간격과 대각선에 수직인 간격을 섞어 자연스러운 무리를 만듭니다.
+          // 이미 뽑힌 새들과 너무 가까운 경로는 다시 뽑아 겹침을 줄입니다.
           let trailOffset = 0;
           let lateralOffset = 0;
+          let slotAccepted = false;
 
-          if (isFirstKillFlock) {
-            // 첫 좀비 처치 연출은 V 대형 없이 자유로운 산개 형태로 배치합니다.
-            // 이전 새와 최소 거리만 확보하고 경로 앞뒤/좌우 위치를 독립적으로 랜덤화합니다.
-            let foundLooseSlot = false;
-            for (let attempt = 0; attempt < 64; attempt += 1) {
-              const candidateTrail = randomBetween(
-                -FIRST_KILL_BIRD_TRAIL_SPREAD_PX,
-                FIRST_KILL_BIRD_TRAIL_SPREAD_PX
-              );
-              const candidateLateral = randomBetween(
-                -FIRST_KILL_BIRD_LATERAL_SPREAD_PX,
-                FIRST_KILL_BIRD_LATERAL_SPREAD_PX
-              );
-              const overlaps = flockSlots.some((slot) =>
-                Math.hypot(
-                  candidateTrail - slot.trailOffset,
-                  candidateLateral - slot.lateralOffset
-                ) < BIRD_MIN_PATH_DISTANCE_PX
-              );
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            const candidateTrailOffset = randomBetween(-80, 130);
+            const candidateLateralOffset = randomBetween(-72, 72);
 
-              if (!overlaps) {
-                trailOffset = candidateTrail;
-                lateralOffset = candidateLateral;
-                foundLooseSlot = true;
-                break;
-              }
+            const overlapsExistingSlot = flockSlots.some((slot) => {
+              const trailGap = Math.abs(
+                candidateTrailOffset - slot.trailOffset
+              );
+              const lateralGap = Math.abs(
+                candidateLateralOffset - slot.lateralOffset
+              );
+              const pathDistance = Math.hypot(trailGap, lateralGap);
+
+              return (
+                pathDistance < BIRD_MIN_PATH_DISTANCE_PX ||
+                (trailGap < BIRD_MIN_TRAIL_GAP_PX &&
+                  lateralGap < BIRD_MIN_LATERAL_GAP_PX)
+              );
+            });
+
+            if (overlapsExistingSlot) {
+              continue;
             }
 
-            if (!foundLooseSlot) {
-              const fallbackAngle =
-                (index / Math.max(1, count)) * Math.PI * 2 +
-                randomBetween(-0.25, 0.25);
-              const fallbackRadius =
-                BIRD_MIN_PATH_DISTANCE_PX * (1 + index * 0.55);
-              trailOffset = Math.cos(fallbackAngle) * fallbackRadius;
-              lateralOffset = Math.sin(fallbackAngle) * fallbackRadius;
-            }
-          } else if (count === 2) {
-            // 두 마리는 V를 만들지 않고 가까운 소편대로 자연스럽게 나란히 배치합니다.
-            if (index === 0) {
-              trailOffset = randomBetween(-12, 12);
-              lateralOffset = -BIRD_MIN_PATH_DISTANCE_PX * 0.5;
-            } else {
-              const pairDistance = randomBetween(
-                BIRD_MIN_PATH_DISTANCE_PX,
-                BIRD_V_MAX_STEP_DISTANCE_PX
-              );
-              trailOffset = randomBetween(-12, 12);
-              lateralOffset = BIRD_MIN_PATH_DISTANCE_PX * 0.5 +
-                (pairDistance - BIRD_MIN_PATH_DISTANCE_PX);
-            }
-          } else if (index === 0) {
-            // 3마리 이상은 선두를 기준으로 좌우 뒤쪽에 퍼지는 V 대형입니다.
-            trailOffset = BIRD_V_TRAIL_STEP_PX;
-            lateralOffset = 0;
-          } else {
-            const side = index % 2 === 1 ? -1 : 1;
-            const branchKey = side < 0 ? "left" : "right";
-            const previous = vBranchSlots[branchKey];
-            const stepRatio = randomBetween(BIRD_V_MIN_STEP_RATIO, 1);
+            trailOffset = candidateTrailOffset;
+            lateralOffset = candidateLateralOffset;
+            slotAccepted = true;
+            break;
+          }
 
-            trailOffset =
-              previous.trailOffset - BIRD_V_TRAIL_STEP_PX * stepRatio;
-            lateralOffset =
-              previous.lateralOffset + side * BIRD_V_LATERAL_STEP_PX * stepRatio;
-
-            vBranchSlots[branchKey] = { trailOffset, lateralOffset };
+          if (!slotAccepted) {
+            trailOffset = randomBetween(-80, 130);
+            lateralOffset = randomBetween(-72, 72);
           }
 
           flockSlots.push({
@@ -12596,7 +12572,34 @@
             BIRD_MAX_SCALE
           );
 
-          const duration = flockDuration;
+          if (isStartScreenFlock) {
+            const entryPoint = getBirdPathEntryPointToVisibleBounds(
+              startX,
+              startY,
+              endX,
+              endY,
+              visibleBounds
+            );
+
+            if (entryPoint) {
+              // 새의 전체 이미지가 화면 밖에 있도록 반대 방향으로 반대각선만큼 더 물리고,
+              // 여기에 짧은 화면 기준 여백을 추가합니다.
+              const birdHalfDiagonal =
+                (42.6667 * scale * Math.SQRT2) / 2;
+              const entryLeadDistance =
+                birdHalfDiagonal +
+                START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX / visibleScale;
+
+              startX = entryPoint.x - direction.x * entryLeadDistance;
+              startY = entryPoint.y - direction.y * entryLeadDistance;
+            }
+          }
+
+          const delay = randomBetween(0, isFirstKillFlock ? 240 : 180);
+          const durationBase = isStartScreenFlock
+            ? Math.hypot(endX - startX, endY - startY) / speed
+            : baseDuration;
+          const duration = durationBase * randomBetween(0.92, 1.08);
           const frameOffset = Math.floor(
             Math.random() * BIRD_FRAME_COUNT
           );
@@ -12608,7 +12611,7 @@
             endX,
             endY,
             scale,
-            startedAt: now,
+            startedAt: now + delay,
             duration,
             frameOffset,
             fps: isFirstKillFlock ? FIRST_KILL_BIRD_FPS : BIRD_FPS,
@@ -12670,17 +12673,14 @@
         return birds.some((bird) => bird.isStartScreenBird);
       }
 
-      function createStartScreenBirdFlock(spawnInside = false) {
+      function createStartScreenBirdFlock() {
         if (!document.body.classList.contains("is-start-screen")) return;
         if (hasStartScreenBirds()) return;
 
         createBirdFlock(
           getRandomStartScreenBirdCount(),
           false,
-          {
-            startScreen: true,
-            spawnInside
-          }
+          { startScreen: true }
         );
       }
 
@@ -12711,8 +12711,8 @@
         updateCloudGroup("shadow", deltaMs, now);
         updateBirds(now);
 
-        // 첫 무리가 우상단 화면 밖으로 완전히 사라진 뒤에는
-        // 다음 무리부터 기존처럼 좌하단 화면 밖에서 즉시 다시 시작합니다.
+        // 한 무리가 우상단 화면 밖으로 완전히 사라지면
+        // 다음 무리를 좌하단 화면 밖에서 즉시 다시 시작합니다.
         if (!hasStartScreenBirds()) {
           createStartScreenBirdFlock();
         }
@@ -12725,7 +12725,7 @@
         if (startScreenSceneAnimationFrameId !== null) return;
 
         initializeStartScreenCloudShadows();
-        createStartScreenBirdFlock(true);
+        createStartScreenBirdFlock();
         startScreenSceneLastFrameTime = performance.now();
         startScreenSceneAnimationFrameId =
           requestAnimationFrame(updateStartScreenScene);
