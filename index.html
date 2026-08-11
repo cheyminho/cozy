@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.141"
+  data-game-version="0.142"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5070,6 +5070,8 @@
       /* 구름 그림자 크기는 필요하면 별도로 조절할 수 있습니다. */
       const CLOUD_SHADOW_MIN_SCALE = 1.7;
       const CLOUD_SHADOW_MAX_SCALE = 2;
+      // 랜덤 생성 구름 그림자는 기존 진입 위치보다 화면 기준 50px 더 바깥에서 시작합니다.
+      const CLOUD_SHADOW_SPAWN_EXTRA_MARGIN_SCREEN_PX = 50;
 
       /*
         시작화면 / 게임화면 초기 고정 구름 그림자 3개 수정 위치
@@ -5141,24 +5143,24 @@
       const FIRST_KILL_BIRD_COUNT = 5;
       const FIRST_KILL_BIRD_SPEED_SCREEN_PX_PER_MS = 0.5;
 
-      // 이후에는 20~60초 간격으로 1~3마리가 가끔 지나갑니다.
-      const AMBIENT_BIRD_MIN_COUNT = 1;
-      const AMBIENT_BIRD_MAX_COUNT = 3;
+      // 이후에는 20~60초 간격으로 2~5마리가 가끔 지나갑니다.
+      const AMBIENT_BIRD_MIN_COUNT = 2;
+      const AMBIENT_BIRD_MAX_COUNT = 5;
       const AMBIENT_BIRD_MIN_INTERVAL_MS = 20_000;
       const AMBIENT_BIRD_MAX_INTERVAL_MS = 60_000;
       const AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
 
       /*
         시작화면 전용 새 떼 수정 위치
-        - 기존 상시 새 떼 수에 extra-min~extra-max 마리를 추가합니다.
+        - 새 수는 상시 새 떼와 같은 2~5마리를 사용합니다.
         - y-offset-min/max: 새 떼 전체 경로의 Y 오프셋 랜덤 범위(px)입니다.
         - speed: 화면 기준 비행 속도입니다.
       */
-      const START_SCREEN_BIRD_EXTRA_MIN_COUNT = 1;
-      const START_SCREEN_BIRD_EXTRA_MAX_COUNT = 2;
       const START_SCREEN_BIRD_Y_OFFSET_MIN_PX = -900;
       const START_SCREEN_BIRD_Y_OFFSET_MAX_PX = 900;
       const START_SCREEN_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
+      // 시작화면 새는 실제 화면 진입 경계보다 이 거리만큼 더 바깥에서 비행을 시작합니다.
+      const START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX = 24;
 
       /*
         상시 새 떼 Y 오프셋 수정 위치
@@ -5168,9 +5170,9 @@
       const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 700;
 
       // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 간 최소 간격을 둡니다.
-      const BIRD_MIN_TRAIL_GAP_PX = 64;
-      const BIRD_MIN_LATERAL_GAP_PX = 44;
-      const BIRD_MIN_PATH_DISTANCE_PX = 88;
+      const BIRD_MIN_TRAIL_GAP_PX = 32;
+      const BIRD_MIN_LATERAL_GAP_PX = 22;
+      const BIRD_MIN_PATH_DISTANCE_PX = 44;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -11961,6 +11963,10 @@
         );
         const startOffsetX = CLOUD_START_OFFSET_X_SCREEN_PX / visibleScale;
         const startOffsetY = CLOUD_START_OFFSET_Y_SCREEN_PX / visibleScale;
+        const shadowSpawnExtraMargin =
+          isShadow && !initialInside
+            ? CLOUD_SHADOW_SPAWN_EXTRA_MARGIN_SCREEN_PX / visibleScale
+            : 0;
         const halfSize = getCloudHalfSize(scale);
         const centerX = (visibleBounds.left + visibleBounds.right) / 2;
         const centerY = (visibleBounds.top + visibleBounds.bottom) / 2;
@@ -11983,7 +11989,11 @@
               : centerY;
           } else if (Math.random() < 0.5) {
             // 화면 왼쪽의 아래쪽 구간에서 들어옵니다.
-            x = visibleBounds.left - halfSize * 0.82;
+            // 랜덤 구름 그림자는 화면 기준 50px 더 왼쪽 바깥에서 시작합니다.
+            x =
+              visibleBounds.left -
+              halfSize * 0.82 -
+              shadowSpawnExtraMargin;
             y = randomBetween(
               centerY,
               visibleBounds.bottom + halfSize * 0.15
@@ -11994,7 +12004,11 @@
               visibleBounds.left - halfSize * 0.15,
               centerX
             );
-            y = visibleBounds.bottom + halfSize * 0.82;
+            // 랜덤 구름 그림자는 화면 기준 50px 더 아래 바깥에서 시작합니다.
+            y =
+              visibleBounds.bottom +
+              halfSize * 0.82 +
+              shadowSpawnExtraMargin;
           }
 
           if (!isShadow) {
@@ -12373,6 +12387,49 @@
         bird.element.style.maskPosition = position;
       }
 
+      // 선분이 현재 보이는 화면 사각형에 처음 들어오는 지점을 구합니다.
+      // 시작화면 새를 화면 안이 아니라 실제 진입 경계 바로 바깥에서 출발시키는 데 사용합니다.
+      function getBirdPathEntryPointToVisibleBounds(
+        startX,
+        startY,
+        endX,
+        endY,
+        bounds
+      ) {
+        const dx = endX - startX;
+        const dy = endY - startY;
+        let tEnter = 0;
+        let tExit = 1;
+
+        const clipAxis = (start, delta, min, max) => {
+          if (Math.abs(delta) < 0.000001) {
+            return start >= min && start <= max;
+          }
+
+          let t1 = (min - start) / delta;
+          let t2 = (max - start) / delta;
+          if (t1 > t2) {
+            const swap = t1;
+            t1 = t2;
+            t2 = swap;
+          }
+
+          tEnter = Math.max(tEnter, t1);
+          tExit = Math.min(tExit, t2);
+          return tEnter <= tExit;
+        };
+
+        if (!clipAxis(startX, dx, bounds.left, bounds.right)) return null;
+        if (!clipAxis(startY, dy, bounds.top, bounds.bottom)) return null;
+        if (tExit < 0 || tEnter > 1) return null;
+
+        const t = clamp(tEnter, 0, 1);
+        return {
+          x: startX + dx * t,
+          y: startY + dy * t
+        };
+      }
+
       function createBirdFlock(
         count,
         isFirstKillFlock = false,
@@ -12494,11 +12551,11 @@
             lateralOffset
           });
 
-          const startX =
+          let startX =
             baseStart.x +
             direction.x * trailOffset +
             perpendicular.x * lateralOffset;
-          const startY =
+          let startY =
             baseStart.y +
             direction.y * trailOffset +
             perpendicular.y * lateralOffset;
@@ -12514,8 +12571,35 @@
             BIRD_MIN_SCALE,
             BIRD_MAX_SCALE
           );
+
+          if (isStartScreenFlock) {
+            const entryPoint = getBirdPathEntryPointToVisibleBounds(
+              startX,
+              startY,
+              endX,
+              endY,
+              visibleBounds
+            );
+
+            if (entryPoint) {
+              // 새의 전체 이미지가 화면 밖에 있도록 반대 방향으로 반대각선만큼 더 물리고,
+              // 여기에 짧은 화면 기준 여백을 추가합니다.
+              const birdHalfDiagonal =
+                (42.6667 * scale * Math.SQRT2) / 2;
+              const entryLeadDistance =
+                birdHalfDiagonal +
+                START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX / visibleScale;
+
+              startX = entryPoint.x - direction.x * entryLeadDistance;
+              startY = entryPoint.y - direction.y * entryLeadDistance;
+            }
+          }
+
           const delay = randomBetween(0, isFirstKillFlock ? 240 : 180);
-          const duration = baseDuration * randomBetween(0.92, 1.08);
+          const durationBase = isStartScreenFlock
+            ? Math.hypot(endX - startX, endY - startY) / speed
+            : baseDuration;
+          const duration = durationBase * randomBetween(0.92, 1.08);
           const frameOffset = Math.floor(
             Math.random() * BIRD_FRAME_COUNT
           );
@@ -12582,14 +12666,7 @@
       }
 
       function getRandomStartScreenBirdCount() {
-        const baseCount = getRandomAmbientBirdCount();
-        const extraCount = Math.floor(
-          randomBetween(
-            START_SCREEN_BIRD_EXTRA_MIN_COUNT,
-            START_SCREEN_BIRD_EXTRA_MAX_COUNT + 1
-          )
-        );
-        return baseCount + extraCount;
+        return getRandomAmbientBirdCount();
       }
 
       function hasStartScreenBirds() {
