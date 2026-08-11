@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.146"
+  data-game-version="0.147"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5159,8 +5159,6 @@
       const START_SCREEN_BIRD_Y_OFFSET_MIN_PX = -900;
       const START_SCREEN_BIRD_Y_OFFSET_MAX_PX = 900;
       const START_SCREEN_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
-      // 시작화면 새는 실제 화면 진입 경계보다 이 거리만큼 더 바깥에서 비행을 시작합니다.
-      const START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX = 24;
 
       /*
         상시 새 떼 Y 오프셋 수정 위치
@@ -5168,11 +5166,6 @@
       */
       const AMBIENT_BIRD_Y_OFFSET_MIN_PX = -700;
       const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 700;
-
-      // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 간 최소 간격을 둡니다.
-      const BIRD_MIN_TRAIL_GAP_PX = 64;
-      const BIRD_MIN_LATERAL_GAP_PX = 44;
-      const BIRD_MIN_PATH_DISTANCE_PX = 88;
 
       // bird_fly.png는 남서쪽 → 북동쪽(↗)을 바라보는 리소스입니다.
       // 새 V 대형은 실제 이동 경로 기울기와 분리하고,
@@ -5182,7 +5175,10 @@
       const BIRD_V_SHALLOW_WING_STEP_Y = 24;
       const BIRD_V_STEEP_WING_STEP_X = -24;
       const BIRD_V_STEEP_WING_STEP_Y = 72;
-      const BIRD_V_JITTER_PX = 5;
+      const BIRD_V_DISTANCE_VARIATION_MIN = 0.9;
+      const BIRD_V_DISTANCE_VARIATION_MAX = 1.1;
+      const BIRD_V_JITTER_X_PX = 6;
+      const BIRD_V_JITTER_Y_PX = 6;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -12397,49 +12393,6 @@
         bird.element.style.maskPosition = position;
       }
 
-      // 선분이 현재 보이는 화면 사각형에 처음 들어오는 지점을 구합니다.
-      // 시작화면 새를 화면 안이 아니라 실제 진입 경계 바로 바깥에서 출발시키는 데 사용합니다.
-      function getBirdPathEntryPointToVisibleBounds(
-        startX,
-        startY,
-        endX,
-        endY,
-        bounds
-      ) {
-        const dx = endX - startX;
-        const dy = endY - startY;
-        let tEnter = 0;
-        let tExit = 1;
-
-        const clipAxis = (start, delta, min, max) => {
-          if (Math.abs(delta) < 0.000001) {
-            return start >= min && start <= max;
-          }
-
-          let t1 = (min - start) / delta;
-          let t2 = (max - start) / delta;
-          if (t1 > t2) {
-            const swap = t1;
-            t1 = t2;
-            t2 = swap;
-          }
-
-          tEnter = Math.max(tEnter, t1);
-          tExit = Math.min(tExit, t2);
-          return tEnter <= tExit;
-        };
-
-        if (!clipAxis(startX, dx, bounds.left, bounds.right)) return null;
-        if (!clipAxis(startY, dy, bounds.top, bounds.bottom)) return null;
-        if (tExit < 0 || tEnter > 1) return null;
-
-        const t = clamp(tEnter, 0, 1);
-        return {
-          x: startX + dx * t,
-          y: startY + dy * t
-        };
-      }
-
       function createBirdFlock(
         count,
         isFirstKillFlock = false,
@@ -12529,12 +12482,16 @@
               perpendicular.y * lateralOffset;
           } else if (count === 2) {
             if (index === 1) {
+              const pairDistanceScale = randomBetween(
+                BIRD_V_DISTANCE_VARIATION_MIN,
+                BIRD_V_DISTANCE_VARIATION_MAX
+              );
               slotOffsetX =
-                (BIRD_V_SHALLOW_WING_STEP_X + BIRD_V_STEEP_WING_STEP_X) * 0.5 +
-                randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
+                ((BIRD_V_SHALLOW_WING_STEP_X + BIRD_V_STEEP_WING_STEP_X) * 0.5) * pairDistanceScale +
+                randomBetween(-BIRD_V_JITTER_X_PX, BIRD_V_JITTER_X_PX);
               slotOffsetY =
-                (BIRD_V_SHALLOW_WING_STEP_Y + BIRD_V_STEEP_WING_STEP_Y) * 0.5 +
-                randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
+                ((BIRD_V_SHALLOW_WING_STEP_Y + BIRD_V_STEEP_WING_STEP_Y) * 0.5) * pairDistanceScale +
+                randomBetween(-BIRD_V_JITTER_Y_PX, BIRD_V_JITTER_Y_PX);
             }
           } else if (index > 0) {
             const rank = Math.ceil(index / 2);
@@ -12545,12 +12502,16 @@
             const wingStepY = isShallowWing
               ? BIRD_V_SHALLOW_WING_STEP_Y
               : BIRD_V_STEEP_WING_STEP_Y;
+            const distanceScale = randomBetween(
+              BIRD_V_DISTANCE_VARIATION_MIN,
+              BIRD_V_DISTANCE_VARIATION_MAX
+            );
             slotOffsetX =
-              wingStepX * rank +
-              randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
+              wingStepX * rank * distanceScale +
+              randomBetween(-BIRD_V_JITTER_X_PX, BIRD_V_JITTER_X_PX);
             slotOffsetY =
-              wingStepY * rank +
-              randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
+              wingStepY * rank * distanceScale +
+              randomBetween(-BIRD_V_JITTER_Y_PX, BIRD_V_JITTER_Y_PX);
           }
 
           let startX = baseStart.x + slotOffsetX;
@@ -12562,35 +12523,14 @@
             BIRD_MAX_SCALE
           );
 
-          if (isStartScreenFlock) {
-            const entryPoint = getBirdPathEntryPointToVisibleBounds(
-              startX,
-              startY,
-              endX,
-              endY,
-              visibleBounds
-            );
-
-            if (entryPoint) {
-              // 새의 전체 이미지가 화면 밖에 있도록 반대 방향으로 반대각선만큼 더 물리고,
-              // 여기에 짧은 화면 기준 여백을 추가합니다.
-              const birdHalfDiagonal =
-                (42.6667 * scale * Math.SQRT2) / 2;
-              const entryLeadDistance =
-                birdHalfDiagonal +
-                START_SCREEN_BIRD_ENTRY_GAP_SCREEN_PX / visibleScale;
-
-              startX = entryPoint.x - direction.x * entryLeadDistance;
-              startY = entryPoint.y - direction.y * entryLeadDistance;
-            }
-          }
+          // 시작화면에서 각 새를 개별적으로 화면 경계에 맞춰 다시 당기면
+          // 첫 노출 지점이 같은 가로/세로선으로 눌려 보여 V 대형이 무너질 수 있습니다.
+          // 그래서 시작화면 새도 원래 오프셋을 유지한 채 그대로 화면 밖에서 진입시킵니다.
 
           // 같은 무리의 새는 같은 시점/속도로 움직여 V 대형이 비행 중 흐트러지지 않게 합니다.
           // 자연스러운 차이는 위치 jitter와 날갯짓 frameOffset만으로 만듭니다.
           const delay = 0;
-          const duration = isStartScreenFlock
-            ? Math.hypot(endX - startX, endY - startY) / speed
-            : baseDuration;
+          const duration = baseDuration;
           const frameOffset = Math.floor(
             Math.random() * BIRD_FRAME_COUNT
           );
