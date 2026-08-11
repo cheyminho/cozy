@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.152"
+  data-game-version="0.153"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4125,7 +4125,8 @@
       */
       const DOG_SPAWN_X = 1250;
       const DOG_SPAWN_Y = 800;
-      const DOG_FIRST_APPEAR_DAY = 7;
+      const DOG_FIRST_APPEAR_DAY = 28;
+      const TODO_DAY_28_TARGET = 28;
       const DOG_STORY_MIN_DURATION_MS = 1_000;
       const DOG_STORY_MAX_DURATION_MS = 3_000;
       const DOG_STAGE_TWO_RUN_DISTANCE_PX = 100;
@@ -4403,11 +4404,12 @@
         document.body.dataset.resetSaveOnVersionMismatch === "true";
       /*
         비 발생 확률 수정 위치
-        - 첫째 날에는 비가 오지 않습니다.
-        - 둘째 날부터 10%로 시작하며, 맑은 날이 지날 때마다 5%씩 증가합니다.
-        - 비가 온 날에는 다음 날 확률을 다시 10%로 낮춥니다.
+        - DAY 1~4에는 비가 오지 않습니다.
+        - DAY 5부터 5%로 시작하며, 맑은 날이 지날 때마다 5%씩 증가합니다.
+        - 비가 온 날에는 다음 날 확률을 다시 5%로 낮춥니다.
       */
-      const INITIAL_RAIN_CHANCE_PERCENT = 10;
+      const RAIN_FIRST_ELIGIBLE_DAY = 5;
+      const INITIAL_RAIN_CHANCE_PERCENT = 5;
       const RAIN_CHANCE_DAILY_INCREASE_PERCENT = 5;
       const MAX_RAIN_CHANCE_PERCENT = 100;
 
@@ -5816,8 +5818,8 @@
       // 개 친밀도 진행도: 완료 단계와 다음 단계가 처음 등장할 수 있는 DAY를 저장합니다.
       let dogCompletedStage = 0;
       let dogNextStageDay = DOG_FIRST_APPEAR_DAY;
+      let dogTreeEscapeDay = 0;
       // 투두를 받기 전에 했던 개 상호작용도 이후 미션에서 인정하기 위한 기록입니다.
-      let hasGreetedDog = false;
       let hasSeenDogBelly = false;
       // 3~6단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
       let dogStayStage = 0;
@@ -6293,7 +6295,7 @@
       }
 
       function rollWeatherForNewDay() {
-        if (dayCount <= 1) {
+        if (dayCount < RAIN_FIRST_ELIGIBLE_DAY) {
           isRainyToday = false;
           rainSpotSeed = 0;
           rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
@@ -7010,10 +7012,10 @@
           // 과거에 실제 비가 왔거나 현재 비가 오는 중이면 바로 인정합니다.
           complete("item1", hasEverRained || getCurrentRainState());
         } else if (listId === 6) {
-          // 이미 만든 화단과 기존 개 상호작용은 소급 인정합니다.
+          // 이미 만든 화단/지붕은 소급 인정하고, 세 번째 항목은 DAY 28부터 완료합니다.
           complete("item1", hasBuiltOutdoorSectionItem("garden"));
           complete("item2", repairAppliedItemBySection.buildings.roof !== 5);
-          complete("item3", hasGreetedDog || dogCompletedStage > 0);
+          complete("item3", dayCount >= TODO_DAY_28_TARGET);
         } else if (listId === 7) {
           complete("item1", hasKilledWithSupplyBox);
           complete("item2", repairAppliedItemBySection.buildings.walls !== 10);
@@ -7101,14 +7103,14 @@
             "repair the car"
           ],
           5: [
-            "get caught in the rain",
+            "raingurl",
             "find flowers",
             "explore the city"
           ],
           6: [
             "build a flower bed",
             "change the roof",
-            "greet the dog"
+            "28 days later"
           ],
           7: [
             "kill with a supply box",
@@ -8403,10 +8405,10 @@
             parsed.zombieKillRequirement
           );
           dayCount = normalizeDayCount(parsed.dayCount);
-          rainChancePercent = normalizeRainChancePercent(
-            parsed.rainChancePercent
-          );
-          isRainyToday = dayCount > 1 && parsed.isRainyToday === true;
+          rainChancePercent = dayCount < RAIN_FIRST_ELIGIBLE_DAY
+            ? INITIAL_RAIN_CHANCE_PERCENT
+            : normalizeRainChancePercent(parsed.rainChancePercent);
+          isRainyToday = dayCount >= RAIN_FIRST_ELIGIBLE_DAY && parsed.isRainyToday === true;
           hasEverRained = parsed.hasEverRained === true || isRainyToday;
           const storedRainSpotSeed = normalizeRainSpotSeed(parsed.rainSpotSeed);
           const shouldKeepRainSpotLayout = getCurrentRainState();
@@ -8423,9 +8425,12 @@
             Number(parsed.dogNextStageDay) || 0
           );
           dogNextStageDay = storedDogNextStageDay > 0
-            ? storedDogNextStageDay
+            ? Math.max(storedDogNextStageDay, DOG_FIRST_APPEAR_DAY)
             : DOG_FIRST_APPEAR_DAY;
-          hasGreetedDog = parsed.hasGreetedDog === true || dogCompletedStage > 0;
+          dogTreeEscapeDay = Math.max(
+            0,
+            Math.round(Number(parsed.dogTreeEscapeDay) || 0)
+          );
           hasSeenDogBelly = parsed.hasSeenDogBelly === true || dogCompletedStage >= 6;
           dogStayStage = clamp(
             Math.round(Number(parsed.dogStayStage) || 0),
@@ -8632,6 +8637,9 @@
                 isStrangerLetterOn = true;
               }
             }
+
+            // 기존 6차 세 번째 항목의 저장 완료값은 폐기하고 DAY 28 기준으로 다시 계산합니다.
+            todoProgress[6].item3 = dayCount >= TODO_DAY_28_TARGET;
           }
           fuelCount = normalizeStoredCount(parsed.fuel, MAX_INVENTORY_QUANTITY);
           hasMap = parsed.hasMap === true ||
@@ -8750,7 +8758,7 @@
               version: GAME_VERSION,
               dogCompletedStage,
               dogNextStageDay,
-              hasGreetedDog,
+              dogTreeEscapeDay,
               hasSeenDogBelly,
               dogStayStage,
               dogStayDay,
@@ -8880,7 +8888,7 @@
       function getCurrentRainState() {
         return TEST_MODE && FORCE_RAIN_FOR_TEST !== null
           ? FORCE_RAIN_FOR_TEST
-          : (dayCount > 1 && isRainyToday);
+          : (dayCount >= RAIN_FIRST_ELIGIBLE_DAY && isRainyToday);
       }
 
       function updateWeaponStatusIcon() {
@@ -10507,7 +10515,7 @@
 
         const shouldRain = TEST_MODE && FORCE_RAIN_FOR_TEST !== null
           ? FORCE_RAIN_FOR_TEST
-          : (dayCount > 1 && isRainyToday);
+          : (dayCount >= RAIN_FIRST_ELIGIBLE_DAY && isRainyToday);
         const wasRainy = document.body.classList.contains("is-rainy");
         document.body.classList.toggle("is-rainy", shouldRain);
         syncRainSpots(shouldRain);
@@ -11174,6 +11182,9 @@
         explorationEndsAt = 0;
         explorationDepartureDay = 0;
         dayCount += 1;
+        if (syncTodoProgressFromCurrentState(6)) {
+          updateTodoListUI();
+        }
         const isNewDayRainy = rollWeatherForNewDay();
 
         // 새 날에 비가 오면 당일 즉시 2마리로 초기화하고,
@@ -14418,6 +14429,15 @@
         treeChopCount += 1;
         woodCount = Math.min(getMaxWoodCount(), woodCount + 2);
 
+        if (isDogLyingUnderTree(dog)) {
+          dogTreeEscapeDay = dayCount;
+          startDogEscape(dog, {
+            completeStageOnExit: false,
+            resyncOnExit: false
+          });
+          showDogFrame(dog);
+        }
+
         if (treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH) {
           treeGrowthState = TREE_GROWTH_DEPLETED;
         }
@@ -15336,6 +15356,22 @@
         );
       }
 
+      function isDogLyingUnderTree(activeDog) {
+        if (!activeDog?.element?.classList.contains("is-under-tree")) {
+          return false;
+        }
+
+        return [
+          "storyLieIdle",
+          "storyLieWag",
+          "storyLieHeadUp",
+          "storyTailWagReaction",
+          "bellyDown",
+          "bellyIdle",
+          "bellyUp"
+        ].includes(activeDog.state);
+      }
+
       function dogStageUsesOccasionalHeadLift(stage) {
         return stage === 2 || stage === 3 || stage === 4 || stage === 6;
       }
@@ -15449,6 +15485,9 @@
       }
 
       function getDogStageForCurrentDay() {
+        if (dayCount < DOG_FIRST_APPEAR_DAY) return 0;
+        if (dogTreeEscapeDay === dayCount) return 0;
+
         if (
           dogStayDay === dayCount &&
           dogStayStage >= 3 &&
@@ -15527,6 +15566,7 @@
           : 0;
         activeDog.completeStageOnExit =
           options.completeStageOnExit === true;
+        activeDog.resyncOnExit = options.resyncOnExit !== false;
         if (activeDog.fastRunMode === "escape") {
           activeDog.element.style.pointerEvents = "none";
         }
@@ -15542,7 +15582,8 @@
         if (activeDog.activeStage === 1 || activeDog.activeStage === 2) {
           return startDogFastRun(activeDog, {
             mode: "escape",
-            completeStageOnExit: options.completeStageOnExit === true
+            completeStageOnExit: options.completeStageOnExit === true,
+            resyncOnExit: options.resyncOnExit !== false
           });
         }
 
@@ -15556,6 +15597,7 @@
         activeDog.horizontalFacing = "right";
         activeDog.completeStageOnExit =
           options.completeStageOnExit === true;
+        activeDog.resyncOnExit = options.resyncOnExit !== false;
         activeDog.element.style.pointerEvents = "none";
         activeDog.lastStateChangeAt = performance.now();
         activeDog.renderKey = "";
@@ -15684,11 +15726,6 @@
 
       function activateDog(activeDog, now = performance.now()) {
         if (!activeDog || isExploring) return false;
-
-        if (!hasGreetedDog) {
-          hasGreetedDog = true;
-          setTodoProgress(6, "item3", true);
-        }
 
         // 전환·강제 이동 중에는 재입력을 소비하되 동작은 바꾸지 않습니다.
         if (
@@ -16009,7 +16046,7 @@
             if (activeDog.completeStageOnExit) {
               completeDogStage(activeDog.activeStage);
             }
-            removeDog();
+            removeDog({ resync: activeDog.resyncOnExit !== false });
             return;
           }
 
@@ -16049,7 +16086,7 @@
               if (activeDog.completeStageOnExit) {
                 completeDogStage(activeDog.activeStage);
               }
-              removeDog();
+              removeDog({ resync: activeDog.resyncOnExit !== false });
               return;
             }
           }
@@ -16411,6 +16448,7 @@
           boundaryReturnTargetX: position.x,
           boundaryReturnTargetY: position.y,
           completeStageOnExit: false,
+          resyncOnExit: true,
           sitPersistent: false,
           sitReturnMode: "free",
           afterStandMode: "free",
