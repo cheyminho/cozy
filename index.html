@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.153"
+  data-game-version="0.154"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5862,6 +5862,8 @@
       let currentTodoListId = 0;
       let todoSubmittedListId = 0;
       let todoSubmittedDay = 0;
+      // 5차 비 미션은 미션을 실제로 받은 날부터의 비만 인정합니다.
+      let todoRainMissionAcceptedDay = 0;
       // 고양이가 실제로 우편함에 편지를 넣은 메일 ID만 저장합니다.
       // 이동 중 새로고침하면 저장되지 않으므로 다음 진입에서 배달 연출을 다시 시작합니다.
       let lastCatDeliveredTodoListId = 0;
@@ -6305,7 +6307,13 @@
         isRainyToday = Math.random() * 100 < rainChancePercent;
         if (isRainyToday) {
           hasEverRained = true;
-          setTodoProgress(5, "item1", true);
+          if (
+            currentTodoListId === 5 &&
+            todoRainMissionAcceptedDay > 0 &&
+            dayCount >= todoRainMissionAcceptedDay
+          ) {
+            setTodoProgress(5, "item1", true);
+          }
         }
         rainSpotSeed = isRainyToday ? createRainSpotSeed() : 0;
         rainChancePercent = isRainyToday
@@ -6939,6 +6947,11 @@
         }
 
         currentTodoListId = listId;
+        if (listId === 5 && todoRainMissionAcceptedDay <= 0) {
+          todoRainMissionAcceptedDay = dayCount;
+          // 이전 날의 비로 미리 완료된 값이 남아 있어도 미션 수령 시점에 폐기합니다.
+          todoProgress[5].item1 = false;
+        }
         syncTodoProgressFromCurrentState(listId);
         hasStrangerLetter = true;
         isStrangerLetterOn = true;
@@ -7009,8 +7022,14 @@
           complete("item2", fuelCount >= 10);
           complete("item3", isCarRepaired());
         } else if (listId === 5) {
-          // 과거에 실제 비가 왔거나 현재 비가 오는 중이면 바로 인정합니다.
-          complete("item1", hasEverRained || getCurrentRainState());
+          // 미션을 실제로 받은 날을 포함해 그 이후 현재 비가 오는 경우만 인정합니다.
+          complete(
+            "item1",
+            currentTodoListId === 5 &&
+              todoRainMissionAcceptedDay > 0 &&
+              dayCount >= todoRainMissionAcceptedDay &&
+              getCurrentRainState()
+          );
         } else if (listId === 6) {
           // 이미 만든 화단/지붕은 소급 인정하고, 세 번째 항목은 DAY 28부터 완료합니다.
           complete("item1", hasBuiltOutdoorSectionItem("garden"));
@@ -7103,7 +7122,7 @@
             "repair the car"
           ],
           5: [
-            "raingurl",
+            "singin’ in the rain",
             "find flowers",
             "explore the city"
           ],
@@ -8277,7 +8296,11 @@
         if (repairSelectedCategory === "repair") {
           if (!item.unlocked || item.built) return;
           if (!canAffordRepairMaterials(item.materials)) return;
-          playSound(CRAFTING_SOUND);
+          playSound(
+            item.blueprintId === CAR_REPAIR_BLUEPRINT_ID
+              ? CAR_HORN_SOUND
+              : CRAFTING_SOUND
+          );
           consumeRepairMaterials(item.materials);
           item.built = true;
           item.isNew = false;
@@ -8588,6 +8611,9 @@
             TODO_MAX_LIST_ID
           );
           todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
+          todoRainMissionAcceptedDay = normalizeDayCount(
+            parsed.todoRainMissionAcceptedDay || 0
+          );
           const storedCatMailDeliverySchemaVersion = Math.max(
             0,
             Math.round(Number(parsed.catMailDeliverySchemaVersion) || 0)
@@ -8641,6 +8667,18 @@
             // 기존 6차 세 번째 항목의 저장 완료값은 폐기하고 DAY 28 기준으로 다시 계산합니다.
             todoProgress[6].item3 = dayCount >= TODO_DAY_28_TARGET;
           }
+
+          // 이전 버전 저장에는 5차 비 미션 수령일이 없으므로 현재 진행 상태에 맞춰 보정합니다.
+          // 아직 5차를 받기 전이면 과거 비로 미리 완료된 값은 제거합니다.
+          if (todoRainMissionAcceptedDay <= 0) {
+            if (currentTodoListId === 5) {
+              todoRainMissionAcceptedDay = dayCount;
+              todoProgress[5].item1 = getCurrentRainState();
+            } else if (todoSubmittedListId < 5 && currentTodoListId < 5) {
+              todoProgress[5].item1 = false;
+            }
+          }
+
           fuelCount = normalizeStoredCount(parsed.fuel, MAX_INVENTORY_QUANTITY);
           hasMap = parsed.hasMap === true ||
             parsed.map === true ||
@@ -8811,6 +8849,7 @@
               currentTodoListId,
               todoSubmittedListId,
               todoSubmittedDay,
+              todoRainMissionAcceptedDay,
               lastCatDeliveredTodoListId,
               catMailDeliverySchemaVersion: CAT_MAIL_DELIVERY_SCHEMA_VERSION,
               todoSchemaVersion: TODO_SCHEMA_VERSION,
