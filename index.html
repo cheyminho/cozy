@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.140"
+  data-game-version="0.141"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5156,16 +5156,16 @@
       */
       const START_SCREEN_BIRD_EXTRA_MIN_COUNT = 1;
       const START_SCREEN_BIRD_EXTRA_MAX_COUNT = 2;
-      const START_SCREEN_BIRD_Y_OFFSET_MIN_PX = -300;
-      const START_SCREEN_BIRD_Y_OFFSET_MAX_PX = 300;
+      const START_SCREEN_BIRD_Y_OFFSET_MIN_PX = -900;
+      const START_SCREEN_BIRD_Y_OFFSET_MAX_PX = 900;
       const START_SCREEN_BIRD_SPEED_SCREEN_PX_PER_MS = 0.1;
 
       /*
         상시 새 떼 Y 오프셋 수정 위치
         - min/max 사이에서 무리마다 랜덤으로 선택합니다.
       */
-      const AMBIENT_BIRD_Y_OFFSET_MIN_PX = -300;
-      const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 300;
+      const AMBIENT_BIRD_Y_OFFSET_MIN_PX = -700;
+      const AMBIENT_BIRD_Y_OFFSET_MAX_PX = 700;
 
       // 같은 무리 안의 새들이 너무 겹치지 않도록 경로 간 최소 간격을 둡니다.
       const BIRD_MIN_TRAIL_GAP_PX = 64;
@@ -12659,7 +12659,10 @@
           cancelAnimationFrame(startScreenSceneAnimationFrameId);
           startScreenSceneAnimationFrameId = null;
         }
-        clearStartScreenBirds();
+
+        // 시작화면에서 이미 날고 있던 새는 삭제하지 않습니다.
+        // 게임 루프의 updateBirds()가 같은 새들을 이어서 갱신하므로
+        // 시작화면 → 게임화면 확대 전환 중에도 현재 비행을 끝까지 유지합니다.
       }
 
       function scheduleNextAmbientBirdFlock() {
