@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.143"
+  data-game-version="0.144"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5174,12 +5174,14 @@
       const BIRD_MIN_LATERAL_GAP_PX = 44;
       const BIRD_MIN_PATH_DISTANCE_PX = 88;
 
-      // 새 무리는 선두를 중심으로 좌우 뒤쪽에 퍼지는 V 대형을 우선 사용합니다.
-      // 각 단계마다 약간의 랜덤 흔들림을 줘 너무 기계적으로 보이지 않게 합니다.
-      const BIRD_V_TRAIL_STEP_PX = 92;
-      const BIRD_V_LATERAL_STEP_PX = 68;
-      const BIRD_V_TRAIL_JITTER_PX = 8;
-      const BIRD_V_LATERAL_JITTER_PX = 6;
+      // bird_fly.png는 남서쪽 → 북동쪽(↗)을 바라보는 리소스입니다.
+      // 같은 방향으로 비행할 때 V 날개가 화면의 가로/세로선처럼 보이지 않도록
+      // 앞뒤 간격을 더 크게, 좌우 간격을 더 좁게 잡아 약 22도짜리 좁은 V를 만듭니다.
+      // 각 단계에는 작은 랜덤 흔들림만 남겨 대형 자체는 유지합니다.
+      const BIRD_V_TRAIL_STEP_PX = 120;
+      const BIRD_V_LATERAL_STEP_PX = 48;
+      const BIRD_V_TRAIL_JITTER_PX = 7;
+      const BIRD_V_LATERAL_JITTER_PX = 5;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -12512,16 +12514,21 @@
           element.className = "bird";
           birdsLayer.appendChild(element);
 
-          // 3마리 이상은 선두 1마리를 기준으로 좌우 뒤쪽에 번갈아 배치해
-          // 전체적으로 V 대형이 보이도록 합니다. 2마리는 자연스러운 소편대로 배치합니다.
+          // 시작화면/상시 새 떼는 V 대형을 사용합니다.
+          // 첫 좀비 처치 연출만 V 대형에서 제외하고, 빠르게 흩어져 지나가는 불규칙한 무리로 배치합니다.
           let trailOffset = 0;
           let lateralOffset = 0;
 
-          if (count === 2) {
+          if (isFirstKillFlock) {
+            trailOffset = randomBetween(-105, 105);
+            lateralOffset = randomBetween(-110, 110);
+          } else if (count === 2) {
             const side = index === 0 ? -1 : 1;
             trailOffset = randomBetween(-6, 6);
+            // 2마리는 완전한 V를 만들 수 없으므로 ↗ 비행 방향에 대해
+            // 가로/세로가 아닌 대각선 소편대로 보이게 충분히 벌립니다.
             lateralOffset =
-              side * (BIRD_V_LATERAL_STEP_PX * 0.72) +
+              side * (BIRD_V_LATERAL_STEP_PX * 0.96) +
               randomBetween(-BIRD_V_LATERAL_JITTER_PX, BIRD_V_LATERAL_JITTER_PX);
           } else if (index === 0) {
             trailOffset = BIRD_V_TRAIL_STEP_PX +
@@ -12612,11 +12619,12 @@
             }
           }
 
-          const delay = randomBetween(0, isFirstKillFlock ? 240 : 180);
-          const durationBase = isStartScreenFlock
+          // 같은 무리의 새는 같은 시점/속도로 움직여 V 대형이 비행 중 흐트러지지 않게 합니다.
+          // 자연스러운 차이는 위치 jitter와 날갯짓 frameOffset만으로 만듭니다.
+          const delay = 0;
+          const duration = isStartScreenFlock
             ? Math.hypot(endX - startX, endY - startY) / speed
             : baseDuration;
-          const duration = durationBase * randomBetween(0.92, 1.08);
           const frameOffset = Math.floor(
             Math.random() * BIRD_FRAME_COUNT
           );
