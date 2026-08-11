@@ -3535,7 +3535,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.145"
+  data-game-version="0.146"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5175,13 +5175,14 @@
       const BIRD_MIN_PATH_DISTANCE_PX = 88;
 
       // bird_fly.png는 남서쪽 → 북동쪽(↗)을 바라보는 리소스입니다.
-      // 시작화면/상시 새는 진행 방향의 뒤쪽으로 ±24도 갈라지는 실제 V 날개 벡터를 사용합니다.
-      // 이렇게 하면 화면 좌표계 기준으로 가로줄/세로줄처럼 보이는 현상을 줄일 수 있습니다.
-      const BIRD_V_BRANCH_ANGLE_DEG = 24;
-      const BIRD_V_TRAIL_STEP_PX = 120;
-      const BIRD_V_PAIR_DISTANCE_PX = 92;
-      const BIRD_V_TRAIL_JITTER_PX = 7;
-      const BIRD_V_LATERAL_JITTER_PX = 5;
+      // 새 V 대형은 실제 이동 경로 기울기와 분리하고,
+      // 화면 기준으로 항상 북동(↗)을 향한 형태가 보이도록 고정 오프셋을 사용합니다.
+      // 한쪽 날개는 완만한 대각선, 다른 한쪽 날개는 더 가파른 대각선으로 퍼집니다.
+      const BIRD_V_SHALLOW_WING_STEP_X = -72;
+      const BIRD_V_SHALLOW_WING_STEP_Y = 24;
+      const BIRD_V_STEEP_WING_STEP_X = -24;
+      const BIRD_V_STEEP_WING_STEP_Y = 72;
+      const BIRD_V_JITTER_PX = 5;
 
       // 시작점과 끝점의 세로 바깥 여백을 줄여 비행 경로를 조금 더 수평에 가깝게 만듭니다.
       // 1 = 기존처럼 세로 방향도 margin 전체 사용 / 0.25 = margin의 25%만 사용
@@ -12506,24 +12507,13 @@
             : AMBIENT_BIRD_SPEED_SCREEN_PX_PER_MS;
         const baseDuration = pathLength / speed;
         const now = performance.now();
-        const birdVBranchAngle = (BIRD_V_BRANCH_ANGLE_DEG * Math.PI) / 180;
-        const backwardDirection = {
-          x: -direction.x,
-          y: -direction.y
-        };
-        const rotateVector = (vector, radians) => ({
-          x: vector.x * Math.cos(radians) - vector.y * Math.sin(radians),
-          y: vector.x * Math.sin(radians) + vector.y * Math.cos(radians)
-        });
-        const leftWingDirection = rotateVector(backwardDirection, birdVBranchAngle);
-        const rightWingDirection = rotateVector(backwardDirection, -birdVBranchAngle);
 
         for (let index = 0; index < count; index += 1) {
           const element = document.createElement("div");
           element.className = "bird";
           birdsLayer.appendChild(element);
 
-          // 시작화면/상시 새 떼는 실제 V 날개 벡터를 사용합니다.
+          // 시작화면/상시 새 떼는 화면 기준 북동(↗) 방향의 V 대형을 사용합니다.
           // 첫 좀비 처치 연출만 V 대형에서 제외하고, 빠르게 흩어져 지나가는 불규칙한 무리로 배치합니다.
           let slotOffsetX = 0;
           let slotOffsetY = 0;
@@ -12538,32 +12528,29 @@
               direction.y * trailOffset +
               perpendicular.y * lateralOffset;
           } else if (count === 2) {
-            const wingDirection = index === 0
-              ? leftWingDirection
-              : rightWingDirection;
-            const pairDistance =
-              BIRD_V_PAIR_DISTANCE_PX +
-              randomBetween(-BIRD_V_TRAIL_JITTER_PX, BIRD_V_TRAIL_JITTER_PX);
-            slotOffsetX = wingDirection.x * pairDistance;
-            slotOffsetY = wingDirection.y * pairDistance;
+            if (index === 1) {
+              slotOffsetX =
+                (BIRD_V_SHALLOW_WING_STEP_X + BIRD_V_STEEP_WING_STEP_X) * 0.5 +
+                randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
+              slotOffsetY =
+                (BIRD_V_SHALLOW_WING_STEP_Y + BIRD_V_STEEP_WING_STEP_Y) * 0.5 +
+                randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
+            }
           } else if (index > 0) {
             const rank = Math.ceil(index / 2);
-            const wingDirection = index % 2 === 1
-              ? leftWingDirection
-              : rightWingDirection;
-            const distance =
-              rank * BIRD_V_TRAIL_STEP_PX +
-              randomBetween(-BIRD_V_TRAIL_JITTER_PX, BIRD_V_TRAIL_JITTER_PX);
-            const wingSpreadJitter = randomBetween(
-              -BIRD_V_LATERAL_JITTER_PX,
-              BIRD_V_LATERAL_JITTER_PX
-            );
+            const isShallowWing = index % 2 === 1;
+            const wingStepX = isShallowWing
+              ? BIRD_V_SHALLOW_WING_STEP_X
+              : BIRD_V_STEEP_WING_STEP_X;
+            const wingStepY = isShallowWing
+              ? BIRD_V_SHALLOW_WING_STEP_Y
+              : BIRD_V_STEEP_WING_STEP_Y;
             slotOffsetX =
-              wingDirection.x * distance +
-              perpendicular.x * wingSpreadJitter;
+              wingStepX * rank +
+              randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
             slotOffsetY =
-              wingDirection.y * distance +
-              perpendicular.y * wingSpreadJitter;
+              wingStepY * rank +
+              randomBetween(-BIRD_V_JITTER_PX, BIRD_V_JITTER_PX);
           }
 
           let startX = baseStart.x + slotOffsetX;
