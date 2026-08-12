@@ -14,9 +14,17 @@
     }
 
     @font-face {
-      font-family: "Caveat";
-      src: url("fonts/Caveat-VariableFont_wght.ttf") format("truetype");
-      font-weight: 400 700;
+      font-family: "Kalam";
+      src: url("fonts/Kalam-Light.ttf") format("truetype");
+      font-weight: 300;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Kalam";
+      src: url("fonts/Kalam-Regular.ttf") format("truetype");
+      font-weight: 400;
       font-style: normal;
       font-display: swap;
     }
@@ -422,36 +430,41 @@
       cursor: default;
     }
 
-    #todoListOverlay {
+    #todoListOverlay,
+    #guideOverlay {
       position: absolute;
       left: 20px;
-      top: 90px;
+      top: 100px;
       z-index: 30;
-      color: rgba(255, 255, 255, 0.7);
-      font-family: "Caveat", cursive;
-      font-size: 22px;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-size: 16px;
       font-style: normal;
-      font-weight: 200;
+      font-weight: 300;
       line-height: 0.4;
       text-align: left;
       opacity: 1;
       transform: translateX(0);
       white-space: pre-wrap;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       pointer-events: none;
       will-change: transform, opacity;
     }
 
-    #todoListOverlay[hidden] {
+    #todoListOverlay[hidden],
+    #guideOverlay[hidden] {
       display: none;
     }
 
-    #todoListOverlay.is-showing {
+    #todoListOverlay.is-showing,
+    #guideOverlay.is-showing {
       animation:
         todo-list-slide-in 700ms cubic-bezier(0.39, 0.575, 0.565, 1) both,
         todo-list-fade-in 700ms linear both;
     }
 
-    #todoListOverlay.is-hiding {
+    #todoListOverlay.is-hiding,
+    #guideOverlay.is-hiding {
       animation: todo-list-fade-out 300ms linear forwards;
     }
 
@@ -471,9 +484,12 @@
     }
 
     #todoListTitle {
+      font-size: 18px;
       display: block;
-      margin-bottom: 3px;
-      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 5px;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-weight: 200;
       line-height: 0.36;
       text-transform: lowercase;
     }
@@ -487,7 +503,7 @@
     }
 
     .todo-item + .todo-item {
-      margin-top: -2px;
+      margin-top: 4px;
     }
 
     .todo-item.is-complete {
@@ -509,6 +525,20 @@
       top: calc(50% + 2px);
       border-top: 1px solid currentColor;
       transform: translateY(-50%);
+    }
+
+    .guide-line {
+      display: block;
+      width: max-content;
+      max-width: min(360px, calc(100vw - 40px));
+      color: inherit;
+      font: inherit;
+      font-weight: 300;
+      line-height: inherit;
+    }
+
+    .guide-line + .guide-line {
+      margin-top: 6px;
     }
 
     #todoDoneNote,
@@ -1644,6 +1674,7 @@
     /* 시작화면에서는 게임 HUD와 필드 입력을 완전히 감춥니다. */
     body.is-start-screen #hud,
     body.is-start-screen #todoListOverlay,
+    body.is-start-screen #guideOverlay,
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton,
@@ -1688,6 +1719,7 @@
     }
 
     body.is-start-screen #todoListOverlay,
+    body.is-start-screen #guideOverlay,
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton {
@@ -1707,6 +1739,7 @@
     }
 
     body.is-entering-game #todoListOverlay,
+    body.is-entering-game #guideOverlay,
     body.is-entering-game #repairButton,
     body.is-entering-game #inventoryButton,
     body.is-entering-game #exploreButton,
@@ -1735,6 +1768,7 @@
       letter-spacing: 0.01em;
       text-align: center;
       white-space: nowrap;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       pointer-events: none;
     }
 
@@ -1841,6 +1875,7 @@
       font-weight: 400;
       line-height: 1;
       text-align: right;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       opacity: 0.7;
       pointer-events: none;
     }
@@ -2895,6 +2930,7 @@
       text-align: right;
       opacity: 0;
       visibility: hidden;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       pointer-events: none;
       transition: none;
     }
@@ -3011,6 +3047,7 @@
       text-align: right;
       opacity: 1;
       visibility: visible;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       pointer-events: none;
       transition: opacity 2s ease-out;
     }
@@ -3535,7 +3572,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.157"
+  data-game-version="0.158"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3744,6 +3781,11 @@
   </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   <div id="menuBackdrop" aria-hidden="true"></div>
+  <div id="guideOverlay" hidden>
+    <span class="guide-line">zombies and deer appear over time.</span>
+    <span class="guide-line">explore to advance the day and earn rewards.</span>
+    <span class="guide-line">check your mailbox for new tasks.</span>
+  </div>
   <div id="todoListOverlay" hidden>
     <span id="todoListTitle">to do :</span>
     <span class="todo-item" data-todo-key="item1">kill a zombie</span>
@@ -3844,6 +3886,10 @@
             <button class="inventory-item" type="button" role="menuitem" data-item="strangerLetter" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">A Stranger’s Letter</span></span>
               <span class="inventory-item__quantity">ON</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="guide" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Guide</span></span>
+              <span class="inventory-item__quantity">OFF</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="compass" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Compass</span></span>
@@ -4125,7 +4171,7 @@
       */
       const DOG_SPAWN_X = 1250;
       const DOG_SPAWN_Y = 800;
-      const DOG_FIRST_APPEAR_DAY = 24;
+      const DOG_FIRST_APPEAR_DAY = 2;
       const TODO_DAY_28_TARGET = 28;
       const DOG_STORY_MIN_DURATION_MS = 1_000;
       const DOG_STORY_MAX_DURATION_MS = 3_000;
@@ -4321,6 +4367,7 @@
       const INVENTORY_ITEM_SORT_GROUPS = Object.freeze({
         musicBox: 0,
         strangerLetter: 0,
+        guide: 0,
         axe: 1,
         handgun: 1,
         shotgun: 1,
@@ -4844,6 +4891,7 @@
       const CAR_PARTS_SELECTED_TOAST_MESSAGE = "I might need these for the car.";
       const PAINT_SELECTED_TOAST_MESSAGE = "I could paint something.";
       const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s see what they want.";
+      const GUIDE_SELECTED_TOAST_MESSAGE = "A quick reminder.";
       const REPAIR_GRID_ITEM_COUNT = 25;
       const REPAIR_CATEGORY_ORDER = [
         "outdoor",
@@ -5277,6 +5325,9 @@
       const strangerLetterInventoryItem = document.querySelector(
         '.inventory-item[data-item="strangerLetter"]'
       );
+      const guideInventoryItem = document.querySelector(
+        '.inventory-item[data-item="guide"]'
+      );
       const compassInventoryItem = document.querySelector(
         '.inventory-item[data-item="compass"]'
       );
@@ -5367,6 +5418,7 @@
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
       const todoListOverlay = document.getElementById("todoListOverlay");
+      const guideOverlay = document.getElementById("guideOverlay");
       const todoItemElements = Array.from(
         document.querySelectorAll("#todoListOverlay .todo-item")
       );
@@ -5727,6 +5779,9 @@
       let hasCompass = false;
       let hasStrangerLetter = false;
       let isStrangerLetterOn = false;
+      let hasGuide = false;
+      let isGuideOn = false;
+      let guideHideTimerId = null;
       let carPartsCount = 0;
       let flowerCount = 0;
       const paintCounts = Object.fromEntries(
@@ -5880,7 +5935,7 @@
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
       const TODO_MAX_LIST_ID = 8;
-      const TODO_SCHEMA_VERSION = 3;
+      const TODO_SCHEMA_VERSION = 4;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -6960,6 +7015,7 @@
         syncTodoProgressFromCurrentState(listId);
         hasStrangerLetter = true;
         isStrangerLetterOn = true;
+        isGuideOn = false;
         todoSubmittedListId = 0;
         todoSubmittedDay = 0;
         isTodoListRevealDelayed = true;
@@ -6969,6 +7025,7 @@
         }
 
         applyInventoryState();
+        updateGuideUI();
         updateTodoListUI();
         saveResourceState();
 
@@ -7023,6 +7080,7 @@
           complete("item3", isShedRepaired());
         } else if (listId === 3) {
           complete("item1", getUnlockedBlueprintCount() >= 3);
+          complete("item2", dogCompletedStage >= 6);
         } else if (listId === 4) {
           complete("item2", fuelCount >= 10);
           complete("item3", isCarRepaired());
@@ -7036,14 +7094,14 @@
               getCurrentRainState()
           );
         } else if (listId === 6) {
-          // 이미 만든 화단/지붕은 소급 인정하고, 세 번째 항목은 DAY 28부터 완료합니다.
-          complete("item1", hasBuiltOutdoorSectionItem("garden"));
+          // 개와 놀기는 미션 수령 후 새 배보이기 동작을 직접 유도해야 완료합니다.
+          // 지붕은 기존 설치 상태를 소급 인정하고, 세 번째 항목은 DAY 28부터 완료합니다.
           complete("item2", repairAppliedItemBySection.buildings.roof !== 5);
           complete("item3", dayCount >= TODO_DAY_28_TARGET);
         } else if (listId === 7) {
           complete("item1", hasKilledWithSupplyBox);
           complete("item2", repairAppliedItemBySection.buildings.walls !== 10);
-          complete("item3", hasSeenDogBelly || dogCompletedStage >= 6);
+          complete("item3", hasBuiltOutdoorSectionItem("garden"));
         }
 
         return changed;
@@ -7061,6 +7119,58 @@
       function isTodoListComplete(listId) {
         const list = todoProgress[listId];
         return Boolean(list) && Object.values(list).every(Boolean);
+      }
+
+      function showGuideOverlay() {
+        if (!guideOverlay) return;
+        if (guideHideTimerId !== null) {
+          clearTimeout(guideHideTimerId);
+          guideHideTimerId = null;
+        }
+
+        const wasHidden = guideOverlay.hidden;
+        guideOverlay.classList.remove("is-hiding");
+        guideOverlay.hidden = false;
+
+        if (
+          wasHidden &&
+          hasGameInitialized &&
+          !document.body.classList.contains("is-start-screen")
+        ) {
+          guideOverlay.classList.remove("is-showing");
+          void guideOverlay.offsetWidth;
+          guideOverlay.classList.add("is-showing");
+        } else if (wasHidden) {
+          guideOverlay.classList.remove("is-showing");
+        }
+      }
+
+      function hideGuideOverlay() {
+        if (!guideOverlay || guideOverlay.hidden) return;
+        if (guideHideTimerId !== null) {
+          clearTimeout(guideHideTimerId);
+        }
+
+        guideOverlay.classList.remove("is-showing");
+        guideOverlay.classList.add("is-hiding");
+        guideHideTimerId = window.setTimeout(() => {
+          guideHideTimerId = null;
+          guideOverlay.hidden = true;
+          guideOverlay.classList.remove("is-hiding");
+        }, 300);
+      }
+
+      function updateGuideUI() {
+        if (!guideOverlay) return;
+        const visible =
+          (!mailboxIntroTriggered && !hasGuide) ||
+          (hasGuide && isGuideOn);
+
+        if (visible) {
+          showGuideOverlay();
+        } else {
+          hideGuideOverlay();
+        }
       }
 
       function showTodoListOverlay() {
@@ -7118,7 +7228,7 @@
           ],
           3: [
             "collect 3 blueprints",
-            "kill with a different weapon",
+            "befriend the dog",
             "explore the forest"
           ],
           4: [
@@ -7132,14 +7242,14 @@
             "explore the city"
           ],
           6: [
-            "build a flower bed",
+            "play with the dog",
             "change the roof",
             "28 days later"
           ],
           7: [
             "kill with a supply box",
             "change the walls",
-            "befriend the dog"
+            "build a flower bed"
           ],
           8: [
             "wait for the next update"
@@ -7213,6 +7323,8 @@
 
         if (!mailboxIntroTriggered && currentTodoListId === 0 && todoSubmittedListId === 0) {
           mailboxIntroTriggered = true;
+          hasGuide = true;
+          isGuideOn = false;
           deliverTodoList(1);
           showToast(MAIL_FIRST_TOAST_MESSAGE);
           return;
@@ -7227,6 +7339,7 @@
             hasStrangerLetter = false;
             isStrangerLetterOn = false;
             applyInventoryState();
+            updateGuideUI();
             updateTodoListUI();
             saveResourceState();
             showToast(MAIL_DONE_TOAST_MESSAGE);
@@ -8336,7 +8449,7 @@
           if (repairSelectedCategory === "outdoor") {
             const section = getRepairSectionDefinition("outdoor", selectedIndex);
             if (section?.key === "garden") {
-              setTodoProgress(6, "item1", true);
+              setTodoProgress(7, "item3", true);
             }
           }
           updateResourceHud();
@@ -8452,9 +8565,12 @@
           const storedDogNextStageDay = Math.round(
             Number(parsed.dogNextStageDay) || 0
           );
-          dogNextStageDay = storedDogNextStageDay > 0
-            ? Math.max(storedDogNextStageDay, DOG_FIRST_APPEAR_DAY)
-            : DOG_FIRST_APPEAR_DAY;
+          // 첫 만남 전의 기존 저장값은 이전 DAY 24 대기값을 유지하지 않고 새 DAY 2 기준으로 보정합니다.
+          dogNextStageDay = dogCompletedStage === 0
+            ? DOG_FIRST_APPEAR_DAY
+            : (storedDogNextStageDay > 0
+                ? Math.max(storedDogNextStageDay, DOG_FIRST_APPEAR_DAY)
+                : DOG_FIRST_APPEAR_DAY);
           dogTreeEscapeDay = Math.max(
             0,
             Math.round(Number(parsed.dogTreeEscapeDay) || 0)
@@ -8544,6 +8660,7 @@
             : [];
 
           for (const itemType of storedNewInventoryItems) {
+            if (itemType === "guide") continue;
             if (
               typeof itemType === "string" &&
               inventoryItems.some(
@@ -8616,6 +8733,14 @@
             TODO_MAX_LIST_ID
           );
           todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
+          hasGuide = parsed.hasGuide === true ||
+            mailboxIntroTriggered ||
+            currentTodoListId > 0 ||
+            todoSubmittedListId > 0;
+          isGuideOn = hasGuide && parsed.isGuideOn === true;
+          if (isStrangerLetterOn && isGuideOn) {
+            isGuideOn = false;
+          }
           todoRainMissionAcceptedDay = normalizeDayCount(
             parsed.todoRainMissionAcceptedDay || 0
           );
@@ -8667,6 +8792,15 @@
                 hasStrangerLetter = true;
                 isStrangerLetterOn = true;
               }
+            }
+
+            if (storedTodoSchemaVersion < 4) {
+              // 3차 item2는 이전 무기 미션 완료값을 버리고 현재 개 친밀도 기준으로 다시 계산합니다.
+              todoProgress[3].item2 = dogCompletedStage >= 6;
+              // 6차 item1은 새 "play with the dog" 미션이므로 과거 화단 완료값을 이어받지 않습니다.
+              todoProgress[6].item1 = false;
+              // 7차 item3은 화단 제작 상태를 repairState 로드 후 다시 소급 계산합니다.
+              todoProgress[7].item3 = false;
             }
 
             // 기존 6차 세 번째 항목의 저장 완료값은 폐기하고 DAY 28 기준으로 다시 계산합니다.
@@ -8844,6 +8978,8 @@
               hasCompass,
               hasStrangerLetter,
               isStrangerLetterOn,
+              hasGuide,
+              isGuideOn,
               carParts: carPartsCount,
               flowers: flowerCount,
               paintCounts: { ...paintCounts },
@@ -9440,6 +9576,7 @@
           hasChainsawBattery ||
           hasMusicBox ||
           hasStrangerLetter ||
+          hasGuide ||
           hasCompass ||
           carPartsCount > 0 ||
           fuelCount > 0 ||
@@ -11525,6 +11662,7 @@
           chainsawBatteryPercent >= TEST_CHAINSAW_BATTERY_PERCENT &&
           hasMusicBox &&
           hasStrangerLetter &&
+          hasGuide &&
           hasCompass &&
           (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
           flowerCount > 0 &&
@@ -11573,6 +11711,10 @@
 
         markNewIfMissing("strangerLetter", hasStrangerLetter);
         hasStrangerLetter = true;
+
+        // Guide는 참고용 항목이므로 테스트 지급에서도 NEW 태그를 붙이지 않습니다.
+        hasGuide = true;
+        isGuideOn = false;
 
         markNewIfMissing("compass", hasCompass);
         hasCompass = true;
@@ -13935,6 +14077,11 @@
           setInventoryValue(strangerLetterInventoryItem, isStrangerLetterOn ? "ON" : "OFF");
         }
 
+        if (guideInventoryItem) {
+          guideInventoryItem.hidden = !hasGuide;
+          setInventoryValue(guideInventoryItem, isGuideOn ? "ON" : "OFF");
+        }
+
         if (compassInventoryItem) {
           compassInventoryItem.hidden = !hasCompass;
           setInventoryValue(compassInventoryItem, "");
@@ -15594,7 +15741,10 @@
         options = {}
       ) {
         hasSeenDogBelly = true;
-        setTodoProgress(7, "item3", true);
+        // 6차 미션을 실제로 받은 뒤 새로 배보이기 동작을 유도했을 때만 "play with the dog"를 완료합니다.
+        if (currentTodoListId === 6) {
+          setTodoProgress(6, "item1", true);
+        }
         activeDog.state = "bellyDown";
         activeDog.stateUntil = 0;
         activeDog.animationElapsed = 0;
@@ -15672,6 +15822,10 @@
         dogCompletedStage = stage;
         dogNextStageDay =
           dayCount + (DOG_STAGE_ADVANCE_DELAY_DAYS[stage] || 1);
+
+        if (stage >= 6) {
+          setTodoProgress(3, "item2", true);
+        }
 
         if (options.stayVisible === true && stage >= 3) {
           dogStayStage = stage;
@@ -17546,7 +17700,6 @@
           const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
           deer.health = Math.max(0, deer.health - damage);
           if (deer.health <= 0) {
-            recordDifferentWeaponKill(weapon);
             if (isCritical) setTodoProgress(4, "item1", true);
             beginDeerDeath(deer);
           }
@@ -17556,7 +17709,6 @@
         if (weapon === "rifle") {
           consumeAmmo("rifle");
           playSound(RIFLE_FIRE_SOUND);
-          recordDifferentWeaponKill(weapon);
           setTodoProgress(4, "item1", true);
           deer.health = 0;
           beginDeerDeath(deer);
@@ -18401,8 +18553,7 @@
         for (const zombie of hitZombies) {
           zombie.health = 0;
           beginDeath(zombie, true, {
-            deathType: "normal",
-            countDifferentWeapon: false
+            deathType: "normal"
           });
         }
 
@@ -18416,7 +18567,6 @@
 
         // 보급품 상자로 좀비 또는 사슴을 실제로 처치한 기록을 저장해 이후 7차에서도 인정합니다.
         hasKilledWithSupplyBox = true;
-        setTodoProgress(3, "item2", true);
         setTodoProgress(7, "item1", true);
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
@@ -18737,19 +18887,10 @@
         });
       }
 
-      function recordDifferentWeaponKill(weapon) {
-        if (weapon && weapon !== "axe") {
-          setTodoProgress(3, "item2", true);
-        }
-      }
-
-      function registerPlayerZombieKill(zombie, options = {}) {
+      function registerPlayerZombieKill(zombie) {
         if (zombie.counted) return;
 
         zombie.counted = true;
-        if (options.countDifferentWeapon !== false) {
-          recordDifferentWeaponKill(zombie.lastPlayerWeapon || getEquippedWeapon());
-        }
         awardMusicBox();
         const isFirstZombieKill = triggerFirstKillBirdFlock();
         if (isFirstZombieKill) {
@@ -18966,9 +19107,7 @@
         playSound(DEATH_SOUND, 0.5);
 
         if (wasPlayerKill) {
-          registerPlayerZombieKill(zombie, {
-            countDifferentWeapon: options.countDifferentWeapon
-          });
+          registerPlayerZombieKill(zombie);
         }
 
         zombie.element.style.opacity = "1";
@@ -20219,6 +20358,7 @@
           preserveExistingShadows: shadowClouds.length > 0
         });
         startSpawner();
+        updateGuideUI();
         updateTodoListUI();
         triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldZombieSpawn();
@@ -20635,8 +20775,25 @@
           playSound(INVENTORY_SET_SOUND);
           isStrangerLetterOn = willTurnLetterOn;
           if (willTurnLetterOn) {
+            isGuideOn = false;
             showToast(STRANGER_LETTER_SELECTED_TOAST_MESSAGE);
           }
+          updateGuideUI();
+          updateTodoListUI();
+          applyInventoryState();
+          saveResourceState();
+          return;
+        }
+
+        if (itemType === "guide" && hasGuide) {
+          const willTurnGuideOn = !isGuideOn;
+          playSound(INVENTORY_SET_SOUND);
+          isGuideOn = willTurnGuideOn;
+          if (willTurnGuideOn) {
+            isStrangerLetterOn = false;
+            showToast(GUIDE_SELECTED_TOAST_MESSAGE);
+          }
+          updateGuideUI();
           updateTodoListUI();
           applyInventoryState();
           saveResourceState();
