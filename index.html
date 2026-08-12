@@ -3572,7 +3572,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.159"
+  data-game-version="0.160"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4407,9 +4407,7 @@
       const ZOMBIE_MAX_HEALTH = 100;
       const DEER_MAX_HEALTH = 40;
       const AXE_DAMAGE = 40;
-      const AXE_MISS_CHANCE = 0.10;
       const HANDGUN_DAMAGE = 50;
-      const HANDGUN_MISS_CHANCE = 0.20;
       const HANDGUN_CRITICAL_CHANCE = 0.10;
       const MAX_CHAINSAW_BATTERY = 100;
       const CHAINSAW_DRAIN_INTERVAL_MS = 1_000;
@@ -8416,7 +8414,7 @@
           if (!canAffordRepairMaterials(item.materials)) return;
           playSound(
             item.blueprintId === CAR_REPAIR_BLUEPRINT_ID
-              ? CAR_HORN_SOUND
+              ? CITY_EXPLORATION_START_SOUND
               : CRAFTING_SOUND
           );
           consumeRepairMaterials(item.materials);
@@ -17691,11 +17689,6 @@
         if (weapon === "handgun") {
           consumeAmmo("handgun");
           playSound(HANDGUN_SOUND);
-          if (Math.random() < HANDGUN_MISS_CHANCE) {
-            makeDeerEvade(deer);
-            return;
-          }
-
           const isCritical = Math.random() < HANDGUN_CRITICAL_CHANCE;
           const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
           deer.health = Math.max(0, deer.health - damage);
@@ -19006,11 +18999,6 @@
 
         if (weapon === "axe") {
           alertNearbyDeer(zombie);
-          if (Math.random() < AXE_MISS_CHANCE) {
-            playSound(AXE_MISS_SOUND, 0.7);
-            return;
-          }
-
           playSound(HIT_SOUND, 0.5);
           zombie.health = Math.max(0, zombie.health - AXE_DAMAGE);
           if (zombie.health <= 0) {
@@ -19034,8 +19022,6 @@
           }
           alertNearbyDeer(zombie);
           playSound(HANDGUN_SOUND);
-          if (Math.random() < HANDGUN_MISS_CHANCE) return;
-
           const isCritical = Math.random() < HANDGUN_CRITICAL_CHANCE;
           const damage = isCritical ? HANDGUN_DAMAGE * 2 : HANDGUN_DAMAGE;
           zombie.health = Math.max(0, zombie.health - damage);
