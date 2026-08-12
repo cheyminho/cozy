@@ -1025,6 +1025,24 @@
       z-index: 18;
     }
 
+    /* 도끼 획득 / 전기톱 처치용 중력 파티클 레이어입니다. */
+    #particleLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 18;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .gravity-particle {
+      position: absolute;
+      width: var(--particle-size, 1px);
+      height: var(--particle-size, 1px);
+      background: var(--particle-color, #fff);
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
     /* 서플라이 박스 그림자는 모든 구조물보다 아래에서 독립적으로 표시합니다. */
     #supplyBoxShadowLayer,
     #supplyBoxLayer {
@@ -3572,7 +3590,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.160"
+  data-game-version="0.161"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3763,6 +3781,7 @@
       <div id="treePartLayer" aria-hidden="true"></div>
       <div id="zombiePartShadowLayer" aria-hidden="true"></div>
       <div id="zombiePartLayer" aria-hidden="true"></div>
+      <div id="particleLayer" aria-hidden="true"></div>
       <div id="supplyBoxLayer" aria-hidden="true"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
@@ -4410,9 +4429,30 @@
       const HANDGUN_DAMAGE = 50;
       const HANDGUN_CRITICAL_CHANCE = 0.10;
       const MAX_CHAINSAW_BATTERY = 100;
-      const CHAINSAW_DRAIN_INTERVAL_MS = 1_000;
+      // 전기톱 장착 중 배터리 1%를 3초마다 소모합니다.
+      const CHAINSAW_DRAIN_INTERVAL_MS = 3_000;
       const CHAINSAW_GLITCH_DURATION_MS = 700;
       const CHAINSAW_GLITCH_FRAME_MS = 100;
+
+      // 공통 파티클 설정. 크기와 투명도는 각 파티클 생성 시 지정 범위 안에서 무작위이며 y축 양의 방향이 아래입니다.
+      const PARTICLE_GRAVITY_PX_PER_MS2 = 0.0008;
+      const PARTICLE_SIZE_MIN_PX = 1;
+      const PARTICLE_SIZE_MAX_PX = 3;
+      const PARTICLE_ALPHA_MIN = 0.5;
+      const PARTICLE_ALPHA_MAX = 0.7;
+
+      // 파티클 컬러 수정 위치입니다. CSS에서 사용할 수 있는 색상값(예: "#ffffff", "rgb(255, 255, 255)")을 넣으면 됩니다.
+      const AXE_PICKUP_PARTICLE_COLOR = "#e5cf99";
+      const CHAINSAW_ZOMBIE_PARTICLE_COLOR = "#98c55f";
+
+      const AXE_PICKUP_PARTICLE_COUNT = 3;
+      // 도끼 파티클 시작 위치: 그루터기 중심 기준 +X는 오른쪽, +Y는 아래쪽입니다.
+      const AXE_PICKUP_PARTICLE_OFFSET_X = 10;
+      const AXE_PICKUP_PARTICLE_OFFSET_Y = -20;
+      const CHAINSAW_ZOMBIE_PARTICLE_INTERVAL_MS = 60;
+      // 전기톱 파티클 시작 위치: 좀비 중심 기준 +X는 오른쪽, +Y는 아래쪽입니다.
+      const CHAINSAW_ZOMBIE_PARTICLE_OFFSET_X = 0;
+      const CHAINSAW_ZOMBIE_PARTICLE_OFFSET_Y = -12;
 
       // 생성 간격: 좀비 1분 / 사슴 3분
       const SPAWN_INTERVAL_MS = 60_000;
@@ -4876,8 +4916,8 @@
       const SHED_REPAIRED_TOAST_MESSAGE = "Guess I’m a hoarder now.";
       const CAR_REPAIR_TOAST_MESSAGE = "This car needs repairs.";
       const CAR_REPAIRED_TOAST_MESSAGE = "Ready for the road.";
-      const MAIL_FIRST_TOAST_MESSAGE = "Well, I’ve got mail.";
-      const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see where this goes.";
+      const MAIL_FIRST_TOAST_MESSAGE = "I’ve got mail.";
+      const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see.";
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
       const MAIL_READ_FIRST_TOAST_MESSAGE = "I should read the letter first.";
       const MAIL_WAIT_TOAST_MESSAGE = "Maybe tomorrow.";
@@ -5411,6 +5451,7 @@
       const treePartLayer = document.getElementById("treePartLayer");
       const zombiePartShadowLayer = document.getElementById("zombiePartShadowLayer");
       const zombiePartLayer = document.getElementById("zombiePartLayer");
+      const particleLayer = document.getElementById("particleLayer");
       const treeHitArea = document.getElementById("treeHitArea");
       const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
@@ -14250,6 +14291,93 @@
         scheduleBgmAfterFirstPlayerKill();
       }
 
+      function randomRange(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function spawnGravityParticle(x, y, color, options = {}) {
+        if (!particleLayer) return;
+
+        const particle = document.createElement("div");
+        particle.className = "gravity-particle";
+        particle.style.left = `${x + randomRange(-(options.jitterX ?? 0), options.jitterX ?? 0)}px`;
+        particle.style.top = `${y + randomRange(-(options.jitterY ?? 0), options.jitterY ?? 0)}px`;
+        particle.style.setProperty("--particle-color", color);
+        const particleSize = Math.floor(
+          randomRange(PARTICLE_SIZE_MIN_PX, PARTICLE_SIZE_MAX_PX + 1)
+        );
+        const particleAlpha = randomRange(PARTICLE_ALPHA_MIN, PARTICLE_ALPHA_MAX);
+        particle.style.setProperty("--particle-size", `${particleSize}px`);
+        particle.style.opacity = String(particleAlpha);
+        particleLayer.appendChild(particle);
+
+        const vx = randomRange(options.vxMin ?? -0.09, options.vxMax ?? 0.09);
+        const vy = -randomRange(options.upSpeedMin ?? 0.13, options.upSpeedMax ?? 0.23);
+        const gravity = options.gravity ?? PARTICLE_GRAVITY_PX_PER_MS2;
+        const duration = randomRange(options.durationMin ?? 550, options.durationMax ?? 850);
+        const startedAt = performance.now();
+
+        const animate = (now) => {
+          const elapsed = now - startedAt;
+          if (elapsed >= duration) {
+            particle.remove();
+            return;
+          }
+
+          const dx = vx * elapsed;
+          const dy = vy * elapsed + 0.5 * gravity * elapsed * elapsed;
+          const progress = elapsed / duration;
+          particle.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          const fadeMultiplier = progress < 0.65 ? 1 : (1 - progress) / 0.35;
+          particle.style.opacity = String(particleAlpha * Math.max(0, fadeMultiplier));
+          requestAnimationFrame(animate);
+        };
+
+        requestAnimationFrame(animate);
+      }
+
+      function spawnAxePickupParticles() {
+        // 그루터기 중심 + 전용 오프셋을 기준으로 오른쪽으로만 튑니다.
+        const originX =
+          axeStump.offsetLeft + axeStump.offsetWidth * 0.5 + AXE_PICKUP_PARTICLE_OFFSET_X;
+        const originY =
+          axeStump.offsetTop + axeStump.offsetHeight * 0.5 + AXE_PICKUP_PARTICLE_OFFSET_Y;
+        for (let i = 0; i < AXE_PICKUP_PARTICLE_COUNT; i += 1) {
+          spawnGravityParticle(originX, originY, AXE_PICKUP_PARTICLE_COLOR, {
+            jitterX: 18,
+            jitterY: 8,
+            vxMin: 0.06,
+            vxMax: 0.16,
+            upSpeedMin: 0.16,
+            upSpeedMax: 0.27,
+            durationMin: 650,
+            durationMax: 900
+          });
+        }
+      }
+
+      function spawnChainsawZombieParticle(zombie) {
+        // 한 번의 전기톱 처치 동안 정해진 한 방향으로 모든 파티클이 함께 튑니다.
+        const direction = zombie.chainsawParticleDirection ?? 1;
+        const speedMin = 0.06;
+        const speedMax = 0.14;
+        spawnGravityParticle(
+          zombie.x + CHAINSAW_ZOMBIE_PARTICLE_OFFSET_X,
+          zombie.y + CHAINSAW_ZOMBIE_PARTICLE_OFFSET_Y,
+          CHAINSAW_ZOMBIE_PARTICLE_COLOR,
+          {
+            jitterX: 12,
+            jitterY: 16,
+            vxMin: direction < 0 ? -speedMax : speedMin,
+            vxMax: direction < 0 ? -speedMin : speedMax,
+            upSpeedMin: 0.12,
+            upSpeedMax: 0.22,
+            durationMin: 500,
+            durationMax: 760
+          }
+        );
+      }
+
       function collectAxe(event) {
         if (isExploring) {
           showExploringBusyToast(event);
@@ -14262,6 +14390,7 @@
           event.preventDefault();
         }
 
+        spawnAxePickupParticles();
         hasAxe = true;
         setEquippedWeapon("axe", { render: false, save: false });
         markInventoryItemAsNew("axe");
@@ -18953,6 +19082,9 @@
         zombie.state = "chainsawAttacking";
         zombie.element.classList.add("is-dead");
         zombie.chainsawAttackStartedAt = performance.now();
+        // 처치 시작 시 왼쪽/오른쪽을 한 번만 정하고 해당 처치의 모든 파티클이 공유합니다.
+        zombie.chainsawParticleDirection = Math.random() < 0.5 ? -1 : 1;
+        zombie.chainsawParticleNextAt = zombie.chainsawAttackStartedAt;
         zombie.chainsawAttackFrame = -1;
         zombie.chainsawAttackStep = -1;
         zombie.element.style.opacity = "1";
@@ -18963,6 +19095,14 @@
         if (elapsed >= CHAINSAW_GLITCH_DURATION_MS) {
           beginDeath(zombie, true, { deathType: "normal" });
           return;
+        }
+
+        while (
+          now >= zombie.chainsawParticleNextAt &&
+          zombie.chainsawParticleNextAt < zombie.chainsawAttackStartedAt + CHAINSAW_GLITCH_DURATION_MS
+        ) {
+          spawnChainsawZombieParticle(zombie);
+          zombie.chainsawParticleNextAt += CHAINSAW_ZOMBIE_PARTICLE_INTERVAL_MS;
         }
 
         const step = Math.floor(elapsed / CHAINSAW_GLITCH_FRAME_MS);
