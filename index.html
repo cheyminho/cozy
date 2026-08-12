@@ -3590,7 +3590,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.161"
+  data-game-version="0.162"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4194,7 +4194,7 @@
       const TODO_DAY_28_TARGET = 28;
       const DOG_STORY_MIN_DURATION_MS = 1_000;
       const DOG_STORY_MAX_DURATION_MS = 3_000;
-      const DOG_STAGE_TWO_RUN_DISTANCE_PX = 100;
+      const DOG_STAGE_ONE_RUN_DISTANCE_PX = 200;
       const DOG_SHEET_COLUMNS = 16;
       const DOG_SHEET_ROWS = 16;
       const DOG_RUN_FRAME_START_COLUMN = 0;
@@ -4253,13 +4253,13 @@
         0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1
       ]);
       const DOG_STORY_FRAME_INTERVAL_MS = 100;
+      // 개 친밀도는 5단계이며, 1·4단계 완료 후에는 2일 뒤, 2·3단계 완료 후에는 1일 뒤 다음 단계가 열립니다.
+      const DOG_AFFECTION_SCHEMA_VERSION = 2;
       const DOG_STAGE_ADVANCE_DELAY_DAYS = Object.freeze({
         1: 2,
         2: 1,
-        3: 3,
-        4: 1,
-        5: 1,
-        6: 1
+        3: 1,
+        4: 2
       });
 
       /*
@@ -5920,7 +5920,7 @@
       let dogTreeEscapeDay = 0;
       // 투두를 받기 전에 했던 개 상호작용도 이후 미션에서 인정하기 위한 기록입니다.
       let hasSeenDogBelly = false;
-      // 3~6단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
+      // 2~4단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
       let dogStayStage = 0;
       let dogStayDay = 0;
       let storedPopulationSnapshot = null;
@@ -7119,7 +7119,7 @@
           complete("item3", isShedRepaired());
         } else if (listId === 3) {
           complete("item1", getUnlockedBlueprintCount() >= 3);
-          complete("item2", dogCompletedStage >= 6);
+          complete("item2", dogCompletedStage >= 4);
         } else if (listId === 4) {
           complete("item2", fuelCount >= 10);
           complete("item3", isCarRepaired());
@@ -8596,30 +8596,66 @@
             ? (storedRainSpotSeed || normalizeRainSpotSeed(rainSpotSeed) || createRainSpotSeed())
             : 0;
 
-          dogCompletedStage = clamp(
+          const storedDogAffectionSchemaVersion = Math.max(
+            0,
+            Math.round(Number(parsed.dogAffectionSchemaVersion) || 0)
+          );
+          const storedDogCompletedStage = clamp(
             Math.round(Number(parsed.dogCompletedStage) || 0),
             0,
             6
           );
-          const storedDogNextStageDay = Math.round(
-            Number(parsed.dogNextStageDay) || 0
-          );
-          // 첫 만남 전의 기존 저장값은 이전 DAY 24 대기값을 유지하지 않고 새 DAY 2 기준으로 보정합니다.
-          dogNextStageDay = dogCompletedStage === 0
-            ? DOG_FIRST_APPEAR_DAY
-            : (storedDogNextStageDay > 0
-                ? Math.max(storedDogNextStageDay, DOG_FIRST_APPEAR_DAY)
-                : DOG_FIRST_APPEAR_DAY);
-          dogTreeEscapeDay = Math.max(
-            0,
-            Math.round(Number(parsed.dogTreeEscapeDay) || 0)
-          );
-          hasSeenDogBelly = parsed.hasSeenDogBelly === true || dogCompletedStage >= 6;
-          dogStayStage = clamp(
+          const storedDogStayStage = clamp(
             Math.round(Number(parsed.dogStayStage) || 0),
             0,
             6
           );
+          const isLegacyDogAffectionSave =
+            storedDogAffectionSchemaVersion < DOG_AFFECTION_SCHEMA_VERSION;
+
+          // 이전 7단계 저장값을 새 5단계 구조로 1회 변환합니다.
+          // 기존 1·4단계는 제거하고 2→1, 3→2, 5→3, 6→4, 7→5 순서를 유지합니다.
+          const migrateLegacyDogCompletedStage = (stage) => {
+            if (stage >= 6) return 4;
+            if (stage >= 5) return 3;
+            if (stage >= 3) return 2;
+            if (stage >= 2) return 1;
+            return 0;
+          };
+          const migrateLegacyDogStayStage = (stage) => {
+            if (stage === 3) return 2;
+            if (stage === 5) return 3;
+            if (stage === 6) return 4;
+            return 0;
+          };
+
+          dogCompletedStage = isLegacyDogAffectionSave
+            ? migrateLegacyDogCompletedStage(storedDogCompletedStage)
+            : clamp(storedDogCompletedStage, 0, 4);
+
+          const storedDogNextStageDay = Math.round(
+            Number(parsed.dogNextStageDay) || 0
+          );
+          dogNextStageDay = dogCompletedStage === 0
+            ? DOG_FIRST_APPEAR_DAY
+            : (storedDogNextStageDay > 0
+                ? Math.max(storedDogNextStageDay, DOG_FIRST_APPEAR_DAY)
+                : Math.max(DOG_FIRST_APPEAR_DAY, dayCount + 1));
+
+          // 예전 1→2 / 3→4의 긴 대기값은 최대 다음 DAY까지만 기다리도록 줄입니다.
+          if (isLegacyDogAffectionSave && dogCompletedStage > 0) {
+            dogNextStageDay = Math.min(dogNextStageDay, dayCount + 1);
+          }
+
+          dogTreeEscapeDay = Math.max(
+            0,
+            Math.round(Number(parsed.dogTreeEscapeDay) || 0)
+          );
+          hasSeenDogBelly =
+            parsed.hasSeenDogBelly === true || dogCompletedStage >= 4;
+          dogStayStage = isLegacyDogAffectionSave
+            ? migrateLegacyDogStayStage(storedDogStayStage)
+            : clamp(storedDogStayStage, 0, 4);
           dogStayDay = Math.max(
             0,
             Math.round(Number(parsed.dogStayDay) || 0)
@@ -8835,7 +8871,7 @@
 
             if (storedTodoSchemaVersion < 4) {
               // 3차 item2는 이전 무기 미션 완료값을 버리고 현재 개 친밀도 기준으로 다시 계산합니다.
-              todoProgress[3].item2 = dogCompletedStage >= 6;
+              todoProgress[3].item2 = dogCompletedStage >= 4;
               // 6차 item1은 새 "play with the dog" 미션이므로 과거 화단 완료값을 이어받지 않습니다.
               todoProgress[6].item1 = false;
               // 7차 item3은 화단 제작 상태를 repairState 로드 후 다시 소급 계산합니다.
@@ -8972,6 +9008,7 @@
             RESOURCE_STORAGE_KEY,
             JSON.stringify({
               version: GAME_VERSION,
+              dogAffectionSchemaVersion: DOG_AFFECTION_SCHEMA_VERSION,
               dogCompletedStage,
               dogNextStageDay,
               dogTreeEscapeDay,
@@ -15226,7 +15263,7 @@
         return normalizeDogAngle(toAngle - fromAngle);
       }
 
-      // 7단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
+      // 5단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
       // 이전 친밀도 단계는 기존 GAME_ZONE 범위를 그대로 유지합니다.
       function getDogMovementZone(activeDogOrStage = null) {
         const activeStage = Number(
@@ -15235,7 +15272,7 @@
             : activeDogOrStage?.activeStage
         ) || 0;
 
-        return activeStage >= 7 ? getDraggableViewSpawnZone() : GAME_ZONE;
+        return activeStage >= 5 ? getDraggableViewSpawnZone() : GAME_ZONE;
       }
 
       // 해상도 변경으로 Free Roam 영역이 줄어 개가 새 경계 밖에 놓이면,
@@ -15312,7 +15349,7 @@
       function keepFreeRoamDogInsideMovementZone(activeDog) {
         if (
           !activeDog ||
-          activeDog.activeStage < 7 ||
+          activeDog.activeStage < 5 ||
           activeDog.state === "fastRun"
         ) {
           return false;
@@ -15775,14 +15812,13 @@
       }
 
       function getDogStoryBaseState(stage) {
-        if (stage === 4 || stage === 6) return "storyLieWag";
+        if (stage === 4) return "storyLieWag";
         return "storyLieIdle";
       }
 
-      // 1·2·3·4·6단계는 나무 아래에서 머무르는 친밀도 연출입니다.
+      // 1·2·4단계는 나무 아래에서 머무르는 친밀도 연출입니다.
       function dogStageUsesUnderTreeShade(stage) {
-        return stage === 1 || stage === 2 || stage === 3 ||
-          stage === 4 || stage === 6;
+        return stage === 1 || stage === 2 || stage === 4;
       }
 
       function setDogUnderTreeShade(activeDog, shouldShade) {
@@ -15810,7 +15846,7 @@
       }
 
       function dogStageUsesOccasionalHeadLift(stage) {
-        return stage === 2 || stage === 3 || stage === 4 || stage === 6;
+        return stage === 1 || stage === 2 || stage === 4;
       }
 
       function scheduleDogStoryHeadLift(
@@ -15913,7 +15949,7 @@
         if (activeDog.bellyReturnPersistent) {
           startDogSitIdle(activeDog, now, Infinity, {
             persistent: true,
-            returnMode: "stage6"
+            returnMode: "stage4"
           });
           return;
         }
@@ -15930,19 +15966,19 @@
 
         if (
           dogStayDay === dayCount &&
-          dogStayStage >= 3 &&
-          dogStayStage <= 6
+          dogStayStage >= 2 &&
+          dogStayStage <= 4
         ) {
           return dogStayStage;
         }
 
-        const nextStage = Math.min(7, dogCompletedStage + 1);
+        const nextStage = Math.min(5, dogCompletedStage + 1);
         if (dayCount < dogNextStageDay) return 0;
         return nextStage;
       }
 
       function completeDogStage(stage, options = {}) {
-        if (stage < 1 || stage > 6 || dogCompletedStage >= stage) {
+        if (stage < 1 || stage > 4 || dogCompletedStage >= stage) {
           return false;
         }
 
@@ -15950,11 +15986,11 @@
         dogNextStageDay =
           dayCount + (DOG_STAGE_ADVANCE_DELAY_DAYS[stage] || 1);
 
-        if (stage >= 6) {
+        if (stage >= 4) {
           setTodoProgress(3, "item2", true);
         }
 
-        if (options.stayVisible === true && stage >= 3) {
+        if (options.stayVisible === true && stage >= 2) {
           dogStayStage = stage;
           dogStayDay = dayCount;
         } else if (dogStayDay === dayCount) {
@@ -16022,8 +16058,8 @@
       function startDogEscape(activeDog, options = {}) {
         if (!activeDog) return false;
 
-        // 친밀도 1~2단계에서는 도망가는 상황도 빠른 달리기를 사용합니다.
-        if (activeDog.activeStage === 1 || activeDog.activeStage === 2) {
+        // 친밀도 1단계에서는 도망가는 상황도 빠른 달리기를 사용합니다.
+        if (activeDog.activeStage === 1) {
           return startDogFastRun(activeDog, {
             mode: "escape",
             completeStageOnExit: options.completeStageOnExit === true,
@@ -16048,7 +16084,7 @@
         return true;
       }
 
-      function startDogStageTwoRun(
+      function startDogStageOneRun(
         activeDog,
         now = performance.now()
       ) {
@@ -16056,7 +16092,7 @@
           activeDog,
           {
             mode: "distance",
-            targetX: activeDog.x + DOG_STAGE_TWO_RUN_DISTANCE_PX
+            targetX: activeDog.x + DOG_STAGE_ONE_RUN_DISTANCE_PX
           },
           now
         );
@@ -16149,7 +16185,7 @@
         if (isDogSoundPlaying) return false;
 
         const path =
-          activeDog.activeStage === 1 || activeDog.activeStage === 2
+          activeDog.activeStage === 1
             ? DOG_BARK_SOUND
             : DOG_PANT_SOUND;
         const audio = dogInteractAudioByPath.get(path);
@@ -16187,18 +16223,11 @@
         playDogInteractSound(activeDog);
         const stage = activeDog.activeStage;
 
+        // 1단계: 기존 2단계. 접근하면 100px 이동해 앉고, 다시 누르면 빠르게 도망가며 완료됩니다.
         if (stage === 1) {
-          if (activeDog.state === "storyLieIdle") {
-            startDogEscape(activeDog, { completeStageOnExit: true });
-            showDogFrame(activeDog);
-          }
-          return true;
-        }
-
-        if (stage === 2) {
           if (
             activeDog.state === "sitIdle" &&
-            activeDog.sitReturnMode === "stage2"
+            activeDog.sitReturnMode === "stage1"
           ) {
             startDogEscape(activeDog, { completeStageOnExit: true });
             showDogFrame(activeDog);
@@ -16209,53 +16238,35 @@
             activeDog.state === "storyLieIdle" ||
             activeDog.state === "storyLieHeadUp"
           ) {
-            startDogStageTwoRun(activeDog, now);
+            startDogStageOneRun(activeDog, now);
             showDogFrame(activeDog);
           }
           return true;
         }
 
-        if (stage === 3) {
+        // 2단계: 기존 3단계. 누워 있는 개를 누르면 꼬리를 흔들며 완료됩니다.
+        if (stage === 2) {
           if (
             activeDog.state === "storyLieIdle" ||
             activeDog.state === "storyLieHeadUp" ||
             activeDog.state === "storyTailWagReaction"
           ) {
-            completeDogStage(3, { stayVisible: true });
+            completeDogStage(2, { stayVisible: true });
             startDogTailWagReaction(activeDog, now);
             showDogFrame(activeDog);
           }
           return true;
         }
 
-        if (stage === 4) {
-          if (activeDog.state === "sitIdle") {
-            refreshDogSitIdleDuration(activeDog, now);
-            return true;
-          }
-
-          if (
-            activeDog.state === "storyLieWag" ||
-            activeDog.state === "storyLieHeadUp"
-          ) {
-            completeDogStage(4, { stayVisible: true });
-            startDogSitIdle(activeDog, now, getRandomDogSitDuration(), {
-              persistent: false,
-              returnMode: "storyBase"
-            });
-            showDogFrame(activeDog);
-          }
-          return true;
-        }
-
-        if (stage === 5) {
+        // 3단계: 기존 5단계. 자유 이동 중 누르면 앉으며 완료됩니다.
+        if (stage === 3) {
           if (activeDog.state === "sitIdle") {
             refreshDogSitIdleDuration(activeDog, now);
             return true;
           }
 
           if (activeDog.state === "run" || activeDog.state === "idle") {
-            completeDogStage(5, { stayVisible: true });
+            completeDogStage(3, { stayVisible: true });
             startDogSitDown(activeDog, now, {
               persistent: false,
               returnMode: "free"
@@ -16265,12 +16276,13 @@
           return true;
         }
 
-        if (stage === 6) {
+        // 4단계: 기존 6단계. 한 번 누르면 계속 앉고, 다시 누르면 배를 보이며 완료됩니다.
+        if (stage === 4) {
           if (
             activeDog.state === "sitIdle" &&
-            activeDog.sitReturnMode === "stage6"
+            activeDog.sitReturnMode === "stage4"
           ) {
-            completeDogStage(6, { stayVisible: true });
+            completeDogStage(4, { stayVisible: true });
             startDogBellyDown(activeDog, now, {
               returnPersistent: true
             });
@@ -16284,15 +16296,16 @@
           ) {
             startDogSitIdle(activeDog, now, Infinity, {
               persistent: true,
-              returnMode: "stage6"
+              returnMode: "stage4"
             });
             showDogFrame(activeDog);
           }
           return true;
         }
 
-        // 7단계부터는 자유 이동 → 앉기 → 배보이기 → 앉기 → 자유 이동을 반복합니다.
-        if (stage === 7) {
+        // 5단계는 최종 Free Roam 상태입니다.
+        // 자유 이동 → 앉기 → 배보이기 → 앉기 → 자유 이동을 반복합니다.
+        if (stage === 5) {
           if (activeDog.state === "sitIdle") {
             startDogBellyDown(activeDog, now, {
               returnPersistent: false
@@ -16520,7 +16533,7 @@
               activeDog.fastRunMode = "";
               startDogSitDown(activeDog, now, {
                 persistent: true,
-                returnMode: "stage2"
+                returnMode: "stage1"
               });
             }
           } else {
@@ -16806,10 +16819,10 @@
 
         const size = getDogRenderSize();
         const halfSize = size / 2;
-        const freeRoamSpawnPosition = activeStage >= 7
+        const randomSpawnPosition = (activeStage === 3 || activeStage === 5)
           ? getRandomDogPosition({ size, activeStage })
           : null;
-        const position = freeRoamSpawnPosition || {
+        const position = randomSpawnPosition || {
           x: clamp(
             DOG_SPAWN_X,
             GAME_ZONE.left + halfSize,
@@ -16853,16 +16866,16 @@
         entities.appendChild(element);
 
         const now = performance.now();
-        const shouldRestoreCompletedStageSixSit =
-          activeStage === 6 &&
-          dogCompletedStage >= 6 &&
-          dogStayStage === 6 &&
+        const shouldRestoreCompletedStageFourSit =
+          activeStage === 4 &&
+          dogCompletedStage >= 4 &&
+          dogStayStage === 4 &&
           dogStayDay === dayCount;
 
         let initialState = getDogStoryBaseState(activeStage);
-        if (activeStage === 5 || activeStage === 7) {
+        if (activeStage === 3 || activeStage === 5) {
           initialState = Math.random() < 0.68 ? "idle" : "run";
-        } else if (shouldRestoreCompletedStageSixSit) {
+        } else if (shouldRestoreCompletedStageFourSit) {
           initialState = "sitIdle";
         }
 
@@ -16900,9 +16913,9 @@
           renderKey: ""
         };
 
-        if (shouldRestoreCompletedStageSixSit) {
+        if (shouldRestoreCompletedStageFourSit) {
           dog.sitPersistent = true;
-          dog.sitReturnMode = "stage6";
+          dog.sitReturnMode = "stage4";
           dog.stateUntil = Infinity;
         } else if (dog.state === "idle") {
           dog.angle =
