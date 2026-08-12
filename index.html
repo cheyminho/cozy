@@ -3590,7 +3590,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.162"
+  data-game-version="0.163"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3807,7 +3807,7 @@
   </div>
   <div id="todoListOverlay" hidden>
     <span id="todoListTitle">to do :</span>
-    <span class="todo-item" data-todo-key="item1">kill a zombie</span>
+    <span class="todo-item" data-todo-key="item1">clear the zombies</span>
     <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
     <span class="todo-item" data-todo-key="item3">explore the village</span>
     <span id="todoDoneNote" hidden>when done, write back.</span>
@@ -4276,8 +4276,9 @@
       const CAT_SIZE = 76;
       const CAT_FRAME_INTERVAL_MS = 100;
       const CAT_SPEED_PX_PER_MS = 0.07;
+      const CAT_FADE_DURATION_MS = 500;
       const CAT_START_X = 430;
-      const CAT_START_Y = 1280;
+      const CAT_START_Y = 1305;
       const CAT_TARGET_X = 956;
       const CAT_TARGET_Y = 1124;
       const CAT_WALK_NE_FRAME_SEQUENCE = Object.freeze([
@@ -7112,7 +7113,7 @@
         };
 
         if (listId === 1) {
-          complete("item1", zombieCount > 0);
+          complete("item1", zombieCount >= zombieKillRequirement);
           complete("item2", foodCount > 0);
         } else if (listId === 2) {
           complete("item1", repairAppliedItemBySection.outdoor.fence >= 0);
@@ -7256,7 +7257,7 @@
 
         const taskTexts = {
           1: [
-            "kill a zombie",
+            "clear the zombies",
             "hunt a deer for food",
             "explore the village"
           ],
@@ -17032,6 +17033,13 @@
         }
       }
 
+      function startCatFadeOut(activeCat) {
+        if (!activeCat || activeCat.state === "fading-out") return;
+        activeCat.state = "fading-out";
+        activeCat.fadeElapsed = 0;
+        activeCat.element.style.opacity = "0";
+      }
+
       function startCatReturn(activeCat) {
         activeCat.state = "returning";
         activeCat.frameElapsed = 0;
@@ -17097,7 +17105,7 @@
             showCatFrame(activeCat, CAT_DELIVERY_FRAME_SEQUENCE[0]);
             maybeCompleteCatMailboxDelivery(activeCat);
           } else {
-            removeCat(activeCat);
+            startCatFadeOut(activeCat);
           }
           return;
         }
@@ -17134,6 +17142,15 @@
       }
 
       function updateCat(activeCat, deltaMs) {
+        if (activeCat.state === "fading-out") {
+          activeCat.fadeElapsed += deltaMs;
+          renderCat(activeCat);
+          if (activeCat.fadeElapsed >= CAT_FADE_DURATION_MS) {
+            removeCat(activeCat);
+          }
+          return;
+        }
+
         if (activeCat.state === "delivering") {
           updateCatDelivery(activeCat, deltaMs);
           return;
@@ -17174,6 +17191,8 @@
         element.setAttribute("aria-hidden", "true");
         element.style.width = `${CAT_SIZE}px`;
         element.style.height = `${CAT_SIZE}px`;
+        element.style.opacity = "0";
+        element.style.transition = `opacity ${CAT_FADE_DURATION_MS}ms ease`;
 
         const dayVisual = document.createElement("div");
         dayVisual.className = "cat-visual-layer cat-visual-day";
@@ -17215,11 +17234,14 @@
           animationFrame: 0,
           renderedFramePosition: "",
           mailboxSoundPlayed: false,
-          deliveryTodoListId: resolvedDeliveryTodoListId
+          deliveryTodoListId: resolvedDeliveryTodoListId,
+          fadeElapsed: 0
         };
 
         showCatFrame(cat, CAT_WALK_NE_FRAME_SEQUENCE[0]);
         renderCat(cat);
+        void element.offsetWidth;
+        element.style.opacity = "1";
         return true;
       }
 
@@ -19034,9 +19056,11 @@
           scheduleNextDeerSpawnTick();
         }
 
-        setTodoProgress(1, "item1", true);
         const previousZombieCount = zombieCount;
         zombieCount = Math.min(zombieKillRequirement, zombieCount + 1);
+        if (zombieCount >= zombieKillRequirement) {
+          setTodoProgress(1, "item1", true);
+        }
         commitResourceState();
         if (zombieCount > previousZombieCount) {
           showZombieKillDelta();
