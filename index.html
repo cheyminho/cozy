@@ -3590,7 +3590,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.163"
+  data-game-version="0.164"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4061,7 +4061,7 @@
   <div id="startScreen" aria-label="Start menu">
     <div id="startScreenHeader">
       <div id="startScreenTitle">COZZY</div>
-      <div id="startScreenSurvived">0 Days Survived</div>
+      <div id="startScreenSurvived">0 DAYS SURVIVED</div>
     </div>
     <div id="startScreenMenu">
       <div class="start-menu-slot">
@@ -20389,8 +20389,8 @@
         const survivedDays = Number.isFinite(storedDayCount)
           ? Math.max(0, Math.round(storedDayCount))
           : 0;
-        const dayLabel = survivedDays === 1 ? "Day" : "Days";
-        startScreenSurvived.textContent = `${survivedDays} ${dayLabel} Survived`;
+        const dayLabel = survivedDays === 1 ? "DAY" : "DAYS";
+        startScreenSurvived.textContent = `${survivedDays} ${dayLabel} SURVIVED`;
       }
 
       function rememberGameplaySession() {
