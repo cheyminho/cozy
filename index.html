@@ -127,6 +127,54 @@
       --game-ui-entry-duration: 1000ms;
 
       /*
+        좌하단 프로필 UI 수정 위치
+        - scale: profile_default.png(512×512)의 표시 배율
+        - offset-x: +값은 오른쪽 / -값은 왼쪽 이동
+        - offset-y: +값은 위쪽 / -값은 아래쪽 이동
+        - z-index: 수리/가방/탐험 화면 콘텐츠보다 앞에 표시되는 뎁스
+      */
+      --profile-scale: 0.8;
+      --profile-offset-x: -90px;
+      --profile-offset-y: -195px;
+      --profile-slide-distance: 180px;
+      --profile-z-index: 145;
+
+      /*
+        수리 / 가방 / 탐험 화면 콘텐츠 공통 위치 수정
+        - 음수: 위로 이동 / 양수: 아래로 이동
+      */
+      --menu-content-offset-y: -50px;
+
+      /*
+        프로필 말풍선 토스트 수정 위치
+        - toast-offset-x: +값은 오른쪽 / -값은 왼쪽 이동
+        - toast-offset-y: +값은 위쪽 / -값은 아래쪽 이동
+        - toast-text-offset-x/y: 말풍선 안의 텍스트만 위치 보정
+        - toast-max-width: 말풍선 최대 폭
+        - toast-font-size: 기본 글자 크기
+        - toast-font-size-medium: 35자 이상 토스트 글자 크기
+        - toast-font-size-long: 45자 이상 토스트 글자 크기
+        - toast-previous-offset-y: 기존 토스트를 새 토스트 위로 올리는 거리
+        - toast-previous-scale: 기존 토스트의 축소 배율
+        - toast-stack-duration: 기존 토스트가 위로 이동/축소되는 시간
+      */
+      --toast-offset-x: 140px;
+      --toast-offset-y: 195px;
+      --toast-text-offset-x: 0px;
+      --toast-text-offset-y: 0px;
+      --toast-max-width: 320px;
+      --toast-font-size: 16px;
+      --toast-font-size-medium: 14px;
+      --toast-font-size-long: 13px;
+      --toast-bubble-radius: 18px;
+      --toast-bubble-padding-x: 18px;
+      --toast-bubble-padding-y: 12px;
+      --toast-previous-offset-y: 54px;
+      --toast-previous-scale: 0.7;
+      --toast-stack-duration: 180ms;
+      --toast-z-index: 160;
+
+      /*
         시작화면 게임 장면 확대/위치 수정 위치
         - world-scale: 시작화면에서 UI를 제외한 게임 장면 배율
         - world-offset-x/y: 시작화면 장면 위치 보정(px)
@@ -1699,6 +1747,7 @@
     body.is-start-screen #exploringStatus,
     body.is-start-screen #dayStatus,
     body.is-start-screen #versionLabel,
+    body.is-start-screen #profileHud,
     body.is-start-screen #toastLayer {
       opacity: 0 !important;
       visibility: hidden !important;
@@ -1737,11 +1786,20 @@
     }
 
     body.is-start-screen #todoListOverlay,
-    body.is-start-screen #guideOverlay,
+    body.is-start-screen #guideOverlay {
+      translate: -140px 0;
+    }
+
+    /* 좌하단 프로필도 좌측 UI와 같은 방향에서 들어옵니다. */
+    body.is-start-screen #profileHud {
+      translate: calc(0px - var(--profile-slide-distance)) 0;
+    }
+
+    /* 우측 HUD 버튼은 게임 시작 시 오른쪽 화면 밖에서 들어옵니다. */
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton {
-      translate: -140px 0;
+      translate: 140px 0;
     }
 
     body.is-start-screen #dayStatus,
@@ -1763,11 +1821,50 @@
     body.is-entering-game #exploreButton,
     body.is-entering-game #dayStatus,
     body.is-entering-game #exploringStatus,
-    body.is-entering-game #versionLabel {
+    body.is-entering-game #versionLabel,
+    body.is-entering-game #profileHud {
       translate: 0 0;
       transition:
         translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
         opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /*
+      좌하단 프로필 UI입니다.
+      원본 512×512 이미지를 --profile-scale로 축소하며,
+      위치는 --profile-offset-x / --profile-offset-y 값으로 보정합니다.
+    */
+    #profileHud {
+      position: fixed;
+      left: calc(20px + env(safe-area-inset-left) + var(--profile-offset-x));
+      bottom: calc(20px + env(safe-area-inset-bottom) + var(--profile-offset-y));
+      z-index: var(--profile-z-index);
+      width: 512px;
+      height: 512px;
+      opacity: 1;
+      translate: 0 0;
+      transform: scale(var(--profile-scale));
+      transform-origin: left bottom;
+      pointer-events: none;
+      will-change: translate, opacity;
+      transition:
+        translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #profileHud img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: auto;
+      pointer-events: none;
+    }
+
+    /* 탐험 출발 시 진입 방향을 반대로 재생해 왼쪽 화면 밖으로 사라집니다. */
+    body.is-exploring #profileHud {
+      opacity: 0;
+      translate: calc(0px - var(--profile-slide-distance)) 0;
     }
 
     #hud {
@@ -1803,80 +1900,129 @@
       }
     }
 
+    /*
+      프로필 곰 캐릭터의 말풍선 형태 토스트입니다.
+      전체 위치와 텍스트 위치는 위쪽 :root의 --toast-* 값으로 조정합니다.
+    */
     #toastLayer {
       position: fixed;
-      top: 20vh;
-      left: 50%;
-      z-index: 140;
-      width: min(90vw, 420px);
+      left: calc(env(safe-area-inset-left) + var(--toast-offset-x));
+      bottom: calc(env(safe-area-inset-bottom) + var(--toast-offset-y));
+      z-index: var(--toast-z-index);
+      width: min(
+        var(--toast-max-width),
+        calc(100vw - env(safe-area-inset-left) - var(--toast-offset-x) - 16px)
+      );
+      min-width: 1px;
       height: 1px;
-      transform: translateX(-50%);
       pointer-events: none;
     }
 
+    /*
+      각 toast-message는 위치/스택만 담당하고,
+      실제 말풍선의 등장·퇴장 스케일은 내부 toast-message-bubble이 담당합니다.
+    */
     .toast-message {
       position: absolute;
-      left: 50%;
-      top: 0;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 350;
-      line-height: 1.3;
-      white-space: nowrap;
-      text-align: center;
-      transform: translate(-50%, 18px);
+      left: 0;
+      bottom: 0;
+      z-index: 1;
+      width: max-content;
+      max-width: 100%;
+      transform: translateY(0) scale(1);
+      transform-origin: left bottom;
+      transition: transform var(--toast-stack-duration) cubic-bezier(0.16, 1, 0.3, 1);
       will-change: transform;
-      animation: toast-rise 3s linear forwards;
+    }
+
+    /* 새 메시지가 뜨면 기존 메시지는 꼬리 없이 조금 작아져 위쪽으로 이동합니다. */
+    .toast-message.is-previous {
+      z-index: 0;
+      transform:
+        translateY(calc(0px - var(--toast-previous-offset-y)))
+        scale(var(--toast-previous-scale));
+    }
+
+    .toast-message-bubble {
+      position: relative;
+      width: max-content;
+      max-width: 100%;
+      padding: var(--toast-bubble-padding-y) var(--toast-bubble-padding-x);
+      border-radius: var(--toast-bubble-radius);
+      background: #fff;
+      color: #111;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+      font-size: var(--toast-font-size);
+      font-weight: 400;
+      line-height: 1.35;
+      text-align: left;
+      transform-origin: 24px calc(100% + 10px);
+      will-change: transform;
+      animation:
+        toast-bubble-enter var(--toast-enter-duration, 300ms)
+        cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* 긴 토스트는 단계적으로 글자 크기를 줄입니다. */
+    .toast-message.is-medium .toast-message-bubble {
+      font-size: var(--toast-font-size-medium);
+    }
+
+    .toast-message.is-long .toast-message-bubble {
+      font-size: var(--toast-font-size-long);
+    }
+
+    /* 말풍선 꼬리: 가장 최근 메시지에만 표시합니다. */
+    .toast-message-bubble::after {
+      content: "";
+      position: absolute;
+      left: 20px;
+      bottom: -10px;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 13px solid transparent;
+      border-top: 14px solid #fff;
+      transform: rotate(12deg);
+      transform-origin: top center;
+    }
+
+    .toast-message.is-previous .toast-message-bubble::after {
+      display: none;
     }
 
     .toast-message-text {
       position: relative;
       display: block;
-      padding: 1px 4px;
-      margin: -2px -6px;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.1);
-      box-shadow: 0 0 12px 8px rgba(0, 0, 0, 0.1);
-      opacity: 0;
-      will-change: opacity;
-      animation: toast-fade 3s linear forwards;
+      max-width: 100%;
+      color: inherit;
+      text-align: left;
+      white-space: normal;
+      overflow-wrap: break-word;
+      translate: var(--toast-text-offset-x) var(--toast-text-offset-y);
     }
 
-    /*
-      새 토스트가 나타날 때 기존 토스트는 이동을 계속하면서
-      남은 표시 시간이 충분한 경우 현재 투명도에서 0.5초 동안 사라집니다.
-    */
-    .toast-message.is-replaced .toast-message-text {
-      animation: toast-replaced-fade 0.5s linear forwards;
+    .toast-message.is-exiting .toast-message-bubble {
+      animation:
+        toast-bubble-exit var(--toast-exit-duration, 200ms)
+        linear both;
     }
 
-    @keyframes toast-rise {
+    @keyframes toast-bubble-enter {
       0% {
-        transform: translate(-50%, 18px);
+        transform: scale(0);
+      }
+      72% {
+        transform: scale(1.04);
       }
       100% {
-        transform: translate(-50%, -24px);
+        transform: scale(1);
       }
     }
 
-    @keyframes toast-fade {
-      0% {
-        opacity: 0;
-      }
-      16.6667% {
-        opacity: 0.9;
-      }
-      66.6667% {
-        opacity: 0.9;
-      }
-      100% {
-        opacity: 0;
-      }
-    }
-
-    @keyframes toast-replaced-fade {
+    @keyframes toast-bubble-exit {
       from {
-        opacity: var(--toast-current-opacity, 0.9);
+        opacity: 1;
       }
       to {
         opacity: 0;
@@ -1925,16 +2071,30 @@
       pointer-events: auto;
     }
 
+    /* 우하단 날씨 표시 위에 세 HUD 버튼을 쌓습니다.
+       컨테이너는 우측에 고정하고 각 버튼은 오른쪽 끝을 유지한 채 왼쪽으로 확장됩니다. */
+    #hudActionButtons {
+      position: fixed;
+      right: max(24px, calc(env(safe-area-inset-right) + 16px));
+      bottom: max(124px, calc(env(safe-area-inset-bottom) + 116px));
+      z-index: 150;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      pointer-events: none;
+    }
+
     #exploreButton,
     #inventoryButton,
     #repairButton {
       --collapsed-width: 56px;
       --expanded-width: 120px;
-      position: fixed;
-      left: max(24px, calc(env(safe-area-inset-left) + 16px));
+      position: relative;
       z-index: 150;
       display: flex;
       align-items: center;
+      justify-content: flex-start;
       width: var(--collapsed-width);
       height: 56px;
       padding: 0 16px 0 12px;
@@ -1944,39 +2104,45 @@
       appearance: none;
       -webkit-appearance: none;
       outline: none;
-      background: #181818;
+      background: #fff;
       box-shadow: none;
       cursor: pointer;
+      pointer-events: auto;
       touch-action: none;
-      transform-origin: left center;
+      transform-origin: right center;
       transition:
         width 280ms cubic-bezier(0.215, 0.61, 0.355, 1),
         transform 90ms ease-out;
     }
 
     .hud-action-button__icon {
-      flex: 0 0 32px;
+      position: absolute;
+      left: 12px;
+      top: 50%;
       width: 32px;
       height: 32px;
       object-fit: contain;
+      opacity: 0.7;
       pointer-events: none;
-      transform: translateY(-2px);
+      filter: brightness(0);
+      transform: translateY(calc(-50% - 2px));
     }
 
     .hud-action-button__label {
-      flex: 0 0 auto;
-      margin-left: 10px;
-      color: #fff;
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      color: #181818;
       font-size: 16px;
       font-weight: 500;
       line-height: 1;
-      text-align: left;
+      text-align: right;
       white-space: nowrap;
       opacity: 0;
-      transform: translateX(-6px);
+      transform: translate(6px, -50%);
       pointer-events: none;
       transition:
-        opacity 140ms ease-out,
+        opacity 100ms ease-out,
         transform 280ms cubic-bezier(0.215, 0.61, 0.355, 1);
     }
 
@@ -1991,7 +2157,7 @@
       #inventoryButton:hover .hud-action-button__label,
       #repairButton:hover .hud-action-button__label {
         opacity: 1;
-        transform: translateX(0);
+        transform: translate(0, -50%);
       }
     }
 
@@ -2005,7 +2171,7 @@
     #inventoryButton:focus-visible .hud-action-button__label,
     #repairButton:focus-visible .hud-action-button__label {
       opacity: 1;
-      transform: translateX(0);
+      transform: translate(0, -50%);
     }
 
     #exploreButton.is-menu-open.is-entry-expanded,
@@ -2018,7 +2184,7 @@
     #inventoryButton.is-menu-open.is-entry-expanded .hud-action-button__label,
     #repairButton.is-menu-open.is-entry-expanded .hud-action-button__label {
       opacity: 1;
-      transform: translateX(0);
+      transform: translate(0, -50%);
     }
 
     /* 화면 진입 1초 뒤에는 포인터가 버튼 위에 남아 있어도 원형으로 복귀합니다. */
@@ -2032,7 +2198,7 @@
     #inventoryButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
     #repairButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label {
       opacity: 0;
-      transform: translateX(-6px);
+      transform: translate(6px, -50%);
     }
 
     /* 현재 열려 있는 화면의 버튼도 다시 호버하면 일반 버튼과 같은 확장 연출을 보여줍니다. */
@@ -2047,23 +2213,18 @@
       #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
       #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label {
         opacity: 1;
-        transform: translateX(0);
+        transform: translate(0, -50%);
       }
     }
 
-    #exploreButton {
-      bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
-      overflow: visible;
-    }
-
+    #exploreButton,
     #inventoryButton {
-      bottom: max(92px, calc(env(safe-area-inset-bottom) + 84px));
       overflow: visible;
     }
 
     .inventory-new-badge {
       position: absolute;
-      left: -1px;
+      right: -1px;
       top: 6px;
       z-index: 2;
       padding: 2px 3px 1px;
@@ -2073,14 +2234,14 @@
       font-weight: 800;
       line-height: 1;
       letter-spacing: 0;
-      text-align: left;
+      text-align: right;
       white-space: nowrap;
       pointer-events: none;
       transform: scale(1);
-      transform-origin: left center;
+      transform-origin: right center;
     }
 
-    /* 버튼 NEW 배지는 왼쪽을 기준으로 짧게 튀어나오듯 나타납니다. */
+    /* 버튼 NEW/READY 배지는 우상단을 기준으로 고정되어 나타납니다. */
     .inventory-new-badge.is-appearing {
       animation: inventory-new-badge-pop 320ms
         cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -2103,7 +2264,6 @@
     }
 
     #repairButton {
-      bottom: max(160px, calc(env(safe-area-inset-bottom) + 152px));
       overflow: visible;
     }
 
@@ -2164,6 +2324,16 @@
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
+    }
+
+    /*
+      탐험 / 가방 / 수리 화면의 표시 콘텐츠를 같은 값으로 위아래 이동합니다.
+      값은 :root의 --menu-content-offset-y에서 수정합니다.
+    */
+    #explorationMenu,
+    #inventoryMenu,
+    #repairMenu {
+      transform: translateY(var(--menu-content-offset-y));
     }
 
     #explorationMenu {
@@ -2992,6 +3162,7 @@
       background-repeat: no-repeat;
       background-size: 400% 200%;
       background-position: 0 0;
+      opacity: 0.7;
       transform: translate(-50%, -50%);
       pointer-events: none;
     }
@@ -3590,7 +3761,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.164"
+  data-game-version="0.165"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3791,6 +3962,10 @@
     <div id="rainDayTone" aria-hidden="true"></div>
     <div id="rainNightTone" aria-hidden="true"></div>
     <div id="rainLayer" aria-hidden="true"></div>
+  </div>
+
+  <div id="profileHud" aria-hidden="true">
+    <img src="images/profile_default.png" alt="" draggable="false" />
   </div>
 
   <div id="hud">
@@ -3995,49 +4170,51 @@
       <button id="repairActionButton" type="button" disabled>Apply</button>
     </div>
   </div>
-  <button
-    id="repairButton"
-    type="button"
-    aria-label="Repair"
-  >
-    <span id="repairNewBadge" class="inventory-new-badge" hidden>NEW</span>
-    <img
-      class="hud-action-button__icon"
-      src="images/icon_repair.png"
-      alt=""
-      draggable="false"
-    />
-    <span class="hud-action-button__label">Repair</span>
-  </button>
-  <button
-    id="inventoryButton"
-    type="button"
-    aria-label="Bag"
-  >
-    <span id="inventoryNewBadge" class="inventory-new-badge" hidden>NEW</span>
-    <img
-      class="hud-action-button__icon"
-      src="images/icon_inventory.png"
-      alt=""
-      draggable="false"
-    />
-    <span id="weaponStatusIcon" aria-hidden="true"></span>
-    <span class="hud-action-button__label">Bag</span>
-  </button>
-  <button
-    id="exploreButton"
-    type="button"
-    aria-label="Explore"
-  >
-    <span id="exploreNewBadge" class="inventory-new-badge" hidden>NEW</span>
-    <img
-      class="hud-action-button__icon"
-      src="images/icon_explore.png"
-      alt=""
-      draggable="false"
-    />
-    <span class="hud-action-button__label">Explore</span>
-  </button>
+  <div id="hudActionButtons" aria-label="HUD actions">
+    <button
+      id="repairButton"
+      type="button"
+      aria-label="Repair"
+    >
+      <span id="repairNewBadge" class="inventory-new-badge" hidden>NEW</span>
+      <img
+        class="hud-action-button__icon"
+        src="images/icon_repair.png"
+        alt=""
+        draggable="false"
+      />
+      <span class="hud-action-button__label">Repair</span>
+    </button>
+    <button
+      id="inventoryButton"
+      type="button"
+      aria-label="Bag"
+    >
+      <span id="inventoryNewBadge" class="inventory-new-badge" hidden>NEW</span>
+      <img
+        class="hud-action-button__icon"
+        src="images/icon_inventory.png"
+        alt=""
+        draggable="false"
+      />
+      <span id="weaponStatusIcon" aria-hidden="true"></span>
+      <span class="hud-action-button__label">Bag</span>
+    </button>
+    <button
+      id="exploreButton"
+      type="button"
+      aria-label="Explore"
+    >
+      <span id="exploreNewBadge" class="inventory-new-badge" hidden>NEW</span>
+      <img
+        class="hud-action-button__icon"
+        src="images/icon_explore.png"
+        alt=""
+        draggable="false"
+      />
+      <span class="hud-action-button__label">Explore</span>
+    </button>
+  </div>
   <div id="exploringStatus" aria-live="polite">
     <div id="exploringLabel">Exploring</div>
     <div id="exploringTime">10m</div>
@@ -4894,8 +5071,7 @@
       const SUPPLY_BOX_STEADY_TOAST_MESSAGE = "Steady...";
       const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
       const TREE_GROW_TOAST_MESSAGE = "Let it grow.";
-      const EXPLORE_BLOCKED_TOAST_MESSAGE =
-        "I should clear this place out first.";
+      const EXPLORE_BLOCKED_TOAST_MESSAGE = "I should clear zombies.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
       const AXE_SELECTED_TOAST_MESSAGE = "Problem solver.";
       const MUSIC_BOX_FOUND_TOAST_MESSAGE = "A music box... on a zombie?";
@@ -5133,8 +5309,15 @@
       const EXPLORATION_COMPLETE_TOAST_MESSAGE = "Home sweet home.";
       const FIELD_CLEAR_TOAST_MESSAGE = "Looks clear.";
       const FIELD_CLEAR_TOAST_DELAY_MS = 1_000;
+      // 토스트 모션 시간 수정 위치: 전체 표시시간 / 등장 / 퇴장을 각각 조절합니다.
       const TOAST_DURATION_MS = 3_000;
-      const TOAST_REPLACED_FADE_MS = 500;
+      const TOAST_ENTER_MS = 300;
+      const TOAST_EXIT_MS = 200;
+
+      // 토스트 길이에 따른 글자 크기 전환 기준입니다.
+      // 예: "I should clear this place out first."는 36자이므로 medium 크기가 적용됩니다.
+      const TOAST_MEDIUM_TEXT_MIN_CHARS = 35;
+      const TOAST_LONG_TEXT_MIN_CHARS = 45;
       const MAX_VISIBLE_TOASTS = 2;
       const MUSIC_BOX_FOUND_TOAST_DELAY_MS = 2_000;
       const FIRST_KILL_BGM_DELAY_MS = 5_000;
@@ -9341,6 +9524,7 @@
       }
 
       function updateDayStatus(options = {}) {
+        document.body.classList.toggle("is-exploring", isExploring);
         dayStatus.classList.toggle("is-hidden", isExploring);
         const displayedDayCount = getDisplayedDayCount();
 
@@ -13830,14 +14014,14 @@
       function removeToast(toast) {
         if (!toast) return;
 
+        if (toast.exitTimer !== null) {
+          clearTimeout(toast.exitTimer);
+          toast.exitTimer = null;
+        }
+
         if (toast.removeTimer !== null) {
           clearTimeout(toast.removeTimer);
           toast.removeTimer = null;
-        }
-
-        if (toast.replacedRemoveTimer !== null) {
-          clearTimeout(toast.replacedRemoveTimer);
-          toast.replacedRemoveTimer = null;
         }
 
         toast.element.remove();
@@ -13848,36 +14032,15 @@
         }
       }
 
-      function fadeOutReplacedToast(toast, now = performance.now()) {
+      function moveToastToPreviousPosition(toast) {
         if (!toast || !toast.element.isConnected) return;
-        if (toast.element.classList.contains("is-replaced")) return;
+        toast.element.classList.add("is-previous");
+      }
 
-        const remainingDisplayMs = toast.expiresAt - now;
-
-        // 원래 표시 시간이 0.5초 이하로 남았다면 기존 페이드 애니메이션으로
-        // 자연스럽게 사라지도록 별도의 교체 처리를 하지 않습니다.
-        if (remainingDisplayMs <= TOAST_REPLACED_FADE_MS) {
-          return;
-        }
-
-        if (toast.removeTimer !== null) {
-          clearTimeout(toast.removeTimer);
-          toast.removeTimer = null;
-        }
-
-        const currentOpacity = getComputedStyle(
-          toast.textElement
-        ).opacity;
-
-        toast.textElement.style.setProperty(
-          "--toast-current-opacity",
-          currentOpacity
-        );
-        toast.element.classList.add("is-replaced");
-
-        toast.replacedRemoveTimer = window.setTimeout(() => {
-          removeToast(toast);
-        }, TOAST_REPLACED_FADE_MS);
+      function beginToastExit(toast) {
+        if (!toast || !toast.element.isConnected) return;
+        if (toast.element.classList.contains("is-exiting")) return;
+        toast.element.classList.add("is-exiting");
       }
 
       function showToast(message) {
@@ -13890,41 +14053,61 @@
           }
         }
 
-        // 새 토스트까지 포함해 3개 이상이 되는 순간 가장 오래된 것을 즉시 제거합니다.
+        // 화면에는 최신 2개까지만 유지합니다. 세 번째가 들어오면 가장 오래된 것을 제거합니다.
         while (activeToasts.length >= MAX_VISIBLE_TOASTS) {
           removeToast(activeToasts[0]);
         }
 
-        // 직전에 표시된 토스트는 남은 시간이 충분할 때만 0.5초 교체 페이드를 적용합니다.
+        // 직전 토스트는 수명을 유지한 채 꼬리를 숨기고, 작게 축소하여 새 토스트 위로 이동합니다.
         const previousToast = activeToasts[activeToasts.length - 1] || null;
         if (previousToast) {
-          fadeOutReplacedToast(previousToast, now);
+          moveToastToPreviousPosition(previousToast);
         }
 
         const element = document.createElement("div");
         element.className = "toast-message";
 
+        const toastTextLength = Array.from(String(message)).length;
+        if (toastTextLength >= TOAST_LONG_TEXT_MIN_CHARS) {
+          element.classList.add("is-long");
+        } else if (toastTextLength >= TOAST_MEDIUM_TEXT_MIN_CHARS) {
+          element.classList.add("is-medium");
+        }
+
+        element.style.setProperty("--toast-enter-duration", `${TOAST_ENTER_MS}ms`);
+        element.style.setProperty("--toast-exit-duration", `${TOAST_EXIT_MS}ms`);
+
+        const bubbleElement = document.createElement("div");
+        bubbleElement.className = "toast-message-bubble";
+
         const textElement = document.createElement("span");
         textElement.className = "toast-message-text";
         textElement.textContent = message;
-        element.appendChild(textElement);
+        bubbleElement.appendChild(textElement);
+        element.appendChild(bubbleElement);
 
         toastLayer.appendChild(element);
 
         const toast = {
           element,
+          bubbleElement,
           textElement,
           createdAt: now,
           expiresAt: now + TOAST_DURATION_MS,
-          removeTimer: null,
-          replacedRemoveTimer: null
+          exitTimer: null,
+          removeTimer: null
         };
 
         activeToasts.push(toast);
 
+        // 전체 3초 수명은 유지하고, 마지막 TOAST_EXIT_MS 동안만 페이드아웃합니다.
+        toast.exitTimer = window.setTimeout(() => {
+          beginToastExit(toast);
+        }, Math.max(0, TOAST_DURATION_MS - TOAST_EXIT_MS));
+
         toast.removeTimer = window.setTimeout(() => {
           removeToast(toast);
-        }, TOAST_DURATION_MS + 100);
+        }, TOAST_DURATION_MS + 50);
       }
 
       function handleRepairButton(event) {
