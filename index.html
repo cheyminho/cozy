@@ -135,9 +135,17 @@
       */
       --profile-scale: 0.8;
       --profile-offset-x: -90px;
-      --profile-offset-y: -195px;
+      --profile-offset-y: -190px;
       --profile-slide-distance: 180px;
+      --profile-edge-offset: 20px;
       --profile-z-index: 145;
+
+      /* 화면 크기에 따라 JavaScript가 자동 갱신하는 런타임 값입니다. */
+      --profile-runtime-scale: var(--profile-scale);
+      --profile-runtime-offset-x: var(--profile-offset-x);
+      --profile-runtime-offset-y: var(--profile-offset-y);
+      --profile-runtime-slide-distance: var(--profile-slide-distance);
+      --profile-runtime-edge-offset: var(--profile-edge-offset);
 
       /*
         수리 / 가방 / 탐험 화면 콘텐츠 공통 위치 수정
@@ -158,21 +166,26 @@
         - toast-previous-scale: 기존 토스트의 축소 배율
         - toast-stack-duration: 기존 토스트가 위로 이동/축소되는 시간
       */
-      --toast-offset-x: 140px;
-      --toast-offset-y: 195px;
+      --toast-offset-x: 142px;
+      --toast-offset-y: 202px;
       --toast-text-offset-x: 0px;
       --toast-text-offset-y: 0px;
       --toast-max-width: 320px;
-      --toast-font-size: 16px;
-      --toast-font-size-medium: 14px;
-      --toast-font-size-long: 13px;
+      --toast-font-size: 22px;
+      --toast-font-size-medium: 20px;
+      --toast-font-size-long: 19px;
       --toast-bubble-radius: 18px;
       --toast-bubble-padding-x: 18px;
       --toast-bubble-padding-y: 12px;
-      --toast-previous-offset-y: 54px;
+      --toast-previous-offset-y: 65px;
       --toast-previous-scale: 0.7;
       --toast-stack-duration: 180ms;
       --toast-z-index: 160;
+
+      /* 프로필과 같은 비율로 자동 갱신되는 말풍선 런타임 값입니다. */
+      --toast-runtime-scale: 1;
+      --toast-runtime-offset-x: var(--toast-offset-x);
+      --toast-runtime-offset-y: var(--toast-offset-y);
 
       /*
         시작화면 게임 장면 확대/위치 수정 위치
@@ -1792,7 +1805,7 @@
 
     /* 좌하단 프로필도 좌측 UI와 같은 방향에서 들어옵니다. */
     body.is-start-screen #profileHud {
-      translate: calc(0px - var(--profile-slide-distance)) 0;
+      translate: calc(0px - var(--profile-runtime-slide-distance)) 0;
     }
 
     /* 우측 HUD 버튼은 게임 시작 시 오른쪽 화면 밖에서 들어옵니다. */
@@ -1836,14 +1849,14 @@
     */
     #profileHud {
       position: fixed;
-      left: calc(20px + env(safe-area-inset-left) + var(--profile-offset-x));
-      bottom: calc(20px + env(safe-area-inset-bottom) + var(--profile-offset-y));
+      left: calc(var(--profile-runtime-edge-offset) + env(safe-area-inset-left) + var(--profile-runtime-offset-x));
+      bottom: calc(var(--profile-runtime-edge-offset) + env(safe-area-inset-bottom) + var(--profile-runtime-offset-y));
       z-index: var(--profile-z-index);
       width: 512px;
       height: 512px;
       opacity: 1;
       translate: 0 0;
-      transform: scale(var(--profile-scale));
+      transform: scale(var(--profile-runtime-scale));
       transform-origin: left bottom;
       pointer-events: none;
       will-change: translate, opacity;
@@ -1864,7 +1877,7 @@
     /* 탐험 출발 시 진입 방향을 반대로 재생해 왼쪽 화면 밖으로 사라집니다. */
     body.is-exploring #profileHud {
       opacity: 0;
-      translate: calc(0px - var(--profile-slide-distance)) 0;
+      translate: calc(0px - var(--profile-runtime-slide-distance)) 0;
     }
 
     #hud {
@@ -1906,15 +1919,14 @@
     */
     #toastLayer {
       position: fixed;
-      left: calc(env(safe-area-inset-left) + var(--toast-offset-x));
-      bottom: calc(env(safe-area-inset-bottom) + var(--toast-offset-y));
+      left: calc(env(safe-area-inset-left) + var(--toast-runtime-offset-x));
+      bottom: calc(env(safe-area-inset-bottom) + var(--toast-runtime-offset-y));
       z-index: var(--toast-z-index);
-      width: min(
-        var(--toast-max-width),
-        calc(100vw - env(safe-area-inset-left) - var(--toast-offset-x) - 16px)
-      );
+      width: var(--toast-max-width);
       min-width: 1px;
       height: 1px;
+      transform: scale(var(--toast-runtime-scale));
+      transform-origin: left bottom;
       pointer-events: none;
     }
 
@@ -3761,7 +3773,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.165"
+  data-game-version="0.166"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -12265,6 +12277,81 @@
         );
       }
 
+      /*
+        프로필 + 말풍선 반응형 스케일입니다.
+        - PC/태블릿처럼 짧은 변이 560px보다 큰 화면은 기존 크기(100%)를 유지합니다.
+        - 모바일처럼 짧은 변이 560px 이하이면 1080px 높이를 기준으로 같은 체감 비율로 축소합니다.
+        - 말풍선은 부모 레이어 전체를 같은 비율로 스케일해 폰트/패딩/꼬리/스택 간격도 함께 줄어듭니다.
+      */
+      const PROFILE_UI_REFERENCE_HEIGHT = 1080;
+      const PROFILE_UI_COMPACT_SIDE = 560;
+      const PROFILE_UI_MIN_RESPONSIVE_SCALE = 0.35;
+
+      function readRootNumber(variableName, fallback = 0) {
+        const rawValue = getComputedStyle(document.documentElement)
+          .getPropertyValue(variableName)
+          .trim();
+        const parsedValue = Number.parseFloat(rawValue);
+        return Number.isFinite(parsedValue) ? parsedValue : fallback;
+      }
+
+      function updateProfileToastResponsiveScale() {
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const isCompactViewport =
+          Math.min(viewportWidth, viewportHeight) <= PROFILE_UI_COMPACT_SIDE;
+
+        const responsiveScale = isCompactViewport
+          ? clamp(
+              viewportHeight / PROFILE_UI_REFERENCE_HEIGHT,
+              PROFILE_UI_MIN_RESPONSIVE_SCALE,
+              1
+            )
+          : 1;
+
+        const rootStyle = document.documentElement.style;
+        const baseProfileScale = readRootNumber("--profile-scale", 0.8);
+        const baseProfileOffsetX = readRootNumber("--profile-offset-x", -90);
+        const baseProfileOffsetY = readRootNumber("--profile-offset-y", -200);
+        const baseProfileSlideDistance = readRootNumber("--profile-slide-distance", 180);
+        const baseProfileEdgeOffset = readRootNumber("--profile-edge-offset", 20);
+        const baseToastOffsetX = readRootNumber("--toast-offset-x", 140);
+        const baseToastOffsetY = readRootNumber("--toast-offset-y", 195);
+
+        rootStyle.setProperty(
+          "--profile-runtime-scale",
+          String(baseProfileScale * responsiveScale)
+        );
+        rootStyle.setProperty(
+          "--profile-runtime-offset-x",
+          `${baseProfileOffsetX * responsiveScale}px`
+        );
+        rootStyle.setProperty(
+          "--profile-runtime-offset-y",
+          `${baseProfileOffsetY * responsiveScale}px`
+        );
+        rootStyle.setProperty(
+          "--profile-runtime-slide-distance",
+          `${baseProfileSlideDistance * responsiveScale}px`
+        );
+        rootStyle.setProperty(
+          "--profile-runtime-edge-offset",
+          `${baseProfileEdgeOffset * responsiveScale}px`
+        );
+        rootStyle.setProperty(
+          "--toast-runtime-scale",
+          String(responsiveScale)
+        );
+        rootStyle.setProperty(
+          "--toast-runtime-offset-x",
+          `${baseToastOffsetX * responsiveScale}px`
+        );
+        rootStyle.setProperty(
+          "--toast-runtime-offset-y",
+          `${baseToastOffsetY * responsiveScale}px`
+        );
+      }
+
       function updateWorldScale() {
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
@@ -20690,6 +20777,7 @@
         if (!skipStartScreenPauseOffset) {
           offsetHomePopulationTimersForStartScreen();
         }
+        updateProfileToastResponsiveScale();
         updateWorldScale();
 
         isStateSaveSuppressed = false;
@@ -21282,6 +21370,7 @@
       viewport.addEventListener("pointercancel", endBackgroundDrag);
 
       window.addEventListener("resize", () => {
+        updateProfileToastResponsiveScale();
         updateWorldScale();
         keepFreeRoamDogInsideMovementZone(dog);
         syncRainDropCount();
@@ -21347,6 +21436,7 @@
 
         // 시작화면 미리보기 개체도 현재 해상도의 월드 범위를 기준으로 배치합니다.
         initializeRainDrops();
+        updateProfileToastResponsiveScale();
         updateWorldScale();
         refreshStructureSafeZones();
 
