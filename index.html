@@ -134,8 +134,8 @@
         - z-index: 수리/가방/탐험 화면 콘텐츠보다 앞에 표시되는 뎁스
       */
       --profile-scale: 0.8;
-      --profile-offset-x: -90px;
-      --profile-offset-y: -190px;
+      --profile-offset-x: -80px;
+      --profile-offset-y: -182px;
       --profile-slide-distance: 180px;
       --profile-edge-offset: 20px;
       --profile-z-index: 145;
@@ -159,21 +159,17 @@
         - toast-offset-y: +값은 위쪽 / -값은 아래쪽 이동
         - toast-text-offset-x/y: 말풍선 안의 텍스트만 위치 보정
         - toast-max-width: 말풍선 최대 폭
-        - toast-font-size: 기본 글자 크기
-        - toast-font-size-medium: 35자 이상 토스트 글자 크기
-        - toast-font-size-long: 45자 이상 토스트 글자 크기
+        - toast-font-size: 기본 글자 크기. 이 크기로 한 줄 폭을 넘으면 자동으로 축소됩니다.
         - toast-previous-offset-y: 기존 토스트를 새 토스트 위로 올리는 거리
         - toast-previous-scale: 기존 토스트의 축소 배율
         - toast-stack-duration: 기존 토스트가 위로 이동/축소되는 시간
       */
-      --toast-offset-x: 142px;
-      --toast-offset-y: 202px;
+      --toast-offset-x: 160px;
+      --toast-offset-y: 210px;
       --toast-text-offset-x: 0px;
       --toast-text-offset-y: 0px;
       --toast-max-width: 320px;
       --toast-font-size: 22px;
-      --toast-font-size-medium: 20px;
-      --toast-font-size-long: 19px;
       --toast-bubble-radius: 18px;
       --toast-bubble-padding-x: 18px;
       --toast-bubble-padding-y: 12px;
@@ -1975,15 +1971,6 @@
         cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
-    /* 긴 토스트는 단계적으로 글자 크기를 줄입니다. */
-    .toast-message.is-medium .toast-message-bubble {
-      font-size: var(--toast-font-size-medium);
-    }
-
-    .toast-message.is-long .toast-message-bubble {
-      font-size: var(--toast-font-size-long);
-    }
-
     /* 말풍선 꼬리: 가장 최근 메시지에만 표시합니다. */
     .toast-message-bubble::after {
       content: "";
@@ -2009,8 +1996,8 @@
       max-width: 100%;
       color: inherit;
       text-align: left;
-      white-space: normal;
-      overflow-wrap: break-word;
+      white-space: nowrap;
+      overflow-wrap: normal;
       translate: var(--toast-text-offset-x) var(--toast-text-offset-y);
     }
 
@@ -3773,7 +3760,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.166"
+  data-game-version="0.167"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5326,10 +5313,7 @@
       const TOAST_ENTER_MS = 300;
       const TOAST_EXIT_MS = 200;
 
-      // 토스트 길이에 따른 글자 크기 전환 기준입니다.
-      // 예: "I should clear this place out first."는 36자이므로 medium 크기가 적용됩니다.
-      const TOAST_MEDIUM_TEXT_MIN_CHARS = 35;
-      const TOAST_LONG_TEXT_MIN_CHARS = 45;
+      // 토스트는 실제 렌더링 폭을 기준으로 한 줄에 맞게 글자 크기를 자동 축소합니다.
       const MAX_VISIBLE_TOASTS = 2;
       const MUSIC_BOX_FOUND_TOAST_DELAY_MS = 2_000;
       const FIRST_KILL_BGM_DELAY_MS = 5_000;
@@ -14130,6 +14114,35 @@
         toast.element.classList.add("is-exiting");
       }
 
+      function fitToastTextToSingleLine(bubbleElement, textElement) {
+        if (!bubbleElement || !textElement || !toastLayer) return;
+
+        // 기본 글자 크기에서 시작해 실제 텍스트 폭이 말풍선 안쪽 폭을 넘을 때만 축소합니다.
+        bubbleElement.style.removeProperty("font-size");
+
+        const bubbleStyle = getComputedStyle(bubbleElement);
+        const baseFontSize = parseFloat(bubbleStyle.fontSize) || 22;
+        const paddingLeft = parseFloat(bubbleStyle.paddingLeft) || 0;
+        const paddingRight = parseFloat(bubbleStyle.paddingRight) || 0;
+        const availableTextWidth = Math.max(
+          1,
+          toastLayer.clientWidth - paddingLeft - paddingRight
+        );
+        const naturalTextWidth = textElement.scrollWidth;
+
+        if (naturalTextWidth <= availableTextWidth) return;
+
+        let fittedFontSize = baseFontSize * (availableTextWidth / naturalTextWidth);
+        bubbleElement.style.fontSize = `${fittedFontSize}px`;
+
+        // 소수점/폰트 렌더링 반올림으로 1px 정도 넘는 경우가 있어 한 줄이 될 때까지 미세 보정합니다.
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          if (textElement.scrollWidth <= textElement.clientWidth) break;
+          fittedFontSize *= 0.98;
+          bubbleElement.style.fontSize = `${fittedFontSize}px`;
+        }
+      }
+
       function showToast(message) {
         const now = performance.now();
 
@@ -14154,13 +14167,6 @@
         const element = document.createElement("div");
         element.className = "toast-message";
 
-        const toastTextLength = Array.from(String(message)).length;
-        if (toastTextLength >= TOAST_LONG_TEXT_MIN_CHARS) {
-          element.classList.add("is-long");
-        } else if (toastTextLength >= TOAST_MEDIUM_TEXT_MIN_CHARS) {
-          element.classList.add("is-medium");
-        }
-
         element.style.setProperty("--toast-enter-duration", `${TOAST_ENTER_MS}ms`);
         element.style.setProperty("--toast-exit-duration", `${TOAST_EXIT_MS}ms`);
 
@@ -14174,6 +14180,16 @@
         element.appendChild(bubbleElement);
 
         toastLayer.appendChild(element);
+        fitToastTextToSingleLine(bubbleElement, textElement);
+
+        // 웹폰트가 늦게 로드되어 실제 글자 폭이 바뀌는 경우에도 다시 한 줄로 맞춥니다.
+        if (document.fonts?.ready) {
+          document.fonts.ready.then(() => {
+            if (element.isConnected) {
+              fitToastTextToSingleLine(bubbleElement, textElement);
+            }
+          });
+        }
 
         const toast = {
           element,
