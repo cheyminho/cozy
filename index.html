@@ -151,7 +151,7 @@
         수리 / 가방 / 탐험 화면 콘텐츠 공통 위치 수정
         - 음수: 위로 이동 / 양수: 아래로 이동
       */
-      --menu-content-offset-y: -50px;
+      --menu-content-offset-y: -20px;
 
       /*
         프로필 말풍선 토스트 수정 위치
@@ -490,8 +490,8 @@
     #todoListOverlay,
     #guideOverlay {
       position: absolute;
-      left: 20px;
-      top: 100px;
+      left: 26px;
+      top: 164px;
       z-index: 30;
       color: #fff;
       font-family: "Kalam", cursive;
@@ -1812,7 +1812,10 @@
     }
 
     body.is-start-screen #dayStatus,
-    body.is-start-screen #exploringStatus,
+    body.is-start-screen #exploringStatus {
+      translate: -140px 0;
+    }
+
     body.is-start-screen #versionLabel {
       translate: 140px 0;
     }
@@ -2070,16 +2073,17 @@
       pointer-events: auto;
     }
 
-    /* 우하단 날씨 표시 위에 세 HUD 버튼을 쌓습니다.
-       컨테이너는 우측에 고정하고 각 버튼은 오른쪽 끝을 유지한 채 왼쪽으로 확장됩니다. */
+    /* 세 HUD 버튼은 기존 DAY 정보 자리의 우측 기준으로 가로 정렬합니다.
+       각 버튼은 아래쪽을 고정한 채 호버 시 위로 길어집니다. */
     #hudActionButtons {
       position: fixed;
       right: max(24px, calc(env(safe-area-inset-right) + 16px));
-      bottom: max(124px, calc(env(safe-area-inset-bottom) + 116px));
+      bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px));
       z-index: 150;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: flex-end;
+      justify-content: flex-end;
       gap: 12px;
       pointer-events: none;
     }
@@ -2087,16 +2091,16 @@
     #exploreButton,
     #inventoryButton,
     #repairButton {
-      --collapsed-width: 56px;
-      --expanded-width: 120px;
+      --collapsed-height: 56px;
+      --expanded-height: 74px;
       position: relative;
       z-index: 150;
       display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      width: var(--collapsed-width);
-      height: 56px;
-      padding: 0 16px 0 12px;
+      align-items: flex-start;
+      justify-content: center;
+      width: 56px;
+      height: var(--collapsed-height);
+      padding: 0;
       overflow: hidden;
       border: 0;
       border-radius: 28px;
@@ -2108,37 +2112,38 @@
       cursor: pointer;
       pointer-events: auto;
       touch-action: none;
-      transform-origin: right center;
+      transform-origin: center bottom;
       transition:
-        width 280ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        height 280ms cubic-bezier(0.215, 0.61, 0.355, 1),
         transform 90ms ease-out;
     }
 
     .hud-action-button__icon {
       position: absolute;
       left: 12px;
-      top: 50%;
+      top: 12px;
       width: 32px;
       height: 32px;
       object-fit: contain;
       opacity: 0.7;
       pointer-events: none;
       filter: brightness(0);
-      transform: translateY(calc(-50% - 2px));
+      transform: none;
     }
 
     .hud-action-button__label {
       position: absolute;
-      right: 16px;
-      top: 50%;
+      left: 0;
+      right: 0;
+      bottom: 12px;
       color: #181818;
-      font-size: 16px;
+      font-size: 12px;
       font-weight: 500;
       line-height: 1;
-      text-align: right;
+      text-align: center;
       white-space: nowrap;
       opacity: 0;
-      transform: translate(6px, -50%);
+      transform: translateY(4px);
       pointer-events: none;
       transition:
         opacity 100ms ease-out,
@@ -2149,70 +2154,70 @@
       #exploreButton:hover,
       #inventoryButton:hover,
       #repairButton:hover {
-        width: var(--expanded-width);
+        height: var(--expanded-height);
       }
 
       #exploreButton:hover .hud-action-button__label,
       #inventoryButton:hover .hud-action-button__label,
       #repairButton:hover .hud-action-button__label {
         opacity: 1;
-        transform: translate(0, -50%);
+        transform: translateY(0);
       }
     }
 
     #exploreButton:focus-visible,
     #inventoryButton:focus-visible,
     #repairButton:focus-visible {
-      width: var(--expanded-width);
+      height: var(--expanded-height);
     }
 
     #exploreButton:focus-visible .hud-action-button__label,
     #inventoryButton:focus-visible .hud-action-button__label,
     #repairButton:focus-visible .hud-action-button__label {
       opacity: 1;
-      transform: translate(0, -50%);
+      transform: translateY(0);
     }
 
     #exploreButton.is-menu-open.is-entry-expanded,
     #inventoryButton.is-menu-open.is-entry-expanded,
     #repairButton.is-menu-open.is-entry-expanded {
-      width: var(--expanded-width);
+      height: var(--expanded-height);
     }
 
     #exploreButton.is-menu-open.is-entry-expanded .hud-action-button__label,
     #inventoryButton.is-menu-open.is-entry-expanded .hud-action-button__label,
     #repairButton.is-menu-open.is-entry-expanded .hud-action-button__label {
       opacity: 1;
-      transform: translate(0, -50%);
+      transform: translateY(0);
     }
 
     /* 화면 진입 1초 뒤에는 포인터가 버튼 위에 남아 있어도 원형으로 복귀합니다. */
     #exploreButton.is-menu-open:not(.is-entry-expanded),
     #inventoryButton.is-menu-open:not(.is-entry-expanded),
     #repairButton.is-menu-open:not(.is-entry-expanded) {
-      width: var(--collapsed-width);
+      height: var(--collapsed-height);
     }
 
     #exploreButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
     #inventoryButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
     #repairButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label {
       opacity: 0;
-      transform: translate(6px, -50%);
+      transform: translateY(4px);
     }
 
-    /* 현재 열려 있는 화면의 버튼도 다시 호버하면 일반 버튼과 같은 확장 연출을 보여줍니다. */
+    /* 현재 열려 있는 화면의 버튼도 다시 호버하면 일반 버튼과 같은 세로 확장 연출을 보여줍니다. */
     @media (hover: hover) and (pointer: fine) {
       #exploreButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
       #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
       #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover {
-        width: var(--expanded-width);
+        height: var(--expanded-height);
       }
 
       #exploreButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
       #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
       #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label {
         opacity: 1;
-        transform: translate(0, -50%);
+        transform: translateY(0);
       }
     }
 
@@ -3109,12 +3114,12 @@
 
     #exploringStatus {
       position: fixed;
-      right: max(24px, calc(env(safe-area-inset-right) + 16px));
-      bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px));
+      left: max(24px, calc(env(safe-area-inset-left) + 16px));
+      top: max(30px, calc(env(safe-area-inset-top) + 16px));
       z-index: 120;
       display: block;
       color: #fff;
-      text-align: right;
+      text-align: left;
       opacity: 0;
       visibility: hidden;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
@@ -3140,12 +3145,12 @@
     #weatherStatusRow {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: flex-start;
       margin-bottom: 10px;
       font-size: 14px;
       font-weight: 450;
       line-height: 1;
-      transform: translateY(5px);
+      transform: translate(5px, 5px);
     }
 
     /* 현재 장착 무기는 가방 아이콘 정중앙에 겹쳐 표시합니다.
@@ -3179,7 +3184,7 @@
     /* 좀비 처치 시 남은 처치 수 위에서 -1이 떠오르며 사라집니다. */
     .zombie-kill-delta {
       position: absolute;
-      right: 0;
+      left: 0;
       top: -8px;
       z-index: 1;
       color: #fff;
@@ -3195,10 +3200,10 @@
 
     @keyframes zombie-kill-delta-rise {
       from {
-        transform: translateY(0);
+        transform: translate(-50%, 0);
       }
       to {
-        transform: translateY(-15px);
+        transform: translate(-50%, -15px);
       }
     }
 
@@ -3214,7 +3219,7 @@
 
     #exploringTime {
       width: max-content;
-      margin-left: auto;
+      margin-left: 0;
       font-size: 59px;
       font-weight: 500;
       line-height: 0.9;
@@ -3227,12 +3232,12 @@
 
     #dayStatus {
       position: fixed;
-      right: max(24px, calc(env(safe-area-inset-right) + 16px));
-      bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px));
+      left: max(18px, calc(env(safe-area-inset-left) + 16px));
+      top: max(80px, calc(env(safe-area-inset-top) + 16px));
       z-index: 120;
       display: block;
       color: #fff;
-      text-align: right;
+      text-align: left;
       opacity: 1;
       visibility: visible;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
@@ -3258,7 +3263,7 @@
       --day-number-scale: 1;
       display: flex;
       align-items: flex-start;
-      justify-content: flex-end;
+      justify-content: flex-start;
       height: 0.9em;
       overflow: visible;
       font-size: calc(59px * var(--day-number-scale));
@@ -3276,7 +3281,7 @@
     .day-number-viewport {
       display: inline-flex;
       flex: 0 0 auto;
-      justify-content: flex-end;
+      justify-content: flex-start;
       height: 0.9em;
       overflow: hidden;
       will-change: width;
@@ -3292,7 +3297,7 @@
       flex: 0 0 auto;
       height: 0.9em;
       align-items: start;
-      justify-items: end;
+      justify-items: start;
     }
 
     .day-number-value {
@@ -3760,7 +3765,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.168"
+  data-game-version="0.169"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4182,7 +4187,7 @@
         alt=""
         draggable="false"
       />
-      <span class="hud-action-button__label">Repair</span>
+      <span class="hud-action-button__label">FIX</span>
     </button>
     <button
       id="inventoryButton"
@@ -4197,7 +4202,7 @@
         draggable="false"
       />
       <span id="weaponStatusIcon" aria-hidden="true"></span>
-      <span class="hud-action-button__label">Bag</span>
+      <span class="hud-action-button__label">BAG</span>
     </button>
     <button
       id="exploreButton"
@@ -4211,7 +4216,7 @@
         alt=""
         draggable="false"
       />
-      <span class="hud-action-button__label">Explore</span>
+      <span class="hud-action-button__label">GO</span>
     </button>
   </div>
   <div id="exploringStatus" aria-live="polite">
@@ -5095,7 +5100,7 @@
       const MAIL_FIRST_TOAST_MESSAGE = "I’ve got mail.";
       const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see.";
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
-      const MAIL_READ_FIRST_TOAST_MESSAGE = "I should read the letter first.";
+      const MAIL_READ_FIRST_TOAST_MESSAGE = "To Do first.";
       const MAIL_WAIT_TOAST_MESSAGE = "Maybe tomorrow.";
       const MAIL_EMPTY_TOAST_MESSAGE = "Nothing here yet.";
       const COMPASS_SELECTED_TOAST_MESSAGE = "Now I know where I’m going.";
@@ -5682,22 +5687,7 @@
       }
 
       function updateHudActionButtonWidths() {
-        for (const button of hudActionButtons) {
-          const label = button.querySelector(
-            ".hud-action-button__label"
-          );
-
-          if (!label) continue;
-
-          // 왼쪽 여백 12 + 아이콘 32 + 간격 10 + 텍스트 + 오른쪽 여백 16
-          const expandedWidth =
-            12 + 32 + 10 + label.getBoundingClientRect().width + 16;
-
-          button.style.setProperty(
-            "--expanded-width",
-            `${Math.ceil(expandedWidth)}px`
-          );
-        }
+        // 버튼은 고정 폭을 유지하고 세로 방향으로만 확장합니다.
       }
 
       updateHudActionButtonWidths();
@@ -9365,11 +9355,17 @@
       }
 
       function showZombieKillDelta() {
-        if (!dayStatus) return;
+        if (!dayStatus || !remainingZombieLabel) return;
+
+        const dayStatusRect = dayStatus.getBoundingClientRect();
+        const zombieLabelRect = remainingZombieLabel.getBoundingClientRect();
+        const targetCenterX =
+          zombieLabelRect.left - dayStatusRect.left + zombieLabelRect.width / 2;
 
         const delta = document.createElement("span");
         delta.className = "zombie-kill-delta";
         delta.textContent = "-1";
+        delta.style.left = `${targetCenterX}px`;
         dayStatus.appendChild(delta);
         delta.addEventListener("animationend", () => delta.remove(), { once: true });
       }
