@@ -1893,7 +1893,7 @@
       z-index: 100;
       display: flex;
       align-items: center;
-      gap: 100px;
+      gap: 40px;
       transform: translateX(-50%);
       color: #fff;
       font-size: 16px;
@@ -1908,14 +1908,42 @@
 
     .hud-resource {
       display: inline-flex;
-      align-items: baseline;
+      align-items: center;
       gap: 5px;
+    }
+
+    /* icon_resources.png(2×2): 1=Food, 2=Wood, 3=Stone */
+    .hud-resource-icon {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      background-image: url("images/icon_resources.png");
+      background-repeat: no-repeat;
+      background-size: 200% 200%;
+      image-rendering: auto;
+    }
+
+    .hud-resource-icon.is-food {
+      background-position: left top;
+    }
+
+    .hud-resource-icon.is-wood {
+      background-position: right top;
+    }
+
+    .hud-resource-icon.is-stone {
+      background-position: left bottom;
     }
 
     @media (max-width: 560px) {
       #hud {
-        gap: 28px;
         font-size: 14px;
+      }
+
+      .hud-resource-icon {
+        width: 20px;
+        height: 20px;
+        flex-basis: 20px;
       }
     }
 
@@ -3764,6 +3792,39 @@
       border: 2px solid rgba(255, 235, 80, 0.95);
       background: rgba(255, 235, 80, 0.08);
     }
+
+
+    /* =========================================================
+       모바일 코너 UI 공통 축소
+       - 모바일/터치 환경에서 우상단·좌하단·우하단 UI를 75%로 표시합니다.
+       - 각 코너를 transform-origin으로 고정해 기존 기준점과 위치는 유지합니다.
+       - scale 개별 속성을 사용해 기존 transform/translate 애니메이션과 충돌하지 않습니다.
+       ========================================================= */
+    @media (hover: none) and (pointer: coarse) {
+      /* 우상단 */
+      #todoListOverlay,
+      #guideOverlay,
+      #dayStatus,
+      #exploringStatus {
+        scale: 0.75;
+        transform-origin: right top;
+      }
+
+      /* 좌하단 */
+      #profileHud,
+      #toastLayer {
+        scale: 0.75;
+        transform-origin: left bottom;
+      }
+
+      /* 우하단 */
+      #hudActionButtons,
+      #versionLabel {
+        scale: 0.75;
+        transform-origin: right bottom;
+      }
+    }
+
   </style>
 </head>
 <!--
@@ -3773,7 +3834,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.171"
+  data-game-version="0.172"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -3981,9 +4042,9 @@
   </div>
 
   <div id="hud">
-    <span class="hud-resource">Food <span><span id="foodCount">0</span>/3</span></span>
-    <span class="hud-resource">Wood <span><span id="woodCount">0</span>/10</span></span>
-    <span class="hud-resource">Stone <span><span id="stoneCount">0</span>/5</span></span>
+    <span class="hud-resource" aria-label="Food"><span class="hud-resource-icon is-food" aria-hidden="true"></span><span><span id="foodCount">0</span>/3</span></span>
+    <span class="hud-resource" aria-label="Wood"><span class="hud-resource-icon is-wood" aria-hidden="true"></span><span><span id="woodCount">0</span>/10</span></span>
+    <span class="hud-resource" aria-label="Stone"><span class="hud-resource-icon is-stone" aria-hidden="true"></span><span><span id="stoneCount">0</span>/5</span></span>
   </div>
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   <div id="menuBackdrop" aria-hidden="true"></div>
