@@ -3853,7 +3853,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.174"
+  data-game-version="0.175"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4742,10 +4742,10 @@
         3_500
       ]);
       const POPULATION_RESUME_GAP_THRESHOLD_MS = 2_000;
-      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 7_000;
-      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 9_000;
-      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 7_000;
-      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 15_000;
+      const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 5_000;
+      const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 7_000;
+      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 5_000;
+      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 10_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
       const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
@@ -10759,7 +10759,7 @@
         });
       }
 
-      function startOneDeerLeavingForLightChange() {
+      function startOneDeerLeavingForLightChange(options = {}) {
         const candidates = Array.from(deerMap.values()).filter(
           (deer) =>
             deer.state !== "dying" &&
@@ -10775,9 +10775,12 @@
         const direction = deer.facing === "left" ? -1 : 1;
 
         beginDeerRunInDirection(deer, direction, "leaving");
+        deer.isNightTransitionLeaving = options.disableAttack === true;
+        if (deer.isNightTransitionLeaving) {
+          deer.hitbox.style.pointerEvents = "none";
+          deer.hitbox.tabIndex = -1;
+        }
         deer.element.style.opacity = "1";
-        deer.hitbox.style.pointerEvents = "none";
-        deer.hitbox.tabIndex = -1;
         showSingleDeerFrame(deer, DEER_RUN_INTRO_FRAME_START);
         renderDeer(deer);
         saveResourceState();
@@ -11174,8 +11177,6 @@
           const escapeDirection = deerCenterX < carCenterX ? -1 : 1;
           beginDeerRunInDirection(deer, escapeDirection, "leaving");
           deer.element.style.opacity = "1";
-          deer.hitbox.style.pointerEvents = "none";
-          deer.hitbox.tabIndex = -1;
           showSingleDeerFrame(deer, DEER_RUN_INTRO_FRAME_START);
           renderDeer(deer);
         }
@@ -11222,7 +11223,7 @@
         const wasNight = document.body.classList.contains("is-night");
 
         if (wasNight !== enabled) {
-          startOneDeerLeavingForLightChange();
+          startOneDeerLeavingForLightChange({ disableAttack: enabled });
         }
 
         document.body.classList.toggle("is-night", enabled);
@@ -17755,8 +17756,8 @@
         const candidates = Array.from(deerMap.values()).filter(
           (deer) =>
             deer.state !== "dying" &&
-            deer.state !== "leaving" &&
             deer.state !== "removed" &&
+            deer.isNightTransitionLeaving !== true &&
             isClientPointInsideElement(clientX, clientY, deer.hitbox)
         );
 
@@ -18024,6 +18025,13 @@
         deer.runIntroComplete = false;
         setDeerFacing(deer);
 
+        // 직접 공격 회피(evading)가 아닌 다른 이유의 도주(leaving)는
+        // 달리는 동안에도 계속 공격할 수 있도록 입력을 유지합니다.
+        if (state === "leaving") {
+          deer.hitbox.style.pointerEvents = "auto";
+          deer.hitbox.tabIndex = 0;
+        }
+
         /*
           도망 중인 사슴은 전체 필드 밖으로 완전히 나가기 전까지 필드에
           존재하는 것으로 판정하므로, 여기서는 보충 타이머를 시작하지 않습니다.
@@ -18121,14 +18129,20 @@
       }
 
       function attackDeer(deer) {
-        if (isExploring) {
+        const isLeaving = deer.state === "leaving";
+
+        // 밤 전환 때문에 도망가는 사슴은 입력과 공격을 모두 막습니다.
+        if (deer.isNightTransitionLeaving === true) return;
+
+        // 탐험 중에는 일반 사슴 공격을 막되, 다른 이유로 이미 도망 중인
+        // leaving 사슴은 화면에 남아 있는 동안 공격할 수 있습니다.
+        if (isExploring && !isLeaving) {
           showExploringBusyToast();
           return;
         }
 
         if (
           deer.state === "dying" ||
-          deer.state === "leaving" ||
           deer.state === "removed"
         ) {
           return;
@@ -18162,6 +18176,28 @@
         }
 
         alertNearbyDeer(deer, deer);
+
+        // 직접 공격을 피해 evading 중인 사슴은 기존 규칙을 유지합니다.
+        // 주변 전투·자동차·낮 전환 등 다른 이유로 leaving 중인 사슴은
+        // 유효한 공격 한 번으로 처치합니다. 밤 전환 도주는 위에서 제외됩니다.
+        if (isLeaving) {
+          if (weapon === "axe") {
+            playSound(HIT_SOUND, 0.5);
+          } else if (weapon === "handgun") {
+            consumeAmmo("handgun");
+            playSound(HANDGUN_SOUND);
+            const isCritical = Math.random() < HANDGUN_CRITICAL_CHANCE;
+            if (isCritical) setTodoProgress(4, "item1", true);
+          } else if (weapon === "rifle") {
+            consumeAmmo("rifle");
+            playSound(RIFLE_FIRE_SOUND);
+            setTodoProgress(4, "item1", true);
+          }
+
+          deer.health = 0;
+          beginDeerDeath(deer);
+          return;
+        }
 
         if (weapon === "axe") {
           deer.axeAttackCount += 1;
