@@ -45,6 +45,9 @@
       /* 가방 아이콘 중앙에 겹쳐 표시되는 현재 장착 무기 아이콘 크기입니다. */
       --weapon-hud-size: 26px;
 
+      /* 모바일 우상단·좌하단·우하단 UI 공통 표시 배율입니다. */
+      --mobile-corner-ui-scale: 0.9;
+
       /* 좀비·사슴·개의 밤 전용 밝기와 채도입니다. */
       --entity-night-brightness: 0.42;
       --entity-night-saturation: 0.7;
@@ -1893,7 +1896,7 @@
       z-index: 100;
       display: flex;
       align-items: center;
-      gap: 40px;
+      gap: 100px;
       transform: translateX(-50%);
       color: #fff;
       font-size: 16px;
@@ -3795,32 +3798,48 @@
 
 
     /* =========================================================
-       모바일 코너 UI 공통 축소
-       - 모바일/터치 환경에서 우상단·좌하단·우하단 UI를 75%로 표시합니다.
-       - 각 코너를 transform-origin으로 고정해 기존 기준점과 위치는 유지합니다.
-       - scale 개별 속성을 사용해 기존 transform/translate 애니메이션과 충돌하지 않습니다.
+       우상단 / 좌하단 HUD 그룹 / 모바일 코너 UI 공통 축소
+       - DAY·Exploring·Guide·To Do는 하나의 우상단 그룹입니다.
+       - 프로필·말풍선은 하나의 좌하단 그룹입니다.
+       - 모바일/터치 환경에서는 각 그룹을 화면 모서리를 기준점으로 90% 표시합니다.
+       - 그룹 내부의 크기와 간격, 위치 오프셋도 같은 비율로 함께 줄어듭니다.
        ========================================================= */
+    #topRightHudGroup {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      pointer-events: none;
+      transform-origin: right top;
+    }
+
+    #bottomLeftHudGroup {
+      position: fixed;
+      inset: 0;
+      z-index: var(--profile-z-index);
+      pointer-events: none;
+      transform-origin: left bottom;
+    }
+
+    #topRightHudGroup #dayStatus,
+    #topRightHudGroup #exploringStatus {
+      position: absolute;
+    }
+
     @media (hover: none) and (pointer: coarse) {
-      /* 우상단 */
-      #todoListOverlay,
-      #guideOverlay,
-      #dayStatus,
-      #exploringStatus {
-        scale: 0.75;
-        transform-origin: right top;
+      /* 우상단: 보이는 화면의 우상단을 기준으로 그룹 전체 축소 */
+      #topRightHudGroup {
+        scale: var(--mobile-corner-ui-scale);
       }
 
-      /* 좌하단 */
-      #profileHud,
-      #toastLayer {
-        scale: 0.75;
-        transform-origin: left bottom;
+      /* 좌하단: 프로필 + 말풍선을 보이는 화면의 좌하단 기준으로 함께 축소 */
+      #bottomLeftHudGroup {
+        scale: var(--mobile-corner-ui-scale);
       }
 
       /* 우하단 */
       #hudActionButtons,
       #versionLabel {
-        scale: 0.75;
+        scale: var(--mobile-corner-ui-scale);
         transform-origin: right bottom;
       }
     }
@@ -3834,7 +3853,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.172"
+  data-game-version="0.173"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4037,8 +4056,11 @@
     <div id="rainLayer" aria-hidden="true"></div>
   </div>
 
-  <div id="profileHud" aria-hidden="true">
-    <img src="images/profile_default.png" alt="" draggable="false" />
+  <div id="bottomLeftHudGroup">
+    <div id="profileHud" aria-hidden="true">
+      <img src="images/profile_default.png" alt="" draggable="false" />
+    </div>
+    <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   </div>
 
   <div id="hud">
@@ -4046,20 +4068,39 @@
     <span class="hud-resource" aria-label="Wood"><span class="hud-resource-icon is-wood" aria-hidden="true"></span><span><span id="woodCount">0</span>/10</span></span>
     <span class="hud-resource" aria-label="Stone"><span class="hud-resource-icon is-stone" aria-hidden="true"></span><span><span id="stoneCount">0</span>/5</span></span>
   </div>
-  <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   <div id="menuBackdrop" aria-hidden="true"></div>
-  <div id="guideOverlay" hidden>
-    <span class="guide-line">zombies and deer appear over time.</span>
-    <span class="guide-line">explore to advance the day and earn rewards.</span>
-    <span class="guide-line">check your mailbox for new tasks.</span>
-  </div>
-  <div id="todoListOverlay" hidden>
-    <span id="todoListTitle">to do :</span>
-    <span class="todo-item" data-todo-key="item1">clear the zombies</span>
-    <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
-    <span class="todo-item" data-todo-key="item3">explore the village</span>
-    <span id="todoDoneNote" hidden>when done, write back.</span>
-    <span id="todoRewardNote" hidden></span>
+  <div id="topRightHudGroup" aria-hidden="false">
+    <div id="guideOverlay" hidden>
+      <span class="guide-line">zombies and deer appear over time.</span>
+      <span class="guide-line">explore to advance the day and earn rewards.</span>
+      <span class="guide-line">check your mailbox for new tasks.</span>
+    </div>
+    <div id="todoListOverlay" hidden>
+      <span id="todoListTitle">to do :</span>
+      <span class="todo-item" data-todo-key="item1">clear the zombies</span>
+      <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
+      <span class="todo-item" data-todo-key="item3">explore the village</span>
+      <span id="todoDoneNote" hidden>when done, write back.</span>
+      <span id="todoRewardNote" hidden></span>
+    </div>
+    <div id="exploringStatus" aria-live="polite">
+      <div id="exploringLabel">Exploring</div>
+      <div id="exploringTime">10m</div>
+    </div>
+    <div id="dayStatus" aria-live="polite">
+      <div id="weatherStatusRow">
+        <span id="weatherLabel">Sunny</span>
+        <span id="remainingZombieLabel">2</span>
+      </div>
+      <div id="dayNumber" aria-label="DAY 1">
+        <span class="day-number-prefix">DAY</span>
+        <span class="day-number-viewport" aria-hidden="true">
+          <span id="dayNumberTrack" class="day-number-track">
+            <span class="day-number-value">1</span>
+          </span>
+        </span>
+      </div>
+    </div>
   </div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
@@ -4287,24 +4328,6 @@
       />
       <span class="hud-action-button__label">GO</span>
     </button>
-  </div>
-  <div id="exploringStatus" aria-live="polite">
-    <div id="exploringLabel">Exploring</div>
-    <div id="exploringTime">10m</div>
-  </div>
-  <div id="dayStatus" aria-live="polite">
-    <div id="weatherStatusRow">
-      <span id="weatherLabel">Sunny</span>
-      <span id="remainingZombieLabel">2</span>
-    </div>
-    <div id="dayNumber" aria-label="DAY 1">
-      <span class="day-number-prefix">DAY</span>
-      <span class="day-number-viewport" aria-hidden="true">
-        <span id="dayNumberTrack" class="day-number-track">
-          <span class="day-number-value">1</span>
-        </span>
-      </span>
-    </div>
   </div>
   <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span id="versionNumber"></span></div>
 
