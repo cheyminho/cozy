@@ -2300,7 +2300,8 @@
 
     #exploreNewBadge.is-ready,
     #repairNewBadge.is-ready,
-    .exploration-option-new-badge.is-ready {
+    .exploration-option-new-badge.is-ready,
+    .repair-category-new-badge.is-ready {
       background: #276ebd;
       color: #fff;
       font-weight: 700;
@@ -3863,7 +3864,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.177"
+  data-game-version="0.178"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6849,9 +6850,16 @@
         return true;
       }
 
+      function hasReadyRepairItemInCategory(category) {
+        const items = repairItemsByCategory[category] || [];
+        return items.some((item) =>
+          isRepairItemReadyForCraftOrRepair(category, item)
+        );
+      }
+
       function hasAnyReadyRepairItem() {
-        return Object.entries(repairItemsByCategory).some(([category, items]) =>
-          items.some((item) => isRepairItemReadyForCraftOrRepair(category, item))
+        return REPAIR_CATEGORY_ORDER.some((category) =>
+          hasReadyRepairItemInCategory(category)
         );
       }
 
@@ -8318,7 +8326,15 @@
           const badge = categoryButton.querySelector(".repair-category-new-badge");
           categoryButton.classList.toggle("is-selected", isSelected);
           categoryButton.setAttribute("aria-selected", isSelected ? "true" : "false");
-          if (badge) badge.hidden = !getRepairCategoryHasNewItems(category);
+
+          if (badge) {
+            const status = getRepairCategoryHasNewItems(category)
+              ? "NEW"
+              : (hasReadyRepairItemInCategory(category) ? "READY" : "");
+            badge.textContent = status;
+            badge.classList.toggle("is-ready", status === "READY");
+            badge.hidden = status === "";
+          }
         }
       }
 
@@ -15261,7 +15277,8 @@
 
         if (isDogLyingUnderTree(dog)) {
           dogTreeEscapeDay = dayCount;
-          startDogEscape(dog, {
+          startDogFastRun(dog, {
+            mode: "escape",
             completeStageOnExit: false,
             resyncOnExit: false
           });
