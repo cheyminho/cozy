@@ -144,6 +144,23 @@
       --profile-edge-offset: 20px;
       --profile-z-index: 145;
 
+      /*
+        프로필 표정 파츠 위치 수정 위치 (profile_default.png의 512×512 좌표 기준)
+        - eyes / hair / mouth: left, top으로 위치 조정
+        - fur-left / fur-right: 양쪽 얼굴털을 각각 따로 위치 조정
+        - 모든 파츠는 프로필 본체와 함께 --profile-scale의 영향을 받습니다.
+      */
+      --profile-expression-eyes-left: 192px;
+      --profile-expression-eyes-top: 84px;
+      --profile-expression-hair-left: 227px;
+      --profile-expression-hair-top: 48px;
+      --profile-expression-fur-left-left: 159px;
+      --profile-expression-fur-left-top: 120px;
+      --profile-expression-fur-right-left: 317px;
+      --profile-expression-fur-right-top: 120px;
+      --profile-expression-mouth-left: 242px;
+      --profile-expression-mouth-top: 144px;
+
       /* 화면 크기에 따라 JavaScript가 자동 갱신하는 런타임 값입니다. */
       --profile-runtime-scale: var(--profile-scale);
       --profile-runtime-offset-x: var(--profile-offset-x);
@@ -1876,13 +1893,86 @@
         opacity var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    #profileHud img {
+    #profileHud > .profile-base {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
       display: block;
       width: 100%;
       height: 100%;
       object-fit: contain;
       image-rendering: auto;
       pointer-events: none;
+    }
+
+    /*
+      프로필 표정 파츠는 기본 프로필 이미지보다 높은 뎁스에 겹쳐 표시합니다.
+      각 파츠 위치는 :root의 --profile-expression-* 값에서 조정합니다.
+    */
+    #profileExpressionLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .profile-expression-part {
+      position: absolute;
+      display: block;
+      object-fit: contain;
+      image-rendering: auto;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .profile-expression-part[hidden] {
+      display: none;
+    }
+
+    #profileEyesExpression {
+      left: var(--profile-expression-eyes-left);
+      top: var(--profile-expression-eyes-top);
+      z-index: 4;
+      width: 128px;
+      height: 64px;
+    }
+
+    #profileHairExpression {
+      left: var(--profile-expression-hair-left);
+      top: var(--profile-expression-hair-top);
+      z-index: 5;
+      width: 64px;
+      height: 32px;
+    }
+
+    #profileFurLeftExpression,
+    #profileFurRightExpression {
+      z-index: 3;
+      width: 34px;
+      height: 32px;
+    }
+
+    #profileFurLeftExpression {
+      left: var(--profile-expression-fur-left-left);
+      top: var(--profile-expression-fur-left-top);
+      transform: scaleX(-1);
+      transform-origin: center center;
+    }
+
+    #profileFurRightExpression {
+      left: var(--profile-expression-fur-right-left);
+      top: var(--profile-expression-fur-right-top);
+    }
+
+    #profileMouthSmileExpression,
+    #profileMouthTalkExpression {
+      left: var(--profile-expression-mouth-left);
+      top: var(--profile-expression-mouth-top);
+      z-index: 6;
+      width: 32px;
+      height: 32px;
     }
 
     /* 탐험 출발 시 프로필과 말풍선이 함께 왼쪽 화면 밖으로 사라집니다. */
@@ -2615,6 +2705,28 @@
       background: #fff;
     }
 
+    /* 선택된 설계도 네모가 아주 살짝 커졌다 작아지는 반복 강조 애니메이션입니다. */
+    .repair-grid-item.is-selected {
+      transform-origin: center center;
+      animation: repair-grid-selected-pulse 0.67s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    }
+
+    @keyframes repair-grid-selected-pulse {
+      0%,
+      100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .repair-grid-item.is-selected {
+        animation: none;
+      }
+    }
+
     .repair-grid-item.is-new::before {
       z-index: 3;
       border-color: #f6c062;
@@ -3163,6 +3275,26 @@
     .exploration-option:focus-visible {
       font-weight: 500;
       transform: scale(1.07);
+    }
+
+    /* 모바일/터치 환경에서는 브라우저가 복원한 focus-visible이 첫 항목을 굵게 만들지 않게 합니다. */
+    @media (hover: none) and (pointer: coarse) {
+      .repair-category:focus-visible .repair-category-label {
+        font-weight: 350;
+      }
+
+      .repair-category.is-selected:focus-visible .repair-category-label {
+        font-weight: 500;
+      }
+
+      .inventory-item:focus-visible .inventory-item__label {
+        font-weight: 350;
+      }
+
+      .exploration-option:focus-visible {
+        font-weight: 350;
+        transform: scale(1);
+      }
     }
 
     #exploringStatus {
@@ -3868,7 +4000,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.179"
+  data-game-version="0.180"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4073,7 +4205,15 @@
 
   <div id="bottomLeftHudGroup">
     <div id="profileHud" aria-hidden="true">
-      <img src="images/profile_default.png" alt="" draggable="false" />
+      <img class="profile-base" src="images/profile_default.png" alt="" draggable="false" />
+      <div id="profileExpressionLayer" aria-hidden="true">
+        <img id="profileEyesExpression" class="profile-expression-part" src="images/profile_default_eyes_close_1.png" alt="" draggable="false" hidden />
+        <img id="profileHairExpression" class="profile-expression-part" src="images/profile_default_hair_1.png" alt="" draggable="false" />
+        <img id="profileFurLeftExpression" class="profile-expression-part" src="images/profile_default_fur_3.png" alt="" draggable="false" />
+        <img id="profileFurRightExpression" class="profile-expression-part" src="images/profile_default_fur_1.png" alt="" draggable="false" />
+        <img id="profileMouthSmileExpression" class="profile-expression-part" src="images/profile_default_mouth_smile.png" alt="" draggable="false" />
+        <img id="profileMouthTalkExpression" class="profile-expression-part" src="images/profile_default_mouth_talk.png" alt="" draggable="false" hidden />
+      </div>
     </div>
     <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   </div>
@@ -5422,12 +5562,43 @@
         "I shouldn't go without a compass.";
       const CITY_BLOCKED_TOAST_MESSAGE = "It's too far to walk.";
       const EXPLORATION_COMPLETE_TOAST_MESSAGE = "Home sweet home.";
-      const FIELD_CLEAR_TOAST_MESSAGE = "Looks clear.";
-      const FIELD_CLEAR_TOAST_DELAY_MS = 1_000;
+      const FIELD_CLEAR_TOAST_MESSAGE = "All clear.";
       // 토스트 모션 시간 수정 위치: 전체 표시시간 / 등장 / 퇴장을 각각 조절합니다.
       const TOAST_DURATION_MS = 3_000;
       const TOAST_ENTER_MS = 300;
       const TOAST_EXIT_MS = 200;
+
+      /*
+        프로필 표정 애니메이션 시간 / 리소스 수정 위치
+        - 눈 깜박임: 3~6초 간격, close_1 -> close_2를 각각 PROFILE_BLINK_FRAME_MS 동안 표시
+        - 머리털: 0.1초마다 1 -> 2 -> 3 -> 4 -> 3 -> 2 pingpong
+        - 얼굴털: 0.1초마다 1 -> 2 -> 3 -> 2 pingpong
+        - 입: 토스트 출력 시 talk를 0.2초 표시 후 smile로 복귀
+      */
+      const PROFILE_BLINK_MIN_DELAY_MS = 3_000;
+      const PROFILE_BLINK_MAX_DELAY_MS = 6_000;
+      const PROFILE_BLINK_FRAME_MS = 50;
+      const PROFILE_FUR_FRAME_MS = 120;
+      const PROFILE_MOUTH_TALK_MS = 1200;
+      const PROFILE_EYES_CLOSE_FRAMES = [
+        "images/profile_default_eyes_close_1.png",
+        "images/profile_default_eyes_close_2.png"
+      ];
+      const PROFILE_HAIR_FRAMES = [
+        "images/profile_default_hair_1.png",
+        "images/profile_default_hair_2.png",
+        "images/profile_default_hair_3.png",
+        "images/profile_default_hair_4.png"
+      ];
+      const PROFILE_FUR_FRAMES = [
+        "images/profile_default_fur_1.png",
+        "images/profile_default_fur_2.png",
+        "images/profile_default_fur_3.png"
+      ];
+      const PROFILE_MOUTH_SMILE = "images/profile_default_mouth_smile.png";
+      const PROFILE_MOUTH_TALK = "images/profile_default_mouth_talk.png";
+      const PROFILE_HAIR_PINGPONG_SEQUENCE = [0, 1, 2, 3, 2, 1];
+      const PROFILE_FUR_PINGPONG_SEQUENCE = [0, 1, 2, 1];
 
       // 토스트는 실제 렌더링 폭을 기준으로 한 줄에 맞게 글자 크기를 자동 축소합니다.
       const MAX_VISIBLE_TOASTS = 2;
@@ -5600,6 +5771,12 @@
       const woodCountElement = document.getElementById("woodCount");
       const stoneCountElement = document.getElementById("stoneCount");
       const toastLayer = document.getElementById("toastLayer");
+      const profileEyesExpression = document.getElementById("profileEyesExpression");
+      const profileHairExpression = document.getElementById("profileHairExpression");
+      const profileFurLeftExpression = document.getElementById("profileFurLeftExpression");
+      const profileFurRightExpression = document.getElementById("profileFurRightExpression");
+      const profileMouthSmileExpression = document.getElementById("profileMouthSmileExpression");
+      const profileMouthTalkExpression = document.getElementById("profileMouthTalkExpression");
       const menuBackdrop = document.getElementById("menuBackdrop");
       const explorationOverlay = document.getElementById("explorationOverlay");
       const explorationMenu = document.getElementById("explorationMenu");
@@ -6373,6 +6550,12 @@
         startPanX: 0,
         startPanY: 0
       };
+
+      let profileBlinkTimerId = null;
+      let profileBlinkToken = 0;
+      let profileFurTimerId = null;
+      let profileFurTick = 0;
+      let profileMouthTimerId = null;
 
       /*
         필드 엔티티는 누른 순간 공격 대상을 고정합니다.
@@ -8712,11 +8895,27 @@
         updateRepairNewBadgeState();
       }
 
+      function getFirstAvailableRepairItemIndex(category) {
+        const firstEntry = getRepairDisplayEntries(category).find(
+          ({ item }) => item?.unlocked === true && Boolean(item?.name)
+        );
+        return firstEntry ? firstEntry.index : -1;
+      }
+
+      function selectFirstAvailableRepairItem(category) {
+        const firstIndex = getFirstAvailableRepairItemIndex(category);
+        repairSelectedItemByCategory[category] = firstIndex;
+        const didClearItemNew = firstIndex >= 0
+          ? clearRepairItemNewState(category, firstIndex)
+          : false;
+        return { firstIndex, didClearItemNew };
+      }
+
       function selectRepairCategory(category) {
         if (!isRepairCategory(category)) return;
 
         repairSelectedCategory = category;
-        repairSelectedItemByCategory[category] = -1;
+        selectFirstAvailableRepairItem(category);
         clearRepairCategoryNewState(category);
         applyRepairState();
         updateRepairCategoryLayout();
@@ -10182,6 +10381,11 @@
         });
       }
 
+      function shouldAutoFocusMenuEntry() {
+        return !window.matchMedia ||
+          window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+      }
+
       function openInventory() {
         if (isInventoryOpen) return;
 
@@ -10202,7 +10406,7 @@
         });
 
         const firstItem = getFirstVisibleInventoryItem();
-        if (firstItem) {
+        if (firstItem && shouldAutoFocusMenuEntry()) {
           window.setTimeout(() => firstItem.focus(), 0);
         }
       }
@@ -10221,7 +10425,7 @@
         syncMenuBackdrop();
 
         const firstOption = explorationOptions[0];
-        if (firstOption) {
+        if (firstOption && shouldAutoFocusMenuEntry()) {
           window.setTimeout(() => firstOption.focus(), 0);
         }
       }
@@ -10232,7 +10436,8 @@
         const didClearSelectedCategoryNew = clearRepairCategoryNewState(
           repairSelectedCategory
         );
-        repairSelectedItemByCategory[repairSelectedCategory] = -1;
+        const { didClearItemNew: didClearSelectedItemNew } =
+          selectFirstAvailableRepairItem(repairSelectedCategory);
         updateRepairNewBadgeState();
 
         closeExplorationMenu(false);
@@ -10244,7 +10449,7 @@
         syncMenuBackdrop();
         applyRepairState();
         updateRepairCategoryLayout();
-        if (didClearSelectedCategoryNew) {
+        if (didClearSelectedCategoryNew || didClearSelectedItemNew) {
           saveResourceState();
         }
 
@@ -10252,7 +10457,7 @@
           (button) =>
             button.dataset.repairCategory === repairSelectedCategory
         );
-        if (selectedCategoryButton) {
+        if (selectedCategoryButton && shouldAutoFocusMenuEntry()) {
           window.setTimeout(() => selectedCategoryButton.focus(), 0);
         }
       }
@@ -12318,6 +12523,11 @@
           preloadImage(DEER_SHEET),
           preloadImage(DOG_SHEET),
           preloadImage(CAT_SHEET),
+          ...PROFILE_EYES_CLOSE_FRAMES.map(preloadImage),
+          ...PROFILE_HAIR_FRAMES.map(preloadImage),
+          ...PROFILE_FUR_FRAMES.map(preloadImage),
+          preloadImage(PROFILE_MOUTH_SMILE),
+          preloadImage(PROFILE_MOUTH_TALK),
           preloadImage(DAY_BACKGROUND_IMAGE),
           preloadImage(RAIN_SPOT_SHEET),
           preloadImage("images/house_1_roof.png"),
@@ -12332,6 +12542,118 @@
           preloadImage(TREE_DAY_STAGE_THREE_IMAGE),
           preloadImage(TREE_PART_IMAGE)
         ]);
+      }
+
+      function setProfileEyesImage(path) {
+        if (!profileEyesExpression) return;
+
+        if (!path) {
+          profileEyesExpression.hidden = true;
+          return;
+        }
+
+        profileEyesExpression.src = path;
+        profileEyesExpression.hidden = false;
+      }
+
+      function scheduleProfileBlink() {
+        if (!profileEyesExpression) return;
+
+        if (profileBlinkTimerId !== null) {
+          clearTimeout(profileBlinkTimerId);
+        }
+
+        const delay = randomBetween(
+          PROFILE_BLINK_MIN_DELAY_MS,
+          PROFILE_BLINK_MAX_DELAY_MS
+        );
+
+        profileBlinkTimerId = window.setTimeout(() => {
+          profileBlinkTimerId = null;
+          runProfileBlink();
+        }, delay);
+      }
+
+      function runProfileBlink() {
+        if (!profileEyesExpression) return;
+
+        const token = ++profileBlinkToken;
+        setProfileEyesImage(PROFILE_EYES_CLOSE_FRAMES[0]);
+
+        window.setTimeout(() => {
+          if (token !== profileBlinkToken) return;
+          setProfileEyesImage(PROFILE_EYES_CLOSE_FRAMES[1]);
+
+          window.setTimeout(() => {
+            if (token !== profileBlinkToken) return;
+            setProfileEyesImage("");
+            scheduleProfileBlink();
+          }, PROFILE_BLINK_FRAME_MS);
+        }, PROFILE_BLINK_FRAME_MS);
+      }
+
+      function renderProfileFurFrame() {
+        const hairSequenceLength = PROFILE_HAIR_PINGPONG_SEQUENCE.length;
+        const furSequenceLength = PROFILE_FUR_PINGPONG_SEQUENCE.length;
+        const hairFrameIndex =
+          PROFILE_HAIR_PINGPONG_SEQUENCE[profileFurTick % hairSequenceLength];
+        const rightFurFrameIndex =
+          PROFILE_FUR_PINGPONG_SEQUENCE[profileFurTick % furSequenceLength];
+        const leftFurFrameIndex =
+          PROFILE_FUR_PINGPONG_SEQUENCE[(profileFurTick + 1) % furSequenceLength];
+
+        if (profileHairExpression) {
+          profileHairExpression.src = PROFILE_HAIR_FRAMES[hairFrameIndex];
+        }
+        if (profileFurRightExpression) {
+          profileFurRightExpression.src = PROFILE_FUR_FRAMES[rightFurFrameIndex];
+        }
+        if (profileFurLeftExpression) {
+          profileFurLeftExpression.src = PROFILE_FUR_FRAMES[leftFurFrameIndex];
+        }
+
+        profileFurTick = (profileFurTick + 1) % 12;
+      }
+
+      function startProfileFurAnimation() {
+        if (profileFurTimerId !== null) return;
+        renderProfileFurFrame();
+        profileFurTimerId = window.setInterval(
+          renderProfileFurFrame,
+          PROFILE_FUR_FRAME_MS
+        );
+      }
+
+      function triggerProfileTalk() {
+        if (!profileMouthSmileExpression || !profileMouthTalkExpression) return;
+
+        if (profileMouthTimerId !== null) {
+          clearTimeout(profileMouthTimerId);
+        }
+
+        profileMouthSmileExpression.hidden = true;
+        profileMouthTalkExpression.hidden = false;
+
+        profileMouthTimerId = window.setTimeout(() => {
+          profileMouthTimerId = null;
+          profileMouthTalkExpression.hidden = true;
+          profileMouthSmileExpression.hidden = false;
+        }, PROFILE_MOUTH_TALK_MS);
+      }
+
+      function initializeProfileExpressions() {
+        if (profileMouthSmileExpression) {
+          profileMouthSmileExpression.src = PROFILE_MOUTH_SMILE;
+          profileMouthSmileExpression.hidden = false;
+        }
+        if (profileMouthTalkExpression) {
+          profileMouthTalkExpression.src = PROFILE_MOUTH_TALK;
+          profileMouthTalkExpression.hidden = true;
+        }
+
+        setProfileEyesImage("");
+        startProfileFurAnimation();
+        scheduleProfileBlink();
       }
 
       function applyWorldTransform() {
@@ -14233,6 +14555,7 @@
 
       function showToast(message) {
         const now = performance.now();
+        triggerProfileTalk();
 
         // 이미 제거된 토스트가 배열에 남지 않도록 정리합니다.
         for (let index = activeToasts.length - 1; index >= 0; index -= 1) {
@@ -19488,14 +19811,12 @@
         commitResourceState();
         if (zombieCount > previousZombieCount) {
           showZombieKillDelta();
-        }
-
-        if (previousZombieCount < zombieKillRequirement && zombieCount >= zombieKillRequirement) {
-          window.setTimeout(() => {
-            if (!isExploring && zombieCount >= zombieKillRequirement) {
-              showToast(FIELD_CLEAR_TOAST_MESSAGE);
-            }
-          }, FIELD_CLEAR_TOAST_DELAY_MS);
+          const remainingZombieKills = Math.max(0, zombieKillRequirement - zombieCount);
+          showToast(
+            remainingZombieKills === 0
+              ? FIELD_CLEAR_TOAST_MESSAGE
+              : `${remainingZombieKills} ${remainingZombieKills === 1 ? "zombie" : "zombies"} left.`
+          );
         }
       }
 
@@ -21512,6 +21833,8 @@
           handleExplorationDestination(destination);
         });
       }
+
+      initializeProfileExpressions();
 
       versionNumber.textContent = GAME_VERSION;
       versionTestButton.classList.toggle("is-test-active", TEST_MODE);
