@@ -137,6 +137,7 @@
       --profile-offset-x: -70px;
       --profile-offset-y: -182px;
       --profile-slide-distance: 180px;
+      --profile-transition-duration: 1500ms;
       --profile-edge-offset: 20px;
       --profile-z-index: 145;
 
@@ -1833,12 +1834,18 @@
     body.is-entering-game #exploreButton,
     body.is-entering-game #dayStatus,
     body.is-entering-game #exploringStatus,
-    body.is-entering-game #versionLabel,
-    body.is-entering-game #profileHud {
+    body.is-entering-game #versionLabel {
       translate: 0 0;
       transition:
         translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
         opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body.is-entering-game #profileHud {
+      translate: 0 0;
+      transition:
+        translate var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     /*
@@ -1860,8 +1867,8 @@
       pointer-events: none;
       will-change: translate, opacity;
       transition:
-        translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
-        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+        translate var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     #profileHud img {
@@ -3114,8 +3121,8 @@
 
     #exploringStatus {
       position: fixed;
-      right: max(24px, calc(env(safe-area-inset-right) + 16px));
-      top: max(30px, calc(env(safe-area-inset-top) + 16px));
+      right: max(22px, calc(env(safe-area-inset-right) + 16px));
+      top: max(80px, calc(env(safe-area-inset-top) + 16px));
       z-index: 120;
       display: block;
       color: #fff;
@@ -3139,7 +3146,7 @@
       font-size: 14px;
       font-weight: 450;
       line-height: 1;
-      transform: translateY(5px);
+      transform: translate(-5px, 5px);
     }
 
     #weatherStatusRow {
@@ -3766,7 +3773,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.170"
+  data-game-version="0.171"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
