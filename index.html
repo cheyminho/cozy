@@ -133,8 +133,8 @@
         - offset-y: +값은 위쪽 / -값은 아래쪽 이동
         - z-index: 수리/가방/탐험 화면 콘텐츠보다 앞에 표시되는 뎁스
       */
-      --profile-scale: 0.8;
-      --profile-offset-x: -60px;
+      --profile-scale: 0.74;
+      --profile-offset-x: -70px;
       --profile-offset-y: -182px;
       --profile-slide-distance: 180px;
       --profile-edge-offset: 20px;
@@ -164,16 +164,16 @@
         - toast-previous-scale: 기존 토스트의 축소 배율
         - toast-stack-duration: 기존 토스트가 위로 이동/축소되는 시간
       */
-      --toast-offset-x: 175px;
-      --toast-offset-y: 220px;
+      --toast-offset-x: 150px;
+      --toast-offset-y: 194px;
       --toast-text-offset-x: 0px;
       --toast-text-offset-y: 0px;
       --toast-max-width: 320px;
-      --toast-font-size: 22px;
+      --toast-font-size: 16px;
       --toast-bubble-radius: 18px;
       --toast-bubble-padding-x: 18px;
       --toast-bubble-padding-y: 12px;
-      --toast-previous-offset-y: 65px;
+      --toast-previous-offset-y: 56px;
       --toast-previous-scale: 0.7;
       --toast-stack-duration: 180ms;
       --toast-z-index: 160;
@@ -490,8 +490,8 @@
     #todoListOverlay,
     #guideOverlay {
       position: absolute;
-      left: 26px;
-      top: 164px;
+      right: 26px;
+      top: 170px;
       z-index: 30;
       color: #fff;
       font-family: "Kalam", cursive;
@@ -499,7 +499,7 @@
       font-style: normal;
       font-weight: 300;
       line-height: 0.4;
-      text-align: left;
+      text-align: right;
       opacity: 1;
       transform: translateX(0);
       white-space: pre-wrap;
@@ -526,7 +526,7 @@
     }
 
     @keyframes todo-list-slide-in {
-      from { transform: translateX(-100px); }
+      from { transform: translateX(100px); }
       to { transform: translateX(0); }
     }
 
@@ -556,7 +556,9 @@
       display: block;
       width: max-content;
       max-width: 260px;
-      padding-left: 0.9em;
+      margin-left: auto;
+      padding-left: 0;
+      text-align: right;
     }
 
     .todo-item + .todo-item {
@@ -568,16 +570,13 @@
     }
 
     .todo-item::before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      top: 0;
+      content: none;
     }
 
     .todo-item.is-complete::after {
       content: "";
       position: absolute;
-      left: 0.9em;
+      left: 0;
       right: 0;
       top: calc(50% + 0px);
       border-top: 1px solid currentColor;
@@ -588,6 +587,7 @@
       display: block;
       width: max-content;
       max-width: min(360px, calc(100vw - 40px));
+      margin-left: auto;
       color: inherit;
       font: inherit;
       font-weight: 300;
@@ -1796,7 +1796,7 @@
 
     body.is-start-screen #todoListOverlay,
     body.is-start-screen #guideOverlay {
-      translate: -140px 0;
+      translate: 140px 0;
     }
 
     /* 좌하단 프로필도 좌측 UI와 같은 방향에서 들어옵니다. */
@@ -1813,7 +1813,7 @@
 
     body.is-start-screen #dayStatus,
     body.is-start-screen #exploringStatus {
-      translate: -140px 0;
+      translate: 140px 0;
     }
 
     body.is-start-screen #versionLabel {
@@ -3114,12 +3114,12 @@
 
     #exploringStatus {
       position: fixed;
-      left: max(24px, calc(env(safe-area-inset-left) + 16px));
+      right: max(24px, calc(env(safe-area-inset-right) + 16px));
       top: max(30px, calc(env(safe-area-inset-top) + 16px));
       z-index: 120;
       display: block;
       color: #fff;
-      text-align: left;
+      text-align: right;
       opacity: 0;
       visibility: hidden;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
@@ -3145,12 +3145,12 @@
     #weatherStatusRow {
       display: flex;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: flex-end;
       margin-bottom: 10px;
       font-size: 14px;
       font-weight: 450;
       line-height: 1;
-      transform: translate(5px, 5px);
+      transform: translate(-5px, 5px);
     }
 
     /* 현재 장착 무기는 가방 아이콘 정중앙에 겹쳐 표시합니다.
@@ -3219,12 +3219,13 @@
 
     #exploringTime {
       width: max-content;
-      margin-left: 0;
+      margin-left: auto;
+      margin-right: 0;
       font-size: 59px;
       font-weight: 500;
       line-height: 0.9;
       letter-spacing: -0.03em;
-      text-align: left;
+      text-align: right;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
       font-feature-settings: "tnum" 1;
@@ -3232,12 +3233,12 @@
 
     #dayStatus {
       position: fixed;
-      left: max(18px, calc(env(safe-area-inset-left) + 16px));
+      right: max(22px, calc(env(safe-area-inset-right) + 16px));
       top: max(80px, calc(env(safe-area-inset-top) + 16px));
       z-index: 120;
       display: block;
       color: #fff;
-      text-align: left;
+      text-align: right;
       opacity: 1;
       visibility: visible;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
@@ -3263,7 +3264,7 @@
       --day-number-scale: 1;
       display: flex;
       align-items: flex-start;
-      justify-content: flex-start;
+      justify-content: flex-end;
       height: 0.9em;
       overflow: visible;
       font-size: calc(59px * var(--day-number-scale));
@@ -3281,7 +3282,7 @@
     .day-number-viewport {
       display: inline-flex;
       flex: 0 0 auto;
-      justify-content: flex-start;
+      justify-content: flex-end;
       height: 0.9em;
       overflow: hidden;
       will-change: width;
@@ -3765,7 +3766,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.169"
+  data-game-version="0.170"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5071,6 +5072,10 @@
       const TREE_GROWTH_REGROWING_HOLD = "regrowingHold";
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
+      const DEER_AXE_FIRST_EVADE_TOAST_MESSAGE = "Oops.";
+      const DEER_AXE_SECOND_EVADE_TOAST_MESSAGE = "Not again.";
+      const DOG_EARLY_INTERACT_TOAST_MESSAGE = "Easy, buddy.";
+      const DOG_FRIENDLY_INTERACT_TOAST_MESSAGE = "Hey, buddy.";
       const SUPPLY_BOX_NEEDS_GUN_TOAST_MESSAGE = "Need a gun.";
       const SUPPLY_BOX_STEADY_TOAST_MESSAGE = "Steady...";
       const TREE_NEEDS_AXE_TOAST_MESSAGE = "I need an axe.";
@@ -12258,78 +12263,19 @@
       }
 
       /*
-        프로필 + 말풍선 반응형 스케일입니다.
-        - PC/태블릿처럼 짧은 변이 560px보다 큰 화면은 기존 크기(100%)를 유지합니다.
-        - 모바일처럼 짧은 변이 560px 이하이면 1080px 높이를 기준으로 같은 체감 비율로 축소합니다.
-        - 말풍선은 부모 레이어 전체를 같은 비율로 스케일해 폰트/패딩/꼬리/스택 간격도 함께 줄어듭니다.
+        프로필 + 말풍선은 화면 크기와 무관하게 :root의 기본 설정값을 그대로 사용합니다.
+        창 크기 변경이나 모바일 화면에서도 자동 축소/확대하지 않습니다.
       */
-      const PROFILE_UI_REFERENCE_HEIGHT = 1080;
-      const PROFILE_UI_COMPACT_SIDE = 560;
-      const PROFILE_UI_MIN_RESPONSIVE_SCALE = 0.35;
-
-      function readRootNumber(variableName, fallback = 0) {
-        const rawValue = getComputedStyle(document.documentElement)
-          .getPropertyValue(variableName)
-          .trim();
-        const parsedValue = Number.parseFloat(rawValue);
-        return Number.isFinite(parsedValue) ? parsedValue : fallback;
-      }
-
       function updateProfileToastResponsiveScale() {
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const isCompactViewport =
-          Math.min(viewportWidth, viewportHeight) <= PROFILE_UI_COMPACT_SIDE;
-
-        const responsiveScale = isCompactViewport
-          ? clamp(
-              viewportHeight / PROFILE_UI_REFERENCE_HEIGHT,
-              PROFILE_UI_MIN_RESPONSIVE_SCALE,
-              1
-            )
-          : 1;
-
         const rootStyle = document.documentElement.style;
-        const baseProfileScale = readRootNumber("--profile-scale", 0.8);
-        const baseProfileOffsetX = readRootNumber("--profile-offset-x", -90);
-        const baseProfileOffsetY = readRootNumber("--profile-offset-y", -200);
-        const baseProfileSlideDistance = readRootNumber("--profile-slide-distance", 180);
-        const baseProfileEdgeOffset = readRootNumber("--profile-edge-offset", 20);
-        const baseToastOffsetX = readRootNumber("--toast-offset-x", 140);
-        const baseToastOffsetY = readRootNumber("--toast-offset-y", 195);
-
-        rootStyle.setProperty(
-          "--profile-runtime-scale",
-          String(baseProfileScale * responsiveScale)
-        );
-        rootStyle.setProperty(
-          "--profile-runtime-offset-x",
-          `${baseProfileOffsetX * responsiveScale}px`
-        );
-        rootStyle.setProperty(
-          "--profile-runtime-offset-y",
-          `${baseProfileOffsetY * responsiveScale}px`
-        );
-        rootStyle.setProperty(
-          "--profile-runtime-slide-distance",
-          `${baseProfileSlideDistance * responsiveScale}px`
-        );
-        rootStyle.setProperty(
-          "--profile-runtime-edge-offset",
-          `${baseProfileEdgeOffset * responsiveScale}px`
-        );
-        rootStyle.setProperty(
-          "--toast-runtime-scale",
-          String(responsiveScale)
-        );
-        rootStyle.setProperty(
-          "--toast-runtime-offset-x",
-          `${baseToastOffsetX * responsiveScale}px`
-        );
-        rootStyle.setProperty(
-          "--toast-runtime-offset-y",
-          `${baseToastOffsetY * responsiveScale}px`
-        );
+        rootStyle.setProperty("--profile-runtime-scale", "var(--profile-scale)");
+        rootStyle.setProperty("--profile-runtime-offset-x", "var(--profile-offset-x)");
+        rootStyle.setProperty("--profile-runtime-offset-y", "var(--profile-offset-y)");
+        rootStyle.setProperty("--profile-runtime-slide-distance", "var(--profile-slide-distance)");
+        rootStyle.setProperty("--profile-runtime-edge-offset", "var(--profile-edge-offset)");
+        rootStyle.setProperty("--toast-runtime-scale", "1");
+        rootStyle.setProperty("--toast-runtime-offset-x", "var(--toast-offset-x)");
+        rootStyle.setProperty("--toast-runtime-offset-y", "var(--toast-offset-y)");
       }
 
       function updateWorldScale() {
@@ -17830,7 +17776,15 @@
         }
 
         if (entityType === "dog") {
-          return activateDog(dog, performance.now());
+          const activated = activateDog(dog, performance.now());
+          if (activated) {
+            showToast(
+              dog.activeStage >= 3
+                ? DOG_FRIENDLY_INTERACT_TOAST_MESSAGE
+                : DOG_EARLY_INTERACT_TOAST_MESSAGE
+            );
+          }
+          return activated;
         }
 
         return false;
@@ -18122,6 +18076,11 @@
           deer.axeAttackCount += 1;
           if (deer.axeAttackCount <= 2) {
             playSound(AXE_MISS_SOUND, 0.7);
+            showToast(
+              deer.axeAttackCount === 1
+                ? DEER_AXE_FIRST_EVADE_TOAST_MESSAGE
+                : DEER_AXE_SECOND_EVADE_TOAST_MESSAGE
+            );
             makeDeerEvade(deer);
             return;
           }
