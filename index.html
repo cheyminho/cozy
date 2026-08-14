@@ -2290,6 +2290,7 @@
     }
 
     #exploreNewBadge.is-ready,
+    #repairNewBadge.is-ready,
     .exploration-option-new-badge.is-ready {
       background: #276ebd;
       color: #fff;
@@ -3853,7 +3854,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.175"
+  data-game-version="0.176"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6826,12 +6827,35 @@
         }
       }
 
+      function isRepairItemReadyForCraftOrRepair(category, item) {
+        if (!item?.unlocked || item.built) return false;
+        if (!canAffordRepairMaterials(item.materials || {})) return false;
+
+        // Restore의 도색 항목은 액션명이 Paint이므로 READY 판정에서 제외합니다.
+        if (category === "repair" && isCarPaintBlueprintId(item.blueprintId)) {
+          return false;
+        }
+
+        // Restore 카테고리는 Repair, 나머지 카테고리는 Craft 가능한 항목만 READY입니다.
+        return true;
+      }
+
+      function hasAnyReadyRepairItem() {
+        return Object.entries(repairItemsByCategory).some(([category, items]) =>
+          items.some((item) => isRepairItemReadyForCraftOrRepair(category, item))
+        );
+      }
+
       function updateRepairNewBadgeState() {
         const animate = repairNewBadgeStateInitialized;
-        setAnimatedNewBadgeVisibility(
+        const status = hasRepairButtonNew
+          ? "NEW"
+          : (hasAnyReadyRepairItem() ? "READY" : "");
+        setExplorationStatusBadge(
           repairNewBadge,
-          hasRepairButtonNew,
-          animate
+          status,
+          animate,
+          repairNewBadgeStateInitialized
         );
         repairNewBadgeStateInitialized = true;
       }
@@ -9484,6 +9508,7 @@
         }
         updateWeatherLabel();
         updateExplorationRequirements();
+        updateRepairNewBadgeState();
       }
 
       function getDisplayedDayCount() {
@@ -14518,6 +14543,7 @@
 
         applyInventoryItemNewTagState();
         rebuildInventoryPages();
+        updateRepairNewBadgeState();
       }
 
       function applyInventoryItemNewTagState() {
