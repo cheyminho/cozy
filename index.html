@@ -2511,13 +2511,16 @@
     }
 
     /*
-      탐험 / 가방 / 수리 화면의 표시 콘텐츠를 같은 값으로 위아래 이동합니다.
-      값은 :root의 --menu-content-offset-y에서 수정합니다.
+      탐험 / 가방은 공통 오프셋을 사용하고, 수리 화면은 여기서 추가로 10px 위로 이동합니다.
+      기본 값은 :root의 --menu-content-offset-y에서 수정합니다.
     */
     #explorationMenu,
-    #inventoryMenu,
-    #repairMenu {
+    #inventoryMenu {
       transform: translateY(var(--menu-content-offset-y));
+    }
+
+    #repairMenu {
+      transform: translateY(calc(var(--menu-content-offset-y) - 15px));
     }
 
     #explorationMenu {
@@ -3025,7 +3028,7 @@
 
     /* Craft / Apply / Remove / Repair / Repaired는 탐험 목적지 이름과 같은 기본 스타일을 사용합니다. */
     #repairActionButton {
-      margin-top: 14px;
+      margin-top: 38px;
       padding: 12px 20px;
       border: 1px solid currentColor;
       border-radius: 8px;
@@ -3045,16 +3048,6 @@
         transform 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
         font-weight 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
         opacity 120ms ease-out;
-    }
-
-    /*
-      카테고리를 바꿔도 버튼의 세로 위치 차이가 repairMenu 전체 높이에 영향을 주지 않도록
-      공통 margin을 사용하고 House만 시각적으로 아래로 이동합니다.
-      따라서 중앙 정렬된 메뉴에서도 상단 탭 그룹 위치가 고정됩니다.
-    */
-    #repairMenu[data-repair-category="buildings"] #repairActionButton {
-      position: relative;
-      top: 30px;
     }
 
     #repairActionButton:disabled {
@@ -4186,7 +4179,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.183"
+  data-game-version="0.184"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
