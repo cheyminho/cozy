@@ -3720,6 +3720,44 @@
       opacity: 1;
     }
 
+    /* 성공 시점부터 0.2초 동안 Target 원을 단계별로 부드럽게 펄스합니다.
+       변화 시작은 easeOutSine, 원래 크기로 복귀할 때는 easeInSine을 사용합니다. */
+    .zombie-axe-qte.is-stage-one .zombie-axe-qte__target.is-success-window {
+      animation: axe-qte-target-success-stage-one 200ms both;
+    }
+
+    .zombie-axe-qte.is-stage-two .zombie-axe-qte__target.is-success-window {
+      animation: axe-qte-target-success-stage-two 200ms both;
+    }
+
+    @keyframes axe-qte-target-success-stage-one {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); /* easeOutSine */
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(0.94);
+        animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0); /* easeInSine */
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+
+    @keyframes axe-qte-target-success-stage-two {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); /* easeOutSine */
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(1.06);
+        animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0); /* easeInSine */
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+
     .zombie-axe-qte__timing {
       z-index: 1;
       border: 2px solid #fff;
@@ -4148,7 +4186,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.181"
+  data-game-version="0.182"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
