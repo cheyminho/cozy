@@ -3704,11 +3704,11 @@
       will-change: width, height, border-color, background-color, opacity;
     }
 
-    /* 1·2단계 타겟은 모두 흰색 10px stroke 원으로 유지합니다. */
+    /* 1·2단계 타겟은 모두 흰색 15px stroke 원으로 유지합니다. */
     .zombie-axe-qte.is-stage-one .zombie-axe-qte__target,
     .zombie-axe-qte.is-stage-two .zombie-axe-qte__target {
       z-index: 2;
-      border: 10px solid #fff;
+      border: 15px solid #fff;
       background: transparent;
       opacity: 0.7;
     }
@@ -4186,7 +4186,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.182"
+  data-game-version="0.183"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5051,13 +5051,13 @@
       const AXE_QTE_STAGE_ONE_TIMING_END_SIZE_PX = 50;
       const AXE_QTE_STAGE_ONE_DURATION_MS = 1000;
       const AXE_QTE_STAGE_ONE_HOLD_MS = 200;
-      const AXE_QTE_STAGE_ONE_TOLERANCE_PX = 14;
+      const AXE_QTE_STAGE_ONE_TOLERANCE_PX = 20;
       const AXE_QTE_STAGE_TWO_TARGET_SIZE_PX = 250;
       const AXE_QTE_STAGE_TWO_TIMING_START_SIZE_PX = 50;
       const AXE_QTE_STAGE_TWO_TIMING_END_SIZE_PX = 250;
       const AXE_QTE_STAGE_TWO_DURATION_MS = 500;
       const AXE_QTE_STAGE_TWO_HOLD_MS = 200;
-      const AXE_QTE_STAGE_TWO_TOLERANCE_PX = 14;
+      const AXE_QTE_STAGE_TWO_TOLERANCE_PX = 20;
 
       const MAX_CHAINSAW_BATTERY = 100;
       // 전기톱 장착 중 배터리 1%를 3초마다 소모합니다.
@@ -20360,6 +20360,74 @@
         startAxeQte(zombie, 2);
         return true;
       }
+
+      // QTE가 표시 중이면 다음 포인터 입력을 화면의 어떤 UI/필드 버튼보다 먼저 소비합니다.
+      // pointerdown에서 QTE를 판정하고 같은 입력의 pointerup/click까지 차단하여
+      // 뒤쪽 버튼이 함께 실행되거나 1단계 입력이 2단계까지 연속 전달되는 것을 막습니다.
+      const AXE_QTE_PRIORITY_CLICK_SUPPRESSION_MS = 700;
+      const axeQtePriorityPointerIds = new Set();
+      let axeQtePrioritySuppressClickUntil = -Infinity;
+      let axeQtePrioritySuppressClickX = 0;
+      let axeQtePrioritySuppressClickY = 0;
+
+      document.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (!activeAxeQte) return;
+          if (event.button !== undefined && event.button !== 0) return;
+          if (event.isPrimary === false) return;
+
+          const qte = activeAxeQte;
+          axeQtePriorityPointerIds.add(event.pointerId);
+          axeQtePrioritySuppressClickUntil =
+            performance.now() + AXE_QTE_PRIORITY_CLICK_SUPPRESSION_MS;
+          axeQtePrioritySuppressClickX = event.clientX;
+          axeQtePrioritySuppressClickY = event.clientY;
+
+          clearFieldEntityPressState();
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          resolveActiveAxeQte(qte.zombie);
+        },
+        { capture: true, passive: false }
+      );
+
+      document.addEventListener(
+        "pointerup",
+        (event) => {
+          if (!axeQtePriorityPointerIds.has(event.pointerId)) return;
+          axeQtePriorityPointerIds.delete(event.pointerId);
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        },
+        { capture: true, passive: false }
+      );
+
+      document.addEventListener(
+        "pointercancel",
+        (event) => {
+          axeQtePriorityPointerIds.delete(event.pointerId);
+        },
+        { capture: true, passive: true }
+      );
+
+      document.addEventListener(
+        "click",
+        (event) => {
+          if (performance.now() >= axeQtePrioritySuppressClickUntil) return;
+
+          // 같은 포인터 입력에서 합성된 click만 막고, 바로 이어진 다른 위치의 새 입력은 허용합니다.
+          const isSameInputPoint = Math.hypot(
+            event.clientX - axeQtePrioritySuppressClickX,
+            event.clientY - axeQtePrioritySuppressClickY
+          ) <= 24;
+          if (!isSameInputPoint) return;
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        },
+        { capture: true }
+      );
 
       function handleAxeZombieAttack(zombie) {
         if (activeAxeQte && activeAxeQte.zombie === zombie) {
