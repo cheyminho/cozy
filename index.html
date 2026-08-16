@@ -518,8 +518,7 @@
       cursor: default;
     }
 
-    #todoListOverlay,
-    #guideOverlay {
+    #todoListOverlay {
       position: absolute;
       right: 26px;
       top: 170px;
@@ -539,20 +538,17 @@
       will-change: transform, opacity;
     }
 
-    #todoListOverlay[hidden],
-    #guideOverlay[hidden] {
+    #todoListOverlay[hidden] {
       display: none;
     }
 
-    #todoListOverlay.is-showing,
-    #guideOverlay.is-showing {
+    #todoListOverlay.is-showing {
       animation:
         todo-list-slide-in 700ms cubic-bezier(0.39, 0.575, 0.565, 1) both,
         todo-list-fade-in 700ms linear both;
     }
 
-    #todoListOverlay.is-hiding,
-    #guideOverlay.is-hiding {
+    #todoListOverlay.is-hiding {
       animation: todo-list-fade-out 300ms linear forwards;
     }
 
@@ -614,20 +610,6 @@
       transform: translateY(-50%);
     }
 
-    .guide-line {
-      display: block;
-      width: max-content;
-      max-width: min(360px, calc(100vw - 40px));
-      margin-left: auto;
-      color: inherit;
-      font: inherit;
-      font-weight: 300;
-      line-height: inherit;
-    }
-
-    .guide-line + .guide-line {
-      margin-top: 6px;
-    }
 
     #todoDoneNote,
     #todoRewardNote {
@@ -649,6 +631,90 @@
     #todoDoneNote[hidden],
     #todoRewardNote[hidden] {
       display: none;
+    }
+
+    /* =========================================================
+       초반 버튼/오브젝트 튜토리얼 가이드
+       - 기존 Guide 아이템/설명 오버레이와 무관한 화면 고정 레이어입니다.
+       - 실제 위치/화살표 프레임/회전/크기/반전/텍스트 정렬은
+         JavaScript의 TUTORIAL_GUIDE_DEFINITIONS에서 가이드별로 조정합니다.
+       ========================================================= */
+    #tutorialGuideLayer {
+      position: fixed;
+      inset: 0;
+      /* 메뉴 딤드(#menuBackdrop: 130)보다 아래에 표시합니다. */
+      z-index: 129;
+      overflow: visible;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    #tutorialGuideLayer[hidden] {
+      display: none;
+    }
+
+    #tutorialGuideLayer.is-fading-in {
+      animation: tutorial-guide-fade-in 320ms ease-out both;
+    }
+
+    @keyframes tutorial-guide-fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /*
+      가이드 등장 이동 연출입니다.
+      실제 시작 방향은 JavaScript의 TUTORIAL_GUIDE_DEFINITIONS에서 가이드별 entryDirection으로 지정합니다.
+      100px 떨어진 위치에서 easeOutBack 커브로 현재 위치까지 들어옵니다.
+    */
+    #tutorialGuideArrow.is-entering,
+    #tutorialGuideText.is-entering {
+      animation: tutorial-guide-position-entry 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes tutorial-guide-position-entry {
+      from {
+        margin-left: var(--tutorial-guide-entry-offset-x, 0px);
+        margin-top: var(--tutorial-guide-entry-offset-y, 0px);
+      }
+      to {
+        margin-left: 0;
+        margin-top: 0;
+      }
+    }
+
+    #tutorialGuideArrow {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 128px;
+      height: 128px;
+      background-image: url("images/arrow_guide.png");
+      background-repeat: no-repeat;
+      background-size: 256px 256px;
+      background-position: 0 0;
+      transform-origin: center center;
+      pointer-events: none;
+      will-change: left, top, transform, margin-left, margin-top;
+    }
+
+    #tutorialGuideText {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: max-content;
+      max-width: none;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-size: 16px;
+      font-style: normal;
+      font-weight: 300;
+      line-height: 1.2;
+      /* 자동 줄바꿈 없이 TUTORIAL_GUIDE_DEFINITIONS의 \n에서만 줄바꿈합니다. */
+      white-space: pre;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      pointer-events: none;
+      will-change: left, top, transform, margin-left, margin-top;
     }
 
     #inventoryEmptyState {
@@ -1780,7 +1846,6 @@
     /* 시작화면에서는 게임 HUD와 필드 입력을 완전히 감춥니다. */
     body.is-start-screen #hud,
     body.is-start-screen #todoListOverlay,
-    body.is-start-screen #guideOverlay,
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton,
@@ -1825,8 +1890,7 @@
       translate: 0 0;
     }
 
-    body.is-start-screen #todoListOverlay,
-    body.is-start-screen #guideOverlay {
+    body.is-start-screen #todoListOverlay {
       translate: 140px 0;
     }
 
@@ -1859,7 +1923,6 @@
     }
 
     body.is-entering-game #todoListOverlay,
-    body.is-entering-game #guideOverlay,
     body.is-entering-game #repairButton,
     body.is-entering-game #inventoryButton,
     body.is-entering-game #exploreButton,
@@ -3565,7 +3628,10 @@
       flex: 0 0 auto;
       justify-content: flex-end;
       height: 0.9em;
-      overflow: hidden;
+      /* 세로 롤링 영역은 그대로 마스킹하고, 좌우만 조금 넓혀 1 글리프 끝이 잘리지 않게 합니다. */
+      overflow: visible;
+      -webkit-clip-path: inset(0 -0.04em 0 -0.04em);
+      clip-path: inset(0 -0.04em 0 -0.04em);
       will-change: width;
     }
 
@@ -4217,7 +4283,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.185"
+  data-game-version="0.186"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4443,11 +4509,6 @@
   </div>
   <div id="menuBackdrop" aria-hidden="true"></div>
   <div id="topRightHudGroup" aria-hidden="false">
-    <div id="guideOverlay" hidden>
-      <span class="guide-line">zombies and deer appear over time.</span>
-      <span class="guide-line">explore to advance the day and earn rewards.</span>
-      <span class="guide-line">check your mailbox for new tasks.</span>
-    </div>
     <div id="todoListOverlay" hidden>
       <span id="todoListTitle">to do :</span>
       <span class="todo-item" data-todo-key="item1">clear the zombies</span>
@@ -4474,6 +4535,10 @@
         </span>
       </div>
     </div>
+  </div>
+  <div id="tutorialGuideLayer" aria-hidden="true" hidden>
+    <div id="tutorialGuideArrow" aria-hidden="true"></div>
+    <div id="tutorialGuideText" aria-hidden="true"></div>
   </div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
@@ -4567,10 +4632,6 @@
             <button class="inventory-item" type="button" role="menuitem" data-item="strangerLetter" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">A Stranger’s Letter</span></span>
               <span class="inventory-item__quantity">ON</span>
-            </button>
-            <button class="inventory-item" type="button" role="menuitem" data-item="guide" hidden>
-              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Guide</span></span>
-              <span class="inventory-item__quantity">OFF</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="compass" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Compass</span></span>
@@ -4837,7 +4898,7 @@
       const TODO_DAY_28_TARGET = 28;
       const DOG_STORY_MIN_DURATION_MS = 1_000;
       const DOG_STORY_MAX_DURATION_MS = 3_000;
-      const DOG_STAGE_ONE_RUN_DISTANCE_PX = 200;
+      const DOG_STAGE_ONE_RUN_DISTANCE_PX = 135;
       const DOG_SHEET_COLUMNS = 16;
       const DOG_SHEET_ROWS = 16;
       const DOG_RUN_FRAME_START_COLUMN = 0;
@@ -5030,7 +5091,6 @@
       const INVENTORY_ITEM_SORT_GROUPS = Object.freeze({
         musicBox: 0,
         strangerLetter: 0,
-        guide: 0,
         axe: 1,
         handgun: 1,
         shotgun: 1,
@@ -5070,10 +5130,12 @@
       const FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN = 1;
       const FLEEING_DEER_HANDGUN_KILL_SHOTS_MAX = 3;
 
-      // 새 게임에서 최초 1회 생성되는 첫 좀비의 월드 좌표입니다.
-      // 2048×2048 월드 기준이며, 우체통 오른쪽 아래 근처에 임시 배치합니다.
+      // 새 게임에서 최초 1회 생성되는 첫 좀비의 고정 월드 좌표입니다.
+      // 이 좀비만 이동하지 않으며, 살아 있는 동안 새로고침해도 같은 위치로 복원됩니다.
       const FIRST_ZOMBIE_SPAWN_X = 1060;
       const FIRST_ZOMBIE_SPAWN_Y = 1238;
+      // 게임 플레이를 시작한 뒤 첫 좀비가 등장하기까지의 지연 시간입니다.
+      const FIRST_ZOMBIE_SPAWN_DELAY_MS = 3_000;
 
       // 핸드건 원형 QTE 설정. 기존 원형 QTE의 첫 번째 단계만 사용합니다.
       const HANDGUN_QTE_TARGET_SIZE_PX = 50;
@@ -5595,7 +5657,6 @@
       const CAR_PARTS_SELECTED_TOAST_MESSAGE = "I might need these for the car.";
       const PAINT_SELECTED_TOAST_MESSAGE = "I could paint something.";
       const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s find out.";
-      const GUIDE_SELECTED_TOAST_MESSAGE = "A quick reminder.";
       const REPAIR_GRID_ITEM_COUNT = 30;
       const REPAIR_CATEGORY_ORDER = [
         "outdoor",
@@ -6073,9 +6134,6 @@
       const strangerLetterInventoryItem = document.querySelector(
         '.inventory-item[data-item="strangerLetter"]'
       );
-      const guideInventoryItem = document.querySelector(
-        '.inventory-item[data-item="guide"]'
-      );
       const compassInventoryItem = document.querySelector(
         '.inventory-item[data-item="compass"]'
       );
@@ -6167,7 +6225,9 @@
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
       const todoListOverlay = document.getElementById("todoListOverlay");
-      const guideOverlay = document.getElementById("guideOverlay");
+      const tutorialGuideLayer = document.getElementById("tutorialGuideLayer");
+      const tutorialGuideArrow = document.getElementById("tutorialGuideArrow");
+      const tutorialGuideText = document.getElementById("tutorialGuideText");
       const todoItemElements = Array.from(
         document.querySelectorAll("#todoListOverlay .todo-item")
       );
@@ -6515,9 +6575,116 @@
       let hasCompass = false;
       let hasStrangerLetter = false;
       let isStrangerLetterOn = false;
-      let hasGuide = false;
-      let isGuideOn = false;
-      let guideHideTimerId = null;
+
+      /*
+        초반 튜토리얼 가이드 수정 위치
+        ---------------------------------------------------------
+        anchor: 표시 기준 대상
+          mailbox / axe / firstZombie / remainingZombie / food / explore / exploringTime
+        arrowFrame: arrow_guide.png의 1~4번째 칸
+        arrowOffsetX/Y: 기준점 중심에서 화살표 중심까지의 화면 px 오프셋
+        arrowRotation: 화살표 회전 각도(deg)
+        arrowScale: 화살표 표시 배율
+        arrowFlipX / arrowFlipY: 좌우 / 상하 반전
+        entryDirection: 등장 시작 방향 ("up" / "down" / "left" / "right")
+          - 해당 방향으로 100px 떨어진 위치에서 현재 위치까지 easeOutBack으로 이동
+        textOffsetX/Y: 기준점 중심에서 텍스트 기준점까지의 화면 px 오프셋
+        textAlign: "left" 또는 "right"
+          - left는 textOffset 위치가 텍스트의 왼쪽 기준
+          - right는 textOffset 위치가 텍스트의 오른쪽 기준
+      */
+      const TUTORIAL_GUIDE_DEFINITIONS = {
+        1: {
+          anchor: "mailbox", arrowFrame: 2,
+          arrowOffsetX: 56, arrowOffsetY: 10, arrowRotation: 5, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: true,
+          entryDirection: "right",
+          textOffsetX: 100, textOffsetY: 2, textAlign: "left",
+          text: "The cat left something.\nCheck the mailbox."
+        },
+        2: {
+          anchor: "axe", arrowFrame: 1,
+          arrowOffsetX: 12, arrowOffsetY: -50, arrowRotation: -70, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: false,
+          entryDirection: "up",
+          textOffsetX: -5, textOffsetY: -88, textAlign: "right",
+          text: "This axe can be \nused as a weapon."
+        },
+        3: {
+          anchor: "firstZombie", arrowFrame: 3,
+          arrowOffsetX: 50, arrowOffsetY: -30, arrowRotation: -45, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: false,
+          entryDirection: "right",
+          textOffsetX: 85, textOffsetY: -65, textAlign: "left",
+          text: "Time it right to \ntake down the zombie."
+        },
+        4: {
+          anchor: "remainingZombie", arrowFrame: 4,
+          arrowOffsetX: -45, arrowOffsetY: -20, arrowRotation: -10, arrowScale: 0.65,
+          arrowFlipX: true, arrowFlipY: true,
+          entryDirection: "left",
+          textOffsetX: -94, textOffsetY: -32, textAlign: "right",
+          text: "Zombies remaining.\nTake them all down."
+        },
+        5: {
+          anchor: "food", arrowFrame: 1,
+          arrowOffsetX: -58, arrowOffsetY: 20, arrowRotation: 150, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: false,
+          entryDirection: "up",
+          textOffsetX: -62, textOffsetY: 36, textAlign: "left",
+          text: "Hunt a deer for food.\nDeer are quick to dodge,\nso stay focused."
+        },
+        6: {
+          anchor: "explore", arrowFrame: 1,
+          arrowOffsetX: 2, arrowOffsetY: -65, arrowRotation: -78, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: false,
+          entryDirection: "down",
+          textOffsetX: -15, textOffsetY: -100, textAlign: "right",
+          text: "Go explore.\nOnly the Village is\navailable for now."
+        },
+        7: {
+          anchor: "exploringTime", arrowFrame: 3,
+          arrowOffsetX: -128, arrowOffsetY: 24, arrowRotation: -40, arrowScale: 0.65,
+          arrowFlipX: true, arrowFlipY: true,
+          entryDirection: "left",
+          textOffsetX: -165, textOffsetY: 40, textAlign: "right",
+          text: "Exploring takes time.\nTake a short break."
+        },
+        8: {
+          anchor: "mailbox", arrowFrame: 2,
+          arrowOffsetX: 56, arrowOffsetY: 10, arrowRotation: 5, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: true,
+          entryDirection: "right",
+          textOffsetX: 100, textOffsetY: 2, textAlign: "left",
+          text: "Use the mailbox\nto send your reply."
+        },
+        9: {
+          anchor: "explore", arrowFrame: 1,
+          arrowOffsetX: 2, arrowOffsetY: -65, arrowRotation: -78, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: false,
+          entryDirection: "down",
+          textOffsetX: -15, textOffsetY: -100, textAlign: "right",
+          text: "Keep exploring to earn rewards\nand pass the days."
+        },
+        10: {
+          anchor: "mailbox", arrowFrame: 2,
+          arrowOffsetX: 56, arrowOffsetY: 10, arrowRotation: 5, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: true,
+          entryDirection: "right",
+          textOffsetX: 100, textOffsetY: 2, textAlign: "left",
+          text: "The cat left\nsomething again."
+        }
+      };
+      const TUTORIAL_GUIDE_ENTRY_DISTANCE_PX = 20;
+      // 각 화살표 가이드가 조건을 만족한 뒤 실제로 나타나기까지의 대기 시간입니다.
+      const TUTORIAL_GUIDE_SHOW_DELAY_MS = 1_500;
+      const TUTORIAL_GUIDE_SCHEMA_VERSION = 2;
+      const tutorialCompletedGuideIds = new Set();
+      let tutorialActiveGuideId = 0;
+      let tutorialGuidePositionAnimationFrameId = null;
+      let tutorialGuideRenderedVisible = false;
+      let tutorialGuideShowAt = 0;
+
       let carPartsCount = 0;
       let flowerCount = 0;
       const paintCounts = Object.fromEntries(
@@ -6664,6 +6831,7 @@
       // 이동 중 새로고침하면 저장되지 않으므로 다음 진입에서 배달 연출을 다시 시작합니다.
       let lastCatDeliveredTodoListId = 0;
       let lastCompletedExplorationDestination = "";
+      let firstZombieSpawnTimerId = null;
       let pendingEmptyZombieSpawnTimerId = null;
       let pendingEmptyDeerSpawnTimerId = null;
       let lastZombieVisibilityCheckAt = 0;
@@ -6706,6 +6874,7 @@
       let nextSupplyBoxId = 1;
       let supplyBox = null;
       let skipFirstStartSequence = false;
+      let hasFirstTutorialZombieSpawned = false;
       let ambientBirdTimer = null;
 
       const structureSoundAudioByPath = new Map([
@@ -7787,7 +7956,6 @@
         syncTodoProgressFromCurrentState(listId);
         hasStrangerLetter = true;
         isStrangerLetterOn = true;
-        isGuideOn = false;
         todoSubmittedListId = 0;
         todoSubmittedDay = 0;
         isTodoListRevealDelayed = true;
@@ -7797,7 +7965,6 @@
         }
 
         applyInventoryState();
-        updateGuideUI();
         updateTodoListUI();
         saveResourceState();
 
@@ -7893,56 +8060,335 @@
         return Boolean(list) && Object.values(list).every(Boolean);
       }
 
-      function showGuideOverlay() {
-        if (!guideOverlay) return;
-        if (guideHideTimerId !== null) {
-          clearTimeout(guideHideTimerId);
-          guideHideTimerId = null;
+      function getTutorialGuideTarget(anchor) {
+        if (anchor === "mailbox") return mailboxObject;
+        if (anchor === "axe") return axePickupHitArea;
+        if (anchor === "remainingZombie") return remainingZombieLabel;
+        if (anchor === "food") return foodCountElement;
+        if (anchor === "explore") return exploreButton;
+        if (anchor === "exploringTime") {
+          return isExploring && exploringStatus?.classList.contains("is-visible")
+            ? exploringTime
+            : null;
         }
 
-        const wasHidden = guideOverlay.hidden;
-        guideOverlay.classList.remove("is-hiding");
-        guideOverlay.hidden = false;
+        if (anchor === "firstZombie") {
+          let fallbackZombieElement = null;
+          for (const zombie of zombies.values()) {
+            if (
+              zombie.state === "dying" ||
+              zombie.state === "removed" ||
+              !zombie.element?.isConnected
+            ) {
+              continue;
+            }
+            if (!fallbackZombieElement) fallbackZombieElement = zombie.element;
+            if (zombie.isFixedFirstZombie === true) return zombie.element;
+          }
+          return fallbackZombieElement;
+        }
 
-        if (
-          wasHidden &&
-          hasGameInitialized &&
-          !document.body.classList.contains("is-start-screen")
-        ) {
-          guideOverlay.classList.remove("is-showing");
-          void guideOverlay.offsetWidth;
-          guideOverlay.classList.add("is-showing");
-        } else if (wasHidden) {
-          guideOverlay.classList.remove("is-showing");
+        return null;
+      }
+
+      function syncTutorialGuideProgressFromCurrentState() {
+        const completeSilently = (guideId, condition) => {
+          if (condition) tutorialCompletedGuideIds.add(guideId);
+        };
+
+        // 저장 버전에 튜토리얼 진행값이 없더라도 실제 게임 상태에서 안전하게 복구합니다.
+        completeSilently(
+          1,
+          mailboxIntroTriggered || currentTodoListId >= 1 || todoSubmittedListId >= 1
+        );
+        completeSilently(2, hasAxe);
+        completeSilently(3, firstKillBirdFlockPlayed || zombieCount >= 1);
+        completeSilently(
+          4,
+          todoProgress[1]?.item1 === true || zombieCount >= zombieKillRequirement
+        );
+        completeSilently(
+          5,
+          todoProgress[1]?.item2 === true || foodCount >= 1
+        );
+        completeSilently(
+          6,
+          todoProgress[1]?.item3 === true ||
+            todoSubmittedListId >= 1 ||
+            currentTodoListId >= 2 ||
+            dayCount >= 2
+        );
+        completeSilently(
+          7,
+          tutorialCompletedGuideIds.has(6) && !isExploring && dayCount >= 2
+        );
+        completeSilently(
+          8,
+          todoSubmittedListId >= 1 || currentTodoListId >= 2
+        );
+        completeSilently(
+          9,
+          tutorialCompletedGuideIds.has(8) && dayCount >= 3
+        );
+        completeSilently(
+          10,
+          currentTodoListId >= 2 || todoSubmittedListId >= 2
+        );
+      }
+
+      function getNextTutorialGuideId() {
+        syncTutorialGuideProgressFromCurrentState();
+
+        if (!tutorialCompletedGuideIds.has(1)) {
+          return lastCatDeliveredTodoListId >= 1 ? 1 : 0;
+        }
+        if (!tutorialCompletedGuideIds.has(2)) return 2;
+        if (!tutorialCompletedGuideIds.has(3)) return 3;
+        if (!tutorialCompletedGuideIds.has(4)) return 4;
+        if (!tutorialCompletedGuideIds.has(5)) return 5;
+        if (!tutorialCompletedGuideIds.has(6)) return 6;
+
+        if (!tutorialCompletedGuideIds.has(7)) {
+          return isExploring ? 7 : 0;
+        }
+
+        if (!tutorialCompletedGuideIds.has(8)) {
+          return dayCount >= 2 ? 8 : 0;
+        }
+        if (!tutorialCompletedGuideIds.has(9)) return 9;
+
+        if (!tutorialCompletedGuideIds.has(10)) {
+          return lastCatDeliveredTodoListId >= 2 ? 10 : 0;
+        }
+
+        return 0;
+      }
+
+      function hideTutorialGuide() {
+        tutorialActiveGuideId = 0;
+        tutorialGuideRenderedVisible = false;
+        tutorialGuideShowAt = 0;
+        if (!tutorialGuideLayer) return;
+        tutorialGuideLayer.classList.remove("is-fading-in");
+        tutorialGuideArrow?.classList.remove("is-entering");
+        tutorialGuideText?.classList.remove("is-entering");
+        tutorialGuideLayer.hidden = true;
+        tutorialGuideLayer.style.visibility = "hidden";
+      }
+
+      function restartTutorialGuideFadeIn() {
+        if (!tutorialGuideLayer) return;
+        tutorialGuideLayer.classList.remove("is-fading-in");
+        void tutorialGuideLayer.offsetWidth;
+        tutorialGuideLayer.classList.add("is-fading-in");
+      }
+
+      function getTutorialGuideEntryOffset(definition) {
+        const distance = TUTORIAL_GUIDE_ENTRY_DISTANCE_PX;
+        switch (String(definition?.entryDirection || "").toLowerCase()) {
+          case "up": return { x: 0, y: -distance };
+          case "down": return { x: 0, y: distance };
+          case "left": return { x: -distance, y: 0 };
+          case "right": return { x: distance, y: 0 };
+          default: return { x: 0, y: 0 };
         }
       }
 
-      function hideGuideOverlay() {
-        if (!guideOverlay || guideOverlay.hidden) return;
-        if (guideHideTimerId !== null) {
-          clearTimeout(guideHideTimerId);
+      function restartTutorialGuidePositionEntry(definition) {
+        if (!tutorialGuideArrow || !tutorialGuideText) return;
+
+        const offset = getTutorialGuideEntryOffset(definition);
+        for (const element of [tutorialGuideArrow, tutorialGuideText]) {
+          element.style.setProperty("--tutorial-guide-entry-offset-x", `${offset.x}px`);
+          element.style.setProperty("--tutorial-guide-entry-offset-y", `${offset.y}px`);
+          element.classList.remove("is-entering");
         }
 
-        guideOverlay.classList.remove("is-showing");
-        guideOverlay.classList.add("is-hiding");
-        guideHideTimerId = window.setTimeout(() => {
-          guideHideTimerId = null;
-          guideOverlay.hidden = true;
-          guideOverlay.classList.remove("is-hiding");
-        }, 300);
+        void tutorialGuideArrow.offsetWidth;
+        tutorialGuideArrow.classList.add("is-entering");
+        tutorialGuideText.classList.add("is-entering");
       }
 
-      function updateGuideUI() {
-        if (!guideOverlay) return;
-        const visible =
-          (!mailboxIntroTriggered && !hasGuide) ||
-          (hasGuide && isGuideOn);
+      function applyTutorialGuideVisual(guideId) {
+        const definition = TUTORIAL_GUIDE_DEFINITIONS[guideId];
+        if (!definition || !tutorialGuideLayer || !tutorialGuideArrow || !tutorialGuideText) {
+          hideTutorialGuide();
+          return;
+        }
 
-        if (visible) {
-          showGuideOverlay();
+        const frame = clamp(Math.round(Number(definition.arrowFrame) || 1), 1, 4) - 1;
+        const column = frame % 2;
+        const row = Math.floor(frame / 2);
+        tutorialGuideArrow.style.backgroundPosition = `${-column * 128}px ${-row * 128}px`;
+
+        const scale = Math.max(0.01, Number(definition.arrowScale) || 1);
+        const scaleX = scale * (definition.arrowFlipX === true ? -1 : 1);
+        const scaleY = scale * (definition.arrowFlipY === true ? -1 : 1);
+        const rotation = Number(definition.arrowRotation) || 0;
+        tutorialGuideArrow.style.transform =
+          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`;
+
+        const textAlign = definition.textAlign === "left" ? "left" : "right";
+        tutorialGuideText.textContent = definition.text || "";
+        tutorialGuideText.style.textAlign = textAlign;
+        tutorialGuideText.style.transform =
+          textAlign === "right" ? "translateX(-100%)" : "none";
+      }
+
+      function renderTutorialGuidePosition() {
+        if (!tutorialActiveGuideId || !tutorialGuideLayer || tutorialGuideLayer.hidden) return;
+
+        if (!tutorialGuideRenderedVisible && performance.now() < tutorialGuideShowAt) {
+          tutorialGuideLayer.style.visibility = "hidden";
+          return;
+        }
+
+        const definition = TUTORIAL_GUIDE_DEFINITIONS[tutorialActiveGuideId];
+        const target = definition ? getTutorialGuideTarget(definition.anchor) : null;
+        if (!target || !target.isConnected) {
+          tutorialGuideRenderedVisible = false;
+          tutorialGuideLayer.classList.remove("is-fading-in");
+          tutorialGuideLayer.style.visibility = "hidden";
+          return;
+        }
+
+        const rect = target.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          tutorialGuideRenderedVisible = false;
+          tutorialGuideLayer.classList.remove("is-fading-in");
+          tutorialGuideLayer.style.visibility = "hidden";
+          return;
+        }
+
+        const anchorX = rect.left + rect.width / 2;
+        const anchorY = rect.top + rect.height / 2;
+        const arrowX = anchorX + (Number(definition.arrowOffsetX) || 0);
+        const arrowY = anchorY + (Number(definition.arrowOffsetY) || 0);
+        const textX = anchorX + (Number(definition.textOffsetX) || 0);
+        const textY = anchorY + (Number(definition.textOffsetY) || 0);
+
+        tutorialGuideArrow.style.left = `${arrowX}px`;
+        tutorialGuideArrow.style.top = `${arrowY}px`;
+        tutorialGuideText.style.left = `${textX}px`;
+        tutorialGuideText.style.top = `${textY}px`;
+
+        if (!tutorialGuideRenderedVisible) {
+          tutorialGuideLayer.style.visibility = "visible";
+          restartTutorialGuideFadeIn();
+          restartTutorialGuidePositionEntry(definition);
+          tutorialGuideRenderedVisible = true;
         } else {
-          hideGuideOverlay();
+          tutorialGuideLayer.style.visibility = "visible";
         }
+      }
+
+      function scheduleTutorialGuidePositionUpdate() {
+        if (tutorialGuidePositionAnimationFrameId !== null || !tutorialActiveGuideId) return;
+        tutorialGuidePositionAnimationFrameId = requestAnimationFrame(() => {
+          tutorialGuidePositionAnimationFrameId = null;
+          renderTutorialGuidePosition();
+          if (tutorialActiveGuideId) {
+            scheduleTutorialGuidePositionUpdate();
+          }
+        });
+      }
+
+      function updateTutorialGuide() {
+        if (
+          !tutorialGuideLayer ||
+          !hasGameInitialized ||
+          document.body.classList.contains("is-start-screen")
+        ) {
+          hideTutorialGuide();
+          return;
+        }
+
+        const nextGuideId = getNextTutorialGuideId();
+        if (!nextGuideId) {
+          hideTutorialGuide();
+          return;
+        }
+
+        if (tutorialActiveGuideId !== nextGuideId) {
+          tutorialActiveGuideId = nextGuideId;
+          tutorialGuideRenderedVisible = false;
+          tutorialGuideShowAt = performance.now() + TUTORIAL_GUIDE_SHOW_DELAY_MS;
+          tutorialGuideLayer.classList.remove("is-fading-in");
+          tutorialGuideLayer.style.visibility = "hidden";
+          applyTutorialGuideVisual(nextGuideId);
+        }
+
+        tutorialGuideLayer.hidden = false;
+        renderTutorialGuidePosition();
+        scheduleTutorialGuidePositionUpdate();
+      }
+
+      function completeTutorialGuide(guideId) {
+        const normalizedGuideId = Math.round(Number(guideId) || 0);
+        if (
+          normalizedGuideId < 1 ||
+          normalizedGuideId > 10 ||
+          tutorialCompletedGuideIds.has(normalizedGuideId)
+        ) {
+          updateTutorialGuide();
+          return false;
+        }
+
+        tutorialCompletedGuideIds.add(normalizedGuideId);
+        if (!isStateSaveSuppressed) {
+          saveResourceState();
+        }
+        updateTutorialGuide();
+        return true;
+      }
+
+      function isWaitingForFirstTutorialZombie() {
+        return (
+          !skipFirstStartSequence &&
+          !hasFirstTutorialZombieSpawned
+        );
+      }
+
+      function scheduleFirstZombieAfterGameStart() {
+        if (
+          firstZombieSpawnTimerId !== null ||
+          !hasGameInitialized ||
+          !isWaitingForFirstTutorialZombie()
+        ) {
+          return;
+        }
+
+        firstZombieSpawnTimerId = window.setTimeout(() => {
+          firstZombieSpawnTimerId = null;
+
+          if (
+            !hasGameInitialized ||
+            isExploring ||
+            document.body.classList.contains("is-start-screen") ||
+            !isWaitingForFirstTutorialZombie() ||
+            !canCreateZombie()
+          ) {
+            return;
+          }
+
+          const created = createZombie({
+            preferVisible: true,
+            forceVisibleWhenExpanded: true,
+            fixedX: FIRST_ZOMBIE_SPAWN_X,
+            fixedY: FIRST_ZOMBIE_SPAWN_Y,
+            isFixedFirstZombie: true
+          });
+
+          if (created) {
+            lastZombieSpawnAt = Date.now();
+            if (pendingEmptyZombieSpawnTimerId !== null) {
+              clearTimeout(pendingEmptyZombieSpawnTimerId);
+              pendingEmptyZombieSpawnTimerId = null;
+            }
+            scheduleNextZombieSpawnTick();
+            saveResourceState();
+          }
+        }, FIRST_ZOMBIE_SPAWN_DELAY_MS);
       }
 
       function showTodoListOverlay() {
@@ -7995,7 +8441,7 @@
           ],
           2: [
             "build a fence",
-            "wait for the tree to regrow",
+            "explore until the tree grows back.",
             "repair the shed"
           ],
           3: [
@@ -8095,15 +8541,15 @@
 
         if (!mailboxIntroTriggered && currentTodoListId === 0 && todoSubmittedListId === 0) {
           mailboxIntroTriggered = true;
-          hasGuide = true;
-          isGuideOn = false;
           deliverTodoList(1);
+          completeTutorialGuide(1);
           showToast(MAIL_FIRST_TOAST_MESSAGE);
           return;
         }
 
         if (currentTodoListId > 0) {
           if (isTodoListComplete(currentTodoListId)) {
+            const submittedTodoListId = currentTodoListId;
             playSound(MAILBOX_SOUND);
             todoSubmittedListId = currentTodoListId;
             todoSubmittedDay = dayCount;
@@ -8111,9 +8557,11 @@
             hasStrangerLetter = false;
             isStrangerLetterOn = false;
             applyInventoryState();
-            updateGuideUI();
             updateTodoListUI();
             saveResourceState();
+            if (submittedTodoListId === 1) {
+              completeTutorialGuide(8);
+            }
             showToast(MAIL_DONE_TOAST_MESSAGE);
             return;
           }
@@ -8127,6 +8575,7 @@
             if (todoSubmittedListId === 1) {
               unlockWoodenFenceBlueprint();
               deliverTodoList(2);
+              completeTutorialGuide(10);
               showToast(MAIL_NEXT_TOAST_MESSAGE);
               return;
             }
@@ -9517,7 +9966,6 @@
             : [];
 
           for (const itemType of storedNewInventoryItems) {
-            if (itemType === "guide") continue;
             if (
               typeof itemType === "string" &&
               inventoryItems.some(
@@ -9590,14 +10038,6 @@
             TODO_MAX_LIST_ID
           );
           todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
-          hasGuide = parsed.hasGuide === true ||
-            mailboxIntroTriggered ||
-            currentTodoListId > 0 ||
-            todoSubmittedListId > 0;
-          isGuideOn = hasGuide && parsed.isGuideOn === true;
-          if (isStrangerLetterOn && isGuideOn) {
-            isGuideOn = false;
-          }
           todoRainMissionAcceptedDay = normalizeDayCount(
             parsed.todoRainMissionAcceptedDay || 0
           );
@@ -9613,6 +10053,34 @@
                   TODO_MAX_LIST_ID
                 )
               : 0;
+
+          tutorialCompletedGuideIds.clear();
+          const storedTutorialGuideSchemaVersion = Math.max(
+            1,
+            Math.round(Number(parsed.tutorialGuideSchemaVersion) || 1)
+          );
+          const storedTutorialCompletedGuideIds = Array.isArray(parsed.tutorialCompletedGuides)
+            ? parsed.tutorialCompletedGuides
+            : [];
+          for (const guideId of storedTutorialCompletedGuideIds) {
+            const normalizedGuideId = Math.round(Number(guideId) || 0);
+            const migratedGuideId =
+              storedTutorialGuideSchemaVersion < TUTORIAL_GUIDE_SCHEMA_VERSION &&
+              normalizedGuideId >= 7 && normalizedGuideId <= 9
+                ? normalizedGuideId + 1
+                : normalizedGuideId;
+            if (migratedGuideId >= 1 && migratedGuideId <= 10) {
+              tutorialCompletedGuideIds.add(migratedGuideId);
+            }
+          }
+
+          if (
+            storedTutorialGuideSchemaVersion < TUTORIAL_GUIDE_SCHEMA_VERSION &&
+            (dayCount >= 2 || todoSubmittedListId >= 1 || currentTodoListId >= 2)
+          ) {
+            tutorialCompletedGuideIds.add(7);
+          }
+
           const storedTodoProgress = parsed.todoProgress && typeof parsed.todoProgress === "object"
             ? parsed.todoProgress
             : null;
@@ -9731,17 +10199,28 @@
           lastSupplyBoxSpawnAt = Number.isFinite(Number(parsed.lastSupplyBoxSpawnAt))
             ? Math.max(0, Number(parsed.lastSupplyBoxSpawnAt))
             : savedAt;
+          const storedActiveZombies = normalizeStoredCount(
+            parsed.activeZombies,
+            MAX_ACTIVE_ZOMBIES
+          );
+          const hasStoredFixedFirstZombieFlag =
+            Object.prototype.hasOwnProperty.call(parsed, "fixedFirstZombieAlive");
+          const storedFixedFirstZombieAlive =
+            parsed.fixedFirstZombieAlive === true ||
+            (
+              !hasStoredFixedFirstZombieFlag &&
+              parsed.firstKillBirdFlockPlayed !== true &&
+              storedActiveZombies > 0
+            );
           storedPopulationSnapshot = {
             savedAt,
             explorationEndsAt,
-            activeZombies: normalizeStoredCount(
-              parsed.activeZombies,
-              MAX_ACTIVE_ZOMBIES
-            ),
+            activeZombies: storedActiveZombies,
             activeDeer: normalizeStoredCount(
               parsed.activeDeer,
               MAX_ACTIVE_DEER
-            )
+            ),
+            fixedFirstZombieAlive: storedFixedFirstZombieAlive
           };
 
           // 첫 좀비 처치 새 떼 연출은 별도 저장해 게임 초기화 전까지 한 번만 재생합니다.
@@ -9757,6 +10236,7 @@
           for (let listId = 1; listId <= TODO_MAX_LIST_ID; listId += 1) {
             syncTodoProgressFromCurrentState(listId);
           }
+          syncTutorialGuideProgressFromCurrentState();
           hasRepairButtonNew = REPAIR_CATEGORY_ORDER.some(
             (category) => getRepairCategoryHasNewItems(category)
           );
@@ -9836,8 +10316,6 @@
               hasCompass,
               hasStrangerLetter,
               isStrangerLetterOn,
-              hasGuide,
-              isGuideOn,
               carParts: carPartsCount,
               flowers: flowerCount,
               paintCounts: { ...paintCounts },
@@ -9850,6 +10328,8 @@
               todoSubmittedDay,
               todoRainMissionAcceptedDay,
               lastCatDeliveredTodoListId,
+              tutorialGuideSchemaVersion: TUTORIAL_GUIDE_SCHEMA_VERSION,
+              tutorialCompletedGuides: Array.from(tutorialCompletedGuideIds).sort((a, b) => a - b),
               catMailDeliverySchemaVersion: CAT_MAIL_DELIVERY_SCHEMA_VERSION,
               todoSchemaVersion: TODO_SCHEMA_VERSION,
               todoProgress,
@@ -9867,6 +10347,7 @@
               explorationEndsAt: isExploring ? explorationEndsAt : 0,
               explorationDepartureDay: isExploring ? explorationDepartureDay : 0,
               activeZombies: getLivingZombieCount(),
+              fixedFirstZombieAlive: hasLivingFixedFirstZombie(),
               activeDeer: getLivingDeerCount(),
               lastZombieSpawnAt,
               lastDeerSpawnAt,
@@ -10153,6 +10634,8 @@
       function commitResourceState(options = {}) {
         updateResourceHud();
         updateDayStatus(options);
+        syncTutorialGuideProgressFromCurrentState();
+        updateTutorialGuide();
         saveResourceState();
       }
 
@@ -10169,6 +10652,20 @@
         }
 
         return count;
+      }
+
+      function hasLivingFixedFirstZombie() {
+        for (const zombie of zombies.values()) {
+          if (
+            zombie.isFixedFirstZombie === true &&
+            zombie.state !== "dying" &&
+            zombie.state !== "removed"
+          ) {
+            return true;
+          }
+        }
+
+        return false;
       }
 
 
@@ -10208,13 +10705,26 @@
             )
           : 0;
 
+        const shouldRestoreFixedFirstZombie =
+          storedPopulationSnapshot.fixedFirstZombieAlive === true &&
+          targetZombieCount > 0;
+
         for (let index = 0; index < targetZombieCount; index += 1) {
+          const isFixedFirstZombie =
+            shouldRestoreFixedFirstZombie && index === 0;
           if (!createZombie({
             force: true,
             silent: true,
             persist: false,
             skipBirth: true,
-            preferVisible: true
+            preferVisible: true,
+            ...(isFixedFirstZombie
+              ? {
+                  fixedX: FIRST_ZOMBIE_SPAWN_X,
+                  fixedY: FIRST_ZOMBIE_SPAWN_Y,
+                  isFixedFirstZombie: true
+                }
+              : {})
           })) {
             break;
           }
@@ -10335,13 +10845,26 @@
           Math.max(0, MAX_ACTIVE_POPULATION - targetZombieCount)
         );
 
+        const shouldRestoreFixedFirstZombie =
+          snapshot.fixedFirstZombieAlive === true &&
+          targetZombieCount > 0;
+
         for (let index = 0; index < targetZombieCount; index += 1) {
+          const isFixedFirstZombie =
+            shouldRestoreFixedFirstZombie && index === 0;
           if (!createZombie({
             force: true,
             silent: true,
             persist: false,
             skipBirth: true,
-            preferVisible: true
+            preferVisible: true,
+            ...(isFixedFirstZombie
+              ? {
+                  fixedX: FIRST_ZOMBIE_SPAWN_X,
+                  fixedY: FIRST_ZOMBIE_SPAWN_Y,
+                  isFixedFirstZombie: true
+                }
+              : {})
           })) {
             break;
           }
@@ -10446,7 +10969,6 @@
           hasChainsawBattery ||
           hasMusicBox ||
           hasStrangerLetter ||
-          hasGuide ||
           hasCompass ||
           carPartsCount > 0 ||
           fuelCount > 0 ||
@@ -11767,6 +12289,20 @@
       }
 
       function startExploration(destination) {
+        if (destination === "village") {
+          if (
+            tutorialCompletedGuideIds.has(5) &&
+            !tutorialCompletedGuideIds.has(6)
+          ) {
+            completeTutorialGuide(6);
+          } else if (
+            tutorialCompletedGuideIds.has(8) &&
+            !tutorialCompletedGuideIds.has(9)
+          ) {
+            completeTutorialGuide(9);
+          }
+        }
+
         cancelActiveAxeQte(false);
         cancelActiveHandgunQte(false);
         if (isChainsawEquipped) {
@@ -11815,6 +12351,7 @@
         exploringStatus.classList.add("is-visible");
         updateDayStatus();
         updateExploringCountdown();
+        updateTutorialGuide();
 
         if (explorationTimerId !== null) {
           clearInterval(explorationTimerId);
@@ -12312,9 +12849,15 @@
         );
         applyWeatherState();
         setNightMode(false);
+        exploringStatus.classList.remove("is-visible");
+        if (
+          tutorialCompletedGuideIds.has(6) &&
+          !tutorialCompletedGuideIds.has(7)
+        ) {
+          completeTutorialGuide(7);
+        }
         commitResourceState({ animateDay: true });
         syncDogForCurrentDay({ startFromNightTransition: true });
-        exploringStatus.classList.remove("is-visible");
         triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldDeerSpawn();
 
@@ -12547,7 +13090,6 @@
           chainsawBatteryPercent >= TEST_CHAINSAW_BATTERY_PERCENT &&
           hasMusicBox &&
           hasStrangerLetter &&
-          hasGuide &&
           hasCompass &&
           (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
           flowerCount > 0 &&
@@ -12596,10 +13138,6 @@
 
         markNewIfMissing("strangerLetter", hasStrangerLetter);
         hasStrangerLetter = true;
-
-        // Guide는 참고용 항목이므로 테스트 지급에서도 NEW 태그를 붙이지 않습니다.
-        hasGuide = true;
-        isGuideOn = false;
 
         markNewIfMissing("compass", hasCompass);
         hasCompass = true;
@@ -15149,10 +15687,6 @@
           setInventoryValue(strangerLetterInventoryItem, isStrangerLetterOn ? "ON" : "OFF");
         }
 
-        if (guideInventoryItem) {
-          guideInventoryItem.hidden = !hasGuide;
-          setInventoryValue(guideInventoryItem, isGuideOn ? "ON" : "OFF");
-        }
 
         if (compassInventoryItem) {
           compassInventoryItem.hidden = !hasCompass;
@@ -15430,6 +15964,7 @@
         markInventoryItemAsNew("axe");
         applyAxeState();
         applyInventoryState();
+        completeTutorialGuide(2);
         saveResourceState();
         playSound(GET_AXE_SOUND, 0.7);
       }
@@ -18063,6 +18598,7 @@
         if (lastCatDeliveredTodoListId !== deliveredTodoListId) {
           lastCatDeliveredTodoListId = deliveredTodoListId;
           saveResourceState();
+          updateTutorialGuide();
         }
       }
 
@@ -19164,19 +19700,31 @@
         }
 
         const spawnZone = getSpawnZoneForNextEntity();
+        const isFixedFirstZombie = options.isFixedFirstZombie === true;
         const hasFixedPosition =
           Number.isFinite(Number(options.fixedX)) &&
           Number.isFinite(Number(options.fixedY));
+        const fixedPositionBounds = isFixedFirstZombie ? GAME_ZONE : spawnZone;
         const position = hasFixedPosition
           ? {
-              x: clamp(Number(options.fixedX), spawnZone.left + HALF_W, spawnZone.right - HALF_W),
-              y: clamp(Number(options.fixedY), spawnZone.top + HALF_H, spawnZone.bottom - HALF_H)
+              x: clamp(
+                Number(options.fixedX),
+                fixedPositionBounds.left + HALF_W,
+                fixedPositionBounds.right - HALF_W
+              ),
+              y: clamp(
+                Number(options.fixedY),
+                fixedPositionBounds.top + HALF_H,
+                fixedPositionBounds.bottom - HALF_H
+              )
             }
           : getRandomSpawnPosition({
               ...options,
               spawnZone
             });
-        const direction = randomDirection();
+        const direction = isFixedFirstZombie
+          ? { x: 0, y: 0 }
+          : randomDirection();
 
         const element = document.createElement("div");
         element.className = "zombie";
@@ -19247,6 +19795,7 @@
           counted: false,
           fallSoundTimer: null,
           deathSheet: DEAD_SHEET,
+          isFixedFirstZombie,
           chainsawAttackStartedAt: 0,
           chainsawAttackFrame: -1,
           chainsawAttackStep: -1,
@@ -19254,6 +19803,9 @@
         };
 
         zombies.set(zombie.id, zombie);
+        if (isFixedFirstZombie) {
+          hasFirstTutorialZombieSpawned = true;
+        }
 
         setFacing(zombie);
 
@@ -20118,6 +20670,7 @@
         awardMusicBox();
         const isFirstZombieKill = triggerFirstKillBirdFlock();
         if (isFirstZombieKill) {
+          completeTutorialGuide(3);
           lastDeerSpawnAt = Date.now();
           createDeer({ preferVisible: true, forceVisibleWhenExpanded: true });
           scheduleNextDeerSpawnTick();
@@ -21145,15 +21698,17 @@
           }
         }
 
-        const previousX = zombie.x;
-        const previousY = zombie.y;
+        if (!zombie.isFixedFirstZombie) {
+          const previousX = zombie.x;
+          const previousY = zombie.y;
 
-        zombie.x += zombie.direction.x * MOVE_SPEED_PX_PER_MS * deltaMs;
-        zombie.y += zombie.direction.y * MOVE_SPEED_PX_PER_MS * deltaMs;
+          zombie.x += zombie.direction.x * MOVE_SPEED_PX_PER_MS * deltaMs;
+          zombie.y += zombie.direction.y * MOVE_SPEED_PX_PER_MS * deltaMs;
 
-        resolveOuterBounds(zombie);
-        resolveSafeZones(zombie, previousX, previousY);
-        setFacing(zombie);
+          resolveOuterBounds(zombie);
+          resolveSafeZones(zombie, previousX, previousY);
+          setFacing(zombie);
+        }
 
         zombie.walkElapsed += deltaMs;
         const frameDuration = 1000 / WALK_FPS;
@@ -21413,7 +21968,9 @@
 
           lastZombieSpawnAt = Date.now();
 
-          if (canCreateZombie()) {
+          if (isWaitingForFirstTutorialZombie()) {
+            saveResourceState();
+          } else if (canCreateZombie()) {
             const created = createZombie({ preferVisible: true });
             if (created && pendingEmptyZombieSpawnTimerId !== null) {
               clearTimeout(pendingEmptyZombieSpawnTimerId);
@@ -21743,6 +22300,7 @@
 
         const cannotShowZombie =
           isExploring ||
+          isWaitingForFirstTutorialZombie() ||
           Date.now() < zombieSpawnBlockedUntil ||
           zombieCount >= zombieKillRequirement;
 
@@ -21785,6 +22343,7 @@
 
           if (
             isExploring ||
+            isWaitingForFirstTutorialZombie() ||
             Date.now() < zombieSpawnBlockedUntil ||
             zombieCount >= zombieKillRequirement ||
             getLivingZombieCount() > 0
@@ -22018,6 +22577,7 @@
         document.body.classList.add("is-entering-game");
         document.body.classList.remove("is-start-screen");
         startScreen.classList.add("is-leaving");
+        requestAnimationFrame(updateTutorialGuide);
 
         window.setTimeout(() => {
           startScreen.hidden = true;
@@ -22057,14 +22617,15 @@
         lastPopulationWallClockAt = Date.now();
 
         restoreStoredPopulation();
+        scheduleFirstZombieAfterGameStart();
         syncDogForCurrentDay();
         initializeClouds({
           fadeInInitial: !skipStartTransition,
           preserveExistingShadows: shadowClouds.length > 0
         });
         startSpawner();
-        updateGuideUI();
         updateTodoListUI();
+        updateTutorialGuide();
         triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldZombieSpawn();
         scheduleEmptyFieldDeerSpawn();
@@ -22102,6 +22663,7 @@
           );
           startScreen.hidden = true;
           viewport.removeAttribute("inert");
+          requestAnimationFrame(updateTutorialGuide);
         } else {
           startGameUiEntryTransition();
         }
@@ -22142,16 +22704,8 @@
       }
 
       function startSpawner() {
-        // 새 게임에서만 첫 좀비를 즉시 생성합니다.
-        // 페이지를 열 때 이미 Axe를 보유했다면 첫 시작용 즉시 생성은 건너뜁니다.
-        if (!skipFirstStartSequence && canCreateZombie()) {
-          createZombie({
-            preferVisible: true,
-            forceVisibleWhenExpanded: true,
-            fixedX: FIRST_ZOMBIE_SPAWN_X,
-            fixedY: FIRST_ZOMBIE_SPAWN_Y
-          });
-        }
+        // 새 게임의 첫 좀비는 게임 시작 시점에 별도로 3초 뒤 예약합니다.
+        // 그 전까지는 정규/빈 필드 좀비 생성도 튜토리얼 첫 좀비보다 먼저 나오지 않도록 막습니다.
 
         // 간헐적으로 지나가는 새는 첫 처치 연출 여부와 관계없이 항상 유지합니다.
         scheduleNextAmbientBirdFlock();
@@ -22523,30 +23077,14 @@
           playSound(INVENTORY_SET_SOUND);
           isStrangerLetterOn = willTurnLetterOn;
           if (willTurnLetterOn) {
-            isGuideOn = false;
             showToast(STRANGER_LETTER_SELECTED_TOAST_MESSAGE);
           }
-          updateGuideUI();
           updateTodoListUI();
           applyInventoryState();
           saveResourceState();
           return;
         }
 
-        if (itemType === "guide" && hasGuide) {
-          const willTurnGuideOn = !isGuideOn;
-          playSound(INVENTORY_SET_SOUND);
-          isGuideOn = willTurnGuideOn;
-          if (willTurnGuideOn) {
-            isStrangerLetterOn = false;
-            showToast(GUIDE_SELECTED_TOAST_MESSAGE);
-          }
-          updateGuideUI();
-          updateTodoListUI();
-          applyInventoryState();
-          saveResourceState();
-          return;
-        }
 
         if (itemType === "compass" && hasCompass) {
           playSound(INVENTORY_SET_SOUND);
