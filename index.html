@@ -199,12 +199,12 @@
       --toast-text-offset-x: 0px;
       --toast-text-offset-y: 0px;
       --toast-max-width: 320px;
-      --toast-screen-right-margin: 16px;
+      --toast-screen-right-margin: 8px;
       --toast-font-size: 16px;
       --toast-bubble-radius: 18px;
       --toast-bubble-padding-x: 18px;
       --toast-bubble-padding-y: 12px;
-      --toast-previous-offset-y: 56px;
+      --toast-previous-offset-y: 54px;
       --toast-previous-scale: 0.7;
       --toast-stack-duration: 180ms;
       --toast-z-index: 160;
@@ -3675,55 +3675,29 @@
       pointer-events: none;
     }
 
-    /* 좀비 도끼 QTE 원. 실제 크기 변화와 성공 구간 컬러는 JavaScript에서 갱신합니다. */
-    .zombie-axe-qte {
+    /* 전투 QTE 공통 타겟 원. 원형 QTE와 세로선 QTE가 같은 스타일을 공유합니다. */
+    .combat-qte__target {
       position: absolute;
-      left: 50%;
-      top: 50%;
-      z-index: 8;
-      width: 0;
-      height: 0;
-      pointer-events: none;
-    }
-
-    .zombie-axe-qte__circle {
-      position: absolute;
-      left: 0;
-      top: 0;
+      z-index: 2;
+      width: 50px;
+      height: 50px;
+      border: 15px solid #fff;
       border-radius: 50%;
+      background: transparent;
+      opacity: 0.7;
       transform: translate(-50%, -50%);
       transform-origin: center center;
       pointer-events: none;
-      will-change: width, height, border-color, background-color, opacity;
+      will-change: top, border-color, opacity, transform;
     }
 
-    /* 1·2단계 타겟은 모두 흰색 15px stroke 원으로 유지합니다. */
-    .zombie-axe-qte.is-stage-one .zombie-axe-qte__target,
-    .zombie-axe-qte.is-stage-two .zombie-axe-qte__target {
-      z-index: 2;
-      border: 15px solid #fff;
-      background: transparent;
-      opacity: 0.7;
-    }
-
-    /* 성공 판정이 유효한 동안에는 기본 타겟 규칙보다 높은 우선순위로 노란 stroke를 적용합니다. */
-    .zombie-axe-qte.is-stage-one .zombie-axe-qte__target.is-success-window,
-    .zombie-axe-qte.is-stage-two .zombie-axe-qte__target.is-success-window {
+    .combat-qte__target.is-success-window {
       border-color: #F6C062;
       opacity: 1;
+      animation: combat-qte-target-success 200ms both;
     }
 
-    /* 성공 시점부터 0.2초 동안 Target 원을 단계별로 부드럽게 펄스합니다.
-       변화 시작은 easeOutSine, 원래 크기로 복귀할 때는 easeInSine을 사용합니다. */
-    .zombie-axe-qte.is-stage-one .zombie-axe-qte__target.is-success-window {
-      animation: axe-qte-target-success-stage-one 200ms both;
-    }
-
-    .zombie-axe-qte.is-stage-two .zombie-axe-qte__target.is-success-window {
-      animation: axe-qte-target-success-stage-two 200ms both;
-    }
-
-    @keyframes axe-qte-target-success-stage-one {
+    @keyframes combat-qte-target-success {
       0% {
         transform: translate(-50%, -50%) scale(1);
         animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); /* easeOutSine */
@@ -3737,25 +3711,89 @@
       }
     }
 
-    @keyframes axe-qte-target-success-stage-two {
-      0% {
-        transform: translate(-50%, -50%) scale(1);
-        animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); /* easeOutSine */
-      }
-      50% {
-        transform: translate(-50%, -50%) scale(1.06);
-        animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0); /* easeInSine */
-      }
-      100% {
-        transform: translate(-50%, -50%) scale(1);
-      }
+    /* 핸드건 원형 QTE: 기존 도끼 QTE의 1단계 연출만 사용합니다. */
+    .handgun-circle-qte {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 8;
+      width: 0;
+      height: 0;
+      pointer-events: none;
     }
 
-    .zombie-axe-qte__timing {
+    .handgun-circle-qte__timing {
+      position: absolute;
+      left: 0;
+      top: 0;
       z-index: 1;
       border: 2px solid #fff;
+      border-radius: 50%;
       background: transparent;
       opacity: 1;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      pointer-events: none;
+      will-change: width, height, opacity;
+    }
+
+    .handgun-circle-qte .combat-qte__target {
+      left: 0;
+      top: 0;
+    }
+
+    /* 좀비 도끼 세로선 QTE. 좀비가 보는 방향으로 좌우 4px 오프셋합니다. */
+    .zombie-axe-qte {
+      position: absolute;
+      left: 50%;
+      top: -50px;
+      z-index: 8;
+      width: 2px;
+      height: 70px;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .zombie-axe-qte.is-facing-left {
+      left: calc(50% - 5px);
+    }
+
+    .zombie-axe-qte.is-facing-right {
+      left: calc(50% + 5px);
+    }
+
+    .zombie-axe-qte__line {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 2px;
+      height: 70px;
+      background: #fff;
+      opacity: 1;
+      pointer-events: none;
+    }
+
+    .zombie-axe-qte .combat-qte__target {
+      left: 1px;
+      top: 70px;
+      width: 30px;
+      height: 30px;
+      border-width: 10px;
+    }
+
+    .zombie-axe-qte__center-dot {
+      position: absolute;
+      left: 1px;
+      top: 70px;
+      z-index: 3;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #50954e;
+      opacity: 1;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      will-change: top;
     }
 
     .zombie-sprite {
@@ -4179,7 +4217,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.184"
+  data-game-version="0.185"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4883,7 +4921,7 @@
       const CAT_SPEED_PX_PER_MS = 0.07;
       const CAT_FADE_DURATION_MS = 500;
       const CAT_START_X = 430;
-      const CAT_START_Y = 1305;
+      const CAT_START_Y = 1295;
       const CAT_TARGET_X = 956;
       const CAT_TARGET_Y = 1124;
       const CAT_WALK_NE_FRAME_SEQUENCE = Object.freeze([
@@ -5028,29 +5066,30 @@
         greenPaint: 2
       });
 
-      // 공격 처치 규칙 수정 위치입니다. 체력 수치 없이 명중/성공 횟수만 사용합니다.
-      const HANDGUN_KILL_SHOTS_MIN = 1;
-      const HANDGUN_KILL_SHOTS_MAX = 3;
+      // 도망 중인 사슴의 핸드건 직접 사격 규칙입니다. QTE 없이 개체별 1~3발로 처치합니다.
+      const FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN = 1;
+      const FLEEING_DEER_HANDGUN_KILL_SHOTS_MAX = 3;
 
       // 새 게임에서 최초 1회 생성되는 첫 좀비의 월드 좌표입니다.
       // 2048×2048 월드 기준이며, 우체통 오른쪽 아래 근처에 임시 배치합니다.
       const FIRST_ZOMBIE_SPAWN_X = 1060;
       const FIRST_ZOMBIE_SPAWN_Y = 1238;
 
-      // 좀비 도끼 QTE 설정. 허용 범위(px)는 단계별로 따로 조절할 수 있습니다.
-      // timing duration은 크기 변화 시간, hold는 마지막 크기로 유지하는 시간입니다.
-      const AXE_QTE_STAGE_ONE_TARGET_SIZE_PX = 50;
-      const AXE_QTE_STAGE_ONE_TIMING_START_SIZE_PX = 450;
-      const AXE_QTE_STAGE_ONE_TIMING_END_SIZE_PX = 50;
-      const AXE_QTE_STAGE_ONE_DURATION_MS = 1000;
-      const AXE_QTE_STAGE_ONE_HOLD_MS = 200;
-      const AXE_QTE_STAGE_ONE_TOLERANCE_PX = 20;
-      const AXE_QTE_STAGE_TWO_TARGET_SIZE_PX = 250;
-      const AXE_QTE_STAGE_TWO_TIMING_START_SIZE_PX = 50;
-      const AXE_QTE_STAGE_TWO_TIMING_END_SIZE_PX = 250;
-      const AXE_QTE_STAGE_TWO_DURATION_MS = 500;
-      const AXE_QTE_STAGE_TWO_HOLD_MS = 200;
-      const AXE_QTE_STAGE_TWO_TOLERANCE_PX = 20;
+      // 핸드건 원형 QTE 설정. 기존 원형 QTE의 첫 번째 단계만 사용합니다.
+      const HANDGUN_QTE_TARGET_SIZE_PX = 50;
+      const HANDGUN_QTE_TIMING_START_SIZE_PX = 450;
+      const HANDGUN_QTE_TIMING_END_SIZE_PX = 50;
+      const HANDGUN_QTE_DURATION_MS = 1000;
+      const HANDGUN_QTE_HOLD_MS = 200;
+      const HANDGUN_QTE_TOLERANCE_PX = 20;
+
+      // 좀비 도끼 세로선 QTE 설정.
+      // 타겟 원은 50px 선의 아래→위(easeOutQuad)→아래(easeInQuad)로 한 번 왕복합니다.
+      const AXE_QTE_LINE_HEIGHT_PX = 70;
+      const AXE_QTE_TARGET_SIZE_PX = 30;
+      const AXE_QTE_RISE_DURATION_MS = 700;
+      const AXE_QTE_FALL_DURATION_MS = 550;
+      const AXE_QTE_TOP_TOLERANCE_PX = 6;
 
       const MAX_CHAINSAW_BATTERY = 100;
       // 전기톱 장착 중 배터리 1%를 3초마다 소모합니다.
@@ -5557,7 +5596,7 @@
       const PAINT_SELECTED_TOAST_MESSAGE = "I could paint something.";
       const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s find out.";
       const GUIDE_SELECTED_TOAST_MESSAGE = "A quick reminder.";
-      const REPAIR_GRID_ITEM_COUNT = 25;
+      const REPAIR_GRID_ITEM_COUNT = 30;
       const REPAIR_CATEGORY_ORDER = [
         "outdoor",
         "buildings",
@@ -5568,7 +5607,8 @@
           label: "Decor",
           sections: [
             { key: "fence", label: "Fence", startIndex: 0 },
-            { key: "garden", label: "Garden", startIndex: 5 }
+            { key: "garden", label: "Garden", startIndex: 5 },
+            { key: "mailbox", label: "Mailbox", startIndex: 10 }
           ]
         },
         buildings: {
@@ -6447,6 +6487,7 @@
       let hasAxe = false;
       let isAxeEquipped = false;
       let activeAxeQte = null;
+      let activeHandgunQte = null;
       let hasHandgun = false;
       let isHandgunEquipped = false;
       let hasHandgunAmmo = false;
@@ -6498,7 +6539,7 @@
         REPAIR_CATEGORY_ORDER.map((category) => [category, 0])
       );
       const repairAppliedItemBySection = {
-        outdoor: { fence: -1, garden: -1 },
+        outdoor: { fence: -1, garden: -1, mailbox: -1 },
         buildings: { type: 0, roof: 5, walls: 10 }
       };
       // 카테고리 NEW 태그와 개별 설계도의 노란 NEW 상태를 따로 관리합니다.
@@ -10615,6 +10656,7 @@
 
       function openInventory() {
         cancelActiveAxeQte(false);
+        cancelActiveHandgunQte(false);
         if (isInventoryOpen) return;
 
         closeExplorationMenu(false);
@@ -10641,6 +10683,7 @@
 
       function openExplorationMenu() {
         cancelActiveAxeQte(false);
+        cancelActiveHandgunQte(false);
         if (isExplorationMenuOpen) return;
 
         // 저장 복원·보상 획득·수리 완료 후에도 메뉴를 열 때 현재 조건을 다시 반영합니다.
@@ -10661,6 +10704,7 @@
 
       function openRepair() {
         cancelActiveAxeQte(false);
+        cancelActiveHandgunQte(false);
         if (isRepairOpen) return;
         hasRepairButtonNew = false;
         const didClearSelectedCategoryNew = clearRepairCategoryNewState(
@@ -11724,6 +11768,7 @@
 
       function startExploration(destination) {
         cancelActiveAxeQte(false);
+        cancelActiveHandgunQte(false);
         if (isChainsawEquipped) {
           setEquippedWeapon("", { render: true, save: false });
         }
@@ -14983,6 +15028,9 @@
 
         if (activeAxeQte && normalizedWeapon !== "axe") {
           cancelActiveAxeQte(false);
+        }
+        if (activeHandgunQte && normalizedWeapon !== "handgun") {
+          cancelActiveHandgunQte(false);
         }
 
         isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
@@ -18334,6 +18382,9 @@
 
       function removeDeer(deer, options = {}) {
         if (deer.state === "removed") return;
+        if (activeHandgunQte && activeHandgunQte.entity === deer) {
+          clearHandgunQte(activeHandgunQte, false);
+        }
 
         deer.state = "removed";
         deer.element.remove();
@@ -18597,7 +18648,7 @@
           idleAnimationStartedAt: 0,
           nextIdleAnimationAt: now + getRandomDeerIdleDelay(),
           handgunHitCount: 0,
-          handgunKillShots: randomHandgunKillShots(),
+          handgunKillShots: randomFleeingDeerHandgunKillShots(),
           axeAttackCount: 0,
           evadeCount: 0,
           evadeSpeedPxPerMs:
@@ -18646,6 +18697,9 @@
         direction,
         state = "evading"
       ) {
+        if (activeHandgunQte && activeHandgunQte.entity === deer) {
+          clearHandgunQte(activeHandgunQte, true);
+        }
         deer.state = state;
         deer.idleAnimation = null;
         deer.evadeDirection = direction < 0 ? -1 : 1;
@@ -18678,6 +18732,9 @@
       }
 
       function startDeerTurnaround(deer) {
+        if (activeHandgunQte && activeHandgunQte.entity === deer) {
+          clearHandgunQte(activeHandgunQte, true);
+        }
         const currentDirection = deer.state === "evading"
           ? deer.evadeDirection
           : (deer.state === "turning"
@@ -18695,6 +18752,9 @@
 
       function beginDeerDeath(deer) {
         if (deer.state === "dying" || deer.state === "removed") return;
+        if (activeHandgunQte && activeHandgunQte.entity === deer) {
+          clearHandgunQte(activeHandgunQte, false);
+        }
 
         const slideDirection = (
           deer.state === "evading" || deer.state === "leaving"
@@ -18760,6 +18820,10 @@
 
       function attackDeer(deer) {
         const isLeaving = deer.state === "leaving";
+        const isFleeing =
+          deer.state === "leaving" ||
+          deer.state === "evading" ||
+          deer.state === "turning";
 
         // 밤 전환 때문에 도망가는 사슴은 입력과 공격을 모두 막습니다.
         if (deer.isNightTransitionLeaving === true) return;
@@ -18805,24 +18869,32 @@
           return;
         }
 
+        // 도망/회피/회전 중인 사슴은 기존 규칙 그대로 QTE 없이 1~3발 직접 사격합니다.
+        if (weapon === "handgun" && isFleeing) {
+          alertNearbyDeer(deer, deer);
+          consumeAmmo("handgun");
+          playSound(HANDGUN_SOUND);
+          deer.handgunHitCount += 1;
+          if (deer.handgunHitCount >= deer.handgunKillShots) {
+            beginDeerDeath(deer);
+          }
+          return;
+        }
+
+        // 일반 상태의 사슴 핸드건 공격은 실제 발사 전 원형 QTE를 시작합니다.
+        if (weapon === "handgun") {
+          startHandgunQte(deer, "deer");
+          return;
+        }
+
         alertNearbyDeer(deer, deer);
 
-        // 주변 전투·자동차·낮 전환 등 다른 이유로 leaving 중인 사슴도
-        // 핸드건은 개체별 1~3발 규칙을 유지합니다. 도끼·라이플은 즉시 처치합니다.
+        // 주변 전투·자동차·낮 전환 등 다른 이유로 leaving 중인 사슴은
+        // 도끼·라이플 기존 즉시 처치 규칙을 유지합니다.
         if (isLeaving) {
           if (weapon === "axe") {
             playSound(HIT_SOUND, 0.5);
             beginDeerDeath(deer);
-            return;
-          }
-
-          if (weapon === "handgun") {
-            consumeAmmo("handgun");
-            playSound(HANDGUN_SOUND);
-            deer.handgunHitCount += 1;
-            if (deer.handgunHitCount >= deer.handgunKillShots) {
-              beginDeerDeath(deer);
-            }
             return;
           }
 
@@ -18850,16 +18922,6 @@
 
           playSound(HIT_SOUND, 0.5);
           beginDeerDeath(deer);
-          return;
-        }
-
-        if (weapon === "handgun") {
-          consumeAmmo("handgun");
-          playSound(HANDGUN_SOUND);
-          deer.handgunHitCount += 1;
-          if (deer.handgunHitCount >= deer.handgunKillShots) {
-            beginDeerDeath(deer);
-          }
           return;
         }
 
@@ -19173,8 +19235,6 @@
             fromOpacity: "",
             toOpacity: ""
           },
-          handgunHitCount: 0,
-          handgunKillShots: randomHandgunKillShots(),
           axeQteSuccessCount: 0,
           state: skipBirth ? "walking" : "birthing",
           birthStartedAt: performance.now(),
@@ -20113,6 +20173,9 @@
         if (activeAxeQte && activeAxeQte.zombie === zombie) {
           clearAxeQte(activeAxeQte, false);
         }
+        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
+          clearHandgunQte(activeHandgunQte, false);
+        }
         registerPlayerZombieKill(zombie);
         spawnShotgunZombieParts(zombie);
         zombie.state = "removed";
@@ -20126,6 +20189,9 @@
         if (zombie.state === "dying" || zombie.state === "removed" || zombie.state === "chainsawAttacking") return;
         if (activeAxeQte && activeAxeQte.zombie === zombie) {
           clearAxeQte(activeAxeQte, false);
+        }
+        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
+          clearHandgunQte(activeHandgunQte, false);
         }
         zombie.state = "chainsawAttacking";
         zombie.element.classList.add("is-dead");
@@ -20165,52 +20231,244 @@
         showSingleFrame(zombie, WALK_SHEET, Math.max(0, zombie.chainsawAttackFrame));
       }
 
-      function randomHandgunKillShots() {
-        return HANDGUN_KILL_SHOTS_MIN +
+      function randomFleeingDeerHandgunKillShots() {
+        return FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN +
           Math.floor(
             Math.random() *
-            (HANDGUN_KILL_SHOTS_MAX - HANDGUN_KILL_SHOTS_MIN + 1)
+            (
+              FLEEING_DEER_HANDGUN_KILL_SHOTS_MAX -
+              FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN +
+              1
+            )
           );
       }
 
-      function getAxeQteStageConfig(stage) {
-        if (stage === 2) {
-          return {
-            targetSize: AXE_QTE_STAGE_TWO_TARGET_SIZE_PX,
-            timingStartSize: AXE_QTE_STAGE_TWO_TIMING_START_SIZE_PX,
-            timingEndSize: AXE_QTE_STAGE_TWO_TIMING_END_SIZE_PX,
-            durationMs: AXE_QTE_STAGE_TWO_DURATION_MS,
-            holdMs: AXE_QTE_STAGE_TWO_HOLD_MS,
-            tolerancePx: AXE_QTE_STAGE_TWO_TOLERANCE_PX
-          };
-        }
+      function easeOutQuad(progress) {
+        const clamped = clamp(progress, 0, 1);
+        return 1 - (1 - clamped) * (1 - clamped);
+      }
+
+      function getHandgunQteTimingState(qte, now = performance.now()) {
+        const elapsed = Math.max(0, now - qte.startedAt);
+        const progress = clamp(elapsed / HANDGUN_QTE_DURATION_MS, 0, 1);
+        const timingSize =
+          HANDGUN_QTE_TIMING_START_SIZE_PX +
+          (
+            HANDGUN_QTE_TIMING_END_SIZE_PX -
+            HANDGUN_QTE_TIMING_START_SIZE_PX
+          ) * progress;
+        const isExpired =
+          elapsed >= HANDGUN_QTE_DURATION_MS + HANDGUN_QTE_HOLD_MS;
+        const isSuccessWindow =
+          !isExpired &&
+          Math.abs(timingSize - HANDGUN_QTE_TARGET_SIZE_PX) <=
+            HANDGUN_QTE_TOLERANCE_PX;
 
         return {
-          targetSize: AXE_QTE_STAGE_ONE_TARGET_SIZE_PX,
-          timingStartSize: AXE_QTE_STAGE_ONE_TIMING_START_SIZE_PX,
-          timingEndSize: AXE_QTE_STAGE_ONE_TIMING_END_SIZE_PX,
-          durationMs: AXE_QTE_STAGE_ONE_DURATION_MS,
-          holdMs: AXE_QTE_STAGE_ONE_HOLD_MS,
-          tolerancePx: AXE_QTE_STAGE_ONE_TOLERANCE_PX
+          elapsed,
+          progress,
+          timingSize,
+          isExpired,
+          isSuccessWindow
         };
       }
 
+      function restoreHandgunQteEntity(qte) {
+        if (!qte || !qte.entity) return;
+
+        if (qte.entityType === "zombie") {
+          if (qte.entity.state === "handgunQte") {
+            qte.entity.state = "walking";
+            showSingleFrame(qte.entity, WALK_SHEET, qte.entity.walkFrame);
+            renderZombie(qte.entity);
+          }
+          return;
+        }
+
+        if (qte.entityType === "deer" && qte.entity.state === "handgunQte") {
+          qte.entity.state = qte.previousState === "birthing" ? "birthing" : "idle";
+          if (qte.entity.state === "idle") {
+            showSingleDeerFrame(qte.entity, DEER_IDLE_FRAME);
+          }
+          renderDeer(qte.entity);
+        }
+      }
+
+      function clearHandgunQte(qte, restoreEntityState = true) {
+        if (!qte) return;
+        if (qte.animationFrameId !== null) {
+          cancelAnimationFrame(qte.animationFrameId);
+          qte.animationFrameId = null;
+        }
+        if (qte.targetCircle) {
+          qte.targetCircle.classList.remove("is-success-window");
+        }
+        if (qte.overlay && qte.overlay.isConnected) {
+          qte.overlay.remove();
+        }
+        if (activeHandgunQte === qte) {
+          activeHandgunQte = null;
+        }
+        if (restoreEntityState) {
+          restoreHandgunQteEntity(qte);
+        }
+      }
+
+      function cancelActiveHandgunQte(playMissSound = false) {
+        if (!activeHandgunQte) return;
+        const qte = activeHandgunQte;
+        clearHandgunQte(qte, true);
+        if (playMissSound) {
+          playSound(AXE_MISS_SOUND, 0.7);
+        }
+      }
+
+      function updateHandgunQteVisual(qte, now) {
+        if (activeHandgunQte !== qte) return;
+        if (
+          !qte.entity ||
+          qte.entity.state === "dying" ||
+          qte.entity.state === "removed"
+        ) {
+          clearHandgunQte(qte, false);
+          return;
+        }
+
+        const { timingSize, isExpired, isSuccessWindow } =
+          getHandgunQteTimingState(qte, now);
+        const safeTimingSize = Math.max(0, timingSize);
+        qte.timingCircle.style.width = `${safeTimingSize}px`;
+        qte.timingCircle.style.height = `${safeTimingSize}px`;
+        qte.targetCircle.style.width = `${HANDGUN_QTE_TARGET_SIZE_PX}px`;
+        qte.targetCircle.style.height = `${HANDGUN_QTE_TARGET_SIZE_PX}px`;
+        qte.targetCircle.classList.toggle("is-success-window", isSuccessWindow);
+
+        // 기존 원형 QTE 1단계와 동일하게 성공 구간 진입 시 타이밍 원을 숨깁니다.
+        if (isSuccessWindow && !qte.successWindowTriggered) {
+          qte.successWindowTriggered = true;
+          qte.timingCircle.style.display = "none";
+        }
+
+        // 입력 없이 끝까지 지나가면 탄약/효과음 없이 QTE만 종료합니다.
+        if (isExpired) {
+          clearHandgunQte(qte, true);
+          return;
+        }
+
+        qte.animationFrameId = requestAnimationFrame((nextNow) => {
+          updateHandgunQteVisual(qte, nextNow);
+        });
+      }
+
+      function startHandgunQte(entity, entityType) {
+        if (!entity || (entityType !== "zombie" && entityType !== "deer")) return;
+
+        if (activeAxeQte) {
+          cancelActiveAxeQte(false);
+        }
+        if (activeHandgunQte) {
+          cancelActiveHandgunQte(false);
+        }
+
+        const overlay = document.createElement("div");
+        overlay.className = "handgun-circle-qte";
+
+        const targetCircle = document.createElement("div");
+        targetCircle.className = "combat-qte__target";
+
+        const timingCircle = document.createElement("div");
+        timingCircle.className = "handgun-circle-qte__timing";
+
+        overlay.appendChild(targetCircle);
+        overlay.appendChild(timingCircle);
+        entity.element.appendChild(overlay);
+
+        const previousState = entity.state;
+        entity.state = "handgunQte";
+
+        const qte = {
+          entity,
+          entityType,
+          previousState,
+          overlay,
+          targetCircle,
+          timingCircle,
+          startedAt: performance.now(),
+          animationFrameId: null,
+          successWindowTriggered: false
+        };
+
+        activeHandgunQte = qte;
+        updateHandgunQteVisual(qte, qte.startedAt);
+      }
+
+      function resolveActiveHandgunQte() {
+        const qte = activeHandgunQte;
+        if (!qte) return false;
+
+        const { isSuccessWindow } = getHandgunQteTimingState(qte);
+
+        // QTE 입력 시점이 실제 발사입니다. 성공/실패 모두 탄약 1발과 총성을 사용합니다.
+        if (!consumeAmmo("handgun")) {
+          clearHandgunQte(qte, true);
+          showNoAmmoFeedback();
+          return true;
+        }
+
+        playSound(HANDGUN_SOUND);
+        alertNearbyDeer(
+          qte.entity,
+          qte.entityType === "deer" ? qte.entity : null
+        );
+
+        if (!isSuccessWindow) {
+          clearHandgunQte(qte, true);
+          return true;
+        }
+
+        clearHandgunQte(qte, false);
+
+        if (qte.entityType === "zombie") {
+          qte.entity.lastPlayerWeapon = "handgun";
+          beginDeath(qte.entity, true, { deathType: "normal" });
+          return true;
+        }
+
+        beginDeerDeath(qte.entity);
+        return true;
+      }
+
       function getAxeQteTimingState(qte, now = performance.now()) {
-        const config = getAxeQteStageConfig(qte.stage);
         const elapsed = Math.max(0, now - qte.startedAt);
-        const progress = clamp(elapsed / config.durationMs, 0, 1);
-        const timingSize =
-          config.timingStartSize +
-          (config.timingEndSize - config.timingStartSize) * progress;
-        const isExpired = elapsed >= config.durationMs + config.holdMs;
+        const riseEnd = AXE_QTE_RISE_DURATION_MS;
+        const totalDuration =
+          AXE_QTE_RISE_DURATION_MS + AXE_QTE_FALL_DURATION_MS;
+
+        let targetY = AXE_QTE_LINE_HEIGHT_PX;
+
+        if (elapsed <= riseEnd) {
+          const progress = clamp(elapsed / AXE_QTE_RISE_DURATION_MS, 0, 1);
+          targetY =
+            AXE_QTE_LINE_HEIGHT_PX *
+            (1 - easeOutQuad(progress));
+        } else {
+          const progress = clamp(
+            (elapsed - riseEnd) / AXE_QTE_FALL_DURATION_MS,
+            0,
+            1
+          );
+          targetY =
+            AXE_QTE_LINE_HEIGHT_PX *
+            easeInQuad(progress);
+        }
+
+        const isExpired = elapsed >= totalDuration;
         const isSuccessWindow =
-          !isExpired &&
-          Math.abs(timingSize - config.targetSize) <= config.tolerancePx;
+          !isExpired && targetY <= AXE_QTE_TOP_TOLERANCE_PX;
+
         return {
-          config,
-          progress,
           elapsed,
-          timingSize,
+          targetY,
           isExpired,
           isSuccessWindow
         };
@@ -20262,23 +20520,15 @@
           return;
         }
 
-        const { config, timingSize, isExpired, isSuccessWindow } =
+        const { targetY, isExpired, isSuccessWindow } =
           getAxeQteTimingState(qte, now);
-        const safeTimingSize = Math.max(0, timingSize);
-        qte.timingCircle.style.width = `${safeTimingSize}px`;
-        qte.timingCircle.style.height = `${safeTimingSize}px`;
-        qte.targetCircle.style.width = `${config.targetSize}px`;
-        qte.targetCircle.style.height = `${config.targetSize}px`;
+        qte.targetCircle.style.width = `${AXE_QTE_TARGET_SIZE_PX}px`;
+        qte.targetCircle.style.height = `${AXE_QTE_TARGET_SIZE_PX}px`;
+        qte.targetCircle.style.top = `${targetY}px`;
+        qte.centerDot.style.top = `${targetY}px`;
         qte.targetCircle.classList.toggle("is-success-window", isSuccessWindow);
 
-        // 성공 구간에 처음 들어오는 순간 타이밍 원만 숨깁니다.
-        // 성공 여부는 타겟 원의 노란 stroke로만 표시합니다.
-        if (isSuccessWindow && !qte.successWindowTriggered) {
-          qte.successWindowTriggered = true;
-          qte.timingCircle.style.display = "none";
-        }
-
-        // 입력 없이 제한 시간이 끝난 경우에는 QTE만 취소하고 실패 효과음은 재생하지 않습니다.
+        // 아래→위→아래 왕복을 끝까지 놓치면 효과음 없이 QTE만 종료합니다.
         if (isExpired) {
           clearAxeQte(qte, true);
           return;
@@ -20289,36 +20539,43 @@
         });
       }
 
-      function startAxeQte(zombie, stage) {
+      function startAxeQte(zombie) {
+        if (activeHandgunQte) {
+          cancelActiveHandgunQte(false);
+        }
         if (activeAxeQte) {
           cancelActiveAxeQte(false);
         }
 
         const overlay = document.createElement("div");
-        overlay.className = `zombie-axe-qte is-stage-${stage === 2 ? "two" : "one"}`;
+        overlay.className = "zombie-axe-qte";
+        overlay.classList.add(
+          zombie.facing === 1 ? "is-facing-right" : "is-facing-left"
+        );
+
+        const line = document.createElement("div");
+        line.className = "zombie-axe-qte__line";
 
         const targetCircle = document.createElement("div");
-        targetCircle.className =
-          "zombie-axe-qte__circle zombie-axe-qte__target";
+        targetCircle.className = "combat-qte__target";
 
-        const timingCircle = document.createElement("div");
-        timingCircle.className =
-          "zombie-axe-qte__circle zombie-axe-qte__timing";
+        const centerDot = document.createElement("div");
+        centerDot.className = "zombie-axe-qte__center-dot";
 
+        overlay.appendChild(line);
         overlay.appendChild(targetCircle);
-        overlay.appendChild(timingCircle);
+        overlay.appendChild(centerDot);
         zombie.element.appendChild(overlay);
 
         zombie.state = "axeQte";
         const qte = {
           zombie,
-          stage,
           overlay,
+          line,
           targetCircle,
-          timingCircle,
+          centerDot,
           startedAt: performance.now(),
-          animationFrameId: null,
-          successWindowTriggered: false
+          animationFrameId: null
         };
         activeAxeQte = qte;
         updateAxeQteVisual(qte, qte.startedAt);
@@ -20340,47 +20597,61 @@
         alertNearbyDeer(zombie);
         playSound(HIT_SOUND, 0.5);
 
-        zombie.deathStartFrame = randomDeathStartFrame();
-        zombie.hitReactionFrame = zombie.deathStartFrame;
-        showSingleFrame(zombie, DEAD_SHEET, zombie.hitReactionFrame);
-
         if (zombie.axeQteSuccessCount >= 2) {
           zombie.lastPlayerWeapon = "axe";
           beginDeath(zombie, true, { deathType: "normal" });
           return true;
         }
 
-        startAxeQte(zombie, 2);
+        // 첫 성공 후에는 QTE를 자동으로 다시 시작하지 않고 피격 반응 뒤 재입력을 기다립니다.
+        zombie.state = "hit";
+        zombie.deathStartFrame = randomDeathStartFrame();
+        zombie.hitReactionFrame = zombie.deathStartFrame;
+        zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
+        showSingleFrame(zombie, DEAD_SHEET, zombie.hitReactionFrame);
         return true;
       }
 
+      function getActiveCombatQte() {
+        return activeAxeQte || activeHandgunQte;
+      }
+
+      function resolveActiveCombatQte(qte) {
+        if (!qte) return false;
+        if (qte === activeAxeQte) {
+          return resolveActiveAxeQte(qte.zombie);
+        }
+        if (qte === activeHandgunQte) {
+          return resolveActiveHandgunQte();
+        }
+        return false;
+      }
+
       // QTE가 표시 중이면 다음 포인터 입력을 화면의 어떤 UI/필드 버튼보다 먼저 소비합니다.
-      // pointerdown에서 QTE를 판정하고 같은 입력의 pointerup/click까지 차단하여
-      // 뒤쪽 버튼이 함께 실행되거나 1단계 입력이 2단계까지 연속 전달되는 것을 막습니다.
-      const AXE_QTE_PRIORITY_CLICK_SUPPRESSION_MS = 700;
-      const axeQtePriorityPointerIds = new Set();
-      let axeQtePrioritySuppressClickUntil = -Infinity;
-      let axeQtePrioritySuppressClickX = 0;
-      let axeQtePrioritySuppressClickY = 0;
+      const COMBAT_QTE_PRIORITY_CLICK_SUPPRESSION_MS = 700;
+      const combatQtePriorityPointerIds = new Set();
+      let combatQtePrioritySuppressClickUntil = -Infinity;
+      let combatQtePrioritySuppressClickX = 0;
+      let combatQtePrioritySuppressClickY = 0;
 
       document.addEventListener(
         "pointerdown",
         (event) => {
-          if (!activeAxeQte) return;
+          const qte = getActiveCombatQte();
+          if (!qte) return;
           if (event.button !== undefined && event.button !== 0) return;
           if (event.isPrimary === false) return;
 
-          const qte = activeAxeQte;
-          axeQtePriorityPointerIds.add(event.pointerId);
-          axeQtePrioritySuppressClickUntil =
-            performance.now() + AXE_QTE_PRIORITY_CLICK_SUPPRESSION_MS;
-          axeQtePrioritySuppressClickX = event.clientX;
-          axeQtePrioritySuppressClickY = event.clientY;
+          combatQtePriorityPointerIds.add(event.pointerId);
+          combatQtePrioritySuppressClickUntil =
+            performance.now() + COMBAT_QTE_PRIORITY_CLICK_SUPPRESSION_MS;
+          combatQtePrioritySuppressClickX = event.clientX;
+          combatQtePrioritySuppressClickY = event.clientY;
 
           clearFieldEntityPressState();
           event.preventDefault();
           event.stopImmediatePropagation();
-          resolveActiveAxeQte(qte.zombie);
+          resolveActiveCombatQte(qte);
         },
         { capture: true, passive: false }
       );
@@ -20388,8 +20659,8 @@
       document.addEventListener(
         "pointerup",
         (event) => {
-          if (!axeQtePriorityPointerIds.has(event.pointerId)) return;
-          axeQtePriorityPointerIds.delete(event.pointerId);
+          if (!combatQtePriorityPointerIds.has(event.pointerId)) return;
+          combatQtePriorityPointerIds.delete(event.pointerId);
           event.preventDefault();
           event.stopImmediatePropagation();
         },
@@ -20399,7 +20670,7 @@
       document.addEventListener(
         "pointercancel",
         (event) => {
-          axeQtePriorityPointerIds.delete(event.pointerId);
+          combatQtePriorityPointerIds.delete(event.pointerId);
         },
         { capture: true, passive: true }
       );
@@ -20407,12 +20678,11 @@
       document.addEventListener(
         "click",
         (event) => {
-          if (performance.now() >= axeQtePrioritySuppressClickUntil) return;
+          if (performance.now() >= combatQtePrioritySuppressClickUntil) return;
 
-          // 같은 포인터 입력에서 합성된 click만 막고, 바로 이어진 다른 위치의 새 입력은 허용합니다.
           const isSameInputPoint = Math.hypot(
-            event.clientX - axeQtePrioritySuppressClickX,
-            event.clientY - axeQtePrioritySuppressClickY
+            event.clientX - combatQtePrioritySuppressClickX,
+            event.clientY - combatQtePrioritySuppressClickY
           ) <= 24;
           if (!isSameInputPoint) return;
 
@@ -20428,12 +20698,14 @@
           return;
         }
 
+        if (activeHandgunQte) {
+          cancelActiveHandgunQte(false);
+        }
         if (activeAxeQte) {
           cancelActiveAxeQte(false);
         }
 
-        // 실패 후 재시도는 누적 성공 횟수와 무관하게 항상 1단계 연출부터 시작합니다.
-        startAxeQte(zombie, 1);
+        startAxeQte(zombie);
       }
 
       function attackZombie(zombie) {
@@ -20464,26 +20736,16 @@
         if (activeAxeQte) {
           cancelActiveAxeQte(false);
         }
+        if (activeHandgunQte && weapon !== "handgun") {
+          cancelActiveHandgunQte(false);
+        }
 
         if (weapon === "handgun") {
-          if (!consumeAmmo("handgun")) {
+          if (handgunAmmoCount <= 0) {
             showNoAmmoFeedback();
             return;
           }
-          alertNearbyDeer(zombie);
-          playSound(HANDGUN_SOUND);
-          zombie.handgunHitCount += 1;
-          if (zombie.handgunHitCount >= zombie.handgunKillShots) {
-            zombie.lastPlayerWeapon = weapon;
-            beginDeath(zombie, true, { deathType: "normal" });
-            return;
-          }
-
-          zombie.state = "hit";
-          zombie.deathStartFrame = randomDeathStartFrame();
-          zombie.hitReactionFrame = zombie.deathStartFrame;
-          zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
-          showSingleFrame(zombie, DEAD_SHEET, zombie.hitReactionFrame);
+          startHandgunQte(zombie, "zombie");
           return;
         }
 
@@ -20530,6 +20792,9 @@
         if (activeAxeQte && activeAxeQte.zombie === zombie) {
           clearAxeQte(activeAxeQte, false);
         }
+        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
+          clearHandgunQte(activeHandgunQte, false);
+        }
 
         const deathType = options.deathType === "headshot" ? "headshot" : "normal";
         zombie.state = "dying";
@@ -20559,6 +20824,9 @@
         if (zombie.state === "removed") return;
         if (activeAxeQte && activeAxeQte.zombie === zombie) {
           clearAxeQte(activeAxeQte, false);
+        }
+        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
+          clearHandgunQte(activeHandgunQte, false);
         }
 
         zombie.state = "removed";
@@ -21966,34 +22234,72 @@
       bindReliableTap(cancelNewGameButton, cancelNewGameFromStartScreen);
       bindReliableTap(confirmNewGameButton, confirmNewGameFromStartScreen);
 
-      explorationOverlay.addEventListener("pointerdown", (event) => {
-        if (event.target === explorationOverlay) {
-          closeExplorationMenu();
-        }
-      });
+      function consumeMenuDismissEvent(event) {
+        if (!event) return;
+        event.preventDefault();
+        event.stopPropagation();
+        clearFieldEntityPressState(event.pointerId);
+      }
+
+      function bindOverlayDismiss(overlay, closeMenu) {
+        overlay.addEventListener("pointerdown", (event) => {
+          if (event.target !== overlay) return;
+          // pointerup 전에 오버레이가 사라지면 뒤의 필드 오브젝트가 같은 입력을 받을 수 있으므로
+          // pointerdown은 소비만 하고 실제 닫기는 pointerup에서 처리합니다.
+          consumeMenuDismissEvent(event);
+        });
+
+        overlay.addEventListener("pointerup", (event) => {
+          if (event.target !== overlay) return;
+          consumeMenuDismissEvent(event);
+          closeMenu();
+        });
+
+        overlay.addEventListener("pointercancel", (event) => {
+          if (event.target !== overlay) return;
+          consumeMenuDismissEvent(event);
+        });
+      }
+
+      bindOverlayDismiss(explorationOverlay, closeExplorationMenu);
 
       explorationMenu.addEventListener("pointerdown", (event) => {
         event.stopPropagation();
       });
 
-      inventoryOverlay.addEventListener("pointerdown", (event) => {
-        if (event.target === inventoryOverlay) {
-          closeInventory();
-        }
-      });
+      bindOverlayDismiss(inventoryOverlay, closeInventory);
 
       inventoryMenu.addEventListener("pointerdown", (event) => {
         event.stopPropagation();
       });
 
-      repairOverlay.addEventListener("pointerdown", (event) => {
-        if (event.target === repairOverlay) {
-          closeRepair();
-        }
-      });
+      bindOverlayDismiss(repairOverlay, closeRepair);
 
       repairMenu.addEventListener("pointerdown", (event) => {
-        event.stopPropagation();
+        // 실제 수리 UI 위의 입력만 유지하고, 메뉴 내부의 좌우/하단 빈 공간은 닫기 영역으로 사용합니다.
+        const protectedRepairUi = event.target.closest(
+          "#repairCategories, #repairGrid, #repairItemInfo, #repairActionButton"
+        );
+        if (protectedRepairUi) {
+          event.stopPropagation();
+          return;
+        }
+
+        // 빈 공간도 pointerdown에서는 닫지 않고 입력만 소비합니다.
+        consumeMenuDismissEvent(event);
+      });
+
+      repairMenu.addEventListener("pointerup", (event) => {
+        const protectedRepairUi = event.target.closest(
+          "#repairCategories, #repairGrid, #repairItemInfo, #repairActionButton"
+        );
+        if (protectedRepairUi) {
+          event.stopPropagation();
+          return;
+        }
+
+        consumeMenuDismissEvent(event);
+        closeRepair();
       });
 
       for (const categoryButton of repairCategories) {
