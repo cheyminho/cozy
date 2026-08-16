@@ -225,6 +225,8 @@
       --toast-runtime-scale: 1;
       --toast-runtime-offset-x: var(--toast-offset-x);
       --toast-runtime-offset-y: var(--toast-offset-y);
+      /* Hope Cap 착용 시 말풍선 레이어 전체를 위로 올리는 추가 오프셋입니다. */
+      --toast-hope-cap-lift: 0px;
 
       /*
         시작화면 게임 장면 확대/위치 수정 위치
@@ -2169,7 +2171,11 @@
     #toastLayer {
       position: fixed;
       left: calc(env(safe-area-inset-left) + var(--toast-runtime-offset-x));
-      bottom: calc(env(safe-area-inset-bottom) + var(--toast-runtime-offset-y));
+      bottom: calc(
+        env(safe-area-inset-bottom) +
+        var(--toast-runtime-offset-y) +
+        var(--toast-hope-cap-lift)
+      );
       z-index: var(--toast-z-index);
       width: max(
         1px,
@@ -4514,7 +4520,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.189"
+  data-game-version="0.190"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -10847,8 +10853,16 @@
       }
 
       function updateProfileHopeCapVisual() {
-        if (!profileHopeCap) return;
-        profileHopeCap.hidden = !(hasHopeCap && isHopeCapOn);
+        const isHopeCapVisible = hasHopeCap && isHopeCapOn;
+        if (profileHopeCap) {
+          profileHopeCap.hidden = !isHopeCapVisible;
+        }
+
+        // Hope Cap을 쓰는 동안 현재/이전 토스트를 포함한 말풍선 레이어 전체를 10px 위로 이동합니다.
+        document.documentElement.style.setProperty(
+          "--toast-hope-cap-lift",
+          isHopeCapVisible ? "10px" : "0px"
+        );
       }
 
       function updateWeatherLabel() {
@@ -23592,6 +23606,64 @@
       inventoryViewport.addEventListener("pointermove", moveInventoryPageDrag);
       inventoryViewport.addEventListener("pointerup", endInventoryPageDrag);
       inventoryViewport.addEventListener("pointercancel", endInventoryPageDrag);
+
+      let inventoryEmptyAreaPointerId = null;
+      let inventoryEmptyAreaStartX = 0;
+      let inventoryEmptyAreaStartY = 0;
+      let inventoryEmptyAreaMoved = false;
+
+      function isInventoryEmptyAreaEvent(event) {
+        return inventoryPageCount <= 1 &&
+          !event.target.closest(".inventory-item");
+      }
+
+      // 한 페이지만 표시되는 경우 아이템이 없는 리스트 여백을 탭하면 가방을 닫습니다.
+      // Empty 상태도 같은 리스트 영역을 그대로 사용하므로 동일하게 동작합니다.
+      inventoryViewport.addEventListener("pointerdown", (event) => {
+        if (
+          !isInventoryOpen ||
+          !isInventoryEmptyAreaEvent(event) ||
+          (event.pointerType === "mouse" && event.button !== 0)
+        ) {
+          return;
+        }
+
+        inventoryEmptyAreaPointerId = event.pointerId;
+        inventoryEmptyAreaStartX = event.clientX;
+        inventoryEmptyAreaStartY = event.clientY;
+        inventoryEmptyAreaMoved = false;
+      });
+
+      inventoryViewport.addEventListener("pointermove", (event) => {
+        if (event.pointerId !== inventoryEmptyAreaPointerId) return;
+
+        if (
+          Math.abs(event.clientX - inventoryEmptyAreaStartX) > RELIABLE_TAP_MOVE_TOLERANCE_PX ||
+          Math.abs(event.clientY - inventoryEmptyAreaStartY) > RELIABLE_TAP_MOVE_TOLERANCE_PX
+        ) {
+          inventoryEmptyAreaMoved = true;
+        }
+      });
+
+      inventoryViewport.addEventListener("pointerup", (event) => {
+        if (event.pointerId !== inventoryEmptyAreaPointerId) return;
+
+        const shouldClose = !inventoryEmptyAreaMoved &&
+          isInventoryEmptyAreaEvent(event);
+
+        inventoryEmptyAreaPointerId = null;
+        inventoryEmptyAreaMoved = false;
+
+        if (!shouldClose) return;
+        consumeMenuDismissEvent(event);
+        closeInventory();
+      });
+
+      inventoryViewport.addEventListener("pointercancel", (event) => {
+        if (event.pointerId !== inventoryEmptyAreaPointerId) return;
+        inventoryEmptyAreaPointerId = null;
+        inventoryEmptyAreaMoved = false;
+      });
 
       function activateInventoryItem(item) {
         const itemType = item.dataset.item || "";
