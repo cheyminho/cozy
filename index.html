@@ -170,6 +170,18 @@
       --profile-weapon-width: 512px;
       --profile-weapon-height: 256px;
 
+      /*
+        프로필 Hope Cap 위치 / 크기 수정 위치
+        - cap_hope.png: 256×128
+        - left: +값은 오른쪽 / -값은 왼쪽 이동
+        - top: +값은 아래쪽 / -값은 위쪽 이동
+        - width / height: 원본 비율을 유지하며 표시 크기를 조정합니다.
+      */
+      --profile-hope-cap-left: 125px;
+      --profile-hope-cap-top: -9px;
+      --profile-hope-cap-width: 256px;
+      --profile-hope-cap-height: 128px;
+
       /* 화면 크기에 따라 JavaScript가 자동 갱신하는 런타임 값입니다. */
       --profile-runtime-scale: var(--profile-scale);
       --profile-runtime-offset-x: var(--profile-offset-x);
@@ -718,22 +730,28 @@
     }
 
     #inventoryEmptyState {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 100%;
       text-align: center;
       color: #fff;
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 350;
       line-height: 1;
       letter-spacing: 0;
       opacity: 0.3;
-      padding: 70px 0 54px;
+      pointer-events: none;
     }
 
     #inventoryEmptyState[hidden] {
       display: none;
     }
 
-    .repair-category.is-selected:hover .repair-category-label {
+    .repair-category.is-selected:hover .repair-category-label,
+    .inventory-category.is-selected:hover .inventory-category-label {
       font-weight: 500;
     }
 
@@ -1758,7 +1776,7 @@
       align-items: center;
       justify-content: center;
       width: 100%;
-      padding: 6px 4px;
+      padding: 5px 0;
       border: 0;
       appearance: none;
       -webkit-appearance: none;
@@ -2037,6 +2055,15 @@
       z-index: 5;
       width: 64px;
       height: 32px;
+    }
+
+    /* Hope Cap은 hair 파츠보다 높은 뎁스에 표시합니다. 위치 조정은 :root의 --profile-hope-cap-* 값을 사용합니다. */
+    #profileHopeCap {
+      left: var(--profile-hope-cap-left);
+      top: var(--profile-hope-cap-top);
+      z-index: 7;
+      width: var(--profile-hope-cap-width);
+      height: var(--profile-hope-cap-height);
     }
 
     #profileFurLeftExpression,
@@ -2574,14 +2601,14 @@
     }
 
     /*
-      탐험 / 가방은 공통 오프셋을 사용하고, 수리 화면은 여기서 추가로 10px 위로 이동합니다.
+      탐험은 공통 오프셋을 사용하고, 가방 / 수리 화면은 같은 위치로 추가 보정합니다.
       기본 값은 :root의 --menu-content-offset-y에서 수정합니다.
     */
-    #explorationMenu,
-    #inventoryMenu {
+    #explorationMenu {
       transform: translateY(var(--menu-content-offset-y));
     }
 
+    #inventoryMenu,
     #repairMenu {
       transform: translateY(calc(var(--menu-content-offset-y) - 15px));
     }
@@ -2594,9 +2621,14 @@
     }
 
     #inventoryMenu {
-      width: min(82vw, 420px);
-      padding: 18px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: min(90vw, 520px);
+      min-height: 365px;
+      padding: 20px 18px 18px;
       overflow: hidden;
+      color: #fff;
     }
 
     #repairMenu {
@@ -2787,6 +2819,174 @@
       display: none;
     }
 
+    /* 가방 탭은 수리 탭과 동일한 위치·크기·인터랙션을 사용합니다. */
+    #inventoryCategories {
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 16px;
+      width: fit-content;
+      max-width: 100%;
+      min-height: 45px;
+      margin-bottom: 28px;
+    }
+
+    #inventoryCategories::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      right: 0;
+      bottom: 0;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.2);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #inventoryCategories::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: var(--inventory-active-tab-width, 0px);
+      height: 2px;
+      background: #fff;
+      transform: translateX(var(--inventory-active-tab-x, 0px));
+      pointer-events: none;
+      z-index: 2;
+      transition:
+        transform 300ms cubic-bezier(0.455, 0.03, 0.515, 0.955),
+        width 300ms cubic-bezier(0.455, 0.03, 0.515, 0.955);
+    }
+
+    .inventory-category {
+      position: relative;
+      display: flex;
+      flex: 0 0 auto;
+      align-items: flex-end;
+      justify-content: center;
+      min-width: 0;
+      width: auto;
+      height: 41px;
+      padding: 8px 1px 6px;
+      border: 1px solid transparent;
+      border-radius: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 350;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .inventory-category-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transform: scale(1);
+      transform-origin: center bottom;
+      transition:
+        font-weight 150ms ease-out,
+        transform 150ms cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+
+    .inventory-category:not(:last-child)::after {
+      content: "/";
+      position: absolute;
+      right: -11px;
+      bottom: 7px;
+      color: rgba(255, 255, 255, 0.38);
+      font-size: 12px;
+      font-weight: 300;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    /* icon_inventorytab.png: 좌상단 All / 우상단 Weapons / 좌하단 Clothing */
+    .inventory-category-icon {
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      background-image: url("images/icon_inventorytab.png");
+      background-repeat: no-repeat;
+      background-size: 200% 200%;
+      image-rendering: auto;
+      pointer-events: none;
+    }
+
+    .inventory-category[data-inventory-category="all"] .inventory-category-icon {
+      background-position: left top;
+    }
+
+    .inventory-category[data-inventory-category="weapons"] .inventory-category-icon {
+      background-position: right top;
+    }
+
+    .inventory-category[data-inventory-category="clothing"] .inventory-category-icon {
+      background-position: left bottom;
+    }
+
+    .inventory-category.is-selected {
+      border-color: transparent;
+      border-radius: 0;
+      z-index: 1;
+    }
+
+    .inventory-category.is-selected .inventory-category-label {
+      font-weight: 500;
+      transform: scale(1.55);
+    }
+
+    .inventory-category:active .inventory-category-label {
+      transform: scale(0.92);
+      transition-duration: 70ms;
+    }
+
+    .inventory-category.is-selected:active .inventory-category-label {
+      transform: scale(1.4);
+    }
+
+    .inventory-category:focus-visible .inventory-category-label {
+      font-weight: 650;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .inventory-category:hover .inventory-category-label {
+        font-weight: 650;
+      }
+    }
+
+    .inventory-category-new-badge {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 7px);
+      padding: 2px 3px 1px;
+      background: #f6c062;
+      color: #000;
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(-50%, 15px);
+    }
+
+    .inventory-category.is-selected .inventory-category-new-badge {
+      bottom: calc(100% + 15px);
+    }
+
+    .inventory-category-new-badge[hidden] {
+      display: none;
+    }
+
     /*
       보이는 네모는 20×20px로 유지하고 버튼 입력 영역은 28×28px로 넓힙니다.
       버튼 영역끼리 맞닿게 배치해 네모 사이의 8px 여백도 클릭할 수 있습니다.
@@ -2799,7 +2999,8 @@
       gap: 28px;
       width: 100%;
       min-height: 168px;
-      transform: translateX(clamp(22px, 4vw, 30px));
+      /* 탭의 고정된 하단 라인 오른쪽 끝과 정보 영역 오른쪽 끝을 자동 정렬합니다. */
+      transform: translateX(var(--repair-content-align-x, clamp(22px, 4vw, 30px)));
     }
 
     #repairGrid {
@@ -3032,11 +3233,11 @@
     #repairItemInfo {
       position: relative;
       display: grid;
-      flex: 0 1 180px;
+      flex: 0 1 140px;
       grid-template-columns: minmax(0, 1fr);
       align-content: start;
       row-gap: 8px;
-      width: min(100%, 180px);
+      width: min(100%, 140px);
       min-height: 168px;
       padding-top: 4px;
       color: #fff;
@@ -3136,19 +3337,23 @@
     }
 
     @media (max-width: 420px) {
-      #repairCategories {
+      #repairCategories,
+      #inventoryCategories {
         gap: 13px;
       }
 
-      .repair-category {
+      .repair-category,
+      .inventory-category {
         font-size: 13px;
       }
 
-      .repair-category.is-selected .repair-category-label {
+      .repair-category.is-selected .repair-category-label,
+      .inventory-category.is-selected .inventory-category-label {
         transform: scale(1.55);
       }
 
-      .repair-category.is-selected:active .repair-category-label {
+      .repair-category.is-selected:active .repair-category-label,
+      .inventory-category.is-selected:active .inventory-category-label {
         transform: scale(1.4);
       }
 
@@ -3158,14 +3363,32 @@
       }
 
       #repairItemInfo {
-        flex-basis: 140px;
-        width: min(100%, 140px);
+        flex-basis: 115px;
+        width: min(100%, 115px);
+      }
+
+    }
+
+    #inventoryListArea {
+      position: relative;
+      /* 기본 폭은 기존 값 유지. 실제 표시 폭은 탭 라인을 기준으로 JS에서 좌우 4px씩 안쪽 정렬합니다. */
+      width: 343px;
+      height: 204px;
+      transform: translateX(var(--inventory-list-align-x, calc(clamp(22px, 4vw, 30px) + 2.5px))) translateY(-2px);
+    }
+
+    @media (max-width: 420px) {
+      #inventoryListArea {
+        /* 모바일 기본 폭도 기존 값 유지 */
+        width: 293px;
       }
     }
 
     #inventoryViewport {
       width: 100%;
+      height: 204px;
       overflow: hidden;
+      clip-path: inset(0);
       touch-action: none;
     }
 
@@ -3185,9 +3408,15 @@
       display: flex;
       flex: 0 0 100%;
       flex-direction: column;
-      gap: 12px;
+      justify-content: flex-start;
+      gap: 10px;
       width: 100%;
-      padding: 0 max(0px, calc((100% - 240px) / 2));
+      min-width: 100%;
+      max-width: 100%;
+      min-height: 204px;
+      padding: 0;
+      overflow: hidden;
+      contain: paint;
     }
 
     #inventoryItemPool {
@@ -3200,7 +3429,7 @@
       justify-content: center;
       gap: 7px;
       min-height: 6px;
-      margin-top: 21px;
+      margin-top: 23px;
     }
 
     .inventory-pagination[hidden] {
@@ -3250,7 +3479,7 @@
       align-items: center;
       gap: 14px;
       width: 100%;
-      padding: 6px 4px;
+      padding: 7px 0;
       border: 0;
       appearance: none;
       -webkit-appearance: none;
@@ -3258,7 +3487,7 @@
       background: transparent;
       color: #fff;
       font: inherit;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 350;
       line-height: 1.2;
       cursor: pointer;
@@ -3274,11 +3503,12 @@
     }
 
     .inventory-item-new-badge {
-      position: absolute;
-      right: calc(100% + 10px);
-      top: 50%;
+      position: static;
+      order: 2;
       display: inline-block;
-      width: 26px;
+      flex: 0 0 auto;
+      width: auto;
+      margin-left: 6px;
       padding: 2px 3px 1px;
       background: #f6c062;
       color: #000;
@@ -3286,10 +3516,10 @@
       font-weight: 800;
       line-height: 1;
       letter-spacing: 0;
-      text-align: right;
+      text-align: left;
       white-space: nowrap;
       pointer-events: none;
-      transform: translateY(-50%);
+      transform: none;
     }
 
     .inventory-item-new-badge[hidden] {
@@ -3301,6 +3531,7 @@
     }
 
     .inventory-item__label {
+      order: 1;
       display: inline-block;
       font-weight: 350;
       transform: scale(1);
@@ -4283,7 +4514,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.188"
+  data-game-version="0.189"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4493,6 +4724,7 @@
       <div id="profileExpressionLayer" aria-hidden="true">
         <img id="profileEyesExpression" class="profile-expression-part" src="images/profile_default_eyes_close_1.png" alt="" draggable="false" hidden />
         <img id="profileHairExpression" class="profile-expression-part" src="images/profile_default_hair_1.png" alt="" draggable="false" />
+        <img id="profileHopeCap" class="profile-expression-part" src="images/cap_hope.png" alt="" draggable="false" hidden />
         <img id="profileFurLeftExpression" class="profile-expression-part" src="images/profile_default_fur_3.png" alt="" draggable="false" />
         <img id="profileFurRightExpression" class="profile-expression-part" src="images/profile_default_fur_1.png" alt="" draggable="false" />
         <img id="profileMouthSmileExpression" class="profile-expression-part" src="images/profile_default_mouth_smile.png" alt="" draggable="false" />
@@ -4586,7 +4818,22 @@
   </div>
   <div id="inventoryOverlay" aria-hidden="true">
     <div id="inventoryMenu" role="menu" aria-label="Bag items">
-      <div id="inventoryViewport">
+      <div id="inventoryCategories" role="tablist" aria-label="Bag categories">
+        <button class="inventory-category is-selected" type="button" role="tab" aria-selected="true" data-inventory-category="all">
+          <span class="inventory-category-new-badge" hidden>NEW</span>
+          <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>All</span></span>
+        </button>
+        <button class="inventory-category" type="button" role="tab" aria-selected="false" data-inventory-category="weapons">
+          <span class="inventory-category-new-badge" hidden>NEW</span>
+          <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>Weapons</span></span>
+        </button>
+        <button class="inventory-category" type="button" role="tab" aria-selected="false" data-inventory-category="clothing">
+          <span class="inventory-category-new-badge" hidden>NEW</span>
+          <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>Clothing</span></span>
+        </button>
+      </div>
+      <div id="inventoryListArea">
+        <div id="inventoryViewport">
         <div id="inventoryTrack">
           <div class="inventory-page">
             <button class="inventory-item" type="button" role="menuitem" data-item="axe">
@@ -4627,6 +4874,10 @@
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="musicBox" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Music Box</span></span>
+              <span class="inventory-item__quantity">OFF</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="hopeCap" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Hope Cap</span></span>
               <span class="inventory-item__quantity">OFF</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="strangerLetter" hidden>
@@ -4683,8 +4934,9 @@
             </button>
           </div>
         </div>
+        </div>
+        <div id="inventoryEmptyState" hidden>Empty</div>
       </div>
-      <div id="inventoryEmptyState" hidden>Empty</div>
       <div id="inventoryItemPool" aria-hidden="true"></div>
       <div id="inventoryPagination" class="inventory-pagination" aria-label="Bag pages" hidden></div>
     </div>
@@ -5070,6 +5322,23 @@
       const MAX_INVENTORY_QUANTITY = 99;
       const INVENTORY_ITEMS_PER_PAGE = 5;
       const INVENTORY_DOT_PAGE_LIMIT = 5;
+      const INVENTORY_CATEGORY_ORDER = Object.freeze(["all", "weapons", "clothing"]);
+      const INVENTORY_CATEGORY_ITEM_TYPES = Object.freeze({
+        weapons: Object.freeze([
+          "axe",
+          "handgun",
+          "shotgun",
+          "rifle",
+          "chainsaw",
+          "handgunAmmo",
+          "shotgunAmmo",
+          "rifleAmmo",
+          "chainsawBattery"
+        ]),
+        clothing: Object.freeze([
+          "hopeCap"
+        ])
+      });
 
       /*
         탐험에서 수량 아이템을 한 번 획득할 때의 수량 범위입니다.
@@ -5090,6 +5359,7 @@
       // 같은 하위 그룹 안에서는 화면에 표시되는 영문 이름 기준으로 정렬합니다.
       const INVENTORY_ITEM_SORT_GROUPS = Object.freeze({
         musicBox: 0,
+        hopeCap: 0,
         strangerLetter: 0,
         axe: 1,
         handgun: 1,
@@ -5433,6 +5703,7 @@
       const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
       const TREE_FALL_SOUND = "sounds/sfx_tree_fall.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
+      const INVENTORY_PUT_ON_SOUND = "sounds/sfx_puton.wav";
       const MAILBOX_SOUND = "sounds/sfx_mailbox.wav";
       const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
       const CAR_PAINT_SOUND = "sounds/sfx_paint.wav";
@@ -6071,6 +6342,7 @@
       const profileWeaponVisual = document.getElementById("profileWeaponVisual");
       const profileEyesExpression = document.getElementById("profileEyesExpression");
       const profileHairExpression = document.getElementById("profileHairExpression");
+      const profileHopeCap = document.getElementById("profileHopeCap");
       const profileFurLeftExpression = document.getElementById("profileFurLeftExpression");
       const profileFurRightExpression = document.getElementById("profileFurRightExpression");
       const profileMouthSmileExpression = document.getElementById("profileMouthSmileExpression");
@@ -6094,6 +6366,10 @@
       );
       const inventoryOverlay = document.getElementById("inventoryOverlay");
       const inventoryMenu = document.getElementById("inventoryMenu");
+      const inventoryCategoriesElement = document.getElementById("inventoryCategories");
+      const inventoryCategories = Array.from(
+        document.querySelectorAll(".inventory-category")
+      );
       const inventoryViewport = document.getElementById("inventoryViewport");
       const inventoryTrack = document.getElementById("inventoryTrack");
       const inventoryItemPool = document.getElementById("inventoryItemPool");
@@ -6131,6 +6407,9 @@
       const musicBoxInventoryItem = document.querySelector(
         '.inventory-item[data-item="musicBox"]'
       );
+      const hopeCapInventoryItem = document.querySelector(
+        '.inventory-item[data-item="hopeCap"]'
+      );
       const strangerLetterInventoryItem = document.querySelector(
         '.inventory-item[data-item="strangerLetter"]'
       );
@@ -6167,6 +6446,9 @@
         document.querySelectorAll(".repair-category")
       );
       const repairGrid = document.getElementById("repairGrid");
+      const repairContent = document.getElementById("repairContent");
+      const repairItemInfo = document.getElementById("repairItemInfo");
+      const inventoryListArea = document.getElementById("inventoryListArea");
       const repairItemName = document.getElementById("repairItemName");
       const repairItemMeta = document.getElementById("repairItemMeta");
       const repairItemDescription = document.getElementById(
@@ -6281,8 +6563,14 @@
         document.fonts.ready.then(() => {
           updateHudActionButtonWidths();
           updateRepairCategoryLayout();
+          updateInventoryCategoryLayout();
         });
       }
+
+      window.addEventListener("resize", () => {
+        updateRepairCategoryLayout();
+        updateInventoryCategoryLayout();
+      }, { passive: true });
 
       const query = new URLSearchParams(location.search);
       if (query.get("debug") === "1") {
@@ -6568,6 +6856,8 @@
       let chainsawBatteryPausedForBackground = false;
       let hasMusicBox = false;
       let isMusicOn = false;
+      let hasHopeCap = false;
+      let isHopeCapOn = false;
       let hasNewInventoryItem = false;
       const newInventoryItemTypes = new Set();
       // NEW 태그는 유지하되, 해당 페이지를 한 번 표시하면 페이지 표시만 원래 색으로 돌립니다.
@@ -6620,11 +6910,11 @@
         },
         4: {
           anchor: "remainingZombie", arrowFrame: 4,
-          arrowOffsetX: -45, arrowOffsetY: -20, arrowRotation: -10, arrowScale: 0.65,
+          arrowOffsetX: -36, arrowOffsetY: -22, arrowRotation: -5, arrowScale: 0.55,
           arrowFlipX: true, arrowFlipY: true,
           entryDirection: "left",
-          textOffsetX: -94, textOffsetY: -32, textAlign: "right",
-          text: "Zombies remaining.\nTake them all down."
+          textOffsetX: -75, textOffsetY: -36, textAlign: "right",
+          text: "Zombies remaining."
         },
         5: {
           anchor: "food", arrowFrame: 1,
@@ -6643,11 +6933,11 @@
           text: "Go explore.\nOnly the Village is\navailable for now."
         },
         7: {
-          anchor: "exploringTime", arrowFrame: 3,
-          arrowOffsetX: -121, arrowOffsetY: 22, arrowRotation: -40, arrowScale: 0.6,
-          arrowFlipX: true, arrowFlipY: true,
+          anchor: "exploringTime", arrowFrame: 1,
+          arrowOffsetX: -85, arrowOffsetY: 50, arrowRotation: -40, arrowScale: 0.6,
+          arrowFlipX: true, arrowFlipY: false,
           entryDirection: "left",
-          textOffsetX: -153, textOffsetY: 35, textAlign: "right",
+          textOffsetX: -100, textOffsetY: 10, textAlign: "right",
           text: "Exploring takes time.\nTake a short break."
         },
         8: {
@@ -6664,7 +6954,7 @@
           arrowFlipX: false, arrowFlipY: false,
           entryDirection: "down",
           textOffsetX: -13, textOffsetY: -100, textAlign: "right",
-          text: "Keep exploring to earn rewards\nand pass the days."
+          text: "Keep exploring\nand pass the days."
         },
         10: {
           anchor: "mailbox", arrowFrame: 2,
@@ -6977,7 +7267,9 @@
         entityId: null
       };
 
+      let inventorySelectedCategory = "all";
       let inventoryCurrentPage = 0;
+      let inventoryOpenedAt = -Infinity;
       let inventoryPageCount = 1;
       let inventoryPageItemTypes = [];
       let suppressInventoryClickUntil = 0;
@@ -7929,15 +8221,27 @@
         return 0;
       }
 
-      function triggerMailboxCatDeliveryIfAvailable() {
+      function triggerMailboxCatDeliveryIfAvailable(options = {}) {
         const availableTodoListId = getAvailableMailboxTodoListId();
         if (availableTodoListId <= 0) return false;
         if (lastCatDeliveredTodoListId === availableTodoListId) return false;
         if (cat?.deliveryTodoListId === availableTodoListId) return false;
 
+        // 첫 번째 투두 배달만 게임 시작과 동시에 이동 경로의 중간 지점에서 바로 등장시킵니다.
+        // 이후 고양이 배달은 기존처럼 원래 출발점에서 시작합니다.
+        const startFirstDeliveryAtMidpoint =
+          options.firstGameStart === true &&
+          availableTodoListId === 1 &&
+          !mailboxIntroTriggered &&
+          todoSubmittedListId === 0 &&
+          lastCatDeliveredTodoListId === 0;
+
         // 출발 시점에는 배달 완료로 저장하지 않습니다.
         // 실제 편지 투입 프레임에 도달해야만 우편함에서 새 메일을 받을 수 있습니다.
-        startCatDelivery(availableTodoListId);
+        startCatDelivery(availableTodoListId, {
+          startAtMidpoint: startFirstDeliveryAtMidpoint,
+          skipFadeIn: startFirstDeliveryAtMidpoint
+        });
         return true;
       }
 
@@ -9176,6 +9480,102 @@
       }
 
       const REPAIR_SELECTED_CATEGORY_SCALE = 1.55;
+      const CATEGORY_SELECTED_HORIZONTAL_PADDING = 10;
+      const CATEGORY_IDLE_HORIZONTAL_PADDING = 2;
+      const CATEGORY_LINE_LEFT_INSET = 6;
+      const REPAIR_GRID_VISUAL_OFFSET_X = 5;
+
+      function applyCategoryButtonWidths(buttons, labelSelector) {
+        for (const categoryButton of buttons) {
+          categoryButton.style.width = "auto";
+        }
+
+        for (const categoryButton of buttons) {
+          const label = categoryButton.querySelector(labelSelector);
+          if (!label) continue;
+          const isSelected = categoryButton.classList.contains("is-selected");
+          const labelWidth = label.offsetWidth;
+          const visualWidth = isSelected
+            ? labelWidth * REPAIR_SELECTED_CATEGORY_SCALE
+            : labelWidth;
+          const horizontalPadding = isSelected
+            ? CATEGORY_SELECTED_HORIZONTAL_PADDING
+            : CATEGORY_IDLE_HORIZONTAL_PADDING;
+          categoryButton.style.width = `${Math.ceil(visualWidth + horizontalPadding)}px`;
+        }
+      }
+
+      function getLongestCategoryLayoutWidth(container, buttons, labelSelector) {
+        if (!container || buttons.length === 0) return 0;
+
+        const selectedStates = buttons.map((button) =>
+          button.classList.contains("is-selected")
+        );
+        container.style.width = "fit-content";
+        let longestWidth = 0;
+
+        for (let selectedIndex = 0; selectedIndex < buttons.length; selectedIndex += 1) {
+          buttons.forEach((button, index) => {
+            button.classList.toggle("is-selected", index === selectedIndex);
+          });
+          applyCategoryButtonWidths(buttons, labelSelector);
+          longestWidth = Math.max(
+            longestWidth,
+            container.getBoundingClientRect().width
+          );
+        }
+
+        buttons.forEach((button, index) => {
+          button.classList.toggle("is-selected", selectedStates[index]);
+        });
+        applyCategoryButtonWidths(buttons, labelSelector);
+
+        return Math.ceil(longestWidth);
+      }
+
+      function getCategoryLineBounds(categoriesElement) {
+        if (!categoriesElement) return null;
+        const rect = categoriesElement.getBoundingClientRect();
+        return {
+          left: rect.left + CATEGORY_LINE_LEFT_INSET,
+          right: rect.right,
+          width: Math.max(0, rect.width - CATEGORY_LINE_LEFT_INSET)
+        };
+      }
+
+      function alignRepairContentToCategoryLine() {
+        const line = getCategoryLineBounds(repairCategoriesElement);
+        if (!line || !repairContent) return;
+
+        // Grid는 시각적으로 +5px 이동되어 있으므로 콘텐츠 박스는 그만큼 더 넓게 잡습니다.
+        // 이렇게 하면 Grid의 실제 보이는 왼쪽과 Item Info의 오른쪽이 라인 양 끝에 동시에 맞습니다.
+        repairContent.style.width = `${line.width + REPAIR_GRID_VISUAL_OFFSET_X}px`;
+        repairContent.style.justifyContent = "space-between";
+        repairContent.style.columnGap = "0px";
+        repairContent.style.setProperty("--repair-content-align-x", "0px");
+
+        const contentRect = repairContent.getBoundingClientRect();
+        repairContent.style.setProperty(
+          "--repair-content-align-x",
+          `${line.right - contentRect.right}px`
+        );
+      }
+
+      function alignInventoryContentToCategoryLine() {
+        const line = getCategoryLineBounds(inventoryCategoriesElement);
+        if (!line || !inventoryListArea) return;
+
+        // 탭 라인의 길이는 그대로 유지하고, 탭 아래 정보 영역만 좌우 각각 4px씩 안쪽으로 줄입니다.
+        const INVENTORY_CONTENT_SIDE_INSET = 4;
+        inventoryListArea.style.width = `${Math.max(0, line.width - INVENTORY_CONTENT_SIDE_INSET * 2)}px`;
+        inventoryListArea.style.setProperty("--inventory-list-align-x", "0px");
+
+        const listRect = inventoryListArea.getBoundingClientRect();
+        inventoryListArea.style.setProperty(
+          "--inventory-list-align-x",
+          `${line.left + INVENTORY_CONTENT_SIDE_INSET - listRect.left}px`
+        );
+      }
 
       function updateRepairCategoryIndicator() {
         if (!repairCategoriesElement) return;
@@ -9185,35 +9585,41 @@
         );
         if (!selectedCategoryButton) return;
 
-        const activeLineLeftInset = 6;
+        const selectedIndex = repairCategories.indexOf(selectedCategoryButton);
+        const buttonLeft = selectedCategoryButton.offsetLeft;
+        const buttonRight = buttonLeft + selectedCategoryButton.offsetWidth;
+        const lineRight = repairCategoriesElement.clientWidth;
+
+        // 첫 탭은 반투명 라인의 왼쪽 끝까지, 마지막 탭은 오른쪽 끝까지 활성 라인을 확장합니다.
+        const activeLeft = selectedIndex === 0
+          ? CATEGORY_LINE_LEFT_INSET
+          : buttonLeft + CATEGORY_LINE_LEFT_INSET;
+        const activeRight = selectedIndex === repairCategories.length - 1
+          ? lineRight
+          : buttonRight;
+
         repairCategoriesElement.style.setProperty(
           "--repair-active-tab-x",
-          `${selectedCategoryButton.offsetLeft + activeLineLeftInset}px`
+          `${activeLeft}px`
         );
         repairCategoriesElement.style.setProperty(
           "--repair-active-tab-width",
-          `${Math.max(0, selectedCategoryButton.offsetWidth - activeLineLeftInset)}px`
+          `${Math.max(0, activeRight - activeLeft)}px`
         );
       }
 
       function updateRepairCategoryLayout() {
-        for (const categoryButton of repairCategories) {
-          categoryButton.style.width = "auto";
+        const longestWidth = getLongestCategoryLayoutWidth(
+          repairCategoriesElement,
+          repairCategories,
+          ".repair-category-label"
+        );
+        if (longestWidth > 0) {
+          repairCategoriesElement.style.width = `${longestWidth}px`;
         }
-
-        for (const categoryButton of repairCategories) {
-          const label = categoryButton.querySelector(".repair-category-label");
-          if (!label) continue;
-          const isSelected = categoryButton.classList.contains("is-selected");
-          const labelWidth = label.offsetWidth;
-          const visualWidth = isSelected
-            ? labelWidth * REPAIR_SELECTED_CATEGORY_SCALE
-            : labelWidth;
-          const horizontalPadding = isSelected ? 10 : 2;
-          categoryButton.style.width = `${Math.ceil(visualWidth + horizontalPadding)}px`;
-        }
-
+        applyCategoryButtonWidths(repairCategories, ".repair-category-label");
         updateRepairCategoryIndicator();
+        alignRepairContentToCategoryLine();
       }
 
       function renderRepairCategories() {
@@ -9960,7 +10366,12 @@
           isChainsawEquipped = storedEquippedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
           hasMusicBox = parsed.hasMusicBox === true;
           isMusicOn = hasMusicBox && parsed.isMusicOn !== false;
+          hasHopeCap = parsed.hasHopeCap === true;
+          isHopeCapOn = hasHopeCap && parsed.isHopeCapOn !== false;
           hasNewInventoryItem = parsed.hasNewInventoryItem === true;
+          inventorySelectedCategory = normalizeInventoryCategory(
+            parsed.inventorySelectedCategory
+          );
           const storedNewInventoryItems = Array.isArray(parsed.newInventoryItems)
             ? parsed.newInventoryItems
             : [];
@@ -9988,6 +10399,7 @@
             if (hasRifleAmmo) newInventoryItemTypes.add("rifleAmmo");
             if (hasChainsaw) newInventoryItemTypes.add("chainsaw");
             if (hasChainsawBattery) newInventoryItemTypes.add("chainsawBattery");
+            if (hasHopeCap) newInventoryItemTypes.add("hopeCap");
           }
 
           const storedViewedInventoryNewItems = Array.isArray(
@@ -10310,7 +10722,10 @@
               equippedWeapon: getEquippedWeapon(),
               hasMusicBox,
               isMusicOn,
+              hasHopeCap,
+              isHopeCapOn,
               hasNewInventoryItem,
+              inventorySelectedCategory,
               newInventoryItems: Array.from(newInventoryItemTypes),
               viewedInventoryNewItems: Array.from(viewedInventoryNewItemTypes),
               hasCompass,
@@ -10429,6 +10844,11 @@
 
         profileWeaponVisual.style.backgroundPosition =
           `${xPercent}% ${yPercent}%`;
+      }
+
+      function updateProfileHopeCapVisual() {
+        if (!profileHopeCap) return;
+        profileHopeCap.hidden = !(hasHopeCap && isHopeCapOn);
       }
 
       function updateWeatherLabel() {
@@ -10630,6 +11050,7 @@
       }
 
       window.addEventListener("resize", updateDayNumberScale, { passive: true });
+      window.addEventListener("resize", updateInventoryCategoryLayout, { passive: true });
 
       function commitResourceState(options = {}) {
         updateResourceHud();
@@ -10968,6 +11389,7 @@
           hasChainsaw ||
           hasChainsawBattery ||
           hasMusicBox ||
+          hasHopeCap ||
           hasStrangerLetter ||
           hasCompass ||
           carPartsCount > 0 ||
@@ -10975,6 +11397,101 @@
           repairKitCount > 0 ||
           hasMap ||
           Object.values(paintCounts).some((count) => count > 0);
+      }
+
+      function normalizeInventoryCategory(value) {
+        return INVENTORY_CATEGORY_ORDER.includes(value) ? value : "all";
+      }
+
+      function inventoryItemMatchesCategory(item, category = inventorySelectedCategory) {
+        const normalizedCategory = normalizeInventoryCategory(category);
+        if (normalizedCategory === "all") return true;
+        const itemType = item?.dataset.item || "";
+        return (INVENTORY_CATEGORY_ITEM_TYPES[normalizedCategory] || []).includes(itemType);
+      }
+
+      function inventoryCategoryHasUnseenNewItems(category) {
+        const normalizedCategory = normalizeInventoryCategory(category);
+        return inventoryItems.some((item) => {
+          const itemType = item.dataset.item || "";
+          // 페이지 표시 여부와 관계없이 아이템 자체의 NEW가 남아 있으면
+          // 해당 카테고리 탭의 NEW도 계속 표시합니다.
+          return !item.hidden &&
+            inventoryItemMatchesCategory(item, normalizedCategory) &&
+            newInventoryItemTypes.has(itemType);
+        });
+      }
+
+      function updateInventoryCategoryIndicator() {
+        if (!inventoryCategoriesElement) return;
+        const selectedCategoryButton = inventoryCategories.find((button) =>
+          button.classList.contains("is-selected")
+        );
+        if (!selectedCategoryButton) return;
+
+        const selectedIndex = inventoryCategories.indexOf(selectedCategoryButton);
+        const buttonLeft = selectedCategoryButton.offsetLeft;
+        const buttonRight = buttonLeft + selectedCategoryButton.offsetWidth;
+        const lineRight = inventoryCategoriesElement.clientWidth;
+
+        const activeLeft = selectedIndex === 0
+          ? CATEGORY_LINE_LEFT_INSET
+          : buttonLeft + CATEGORY_LINE_LEFT_INSET;
+        const activeRight = selectedIndex === inventoryCategories.length - 1
+          ? lineRight
+          : buttonRight;
+
+        inventoryCategoriesElement.style.setProperty(
+          "--inventory-active-tab-x",
+          `${activeLeft}px`
+        );
+        inventoryCategoriesElement.style.setProperty(
+          "--inventory-active-tab-width",
+          `${Math.max(0, activeRight - activeLeft)}px`
+        );
+      }
+
+      function updateInventoryCategoryLayout() {
+        const longestWidth = getLongestCategoryLayoutWidth(
+          inventoryCategoriesElement,
+          inventoryCategories,
+          ".inventory-category-label"
+        );
+        if (longestWidth > 0) {
+          inventoryCategoriesElement.style.width = `${longestWidth}px`;
+        }
+        applyCategoryButtonWidths(inventoryCategories, ".inventory-category-label");
+        updateInventoryCategoryIndicator();
+        alignInventoryContentToCategoryLine();
+      }
+
+      function renderInventoryCategories() {
+        inventoryMenu.dataset.inventoryCategory = inventorySelectedCategory;
+
+        for (const categoryButton of inventoryCategories) {
+          const category = normalizeInventoryCategory(
+            categoryButton.dataset.inventoryCategory || "all"
+          );
+          const isSelected = category === inventorySelectedCategory;
+          const badge = categoryButton.querySelector(".inventory-category-new-badge");
+          categoryButton.classList.toggle("is-selected", isSelected);
+          categoryButton.setAttribute("aria-selected", isSelected ? "true" : "false");
+
+          if (badge) {
+            badge.textContent = "NEW";
+            badge.hidden = !inventoryCategoryHasUnseenNewItems(category);
+          }
+        }
+      }
+
+      function selectInventoryCategory(category, options = {}) {
+        inventorySelectedCategory = normalizeInventoryCategory(category);
+        inventoryCurrentPage = 0;
+        renderInventoryCategories();
+        rebuildInventoryPages();
+        renderInventoryCategories();
+        updateInventoryCategoryLayout();
+        if (options.save !== false) saveResourceState();
       }
 
       function getInventoryItemLabel(item) {
@@ -11052,7 +11569,10 @@
           }
         }
 
-        if (didChange) saveResourceState();
+        if (didChange) {
+          renderInventoryCategories();
+          saveResourceState();
+        }
         return didChange;
       }
 
@@ -11113,10 +11633,14 @@
 
       function rebuildInventoryPages() {
         const visibleItems = sortInventoryItems(
-          inventoryItems.filter((item) => !item.hidden)
+          inventoryItems.filter(
+            (item) => !item.hidden && inventoryItemMatchesCategory(item)
+          )
         );
         inventoryEmptyState.hidden = visibleItems.length !== 0;
-        const hiddenItems = inventoryItems.filter((item) => item.hidden);
+        const excludedItems = inventoryItems.filter(
+          (item) => !visibleItems.includes(item)
+        );
         const pageCount = Math.max(
           1,
           Math.ceil(visibleItems.length / INVENTORY_ITEMS_PER_PAGE)
@@ -11147,7 +11671,7 @@
           inventoryTrack.append(page);
         }
 
-        for (const item of hiddenItems) {
+        for (const item of excludedItems) {
           inventoryItemPool.append(item);
         }
 
@@ -11183,10 +11707,14 @@
 
         closeExplorationMenu(false);
         closeRepair(false);
+        inventorySelectedCategory = normalizeInventoryCategory(inventorySelectedCategory);
         inventoryCurrentPage = 0;
+        renderInventoryCategories();
         rebuildInventoryPages();
         isInventoryOpen = true;
+        inventoryOpenedAt = performance.now();
         acknowledgeInventoryPageNewState(inventoryCurrentPage);
+        renderInventoryCategories();
         updateInventoryPageDots();
         inventoryOverlay.classList.add("is-open");
         inventoryOverlay.setAttribute("aria-hidden", "false");
@@ -11194,6 +11722,7 @@
         syncMenuBackdrop();
 
         requestAnimationFrame(() => {
+          updateInventoryCategoryLayout();
           updateInventoryPagePosition(false);
         });
 
@@ -12639,6 +13168,21 @@
         return true;
       }
 
+      function awardHopeCap(options = {}) {
+        const wasOwned = hasHopeCap;
+        hasHopeCap = true;
+        isHopeCapOn = wasOwned && options.keepCurrentToggle === true
+          ? isHopeCapOn
+          : false;
+
+        if (!wasOwned) {
+          markInventoryItemAsNew("hopeCap");
+        }
+
+        applyInventoryState();
+        return !wasOwned;
+      }
+
       function awardForestFlower() {
         if (flowerCount >= MAX_INVENTORY_QUANTITY) return false;
 
@@ -12719,6 +13263,19 @@
       }
 
       function awardExplorationRewards(destination, departureDay, options = {}) {
+        /*
+          첫 실제 Village 탐험(DAY 1 출발) 보상은 기존 규칙 대신 Hope Cap으로 고정합니다.
+          고유 아이템이라 이미 보유 중이어도 중복 지급은 하지 않으며, 다른 보상도 함께 지급하지 않습니다.
+        */
+        if (
+          options.isActualExploration === true &&
+          destination === "village" &&
+          departureDay === 1
+        ) {
+          awardHopeCap();
+          return;
+        }
+
         /*
           실제 탐험에서 DAY 5 이상에 출발했고 아직 핸드건이 없다면,
           목적지와 관계없이 설계도/일반 아이템 대신 핸드건 + 탄약 5발을 지급합니다.
@@ -13089,6 +13646,7 @@
           hasChainsawBattery &&
           chainsawBatteryPercent >= TEST_CHAINSAW_BATTERY_PERCENT &&
           hasMusicBox &&
+          hasHopeCap &&
           hasStrangerLetter &&
           hasCompass &&
           (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
@@ -13135,6 +13693,12 @@
 
         markNewIfMissing("musicBox", hasMusicBox);
         hasMusicBox = true;
+
+        markNewIfMissing("hopeCap", hasHopeCap);
+        if (!hasHopeCap) {
+          hasHopeCap = true;
+          isHopeCapOn = false;
+        }
 
         markNewIfMissing("strangerLetter", hasStrangerLetter);
         hasStrangerLetter = true;
@@ -15682,6 +16246,11 @@
           setInventoryValue(musicBoxInventoryItem, isMusicOn ? "ON" : "OFF");
         }
 
+        if (hopeCapInventoryItem) {
+          hopeCapInventoryItem.hidden = !hasHopeCap;
+          setInventoryValue(hopeCapInventoryItem, isHopeCapOn ? "ON" : "OFF");
+        }
+
         if (strangerLetterInventoryItem) {
           strangerLetterInventoryItem.hidden = !hasStrangerLetter;
           setInventoryValue(strangerLetterInventoryItem, isStrangerLetterOn ? "ON" : "OFF");
@@ -15726,7 +16295,10 @@
         }
 
         applyInventoryItemNewTagState();
+        renderInventoryCategories();
         rebuildInventoryPages();
+        renderInventoryCategories();
+        updateProfileHopeCapVisual();
         updateRepairNewBadgeState();
       }
 
@@ -15752,6 +16324,7 @@
           viewedInventoryNewItemTypes.add(itemType);
         }
         updateInventoryPageDots();
+        renderInventoryCategories();
       }
 
       function clearInventoryItemNewState(itemType) {
@@ -15760,6 +16333,7 @@
         if (!removedNewState && !removedViewedState) return;
         applyInventoryItemNewTagState();
         updateInventoryPageDots();
+        renderInventoryCategories();
         saveResourceState();
       }
 
@@ -18700,7 +19274,7 @@
         renderCat(activeCat);
       }
 
-      function startCatDelivery(deliveryTodoListId = null) {
+      function startCatDelivery(deliveryTodoListId = null, options = {}) {
         const availableTodoListId = getAvailableMailboxTodoListId();
         const resolvedDeliveryTodoListId = deliveryTodoListId === null
           ? (
@@ -18719,12 +19293,20 @@
 
         const startPosition = getCatStartPosition();
         const targetPosition = getCatTargetPosition();
+        const shouldStartAtMidpoint = options.startAtMidpoint === true;
+        const shouldSkipFadeIn = options.skipFadeIn === true;
+        const initialPosition = shouldStartAtMidpoint
+          ? {
+              x: (startPosition.x + targetPosition.x) / 2,
+              y: (startPosition.y + targetPosition.y) / 2
+            }
+          : startPosition;
         const element = document.createElement("div");
         element.className = "cat";
         element.setAttribute("aria-hidden", "true");
         element.style.width = `${CAT_SIZE}px`;
         element.style.height = `${CAT_SIZE}px`;
-        element.style.opacity = "0";
+        element.style.opacity = shouldSkipFadeIn ? "1" : "0";
         element.style.transition = `opacity ${CAT_FADE_DURATION_MS}ms ease`;
 
         const dayVisual = document.createElement("div");
@@ -18756,8 +19338,8 @@
           element,
           sprite,
           nightSprite,
-          x: startPosition.x,
-          y: startPosition.y,
+          x: initialPosition.x,
+          y: initialPosition.y,
           startX: startPosition.x,
           startY: startPosition.y,
           targetX: targetPosition.x,
@@ -18773,8 +19355,10 @@
 
         showCatFrame(cat, CAT_WALK_NE_FRAME_SEQUENCE[0]);
         renderCat(cat);
-        void element.offsetWidth;
-        element.style.opacity = "1";
+        if (!shouldSkipFadeIn) {
+          void element.offsetWidth;
+          element.style.opacity = "1";
+        }
         return true;
       }
 
@@ -22626,7 +23210,7 @@
         startSpawner();
         updateTodoListUI();
         updateTutorialGuide();
-        triggerMailboxCatDeliveryIfAvailable();
+        triggerMailboxCatDeliveryIfAvailable({ firstGameStart: true });
         scheduleEmptyFieldZombieSpawn();
         scheduleEmptyFieldDeerSpawn();
 
@@ -22829,12 +23413,30 @@
 
       bindOverlayDismiss(repairOverlay, closeRepair);
 
+      function isProtectedRepairMenuEvent(event) {
+        // 모바일 설계도 탭은 pointerup 도중 renderRepairGrid()가 버튼 DOM을 교체할 수 있습니다.
+        // event.target.closest()만 사용하면 교체된 버튼이 그리드 밖으로 떨어져 빈 공간 터치로 오인되므로,
+        // 이벤트가 시작될 때 확정된 composedPath()도 함께 확인합니다.
+        const eventPath = typeof event.composedPath === "function"
+          ? event.composedPath()
+          : [];
+        const cameFromProtectedRepairUi = eventPath.some((node) =>
+          node === repairCategoriesElement ||
+          node === repairGrid ||
+          node === repairActionButton ||
+          node?.id === "repairItemInfo"
+        );
+        if (cameFromProtectedRepairUi) return true;
+
+        const target = event.target instanceof Element ? event.target : null;
+        return Boolean(target?.closest(
+          "#repairCategories, #repairGrid, #repairItemInfo, #repairActionButton"
+        ));
+      }
+
       repairMenu.addEventListener("pointerdown", (event) => {
         // 실제 수리 UI 위의 입력만 유지하고, 메뉴 내부의 좌우/하단 빈 공간은 닫기 영역으로 사용합니다.
-        const protectedRepairUi = event.target.closest(
-          "#repairCategories, #repairGrid, #repairItemInfo, #repairActionButton"
-        );
-        if (protectedRepairUi) {
+        if (isProtectedRepairMenuEvent(event)) {
           event.stopPropagation();
           return;
         }
@@ -22844,10 +23446,7 @@
       });
 
       repairMenu.addEventListener("pointerup", (event) => {
-        const protectedRepairUi = event.target.closest(
-          "#repairCategories, #repairGrid, #repairItemInfo, #repairActionButton"
-        );
-        if (protectedRepairUi) {
+        if (isProtectedRepairMenuEvent(event)) {
           event.stopPropagation();
           return;
         }
@@ -22861,6 +23460,15 @@
           playSound(INVENTORY_SET_SOUND);
           selectRepairCategory(
             categoryButton.dataset.repairCategory || "outdoor"
+          );
+        });
+      }
+
+      for (const categoryButton of inventoryCategories) {
+        bindReliableTap(categoryButton, () => {
+          playSound(INVENTORY_SET_SOUND);
+          selectInventoryCategory(
+            categoryButton.dataset.inventoryCategory || "all"
           );
         });
       }
@@ -23072,6 +23680,15 @@
           return;
         }
 
+        if (itemType === "hopeCap" && hasHopeCap) {
+          const willTurnClothingOn = !isHopeCapOn;
+          playSound(willTurnClothingOn ? INVENTORY_PUT_ON_SOUND : INVENTORY_SET_SOUND);
+          isHopeCapOn = willTurnClothingOn;
+          applyInventoryState();
+          saveResourceState();
+          return;
+        }
+
         if (itemType === "strangerLetter" && hasStrangerLetter) {
           const willTurnLetterOn = !isStrangerLetterOn;
           playSound(INVENTORY_SET_SOUND);
@@ -23131,6 +23748,9 @@
         let touchPointerId = null;
 
         item.addEventListener("mouseenter", () => {
+          // 메뉴가 포인터 아래에서 열리며 발생하는 즉시 mouseenter 때문에
+          // NEW가 보이기도 전에 지워지는 상황을 막습니다.
+          if (performance.now() - inventoryOpenedAt < 250) return;
           clearInventoryItemNewState(item.dataset.item || "");
         });
 
