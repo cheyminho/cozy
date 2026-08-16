@@ -703,18 +703,20 @@
       left: 0;
       top: 0;
       width: max-content;
-      max-width: none;
+      max-width: calc(100vw - 16px);
       color: #fff;
       font-family: "Kalam", cursive;
       font-size: 16px;
       font-style: normal;
       font-weight: 300;
       line-height: 1.2;
-      /* 자동 줄바꿈 없이 TUTORIAL_GUIDE_DEFINITIONS의 \n에서만 줄바꿈합니다. */
-      white-space: pre;
+      /* 기존 \n 줄바꿈은 유지하면서, 화면 가장자리에서는 남은 폭 안에서 자동 줄바꿈합니다. */
+      white-space: pre-wrap;
+      overflow-wrap: normal;
+      word-break: normal;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       pointer-events: none;
-      will-change: left, top, transform, margin-left, margin-top;
+      will-change: left, top, width, max-width, transform, margin-left, margin-top;
     }
 
     #inventoryEmptyState {
@@ -4283,7 +4285,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.186"
+  data-game-version="0.187"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6676,6 +6678,10 @@
         }
       };
       const TUTORIAL_GUIDE_ENTRY_DISTANCE_PX = 20;
+      // 가이드 텍스트가 화면 좌우 끝에 닿지 않도록 유지하는 최소 여백입니다.
+      const TUTORIAL_GUIDE_SCREEN_MARGIN_PX = 8;
+      // 가이드 텍스트 기준점이 화면 끝에 있어도 지나치게 좁아지지 않도록 확보하는 최소 폭입니다.
+      const TUTORIAL_GUIDE_MIN_WRAP_WIDTH_PX = 96;
       // 각 화살표 가이드가 조건을 만족한 뒤 실제로 나타나기까지의 대기 시간입니다.
       const TUTORIAL_GUIDE_SHOW_DELAY_MS = 1_500;
       const TUTORIAL_GUIDE_SCHEMA_VERSION = 2;
@@ -8264,13 +8270,34 @@
         const anchorY = rect.top + rect.height / 2;
         const arrowX = anchorX + (Number(definition.arrowOffsetX) || 0);
         const arrowY = anchorY + (Number(definition.arrowOffsetY) || 0);
-        const textX = anchorX + (Number(definition.textOffsetX) || 0);
+        const rawTextX = anchorX + (Number(definition.textOffsetX) || 0);
         const textY = anchorY + (Number(definition.textOffsetY) || 0);
+
+        const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+        const screenMargin = Math.min(TUTORIAL_GUIDE_SCREEN_MARGIN_PX, viewportWidth / 2);
+        const minWrapWidth = Math.min(
+          TUTORIAL_GUIDE_MIN_WRAP_WIDTH_PX,
+          Math.max(1, viewportWidth - screenMargin * 2)
+        );
+        const textAlign = definition.textAlign === "left" ? "left" : "right";
+        const minTextX = textAlign === "right" ? screenMargin + minWrapWidth : screenMargin;
+        const maxTextX = textAlign === "left"
+          ? viewportWidth - screenMargin - minWrapWidth
+          : viewportWidth - screenMargin;
+        const textX = clamp(
+          rawTextX,
+          Math.min(minTextX, maxTextX),
+          Math.max(minTextX, maxTextX)
+        );
+        const availableTextWidth = textAlign === "left"
+          ? viewportWidth - screenMargin - textX
+          : textX - screenMargin;
 
         tutorialGuideArrow.style.left = `${arrowX}px`;
         tutorialGuideArrow.style.top = `${arrowY}px`;
         tutorialGuideText.style.left = `${textX}px`;
         tutorialGuideText.style.top = `${textY}px`;
+        tutorialGuideText.style.maxWidth = `${Math.max(1, availableTextWidth)}px`;
 
         if (!tutorialGuideRenderedVisible) {
           tutorialGuideLayer.style.visibility = "visible";
