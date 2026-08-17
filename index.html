@@ -4619,7 +4619,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.194"
+  data-game-version="0.195"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5571,8 +5571,6 @@ You can leave the game and come back anytime.</div>
       const POPULATION_RESUME_GAP_THRESHOLD_MS = 2_000;
       const EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS = 3_000;
       const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 5_000;
-      const EMPTY_DEER_SPAWN_MIN_DELAY_MS = 5_000;
-      const EMPTY_DEER_SPAWN_MAX_DELAY_MS = 7_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
       const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
@@ -13919,7 +13917,13 @@ You can leave the game and come back anytime.</div>
           showToast(EXPLORATION_COMPLETE_TOAST_MESSAGE);
         }, 4_200);
 
-        zombieSpawnBlockedUntil = Date.now() + 7_000;
+        const returnZombieSpawnDelay =
+          EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS +
+          Math.random() *
+            (EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS -
+              EMPTY_ZOMBIE_SPAWN_MIN_DELAY_MS);
+
+        zombieSpawnBlockedUntil = Date.now() + returnZombieSpawnDelay;
 
         if (returnZombieSpawnTimerId !== null) {
           clearTimeout(returnZombieSpawnTimerId);
@@ -13931,7 +13935,7 @@ You can leave the game and come back anytime.</div>
             createZombie({ preferVisible: true, forceVisibleWhenExpanded: true });
           }
           scheduleEmptyFieldZombieSpawn();
-        }, 7_000);
+        }, returnZombieSpawnDelay);
       }
 
       function hasDestinationItems(destination) {
@@ -23037,10 +23041,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           return;
         }
 
-        const delay = EMPTY_DEER_SPAWN_MIN_DELAY_MS +
-          Math.random() *
-            (EMPTY_DEER_SPAWN_MAX_DELAY_MS -
-              EMPTY_DEER_SPAWN_MIN_DELAY_MS);
+        const delay = 0;
 
         const trySpawnEmptyFieldDeer = () => {
           pendingEmptyDeerSpawnTimerId = null;
@@ -23080,7 +23081,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
             scheduleNextDeerSpawnTick();
             saveResourceState();
           } else {
-            // 생성 위치를 찾지 못한 경우 최초 지연 없이 짧게 다시 시도합니다.
+            // 생성 위치를 찾지 못한 경우 즉시 보충 규칙을 유지하며 짧게 다시 시도합니다.
             pendingEmptyDeerSpawnTimerId = window.setTimeout(
               trySpawnEmptyFieldDeer,
               250
