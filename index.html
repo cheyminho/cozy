@@ -45,6 +45,18 @@
       /* 모바일 우상단·좌하단·우하단 UI 공통 표시 배율입니다. */
       --mobile-corner-ui-scale: 0.9;
 
+      /*
+        좌하단 무기 교체 / 소리 옵션 버튼 위치와 크기 수정 위치
+        - left: +값은 오른쪽 / -값은 왼쪽 이동
+        - bottom: +값은 위쪽 / -값은 아래쪽 이동
+        - size: 버튼 한 칸의 표시 크기
+        - gap: 두 버튼 사이의 세로 간격
+      */
+      --option-controls-left: 18px;
+      --option-controls-bottom: 86px;
+      --option-control-size: 33.6px;
+      --option-control-gap: 8px;
+
       /* 좀비·사슴·개의 밤 전용 밝기와 채도입니다. */
       --entity-night-brightness: 0.42;
       --entity-night-saturation: 0.7;
@@ -1880,7 +1892,8 @@
     body.is-start-screen #dayStatus,
     body.is-start-screen #versionLabel,
     body.is-start-screen #profileHud,
-    body.is-start-screen #toastLayer {
+    body.is-start-screen #toastLayer,
+    body.is-start-screen #optionControls {
       opacity: 0 !important;
       visibility: hidden !important;
       pointer-events: none !important;
@@ -1923,7 +1936,8 @@
 
     /* 좌하단 프로필과 말풍선은 같은 방향에서 함께 들어옵니다. */
     body.is-start-screen #profileHud,
-    body.is-start-screen #toastLayer {
+    body.is-start-screen #toastLayer,
+    body.is-start-screen #optionControls {
       translate: calc(0px - var(--profile-runtime-slide-distance)) 0;
     }
 
@@ -1963,7 +1977,8 @@
     }
 
     body.is-entering-game #profileHud,
-    body.is-entering-game #toastLayer {
+    body.is-entering-game #toastLayer,
+    body.is-entering-game #optionControls {
       translate: 0 0;
       transition:
         translate var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1),
@@ -2129,21 +2144,17 @@
       pointer-events: none;
     }
 
-    /* 탐험 중 하단 중앙 안내 문구입니다. body.is-exploring 상태에 맞춰 페이드 인/아웃합니다. */
-    #exploringGuide {
+    /* 탐험 중 하단 중앙 소리 버튼 + 안내 문구 그룹입니다. 둘이 같은 타이밍으로 표시/숨김됩니다. */
+    #exploringGuideGroup {
       position: fixed;
       left: 50%;
       bottom: max(64px, calc(env(safe-area-inset-bottom) + 44px));
       z-index: 125;
       width: min(calc(100vw - 32px), 620px);
-      color: #fff;
-      font-family: "Kalam", cursive;
-      font-size: 18px;
-      font-weight: 300;
-      line-height: 1.5;
-      text-align: center;
-      white-space: pre-line;
-      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
       opacity: 0;
       visibility: hidden;
       transform: translateX(-50%);
@@ -2153,7 +2164,25 @@
         visibility 0s linear 700ms;
     }
 
-    body.is-exploring #exploringGuide {
+    #exploringGuide {
+      width: 100%;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1.5;
+      text-align: center;
+      white-space: pre-line;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      pointer-events: none;
+    }
+
+    #exploringSoundToggleButton {
+      flex: 0 0 auto;
+      pointer-events: auto;
+    }
+
+    body.is-exploring #exploringGuideGroup {
       opacity: 1;
       visibility: visible;
       transition:
@@ -2161,7 +2190,7 @@
         visibility 0s linear 0s;
     }
 
-    body.is-start-screen #exploringGuide {
+    body.is-start-screen #exploringGuideGroup {
       opacity: 0 !important;
       visibility: hidden !important;
       transition: none !important;
@@ -2367,6 +2396,88 @@
       to {
         opacity: 0;
       }
+    }
+
+    /* =========================================================
+       좌하단 옵션 버튼
+       - icon_option.png: 128×128, 2열×2행
+       - 좌상단: 소리 켬 / 우상단: 소리 끔 / 좌하단: 무기 교체
+       - 위치/크기는 :root의 --option-controls-* 값에서 조정합니다.
+       ========================================================= */
+    #optionControls {
+      position: fixed;
+      left: calc(env(safe-area-inset-left) + var(--option-controls-left));
+      bottom: calc(env(safe-area-inset-bottom) + var(--option-controls-bottom));
+      z-index: calc(var(--profile-z-index) + 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--option-control-gap);
+      opacity: 1;
+      translate: 0 0;
+      pointer-events: none;
+      transform-origin: left bottom;
+      will-change: translate, opacity;
+      transition:
+        translate var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .option-control-button {
+      position: relative;
+      display: block;
+      width: var(--option-control-size);
+      height: var(--option-control-size);
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background-color: transparent;
+      background-image: url("images/icon_option.png");
+      background-repeat: no-repeat;
+      background-size: 200% 200%;
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+      opacity: 1;
+      transform: scale(1);
+      transition: transform 90ms ease-out;
+    }
+
+    #weaponSwitchButton {
+      background-position: left bottom;
+    }
+
+    .sound-toggle-button {
+      background-position: left top;
+    }
+
+    .sound-toggle-button.is-sound-off {
+      background-position: right top;
+    }
+
+    .option-control-button:active {
+      transform: scale(0.9);
+    }
+
+    .option-control-button:focus-visible {
+      outline: 1px solid rgba(255, 255, 255, 0.65);
+      outline-offset: 2px;
+    }
+
+    /* 탐험 출발 시 프로필과 같은 방향/시간으로 두 옵션 버튼이 함께 사라지고, 귀환 시 복귀합니다. */
+    body.is-exploring #optionControls {
+      opacity: 0;
+      translate: calc(0px - var(--profile-runtime-slide-distance)) 0;
+      pointer-events: none;
+    }
+
+    body.is-exploring #optionControls .option-control-button {
+      pointer-events: none;
     }
 
     #versionLabel {
@@ -4464,7 +4575,12 @@
       }
 
       /* 좌하단: 프로필 + 말풍선을 보이는 화면의 좌하단 기준으로 함께 축소 */
-      #bottomLeftHudGroup {
+      #bottomLeftHudGroup,
+      #optionControls {
+        scale: var(--mobile-corner-ui-scale);
+      }
+
+      #exploringSoundToggleButton {
         scale: var(--mobile-corner-ui-scale);
       }
 
@@ -4485,7 +4601,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.192"
+  data-game-version="0.193"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4705,6 +4821,11 @@
     <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
   </div>
 
+  <div id="optionControls" aria-label="Game options">
+		<button id="soundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
+	    <button id="weaponSwitchButton" class="option-control-button" type="button" aria-label="Switch weapon"></button>
+  </div>
+
   <div id="hud">
     <span class="hud-resource" aria-label="Food"><span class="hud-resource-icon is-food" aria-hidden="true"></span><span><span id="foodCount">0</span>/3</span></span>
     <span class="hud-resource" aria-label="Wood"><span class="hud-resource-icon is-wood" aria-hidden="true"></span><span><span id="woodCount">0</span>/10</span></span>
@@ -4748,8 +4869,11 @@
     <div id="findZombieGuideArrow" aria-hidden="true"></div>
     <div id="findZombieGuideText" aria-hidden="true"></div>
   </div>
-  <div id="exploringGuide" aria-hidden="true">Exploring takes time, but rewards await.
+  <div id="exploringGuideGroup">
+    <button id="exploringSoundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
+    <div id="exploringGuide">Exploring takes time, but rewards await.
 You can leave the game and come back anytime.</div>
+  </div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
       <div class="exploration-destination">
@@ -6311,6 +6435,9 @@ You can leave the game and come back anytime.</div>
       const profileFurRightExpression = document.getElementById("profileFurRightExpression");
       const profileMouthSmileExpression = document.getElementById("profileMouthSmileExpression");
       const profileMouthTalkExpression = document.getElementById("profileMouthTalkExpression");
+      const weaponSwitchButton = document.getElementById("weaponSwitchButton");
+      const soundToggleButton = document.getElementById("soundToggleButton");
+      const exploringSoundToggleButton = document.getElementById("exploringSoundToggleButton");
       const menuBackdrop = document.getElementById("menuBackdrop");
       const explorationOverlay = document.getElementById("explorationOverlay");
       const explorationMenu = document.getElementById("explorationMenu");
@@ -6823,6 +6950,8 @@ You can leave the game and come back anytime.</div>
       let chainsawBatteryPausedForBackground = false;
       let hasMusicBox = false;
       let isMusicOn = false;
+      // Music Box ON/OFF와 별개인 전체 소리 버튼 상태입니다.
+      let isGameSoundOn = true;
       let hasHopeCap = false;
       let isHopeCapOn = false;
       let hasNewInventoryItem = false;
@@ -6873,7 +7002,7 @@ You can leave the game and come back anytime.</div>
           arrowFlipX: false, arrowFlipY: false,
           entryDirection: "right",
           textOffsetX: 85, textOffsetY: -65, textAlign: "left",
-          text: "Press the zombie\nto attack."
+          text: "Press the zombie to attack."
         },
         4: {
           anchor: "remainingZombie", arrowFrame: 4,
@@ -7183,15 +7312,70 @@ You can leave the game and come back anytime.</div>
 
       function createSfxAudio(path) {
         const audio = new Audio(path);
-        audio.muted = isSfxMutedForBackground;
+        audio.muted = isSfxMutedForBackground || !isGameSoundOn;
         sfxAudioRegistry.add(audio);
         return audio;
+      }
+
+      function updateSoundToggleButtonState() {
+        [soundToggleButton, exploringSoundToggleButton].forEach((button) => {
+          if (!button) return;
+          button.classList.toggle("is-sound-off", !isGameSoundOn);
+          button.setAttribute(
+            "aria-label",
+            isGameSoundOn ? "Turn sound off" : "Turn sound on"
+          );
+          button.setAttribute(
+            "aria-pressed",
+            isGameSoundOn ? "true" : "false"
+          );
+        });
+      }
+
+      function syncGameSoundMuteState() {
+        const shouldMuteSfx = isSfxMutedForBackground || !isGameSoundOn;
+        for (const audio of sfxAudioRegistry) {
+          audio.muted = shouldMuteSfx;
+        }
+        for (const audio of bgmAudios) {
+          audio.muted = !isGameSoundOn;
+        }
+        updateSoundToggleButtonState();
+      }
+
+      function setGameSoundOn(enabled, options = {}) {
+        isGameSoundOn = enabled !== false;
+        syncGameSoundMuteState();
+
+        if (isGameSoundOn) {
+          if (hasMusicBox && isMusicOn && !bgmStarted) {
+            startBgmPlayback();
+          }
+          if (
+            document.body.classList.contains("is-rainy") &&
+            !rainAmbientStarted
+          ) {
+            startRainAmbientPlayback();
+          }
+          if (
+            !isExploring &&
+            isChainsawEquipped &&
+            chainsawBatteryPercent > 0 &&
+            document.visibilityState !== "hidden"
+          ) {
+            startChainsawIdleSound();
+          }
+        } else {
+          stopChainsawIdleSound();
+        }
+
+        if (options.save !== false) saveResourceState();
       }
 
       function setSfxMutedForBackground(shouldMute) {
         isSfxMutedForBackground = shouldMute === true;
         for (const audio of sfxAudioRegistry) {
-          audio.muted = isSfxMutedForBackground;
+          audio.muted = isSfxMutedForBackground || !isGameSoundOn;
         }
       }
 
@@ -10612,6 +10796,7 @@ You can leave the game and come back anytime.</div>
           isChainsawEquipped = storedEquippedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
           hasMusicBox = parsed.hasMusicBox === true;
           isMusicOn = hasMusicBox && parsed.isMusicOn !== false;
+          isGameSoundOn = parsed.isGameSoundOn !== false;
           hasHopeCap = parsed.hasHopeCap === true;
           isHopeCapOn = hasHopeCap && parsed.isHopeCapOn !== false;
           hasNewInventoryItem = parsed.hasNewInventoryItem === true;
@@ -10908,6 +11093,7 @@ You can leave the game and come back anytime.</div>
 
         applyAxeState();
         applyInventoryState();
+        syncGameSoundMuteState();
         applyInventoryNewBadgeState();
         applyRepairState();
         applyTreeVisualState();
@@ -10968,6 +11154,7 @@ You can leave the game and come back anytime.</div>
               equippedWeapon: getEquippedWeapon(),
               hasMusicBox,
               isMusicOn,
+              isGameSoundOn,
               hasHopeCap,
               isHopeCapOn,
               hasNewInventoryItem,
@@ -11608,6 +11795,7 @@ You can leave the game and come back anytime.</div>
           isExplorationMenuOpen || isInventoryOpen || isRepairOpen;
 
         menuBackdrop.classList.toggle("is-open", isAnyMenuOpen);
+        document.body.classList.toggle("is-menu-open", isAnyMenuOpen);
         menuBackdrop.setAttribute(
           "aria-hidden",
           isAnyMenuOpen ? "false" : "true"
@@ -14048,6 +14236,7 @@ You can leave the game and come back anytime.</div>
 
         applyAxeState();
         applyInventoryState();
+        syncGameSoundMuteState();
         applyInventoryNewBadgeState();
         applyRepairState();
 
@@ -16352,7 +16541,12 @@ You can leave the game and come back anytime.</div>
       }
 
       function startChainsawIdleSound() {
-        if (!isChainsawEquipped || chainsawBatteryPercent <= 0 || document.visibilityState === "hidden") {
+        if (
+          !isChainsawEquipped ||
+          chainsawBatteryPercent <= 0 ||
+          document.visibilityState === "hidden" ||
+          !isGameSoundOn
+        ) {
           stopChainsawIdleSound();
           return;
         }
@@ -16406,6 +16600,50 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (options.render !== false) applyInventoryState();
         updateProfileWeaponVisual();
         if (options.save !== false) saveResourceState();
+      }
+
+      function getQuickSwitchWeaponOrder() {
+        const weapons = [];
+        if (hasAxe) weapons.push("axe");
+        if (hasHandgun) weapons.push("handgun");
+        if (hasShotgun) weapons.push("shotgun");
+        if (hasRifle) weapons.push("rifle");
+        if (hasChainsaw && chainsawBatteryPercent > 0) weapons.push("chainsaw");
+        // 마지막에는 맨손 상태를 포함해 한 종류의 무기만 있어도 교체할 수 있게 합니다.
+        weapons.push("");
+        return weapons;
+      }
+
+      function cycleEquippedWeapon() {
+        if (isExploring) return;
+
+        const weapons = getQuickSwitchWeaponOrder();
+        if (weapons.length <= 1) return;
+
+        const currentWeapon = getEquippedWeapon();
+        const currentIndex = weapons.indexOf(currentWeapon);
+        const nextWeapon = weapons[(currentIndex + 1 + weapons.length) % weapons.length];
+
+        if (nextWeapon === "chainsaw") {
+          setEquippedWeapon("chainsaw", { startChainsaw: false });
+          startChainsawBatteryDrain();
+          playChainsawEquipThenIdle();
+          return;
+        }
+
+        if (nextWeapon === "axe") {
+          playSound(GET_AXE_SOUND, 0.7);
+        } else if (nextWeapon === "handgun") {
+          playSound(HANDGUN_EQUIP_SOUND);
+        } else if (nextWeapon === "shotgun") {
+          playSound(SHOTGUN_EQUIP_SOUND);
+        } else if (nextWeapon === "rifle") {
+          playSound(RIFLE_EQUIP_SOUND);
+        } else {
+          playSound(INVENTORY_SET_SOUND);
+        }
+
+        setEquippedWeapon(nextWeapon);
       }
 
       function handleChainsawBatteryDepleted() {
@@ -23584,6 +23822,18 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           showToast(PAINT_SELECTED_TOAST_MESSAGE);
         }
       }
+
+      bindReliableTap(weaponSwitchButton, () => {
+        cycleEquippedWeapon();
+      });
+
+      bindReliableTap(soundToggleButton, () => {
+        setGameSoundOn(!isGameSoundOn);
+      });
+
+      bindReliableTap(exploringSoundToggleButton, () => {
+        setGameSoundOn(!isGameSoundOn);
+      });
 
       for (const item of inventoryItems) {
         let touchPointerId = null;
