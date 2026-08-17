@@ -1954,7 +1954,7 @@
     }
 
     body.is-start-screen #versionLabel {
-      translate: 140px 0;
+      translate: 0 0;
     }
 
     body.is-entering-game #hud {
@@ -2520,6 +2520,24 @@
     #versionTestButton.is-test-active {
       cursor: pointer;
       pointer-events: auto;
+    }
+
+    /*
+      시작화면에서도 게임 화면과 같은 버전 라벨을 그대로 표시합니다.
+      버전 숫자는 <body>의 data-game-version 한 곳만 수정하면 됩니다.
+      시작화면에서는 테스트 모드 여부와 관계없이 클릭 기능을 막습니다.
+    */
+    body.is-start-screen #versionLabel {
+      z-index: 301;
+      opacity: 0.7 !important;
+      visibility: visible !important;
+      pointer-events: none !important;
+      translate: 0 0;
+    }
+
+    body.is-start-screen #versionTestButton {
+      cursor: default !important;
+      pointer-events: none !important;
     }
 
     /* 세 HUD 버튼은 기존 DAY 정보 자리의 우측 기준으로 가로 정렬합니다.
@@ -4601,7 +4619,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.193"
+  data-game-version="0.194"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -8607,21 +8625,21 @@ You can leave the game and come back anytime.</div>
         return null;
       }
 
-      function getClosestLivingZombieToViewportCenter() {
+      function getLivingZombiesForFindGuide() {
+        return Array.from(zombies.values()).filter((zombie) =>
+          zombie.state !== "dying" &&
+          zombie.state !== "removed" &&
+          zombie.element?.isConnected
+        );
+      }
+
+      function getClosestLivingZombieToViewportCenter(livingZombies = getLivingZombiesForFindGuide()) {
         const centerX = window.innerWidth / 2;
         const centerY = window.innerHeight / 2;
         let closestZombie = null;
         let closestDistanceSq = Infinity;
 
-        for (const zombie of zombies.values()) {
-          if (
-            zombie.state === "dying" ||
-            zombie.state === "removed" ||
-            !zombie.element?.isConnected
-          ) {
-            continue;
-          }
-
+        for (const zombie of livingZombies) {
           const rect = zombie.element.getBoundingClientRect();
           const zombieCenterX = rect.left + rect.width / 2;
           const zombieCenterY = rect.top + rect.height / 2;
@@ -8635,6 +8653,24 @@ You can leave the game and come back anytime.</div>
         }
 
         return closestZombie;
+      }
+
+      function getNextFindZombieGuideTarget() {
+        const livingZombies = getLivingZombiesForFindGuide();
+        if (livingZombies.length === 0) return null;
+
+        if (findZombieGuideTargetId === null) {
+          return getClosestLivingZombieToViewportCenter(livingZombies);
+        }
+
+        const currentIndex = livingZombies.findIndex(
+          (zombie) => zombie.id === findZombieGuideTargetId
+        );
+        if (currentIndex < 0) {
+          return getClosestLivingZombieToViewportCenter(livingZombies);
+        }
+
+        return livingZombies[(currentIndex + 1) % livingZombies.length];
       }
 
       function getFindZombieGuideTarget() {
@@ -8748,7 +8784,8 @@ You can leave the game and come back anytime.</div>
         const type = getFindZombieGuideType(zombie);
         if (type !== findZombieGuideType) {
           findZombieGuideType = type;
-          applyFindZombieGuideVisual(type, false);
+          applyFindZombieGuideVisual(type, true);
+          restartFindZombieGuideFadeIn();
         }
         const definition = FIND_ZOMBIE_GUIDE_DEFINITIONS[findZombieGuideType];
         if (!definition) return;
@@ -8795,7 +8832,7 @@ You can leave the game and come back anytime.</div>
           return;
         }
 
-        const zombie = getClosestLivingZombieToViewportCenter();
+        const zombie = getNextFindZombieGuideTarget();
         if (!zombie) {
           hideFindZombieGuide(true);
           showToast(FIND_ZOMBIE_EMPTY_TOAST_MESSAGE);
@@ -14248,7 +14285,10 @@ You can leave the game and come back anytime.</div>
       }
 
       function handleVersionLabelTestAction(event) {
-        if (!TEST_MODE) return;
+        if (
+          !TEST_MODE ||
+          document.body.classList.contains("is-start-screen")
+        ) return;
 
         if (event) {
           event.preventDefault();
