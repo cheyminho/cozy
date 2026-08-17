@@ -653,7 +653,8 @@
        - 실제 위치/화살표 프레임/회전/크기/반전/텍스트 정렬은
          JavaScript의 TUTORIAL_GUIDE_DEFINITIONS에서 가이드별로 조정합니다.
        ========================================================= */
-    #tutorialGuideLayer {
+    #tutorialGuideLayer,
+    #findZombieGuideLayer {
       position: fixed;
       inset: 0;
       /* 메뉴 딤드(#menuBackdrop: 130)보다 아래에 표시합니다. */
@@ -663,11 +664,13 @@
       visibility: hidden;
     }
 
-    #tutorialGuideLayer[hidden] {
+    #tutorialGuideLayer[hidden],
+    #findZombieGuideLayer[hidden] {
       display: none;
     }
 
-    #tutorialGuideLayer.is-fading-in {
+    #tutorialGuideLayer.is-fading-in,
+    #findZombieGuideLayer.is-fading-in {
       animation: tutorial-guide-fade-in 320ms ease-out both;
     }
 
@@ -682,7 +685,9 @@
       100px 떨어진 위치에서 easeOutBack 커브로 현재 위치까지 들어옵니다.
     */
     #tutorialGuideArrow.is-entering,
-    #tutorialGuideText.is-entering {
+    #tutorialGuideText.is-entering,
+    #findZombieGuideArrow.is-entering,
+    #findZombieGuideText.is-entering {
       animation: tutorial-guide-position-entry 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
@@ -697,7 +702,8 @@
       }
     }
 
-    #tutorialGuideArrow {
+    #tutorialGuideArrow,
+    #findZombieGuideArrow {
       position: fixed;
       left: 0;
       top: 0;
@@ -712,7 +718,8 @@
       will-change: left, top, transform, margin-left, margin-top;
     }
 
-    #tutorialGuideText {
+    #tutorialGuideText,
+    #findZombieGuideText {
       position: fixed;
       left: 0;
       top: 0;
@@ -2103,9 +2110,66 @@
       translate: calc(0px - var(--profile-runtime-slide-distance)) 0;
     }
 
+    /* 탐험 출발 시 우하단 액션 버튼도 오른쪽 화면 밖으로 사라지고, 귀환 시 복귀합니다. */
+    #hudActionButtons {
+      opacity: 1;
+      translate: 0 0;
+      transition:
+        translate var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--profile-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: translate, opacity;
+    }
+
+    body.is-exploring #hudActionButtons {
+      opacity: 0;
+      translate: 140px 0;
+    }
+
+    body.is-exploring #hudActionButtons > button {
+      pointer-events: none;
+    }
+
+    /* 탐험 중 하단 중앙 안내 문구입니다. body.is-exploring 상태에 맞춰 페이드 인/아웃합니다. */
+    #exploringGuide {
+      position: fixed;
+      left: 50%;
+      bottom: max(64px, calc(env(safe-area-inset-bottom) + 44px));
+      z-index: 125;
+      width: min(calc(100vw - 32px), 620px);
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1.5;
+      text-align: center;
+      white-space: pre-line;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-50%);
+      pointer-events: none;
+      transition:
+        opacity 700ms ease,
+        visibility 0s linear 700ms;
+    }
+
+    body.is-exploring #exploringGuide {
+      opacity: 1;
+      visibility: visible;
+      transition:
+        opacity 900ms ease 250ms,
+        visibility 0s linear 0s;
+    }
+
+    body.is-start-screen #exploringGuide {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      transition: none !important;
+    }
+
     #hud {
       position: fixed;
-      top: max(30px, calc(env(safe-area-inset-top) + 16px));
+      top: max(15px, calc(env(safe-area-inset-top) + 8px));
       left: 50%;
       z-index: 100;
       display: flex;
@@ -3750,6 +3814,14 @@
       font-weight: 450;
       line-height: 1;
       transform: translate(-5px, 5px);
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+      outline: none;
+    }
+
+    #weatherStatusRow.is-disabled {
+      cursor: default;
     }
 
     #weatherLabel,
@@ -3760,6 +3832,20 @@
 
     #remainingZombieLabel {
       margin-left: 5px;
+    }
+
+    #findZombieIcon {
+      flex: 0 0 auto;
+      width: 16px;
+      height: 16px;
+      margin-left: 5px;
+      object-fit: contain;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+    }
+
+    #weatherStatusRow.is-disabled #findZombieIcon {
+      opacity: 0.35;
     }
 
     /* 좀비 처치 시 남은 처치 수 위에서 -1이 떠오르며 사라집니다. */
@@ -3976,127 +4062,6 @@
     .zombie.is-dead {
       cursor: default;
       pointer-events: none;
-    }
-
-    /* 전투 QTE 공통 타겟 원. 원형 QTE와 세로선 QTE가 같은 스타일을 공유합니다. */
-    .combat-qte__target {
-      position: absolute;
-      z-index: 2;
-      width: 50px;
-      height: 50px;
-      border: 15px solid #fff;
-      border-radius: 50%;
-      background: transparent;
-      opacity: 0.7;
-      transform: translate(-50%, -50%);
-      transform-origin: center center;
-      pointer-events: none;
-      will-change: top, border-color, opacity, transform;
-    }
-
-    .combat-qte__target.is-success-window {
-      border-color: #F6C062;
-      opacity: 1;
-      animation: combat-qte-target-success 200ms both;
-    }
-
-    @keyframes combat-qte-target-success {
-      0% {
-        transform: translate(-50%, -50%) scale(1);
-        animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); /* easeOutSine */
-      }
-      50% {
-        transform: translate(-50%, -50%) scale(0.94);
-        animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0); /* easeInSine */
-      }
-      100% {
-        transform: translate(-50%, -50%) scale(1);
-      }
-    }
-
-    /* 핸드건 원형 QTE: 기존 도끼 QTE의 1단계 연출만 사용합니다. */
-    .handgun-circle-qte {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      z-index: 8;
-      width: 0;
-      height: 0;
-      pointer-events: none;
-    }
-
-    .handgun-circle-qte__timing {
-      position: absolute;
-      left: 0;
-      top: 0;
-      z-index: 1;
-      border: 2px solid #fff;
-      border-radius: 50%;
-      background: transparent;
-      opacity: 1;
-      transform: translate(-50%, -50%);
-      transform-origin: center center;
-      pointer-events: none;
-      will-change: width, height, opacity;
-    }
-
-    .handgun-circle-qte .combat-qte__target {
-      left: 0;
-      top: 0;
-    }
-
-    /* 좀비 도끼 세로선 QTE. 좀비가 보는 방향으로 좌우 4px 오프셋합니다. */
-    .zombie-axe-qte {
-      position: absolute;
-      left: 50%;
-      top: -50px;
-      z-index: 8;
-      width: 2px;
-      height: 70px;
-      transform: translateX(-50%);
-      pointer-events: none;
-    }
-
-    .zombie-axe-qte.is-facing-left {
-      left: calc(50% - 5px);
-    }
-
-    .zombie-axe-qte.is-facing-right {
-      left: calc(50% + 5px);
-    }
-
-    .zombie-axe-qte__line {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 2px;
-      height: 70px;
-      background: #fff;
-      opacity: 1;
-      pointer-events: none;
-    }
-
-    .zombie-axe-qte .combat-qte__target {
-      left: 1px;
-      top: 70px;
-      width: 30px;
-      height: 30px;
-      border-width: 10px;
-    }
-
-    .zombie-axe-qte__center-dot {
-      position: absolute;
-      left: 1px;
-      top: 70px;
-      z-index: 3;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #50954e;
-      opacity: 1;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      will-change: top;
     }
 
     .zombie-sprite {
@@ -4520,7 +4485,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.190"
+  data-game-version="0.191"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4757,12 +4722,13 @@
     </div>
     <div id="exploringStatus" aria-live="polite">
       <div id="exploringLabel">Exploring</div>
-      <div id="exploringTime">10m</div>
+      <div id="exploringTime">0%</div>
     </div>
     <div id="dayStatus" aria-live="polite">
-      <div id="weatherStatusRow">
+      <div id="weatherStatusRow" role="button" tabindex="0" aria-label="Find remaining zombies">
         <span id="weatherLabel">Sunny</span>
         <span id="remainingZombieLabel">2</span>
+        <img id="findZombieIcon" src="images/icon_find.png" width="16" height="16" alt="" draggable="false" aria-hidden="true" />
       </div>
       <div id="dayNumber" aria-label="DAY 1">
         <span class="day-number-prefix">DAY</span>
@@ -4778,6 +4744,12 @@
     <div id="tutorialGuideArrow" aria-hidden="true"></div>
     <div id="tutorialGuideText" aria-hidden="true"></div>
   </div>
+  <div id="findZombieGuideLayer" aria-hidden="true" hidden>
+    <div id="findZombieGuideArrow" aria-hidden="true"></div>
+    <div id="findZombieGuideText" aria-hidden="true"></div>
+  </div>
+  <div id="exploringGuide" aria-hidden="true">Exploring takes time, but rewards await.
+You can leave the game and come back anytime.</div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
       <div class="exploration-destination">
@@ -5402,9 +5374,10 @@
         greenPaint: 2
       });
 
-      // 도망 중인 사슴의 핸드건 직접 사격 규칙입니다. QTE 없이 개체별 1~3발로 처치합니다.
-      const FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN = 1;
-      const FLEEING_DEER_HANDGUN_KILL_SHOTS_MAX = 3;
+      // 좀비와 사슴의 핸드건 직접 사격 규칙입니다. 개체별로 필요한 탄 수를 한 번 정합니다.
+      const HANDGUN_KILL_SHOTS_MIN = 1;
+      const HANDGUN_KILL_SHOTS_MAX = 3;
+      const ZOMBIE_AXE_KILL_HITS = 3;
 
       // 새 게임에서 최초 1회 생성되는 첫 좀비의 고정 월드 좌표입니다.
       // 이 좀비만 이동하지 않으며, 살아 있는 동안 새로고침해도 같은 위치로 복원됩니다.
@@ -5413,21 +5386,6 @@
       // 게임 플레이를 시작한 뒤 첫 좀비가 등장하기까지의 지연 시간입니다.
       const FIRST_ZOMBIE_SPAWN_DELAY_MS = 3_000;
 
-      // 핸드건 원형 QTE 설정. 기존 원형 QTE의 첫 번째 단계만 사용합니다.
-      const HANDGUN_QTE_TARGET_SIZE_PX = 50;
-      const HANDGUN_QTE_TIMING_START_SIZE_PX = 450;
-      const HANDGUN_QTE_TIMING_END_SIZE_PX = 50;
-      const HANDGUN_QTE_DURATION_MS = 1000;
-      const HANDGUN_QTE_HOLD_MS = 200;
-      const HANDGUN_QTE_TOLERANCE_PX = 20;
-
-      // 좀비 도끼 세로선 QTE 설정.
-      // 타겟 원은 50px 선의 아래→위(easeOutQuad)→아래(easeInQuad)로 한 번 왕복합니다.
-      const AXE_QTE_LINE_HEIGHT_PX = 70;
-      const AXE_QTE_TARGET_SIZE_PX = 30;
-      const AXE_QTE_RISE_DURATION_MS = 700;
-      const AXE_QTE_FALL_DURATION_MS = 550;
-      const AXE_QTE_TOP_TOLERANCE_PX = 6;
 
       const MAX_CHAINSAW_BATTERY = 100;
       // 전기톱 장착 중 배터리 1%를 3초마다 소모합니다.
@@ -6467,8 +6425,10 @@
       const exploreNewBadge = document.getElementById("exploreNewBadge");
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringTime = document.getElementById("exploringTime");
+      const weatherStatusRow = document.getElementById("weatherStatusRow");
       const weatherLabel = document.getElementById("weatherLabel");
       const remainingZombieLabel = document.getElementById("remainingZombieLabel");
+      const findZombieIcon = document.getElementById("findZombieIcon");
       const rainLayer = document.getElementById("rainLayer");
       const dayStatus = document.getElementById("dayStatus");
       const dayNumber = document.getElementById("dayNumber");
@@ -6516,6 +6476,9 @@
       const tutorialGuideLayer = document.getElementById("tutorialGuideLayer");
       const tutorialGuideArrow = document.getElementById("tutorialGuideArrow");
       const tutorialGuideText = document.getElementById("tutorialGuideText");
+      const findZombieGuideLayer = document.getElementById("findZombieGuideLayer");
+      const findZombieGuideArrow = document.getElementById("findZombieGuideArrow");
+      const findZombieGuideText = document.getElementById("findZombieGuideText");
       const todoItemElements = Array.from(
         document.querySelectorAll("#todoListOverlay .todo-item")
       );
@@ -6840,8 +6803,6 @@
       let stoneCount = 0;
       let hasAxe = false;
       let isAxeEquipped = false;
-      let activeAxeQte = null;
-      let activeHandgunQte = null;
       let hasHandgun = false;
       let isHandgunEquipped = false;
       let hasHandgunAmmo = false;
@@ -6912,15 +6873,15 @@
           arrowFlipX: false, arrowFlipY: false,
           entryDirection: "right",
           textOffsetX: 85, textOffsetY: -65, textAlign: "left",
-          text: "Time it right to \ntake down the zombie."
+          text: "Press the zombie\nto attack."
         },
         4: {
           anchor: "remainingZombie", arrowFrame: 4,
-          arrowOffsetX: -36, arrowOffsetY: -22, arrowRotation: -5, arrowScale: 0.55,
+          arrowOffsetX: -20, arrowOffsetY: -22, arrowRotation: -5, arrowScale: 0.55,
           arrowFlipX: true, arrowFlipY: true,
           entryDirection: "left",
-          textOffsetX: -75, textOffsetY: -36, textAlign: "right",
-          text: "Zombies remaining."
+          textOffsetX: -60, textOffsetY: -36, textAlign: "right",
+          text: "Find the remaining zombie."
         },
         5: {
           anchor: "food", arrowFrame: 1,
@@ -6937,14 +6898,6 @@
           entryDirection: "down",
           textOffsetX: -13, textOffsetY: -100, textAlign: "right",
           text: "Go explore.\nOnly the Village is\navailable for now."
-        },
-        7: {
-          anchor: "exploringTime", arrowFrame: 1,
-          arrowOffsetX: -85, arrowOffsetY: 50, arrowRotation: -40, arrowScale: 0.6,
-          arrowFlipX: true, arrowFlipY: false,
-          entryDirection: "left",
-          textOffsetX: -100, textOffsetY: 10, textAlign: "right",
-          text: "Exploring takes time.\nTake a short break."
         },
         8: {
           anchor: "mailbox", arrowFrame: 2,
@@ -6971,6 +6924,50 @@
           text: "The cat left\nsomething again."
         }
       };
+      /*
+        좀비 찾기 화살표 가이드 수정 위치
+        ---------------------------------------------------------
+        - 좀비 위치를 화면 중앙 기준 좌상단 / 우상단 / 좌하단 / 우하단 4종으로 나눕니다.
+        - 각 항목은 일반 화살표 가이드와 동일한 방식으로 개별 조정할 수 있습니다.
+        - 화면 안쪽 강제 보정은 하지 않으며, 실제 좀비 화면 좌표를 기준점으로 사용합니다.
+      */
+      const FIND_ZOMBIE_GUIDE_DEFINITIONS = {
+        topLeft: {
+          arrowFrame: 1,
+          arrowOffsetX: 50, arrowOffsetY: 10, arrowRotation: 20, arrowScale: 0.65,
+          arrowFlipX: false, arrowFlipY: false,
+          entryDirection: "right",
+          textOffsetX: 70, textOffsetY: -16, textAlign: "left",
+          text: "Here!"
+        },
+        topRight: {
+          arrowFrame: 1,
+          arrowOffsetX: -50, arrowOffsetY: 10, arrowRotation: -20, arrowScale: 0.65,
+          arrowFlipX: true, arrowFlipY: false,
+          entryDirection: "left",
+          textOffsetX: -70, textOffsetY: -16, textAlign: "right",
+          text: "Here!"
+        },
+        bottomLeft: {
+          arrowFrame: 1,
+          arrowOffsetX: 50, arrowOffsetY: 30, arrowRotation: -135, arrowScale: 0.65,
+          arrowFlipX: true, arrowFlipY: false,
+          entryDirection: "right",
+          textOffsetX: 85, textOffsetY: 48, textAlign: "left",
+          text: "Here!"
+        },
+        bottomRight: {
+          arrowFrame: 1,
+          arrowOffsetX: -50, arrowOffsetY: 10, arrowRotation: -20, arrowScale: 0.65,
+          arrowFlipX: true, arrowFlipY: false,
+          entryDirection: "left",
+          textOffsetX: -70, textOffsetY: -16, textAlign: "right",
+          text: "Here!"
+        }
+      };
+      const FIND_ZOMBIE_EMPTY_TOAST_MESSAGE = "Nothing around yet.";
+      const FIND_ZOMBIE_COMPLETE_TOAST_MESSAGE = "No more zombies.";
+
       const TUTORIAL_GUIDE_ENTRY_DISTANCE_PX = 20;
       // 각 화살표 가이드가 조건을 만족한 뒤 실제로 나타나기까지의 대기 시간입니다.
       const TUTORIAL_GUIDE_SHOW_DELAY_MS = 1_500;
@@ -6980,6 +6977,10 @@
       let tutorialGuidePositionAnimationFrameId = null;
       let tutorialGuideRenderedVisible = false;
       let tutorialGuideShowAt = 0;
+      let findZombieGuideTargetId = null;
+      let findZombieGuideType = "";
+      let findZombieGuideRenderedVisible = false;
+      let findZombieGuidePositionAnimationFrameId = null;
 
       let carPartsCount = 0;
       let flowerCount = 0;
@@ -7173,10 +7174,31 @@
       let hasFirstTutorialZombieSpawned = false;
       let ambientBirdTimer = null;
 
+      /*
+        창 전환/백그라운드에서는 효과음만 음소거합니다.
+        BGM 오디오는 이 레지스트리에 넣지 않아 기존처럼 계속 재생됩니다.
+      */
+      const sfxAudioRegistry = new Set();
+      let isSfxMutedForBackground = document.visibilityState === "hidden";
+
+      function createSfxAudio(path) {
+        const audio = new Audio(path);
+        audio.muted = isSfxMutedForBackground;
+        sfxAudioRegistry.add(audio);
+        return audio;
+      }
+
+      function setSfxMutedForBackground(shouldMute) {
+        isSfxMutedForBackground = shouldMute === true;
+        for (const audio of sfxAudioRegistry) {
+          audio.muted = isSfxMutedForBackground;
+        }
+      }
+
       const structureSoundAudioByPath = new Map([
-        [CAR_FAIL_SOUND, new Audio(CAR_FAIL_SOUND)],
-        [CAR_HORN_SOUND, new Audio(CAR_HORN_SOUND)],
-        [SHED_OLD_SOUND, new Audio(SHED_OLD_SOUND)]
+        [CAR_FAIL_SOUND, createSfxAudio(CAR_FAIL_SOUND)],
+        [CAR_HORN_SOUND, createSfxAudio(CAR_HORN_SOUND)],
+        [SHED_OLD_SOUND, createSfxAudio(SHED_OLD_SOUND)]
       ]);
       for (const audio of structureSoundAudioByPath.values()) {
         audio.preload = "auto";
@@ -7184,14 +7206,14 @@
 
       // 개 상호작용 효과음은 같은 재생 객체를 재사용해 연속 클릭으로 겹치지 않게 합니다.
       const dogInteractAudioByPath = new Map([
-        [DOG_PANT_SOUND, new Audio(DOG_PANT_SOUND)],
-        [DOG_BARK_SOUND, new Audio(DOG_BARK_SOUND)]
+        [DOG_PANT_SOUND, createSfxAudio(DOG_PANT_SOUND)],
+        [DOG_BARK_SOUND, createSfxAudio(DOG_BARK_SOUND)]
       ]);
       for (const audio of dogInteractAudioByPath.values()) {
         audio.preload = "auto";
       }
 
-      const chainsawIdleAudio = new Audio(CHAINSAW_IDLE_SOUND);
+      const chainsawIdleAudio = createSfxAudio(CHAINSAW_IDLE_SOUND);
       chainsawIdleAudio.loop = true;
       chainsawIdleAudio.preload = "auto";
       chainsawIdleAudio.volume = 1;
@@ -7219,8 +7241,8 @@
       let bgmFadeToken = 0;
 
       const rainAmbientAudios = [
-        new Audio(RAIN_AMBIENT_SOUND),
-        new Audio(RAIN_AMBIENT_SOUND)
+        createSfxAudio(RAIN_AMBIENT_SOUND),
+        createSfxAudio(RAIN_AMBIENT_SOUND)
       ];
       for (const audio of rainAmbientAudios) {
         audio.loop = false;
@@ -8401,6 +8423,220 @@
         return null;
       }
 
+      function getClosestLivingZombieToViewportCenter() {
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        let closestZombie = null;
+        let closestDistanceSq = Infinity;
+
+        for (const zombie of zombies.values()) {
+          if (
+            zombie.state === "dying" ||
+            zombie.state === "removed" ||
+            !zombie.element?.isConnected
+          ) {
+            continue;
+          }
+
+          const rect = zombie.element.getBoundingClientRect();
+          const zombieCenterX = rect.left + rect.width / 2;
+          const zombieCenterY = rect.top + rect.height / 2;
+          const dx = zombieCenterX - centerX;
+          const dy = zombieCenterY - centerY;
+          const distanceSq = dx * dx + dy * dy;
+          if (distanceSq < closestDistanceSq) {
+            closestDistanceSq = distanceSq;
+            closestZombie = zombie;
+          }
+        }
+
+        return closestZombie;
+      }
+
+      function getFindZombieGuideTarget() {
+        if (findZombieGuideTargetId === null) return null;
+        const zombie = zombies.get(findZombieGuideTargetId);
+        if (
+          !zombie ||
+          zombie.state === "dying" ||
+          zombie.state === "removed" ||
+          !zombie.element?.isConnected
+        ) {
+          return null;
+        }
+        return zombie;
+      }
+
+      function getFindZombieGuideType(zombie) {
+        const rect = zombie.element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const isLeft = centerX < window.innerWidth / 2;
+        const isTop = centerY < window.innerHeight / 2;
+
+        if (isTop) return isLeft ? "topLeft" : "topRight";
+        return isLeft ? "bottomLeft" : "bottomRight";
+      }
+
+      function restartFindZombieGuideFadeIn() {
+        if (!findZombieGuideLayer) return;
+        findZombieGuideLayer.classList.remove("is-fading-in");
+        void findZombieGuideLayer.offsetWidth;
+        findZombieGuideLayer.classList.add("is-fading-in");
+      }
+
+      function restartFindZombieGuidePositionEntry(definition) {
+        if (!findZombieGuideArrow || !findZombieGuideText) return;
+        const offset = getTutorialGuideEntryOffset(definition);
+        for (const element of [findZombieGuideArrow, findZombieGuideText]) {
+          element.style.setProperty("--tutorial-guide-entry-offset-x", `${offset.x}px`);
+          element.style.setProperty("--tutorial-guide-entry-offset-y", `${offset.y}px`);
+          element.classList.remove("is-entering");
+        }
+        void findZombieGuideArrow.offsetWidth;
+        findZombieGuideArrow.classList.add("is-entering");
+        findZombieGuideText.classList.add("is-entering");
+      }
+
+      function applyFindZombieGuideVisual(type, restartEntry = false) {
+        const definition = FIND_ZOMBIE_GUIDE_DEFINITIONS[type];
+        if (!definition || !findZombieGuideArrow || !findZombieGuideText) return;
+
+        const frame = clamp(Math.round(Number(definition.arrowFrame) || 1), 1, 4) - 1;
+        const column = frame % 2;
+        const row = Math.floor(frame / 2);
+        findZombieGuideArrow.style.backgroundPosition = `${-column * 128}px ${-row * 128}px`;
+
+        const scale = Math.max(0.01, Number(definition.arrowScale) || 1);
+        const scaleX = scale * (definition.arrowFlipX === true ? -1 : 1);
+        const scaleY = scale * (definition.arrowFlipY === true ? -1 : 1);
+        const rotation = Number(definition.arrowRotation) || 0;
+        findZombieGuideArrow.style.transform =
+          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`;
+
+        const textAlign = definition.textAlign === "left" ? "left" : "right";
+        findZombieGuideText.textContent = definition.text || "";
+        findZombieGuideText.style.textAlign = textAlign;
+        findZombieGuideText.style.transform =
+          textAlign === "right" ? "translateX(-100%)" : "none";
+
+        if (restartEntry) {
+          restartFindZombieGuidePositionEntry(definition);
+        }
+      }
+
+      function hideFindZombieGuide(resumeTutorial = true) {
+        const wasActive = findZombieGuideTargetId !== null;
+        findZombieGuideTargetId = null;
+        findZombieGuideType = "";
+        findZombieGuideRenderedVisible = false;
+        if (findZombieGuidePositionAnimationFrameId !== null) {
+          cancelAnimationFrame(findZombieGuidePositionAnimationFrameId);
+          findZombieGuidePositionAnimationFrameId = null;
+        }
+        if (findZombieGuideLayer) {
+          findZombieGuideLayer.classList.remove("is-fading-in");
+          findZombieGuideArrow?.classList.remove("is-entering");
+          findZombieGuideText?.classList.remove("is-entering");
+          findZombieGuideLayer.hidden = true;
+          findZombieGuideLayer.style.visibility = "hidden";
+        }
+        if (resumeTutorial && wasActive) {
+          updateTutorialGuide();
+        }
+      }
+
+      function renderFindZombieGuidePosition() {
+        if (findZombieGuideTargetId === null || !findZombieGuideLayer || findZombieGuideLayer.hidden) return;
+
+        const zombie = getFindZombieGuideTarget();
+        if (!zombie) {
+          hideFindZombieGuide(true);
+          return;
+        }
+
+        const rect = zombie.element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          hideFindZombieGuide(true);
+          return;
+        }
+
+        const type = getFindZombieGuideType(zombie);
+        if (type !== findZombieGuideType) {
+          findZombieGuideType = type;
+          applyFindZombieGuideVisual(type, false);
+        }
+        const definition = FIND_ZOMBIE_GUIDE_DEFINITIONS[findZombieGuideType];
+        if (!definition) return;
+
+        const anchorX = rect.left + rect.width / 2;
+        const anchorY = rect.top + rect.height / 2;
+
+        findZombieGuideArrow.style.left = `${anchorX + (Number(definition.arrowOffsetX) || 0)}px`;
+        findZombieGuideArrow.style.top = `${anchorY + (Number(definition.arrowOffsetY) || 0)}px`;
+        findZombieGuideText.style.left = `${anchorX + (Number(definition.textOffsetX) || 0)}px`;
+        findZombieGuideText.style.top = `${anchorY + (Number(definition.textOffsetY) || 0)}px`;
+
+        if (!findZombieGuideRenderedVisible) {
+          findZombieGuideLayer.style.visibility = "visible";
+          restartFindZombieGuideFadeIn();
+          restartFindZombieGuidePositionEntry(definition);
+          findZombieGuideRenderedVisible = true;
+        } else {
+          findZombieGuideLayer.style.visibility = "visible";
+        }
+      }
+
+      function scheduleFindZombieGuidePositionUpdate() {
+        if (
+          findZombieGuidePositionAnimationFrameId !== null ||
+          findZombieGuideTargetId === null
+        ) {
+          return;
+        }
+        findZombieGuidePositionAnimationFrameId = requestAnimationFrame(() => {
+          findZombieGuidePositionAnimationFrameId = null;
+          renderFindZombieGuidePosition();
+          if (findZombieGuideTargetId !== null) {
+            scheduleFindZombieGuidePositionUpdate();
+          }
+        });
+      }
+
+      function showFindZombieGuide() {
+        const remainingZombieKills = Math.max(0, zombieKillRequirement - zombieCount);
+        if (remainingZombieKills <= 0) {
+          hideFindZombieGuide(true);
+          showToast(FIND_ZOMBIE_COMPLETE_TOAST_MESSAGE);
+          return;
+        }
+
+        const zombie = getClosestLivingZombieToViewportCenter();
+        if (!zombie) {
+          hideFindZombieGuide(true);
+          showToast(FIND_ZOMBIE_EMPTY_TOAST_MESSAGE);
+          return;
+        }
+
+        hideTutorialGuide();
+        findZombieGuideTargetId = zombie.id;
+        findZombieGuideType = getFindZombieGuideType(zombie);
+        findZombieGuideRenderedVisible = false;
+        findZombieGuideLayer.hidden = false;
+        findZombieGuideLayer.style.visibility = "hidden";
+        applyFindZombieGuideVisual(findZombieGuideType, false);
+        renderFindZombieGuidePosition();
+        scheduleFindZombieGuidePositionUpdate();
+      }
+
+      function handleFindZombieButton(event) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        showFindZombieGuide();
+      }
+
       function syncTutorialGuideProgressFromCurrentState() {
         const completeSilently = (guideId, condition) => {
           if (condition) tutorialCompletedGuideIds.add(guideId);
@@ -8459,7 +8695,7 @@
         if (!tutorialCompletedGuideIds.has(6)) return 6;
 
         if (!tutorialCompletedGuideIds.has(7)) {
-          return isExploring ? 7 : 0;
+          return 0;
         }
 
         if (!tutorialCompletedGuideIds.has(8)) {
@@ -8604,6 +8840,10 @@
       }
 
       function updateTutorialGuide() {
+        if (findZombieGuideTargetId !== null) {
+          hideTutorialGuide();
+          return;
+        }
         if (
           !tutorialGuideLayer ||
           !hasGameInitialized ||
@@ -10878,6 +11118,18 @@
         if (remainingZombieLabel) {
           remainingZombieLabel.textContent = String(remainingZombieKills);
         }
+        if (weatherStatusRow) {
+          weatherStatusRow.classList.remove("is-disabled");
+          weatherStatusRow.setAttribute("aria-disabled", "false");
+          weatherStatusRow.tabIndex = 0;
+          weatherStatusRow.setAttribute(
+            "aria-label",
+            remainingZombieKills > 0 ? "Find remaining zombies" : "Check for zombies"
+          );
+          if (remainingZombieKills <= 0 && findZombieGuideTargetId !== null) {
+            hideFindZombieGuide(true);
+          }
+        }
         updateProfileWeaponVisual();
       }
 
@@ -11715,8 +11967,6 @@
       }
 
       function openInventory() {
-        cancelActiveAxeQte(false);
-        cancelActiveHandgunQte(false);
         if (isInventoryOpen) return;
 
         closeExplorationMenu(false);
@@ -11747,8 +11997,6 @@
       }
 
       function openExplorationMenu() {
-        cancelActiveAxeQte(false);
-        cancelActiveHandgunQte(false);
         if (isExplorationMenuOpen) return;
 
         // 저장 복원·보상 획득·수리 완료 후에도 메뉴를 열 때 현재 조건을 다시 반영합니다.
@@ -11768,8 +12016,6 @@
       }
 
       function openRepair() {
-        cancelActiveAxeQte(false);
-        cancelActiveHandgunQte(false);
         if (isRepairOpen) return;
         hasRepairButtonNew = false;
         const didClearSelectedCategoryNew = clearRepairCategoryNewState(
@@ -11805,16 +12051,21 @@
         if (!isExploring) return;
 
         const remainingMs = Math.max(0, explorationEndsAt - Date.now());
+        const totalDurationMs = Math.max(1, getExplorationDurationMs(explorationDestination));
 
         if (remainingMs <= 0) {
+          exploringTime.textContent = "100%";
           finishExploration();
           return;
         }
 
-        const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1_000));
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        exploringTime.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        const elapsedMs = Math.max(0, totalDurationMs - remainingMs);
+        const progressPercent = clamp(
+          Math.floor((elapsedMs / totalDurationMs) * 100),
+          0,
+          99
+        );
+        exploringTime.textContent = `${progressPercent}%`;
       }
 
       function getCurrentBgmAudio() {
@@ -12845,9 +13096,6 @@
             completeTutorialGuide(9);
           }
         }
-
-        cancelActiveAxeQte(false);
-        cancelActiveHandgunQte(false);
         if (isChainsawEquipped) {
           setEquippedWeapon("", { render: true, save: false });
         }
@@ -15876,7 +16124,7 @@
 
       function playSound(path, volume = 1) {
         try {
-          const audio = new Audio(path);
+          const audio = createSfxAudio(path);
           audio.volume = volume;
           audio.play().catch(() => {});
         } catch (_) {
@@ -16113,7 +16361,7 @@
 
       function playChainsawEquipThenIdle() {
         try {
-          const equipAudio = new Audio(CHAINSAW_EQUIP_SOUND);
+          const equipAudio = createSfxAudio(CHAINSAW_EQUIP_SOUND);
           let completed = false;
           const finish = () => {
             if (completed) return;
@@ -16141,15 +16389,7 @@
         const normalizedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"].includes(weapon)
           ? weapon
           : "";
-
-        if (activeAxeQte && normalizedWeapon !== "axe") {
-          cancelActiveAxeQte(false);
-        }
-        if (activeHandgunQte && normalizedWeapon !== "handgun") {
-          cancelActiveHandgunQte(false);
-        }
-
-        isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
+isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         isHandgunEquipped = normalizedWeapon === "handgun" && hasHandgun;
         isShotgunEquipped = normalizedWeapon === "shotgun" && hasShotgun;
         isRifleEquipped = normalizedWeapon === "rifle" && hasRifle;
@@ -17110,7 +17350,7 @@
         const tryNext = () => {
           if (candidateIndex >= BIRD_FLY_SOUND_CANDIDATES.length) return;
 
-          const audio = new Audio(
+          const audio = createSfxAudio(
             BIRD_FLY_SOUND_CANDIDATES[candidateIndex]
           );
           candidateIndex += 1;
@@ -17129,7 +17369,7 @@
         const tryNext = () => {
           if (candidateIndex >= FALL_SOUND_CANDIDATES.length) return;
 
-          const audio = new Audio(FALL_SOUND_CANDIDATES[candidateIndex]);
+          const audio = createSfxAudio(FALL_SOUND_CANDIDATES[candidateIndex]);
           candidateIndex += 1;
           audio.volume = 1;
 
@@ -19516,9 +19756,6 @@
 
       function removeDeer(deer, options = {}) {
         if (deer.state === "removed") return;
-        if (activeHandgunQte && activeHandgunQte.entity === deer) {
-          clearHandgunQte(activeHandgunQte, false);
-        }
 
         deer.state = "removed";
         deer.element.remove();
@@ -19782,7 +20019,7 @@
           idleAnimationStartedAt: 0,
           nextIdleAnimationAt: now + getRandomDeerIdleDelay(),
           handgunHitCount: 0,
-          handgunKillShots: randomFleeingDeerHandgunKillShots(),
+          handgunKillShots: randomHandgunKillShots(),
           axeAttackCount: 0,
           evadeCount: 0,
           evadeSpeedPxPerMs:
@@ -19822,6 +20059,7 @@
         if (options.persist !== false) {
           saveResourceState();
         }
+        updateWeatherLabel();
 
         return true;
       }
@@ -19831,9 +20069,6 @@
         direction,
         state = "evading"
       ) {
-        if (activeHandgunQte && activeHandgunQte.entity === deer) {
-          clearHandgunQte(activeHandgunQte, true);
-        }
         deer.state = state;
         deer.idleAnimation = null;
         deer.evadeDirection = direction < 0 ? -1 : 1;
@@ -19866,9 +20101,6 @@
       }
 
       function startDeerTurnaround(deer) {
-        if (activeHandgunQte && activeHandgunQte.entity === deer) {
-          clearHandgunQte(activeHandgunQte, true);
-        }
         const currentDirection = deer.state === "evading"
           ? deer.evadeDirection
           : (deer.state === "turning"
@@ -19886,9 +20118,6 @@
 
       function beginDeerDeath(deer) {
         if (deer.state === "dying" || deer.state === "removed") return;
-        if (activeHandgunQte && activeHandgunQte.entity === deer) {
-          clearHandgunQte(activeHandgunQte, false);
-        }
 
         const slideDirection = (
           deer.state === "evading" || deer.state === "leaving"
@@ -20003,21 +20232,17 @@
           return;
         }
 
-        // 도망/회피/회전 중인 사슴은 기존 규칙 그대로 QTE 없이 1~3발 직접 사격합니다.
-        if (weapon === "handgun" && isFleeing) {
+        // 핸드건은 상태와 관계없이 개체별 1~3발 직접 사격합니다.
+        if (weapon === "handgun") {
           alertNearbyDeer(deer, deer);
           consumeAmmo("handgun");
           playSound(HANDGUN_SOUND);
           deer.handgunHitCount += 1;
           if (deer.handgunHitCount >= deer.handgunKillShots) {
             beginDeerDeath(deer);
+          } else if (!isFleeing) {
+            makeDeerEvade(deer);
           }
-          return;
-        }
-
-        // 일반 상태의 사슴 핸드건 공격은 실제 발사 전 원형 QTE를 시작합니다.
-        if (weapon === "handgun") {
-          startHandgunQte(deer, "deer");
           return;
         }
 
@@ -20381,7 +20606,9 @@
             fromOpacity: "",
             toOpacity: ""
           },
-          axeQteSuccessCount: 0,
+          axeHitCount: 0,
+          handgunHitCount: 0,
+          handgunKillShots: randomHandgunKillShots(),
           state: skipBirth ? "walking" : "birthing",
           birthStartedAt: performance.now(),
           walkElapsed: 0,
@@ -21321,29 +21548,18 @@
 
       function beginShotgunDeath(zombie) {
         if (zombie.state === "dying" || zombie.state === "removed") return;
-        if (activeAxeQte && activeAxeQte.zombie === zombie) {
-          clearAxeQte(activeAxeQte, false);
-        }
-        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
-          clearHandgunQte(activeHandgunQte, false);
-        }
         registerPlayerZombieKill(zombie);
         spawnShotgunZombieParts(zombie);
         zombie.state = "removed";
         zombie.element.remove();
         zombies.delete(zombie.id);
+        updateWeatherLabel();
         saveResourceState();
         scheduleEmptyFieldZombieSpawn();
       }
 
       function beginChainsawAttackDeath(zombie) {
         if (zombie.state === "dying" || zombie.state === "removed" || zombie.state === "chainsawAttacking") return;
-        if (activeAxeQte && activeAxeQte.zombie === zombie) {
-          clearAxeQte(activeAxeQte, false);
-        }
-        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
-          clearHandgunQte(activeHandgunQte, false);
-        }
         zombie.state = "chainsawAttacking";
         zombie.element.classList.add("is-dead");
         zombie.chainsawAttackStartedAt = performance.now();
@@ -21382,481 +21598,24 @@
         showSingleFrame(zombie, WALK_SHEET, Math.max(0, zombie.chainsawAttackFrame));
       }
 
-      function randomFleeingDeerHandgunKillShots() {
-        return FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN +
+      function randomHandgunKillShots() {
+        return HANDGUN_KILL_SHOTS_MIN +
           Math.floor(
             Math.random() *
             (
-              FLEEING_DEER_HANDGUN_KILL_SHOTS_MAX -
-              FLEEING_DEER_HANDGUN_KILL_SHOTS_MIN +
+              HANDGUN_KILL_SHOTS_MAX -
+              HANDGUN_KILL_SHOTS_MIN +
               1
             )
           );
       }
 
-      function easeOutQuad(progress) {
-        const clamped = clamp(progress, 0, 1);
-        return 1 - (1 - clamped) * (1 - clamped);
-      }
-
-      function getHandgunQteTimingState(qte, now = performance.now()) {
-        const elapsed = Math.max(0, now - qte.startedAt);
-        const progress = clamp(elapsed / HANDGUN_QTE_DURATION_MS, 0, 1);
-        const timingSize =
-          HANDGUN_QTE_TIMING_START_SIZE_PX +
-          (
-            HANDGUN_QTE_TIMING_END_SIZE_PX -
-            HANDGUN_QTE_TIMING_START_SIZE_PX
-          ) * progress;
-        const isExpired =
-          elapsed >= HANDGUN_QTE_DURATION_MS + HANDGUN_QTE_HOLD_MS;
-        const isSuccessWindow =
-          !isExpired &&
-          Math.abs(timingSize - HANDGUN_QTE_TARGET_SIZE_PX) <=
-            HANDGUN_QTE_TOLERANCE_PX;
-
-        return {
-          elapsed,
-          progress,
-          timingSize,
-          isExpired,
-          isSuccessWindow
-        };
-      }
-
-      function restoreHandgunQteEntity(qte) {
-        if (!qte || !qte.entity) return;
-
-        if (qte.entityType === "zombie") {
-          if (qte.entity.state === "handgunQte") {
-            qte.entity.state = "walking";
-            showSingleFrame(qte.entity, WALK_SHEET, qte.entity.walkFrame);
-            renderZombie(qte.entity);
-          }
-          return;
-        }
-
-        if (qte.entityType === "deer" && qte.entity.state === "handgunQte") {
-          qte.entity.state = qte.previousState === "birthing" ? "birthing" : "idle";
-          if (qte.entity.state === "idle") {
-            showSingleDeerFrame(qte.entity, DEER_IDLE_FRAME);
-          }
-          renderDeer(qte.entity);
-        }
-      }
-
-      function clearHandgunQte(qte, restoreEntityState = true) {
-        if (!qte) return;
-        if (qte.animationFrameId !== null) {
-          cancelAnimationFrame(qte.animationFrameId);
-          qte.animationFrameId = null;
-        }
-        if (qte.targetCircle) {
-          qte.targetCircle.classList.remove("is-success-window");
-        }
-        if (qte.overlay && qte.overlay.isConnected) {
-          qte.overlay.remove();
-        }
-        if (activeHandgunQte === qte) {
-          activeHandgunQte = null;
-        }
-        if (restoreEntityState) {
-          restoreHandgunQteEntity(qte);
-        }
-      }
-
-      function cancelActiveHandgunQte(playMissSound = false) {
-        if (!activeHandgunQte) return;
-        const qte = activeHandgunQte;
-        clearHandgunQte(qte, true);
-        if (playMissSound) {
-          playSound(AXE_MISS_SOUND, 0.7);
-        }
-      }
-
-      function updateHandgunQteVisual(qte, now) {
-        if (activeHandgunQte !== qte) return;
-        if (
-          !qte.entity ||
-          qte.entity.state === "dying" ||
-          qte.entity.state === "removed"
-        ) {
-          clearHandgunQte(qte, false);
-          return;
-        }
-
-        const { timingSize, isExpired, isSuccessWindow } =
-          getHandgunQteTimingState(qte, now);
-        const safeTimingSize = Math.max(0, timingSize);
-        qte.timingCircle.style.width = `${safeTimingSize}px`;
-        qte.timingCircle.style.height = `${safeTimingSize}px`;
-        qte.targetCircle.style.width = `${HANDGUN_QTE_TARGET_SIZE_PX}px`;
-        qte.targetCircle.style.height = `${HANDGUN_QTE_TARGET_SIZE_PX}px`;
-        qte.targetCircle.classList.toggle("is-success-window", isSuccessWindow);
-
-        // 기존 원형 QTE 1단계와 동일하게 성공 구간 진입 시 타이밍 원을 숨깁니다.
-        if (isSuccessWindow && !qte.successWindowTriggered) {
-          qte.successWindowTriggered = true;
-          qte.timingCircle.style.display = "none";
-        }
-
-        // 입력 없이 끝까지 지나가면 탄약/효과음 없이 QTE만 종료합니다.
-        if (isExpired) {
-          clearHandgunQte(qte, true);
-          return;
-        }
-
-        qte.animationFrameId = requestAnimationFrame((nextNow) => {
-          updateHandgunQteVisual(qte, nextNow);
-        });
-      }
-
-      function startHandgunQte(entity, entityType) {
-        if (!entity || (entityType !== "zombie" && entityType !== "deer")) return;
-
-        if (activeAxeQte) {
-          cancelActiveAxeQte(false);
-        }
-        if (activeHandgunQte) {
-          cancelActiveHandgunQte(false);
-        }
-
-        const overlay = document.createElement("div");
-        overlay.className = "handgun-circle-qte";
-
-        const targetCircle = document.createElement("div");
-        targetCircle.className = "combat-qte__target";
-
-        const timingCircle = document.createElement("div");
-        timingCircle.className = "handgun-circle-qte__timing";
-
-        overlay.appendChild(targetCircle);
-        overlay.appendChild(timingCircle);
-        entity.element.appendChild(overlay);
-
-        const previousState = entity.state;
-        entity.state = "handgunQte";
-
-        const qte = {
-          entity,
-          entityType,
-          previousState,
-          overlay,
-          targetCircle,
-          timingCircle,
-          startedAt: performance.now(),
-          animationFrameId: null,
-          successWindowTriggered: false
-        };
-
-        activeHandgunQte = qte;
-        updateHandgunQteVisual(qte, qte.startedAt);
-      }
-
-      function resolveActiveHandgunQte() {
-        const qte = activeHandgunQte;
-        if (!qte) return false;
-
-        const { isSuccessWindow } = getHandgunQteTimingState(qte);
-
-        // QTE 입력 시점이 실제 발사입니다. 성공/실패 모두 탄약 1발과 총성을 사용합니다.
-        if (!consumeAmmo("handgun")) {
-          clearHandgunQte(qte, true);
-          showNoAmmoFeedback();
-          return true;
-        }
-
-        playSound(HANDGUN_SOUND);
-        alertNearbyDeer(
-          qte.entity,
-          qte.entityType === "deer" ? qte.entity : null
-        );
-
-        if (!isSuccessWindow) {
-          clearHandgunQte(qte, true);
-          return true;
-        }
-
-        clearHandgunQte(qte, false);
-
-        if (qte.entityType === "zombie") {
-          qte.entity.lastPlayerWeapon = "handgun";
-          beginDeath(qte.entity, true, { deathType: "normal" });
-          return true;
-        }
-
-        beginDeerDeath(qte.entity);
-        return true;
-      }
-
-      function getAxeQteTimingState(qte, now = performance.now()) {
-        const elapsed = Math.max(0, now - qte.startedAt);
-        const riseEnd = AXE_QTE_RISE_DURATION_MS;
-        const totalDuration =
-          AXE_QTE_RISE_DURATION_MS + AXE_QTE_FALL_DURATION_MS;
-
-        let targetY = AXE_QTE_LINE_HEIGHT_PX;
-
-        if (elapsed <= riseEnd) {
-          const progress = clamp(elapsed / AXE_QTE_RISE_DURATION_MS, 0, 1);
-          targetY =
-            AXE_QTE_LINE_HEIGHT_PX *
-            (1 - easeOutQuad(progress));
-        } else {
-          const progress = clamp(
-            (elapsed - riseEnd) / AXE_QTE_FALL_DURATION_MS,
-            0,
-            1
-          );
-          targetY =
-            AXE_QTE_LINE_HEIGHT_PX *
-            easeInQuad(progress);
-        }
-
-        const isExpired = elapsed >= totalDuration;
-        const isSuccessWindow =
-          !isExpired && targetY <= AXE_QTE_TOP_TOLERANCE_PX;
-
-        return {
-          elapsed,
-          targetY,
-          isExpired,
-          isSuccessWindow
-        };
-      }
-
-      function clearAxeQte(qte, restoreZombieState = true) {
-        if (!qte) return;
-        if (qte.animationFrameId !== null) {
-          cancelAnimationFrame(qte.animationFrameId);
-          qte.animationFrameId = null;
-        }
-        if (qte.targetCircle) {
-          qte.targetCircle.classList.remove("is-success-window");
-        }
-        if (qte.overlay && qte.overlay.isConnected) {
-          qte.overlay.remove();
-        }
-        if (activeAxeQte === qte) {
-          activeAxeQte = null;
-        }
-        if (
-          restoreZombieState &&
-          qte.zombie &&
-          qte.zombie.state === "axeQte"
-        ) {
-          qte.zombie.state = "walking";
-          showSingleFrame(qte.zombie, WALK_SHEET, qte.zombie.walkFrame);
-          renderZombie(qte.zombie);
-        }
-      }
-
-      function cancelActiveAxeQte(playMissSound = false) {
-        if (!activeAxeQte) return;
-        const qte = activeAxeQte;
-        clearAxeQte(qte, true);
-        if (playMissSound) {
-          playSound(AXE_MISS_SOUND, 0.7);
-        }
-      }
-
-      function updateAxeQteVisual(qte, now) {
-        if (activeAxeQte !== qte) return;
-        if (
-          !qte.zombie ||
-          qte.zombie.state === "dying" ||
-          qte.zombie.state === "removed"
-        ) {
-          clearAxeQte(qte, false);
-          return;
-        }
-
-        const { targetY, isExpired, isSuccessWindow } =
-          getAxeQteTimingState(qte, now);
-        qte.targetCircle.style.width = `${AXE_QTE_TARGET_SIZE_PX}px`;
-        qte.targetCircle.style.height = `${AXE_QTE_TARGET_SIZE_PX}px`;
-        qte.targetCircle.style.top = `${targetY}px`;
-        qte.centerDot.style.top = `${targetY}px`;
-        qte.targetCircle.classList.toggle("is-success-window", isSuccessWindow);
-
-        // 아래→위→아래 왕복을 끝까지 놓치면 효과음 없이 QTE만 종료합니다.
-        if (isExpired) {
-          clearAxeQte(qte, true);
-          return;
-        }
-
-        qte.animationFrameId = requestAnimationFrame((nextNow) => {
-          updateAxeQteVisual(qte, nextNow);
-        });
-      }
-
-      function startAxeQte(zombie) {
-        if (activeHandgunQte) {
-          cancelActiveHandgunQte(false);
-        }
-        if (activeAxeQte) {
-          cancelActiveAxeQte(false);
-        }
-
-        const overlay = document.createElement("div");
-        overlay.className = "zombie-axe-qte";
-        overlay.classList.add(
-          zombie.facing === 1 ? "is-facing-right" : "is-facing-left"
-        );
-
-        const line = document.createElement("div");
-        line.className = "zombie-axe-qte__line";
-
-        const targetCircle = document.createElement("div");
-        targetCircle.className = "combat-qte__target";
-
-        const centerDot = document.createElement("div");
-        centerDot.className = "zombie-axe-qte__center-dot";
-
-        overlay.appendChild(line);
-        overlay.appendChild(targetCircle);
-        overlay.appendChild(centerDot);
-        zombie.element.appendChild(overlay);
-
-        zombie.state = "axeQte";
-        const qte = {
-          zombie,
-          overlay,
-          line,
-          targetCircle,
-          centerDot,
-          startedAt: performance.now(),
-          animationFrameId: null
-        };
-        activeAxeQte = qte;
-        updateAxeQteVisual(qte, qte.startedAt);
-      }
-
-      function resolveActiveAxeQte(zombie) {
-        const qte = activeAxeQte;
-        if (!qte || qte.zombie !== zombie) return false;
-
-        const { isSuccessWindow } = getAxeQteTimingState(qte);
-        if (!isSuccessWindow) {
-          clearAxeQte(qte, true);
-          playSound(AXE_MISS_SOUND, 0.7);
-          return true;
-        }
-
-        clearAxeQte(qte, false);
-        zombie.axeQteSuccessCount += 1;
-        alertNearbyDeer(zombie);
-        playSound(HIT_SOUND, 0.5);
-
-        if (zombie.axeQteSuccessCount >= 2) {
-          zombie.lastPlayerWeapon = "axe";
-          beginDeath(zombie, true, { deathType: "normal" });
-          return true;
-        }
-
-        // 첫 성공 후에는 QTE를 자동으로 다시 시작하지 않고 피격 반응 뒤 재입력을 기다립니다.
+      function showZombieHitReaction(zombie) {
         zombie.state = "hit";
         zombie.deathStartFrame = randomDeathStartFrame();
         zombie.hitReactionFrame = zombie.deathStartFrame;
         zombie.hitReactionEnd = performance.now() + HIT_REACTION_MS;
         showSingleFrame(zombie, DEAD_SHEET, zombie.hitReactionFrame);
-        return true;
-      }
-
-      function getActiveCombatQte() {
-        return activeAxeQte || activeHandgunQte;
-      }
-
-      function resolveActiveCombatQte(qte) {
-        if (!qte) return false;
-        if (qte === activeAxeQte) {
-          return resolveActiveAxeQte(qte.zombie);
-        }
-        if (qte === activeHandgunQte) {
-          return resolveActiveHandgunQte();
-        }
-        return false;
-      }
-
-      // QTE가 표시 중이면 다음 포인터 입력을 화면의 어떤 UI/필드 버튼보다 먼저 소비합니다.
-      const COMBAT_QTE_PRIORITY_CLICK_SUPPRESSION_MS = 700;
-      const combatQtePriorityPointerIds = new Set();
-      let combatQtePrioritySuppressClickUntil = -Infinity;
-      let combatQtePrioritySuppressClickX = 0;
-      let combatQtePrioritySuppressClickY = 0;
-
-      document.addEventListener(
-        "pointerdown",
-        (event) => {
-          const qte = getActiveCombatQte();
-          if (!qte) return;
-          if (event.button !== undefined && event.button !== 0) return;
-          if (event.isPrimary === false) return;
-
-          combatQtePriorityPointerIds.add(event.pointerId);
-          combatQtePrioritySuppressClickUntil =
-            performance.now() + COMBAT_QTE_PRIORITY_CLICK_SUPPRESSION_MS;
-          combatQtePrioritySuppressClickX = event.clientX;
-          combatQtePrioritySuppressClickY = event.clientY;
-
-          clearFieldEntityPressState();
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          resolveActiveCombatQte(qte);
-        },
-        { capture: true, passive: false }
-      );
-
-      document.addEventListener(
-        "pointerup",
-        (event) => {
-          if (!combatQtePriorityPointerIds.has(event.pointerId)) return;
-          combatQtePriorityPointerIds.delete(event.pointerId);
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        },
-        { capture: true, passive: false }
-      );
-
-      document.addEventListener(
-        "pointercancel",
-        (event) => {
-          combatQtePriorityPointerIds.delete(event.pointerId);
-        },
-        { capture: true, passive: true }
-      );
-
-      document.addEventListener(
-        "click",
-        (event) => {
-          if (performance.now() >= combatQtePrioritySuppressClickUntil) return;
-
-          const isSameInputPoint = Math.hypot(
-            event.clientX - combatQtePrioritySuppressClickX,
-            event.clientY - combatQtePrioritySuppressClickY
-          ) <= 24;
-          if (!isSameInputPoint) return;
-
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        },
-        { capture: true }
-      );
-
-      function handleAxeZombieAttack(zombie) {
-        if (activeAxeQte && activeAxeQte.zombie === zombie) {
-          resolveActiveAxeQte(zombie);
-          return;
-        }
-
-        if (activeHandgunQte) {
-          cancelActiveHandgunQte(false);
-        }
-        if (activeAxeQte) {
-          cancelActiveAxeQte(false);
-        }
-
-        startAxeQte(zombie);
       }
 
       function attackZombie(zombie) {
@@ -21880,15 +21639,18 @@
         }
 
         if (weapon === "axe") {
-          handleAxeZombieAttack(zombie);
-          return;
-        }
+          alertNearbyDeer(zombie);
+          playSound(HIT_SOUND, 0.5);
+          zombie.axeHitCount += 1;
 
-        if (activeAxeQte) {
-          cancelActiveAxeQte(false);
-        }
-        if (activeHandgunQte && weapon !== "handgun") {
-          cancelActiveHandgunQte(false);
+          if (zombie.axeHitCount >= ZOMBIE_AXE_KILL_HITS) {
+            zombie.lastPlayerWeapon = "axe";
+            beginDeath(zombie, true, { deathType: "normal" });
+            return;
+          }
+
+          showZombieHitReaction(zombie);
+          return;
         }
 
         if (weapon === "handgun") {
@@ -21896,7 +21658,18 @@
             showNoAmmoFeedback();
             return;
           }
-          startHandgunQte(zombie, "zombie");
+          consumeAmmo("handgun");
+          alertNearbyDeer(zombie);
+          playSound(HANDGUN_SOUND);
+          zombie.handgunHitCount += 1;
+
+          if (zombie.handgunHitCount >= zombie.handgunKillShots) {
+            zombie.lastPlayerWeapon = "handgun";
+            beginDeath(zombie, true, { deathType: "normal" });
+            return;
+          }
+
+          showZombieHitReaction(zombie);
           return;
         }
 
@@ -21940,12 +21713,6 @@
 
       function beginDeath(zombie, wasPlayerKill = false, options = {}) {
         if (zombie.state === "dying" || zombie.state === "removed") return;
-        if (activeAxeQte && activeAxeQte.zombie === zombie) {
-          clearAxeQte(activeAxeQte, false);
-        }
-        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
-          clearHandgunQte(activeHandgunQte, false);
-        }
 
         const deathType = options.deathType === "headshot" ? "headshot" : "normal";
         zombie.state = "dying";
@@ -21973,12 +21740,6 @@
 
       function removeZombie(zombie, options = {}) {
         if (zombie.state === "removed") return;
-        if (activeAxeQte && activeAxeQte.zombie === zombie) {
-          clearAxeQte(activeAxeQte, false);
-        }
-        if (activeHandgunQte && activeHandgunQte.entity === zombie) {
-          clearHandgunQte(activeHandgunQte, false);
-        }
 
         zombie.state = "removed";
 
@@ -23377,6 +23138,14 @@
         if (event.key !== "Enter" && event.key !== " ") return;
         handleMailboxInteraction(event);
       });
+      bindReliableTap(weatherStatusRow, handleFindZombieButton);
+      weatherStatusRow.addEventListener("pointerdown", (event) => event.stopPropagation());
+      weatherStatusRow.addEventListener("pointerup", (event) => event.stopPropagation());
+      weatherStatusRow.addEventListener("click", (event) => event.stopPropagation());
+      weatherStatusRow.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        handleFindZombieButton(event);
+      });
       bindReliableTap(repairButton, handleRepairButton);
       bindReliableTap(inventoryButton, handleInventoryButton);
       bindReliableTap(exploreButton, handleExploreButton);
@@ -23930,28 +23699,38 @@
 
       function handlePopulationVisibilityChange() {
         if (document.visibilityState === "hidden") {
+          setSfxMutedForBackground(true);
           pausePopulationTimersForBackground();
           pauseChainsawForBackground();
           return;
         }
 
+        setSfxMutedForBackground(false);
         queuePopulationRefreshAfterResume();
         resumeChainsawAfterBackground();
       }
 
       window.addEventListener("pagehide", () => {
+        setSfxMutedForBackground(true);
         pausePopulationTimersForBackground();
         pauseChainsawForBackground();
       });
       window.addEventListener("pageshow", () => {
+        if (document.visibilityState !== "hidden") {
+          setSfxMutedForBackground(false);
+        }
         queuePopulationRefreshAfterResume();
         resumeChainsawAfterBackground();
       });
       window.addEventListener("blur", () => {
+        setSfxMutedForBackground(true);
         pausePopulationTimersForBackground();
         pauseChainsawForBackground();
       });
       window.addEventListener("focus", () => {
+        if (document.visibilityState !== "hidden") {
+          setSfxMutedForBackground(false);
+        }
         queuePopulationRefreshAfterResume();
         resumeChainsawAfterBackground();
       });
@@ -23966,10 +23745,14 @@
       );
       // 지원 브라우저에서는 Page Lifecycle API도 함께 사용합니다.
       document.addEventListener("freeze", () => {
+        setSfxMutedForBackground(true);
         pausePopulationTimersForBackground();
         pauseChainsawForBackground();
       });
       document.addEventListener("resume", () => {
+        if (document.visibilityState !== "hidden") {
+          setSfxMutedForBackground(false);
+        }
         queuePopulationRefreshAfterResume();
         resumeChainsawAfterBackground();
       });
