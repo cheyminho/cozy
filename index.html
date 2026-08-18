@@ -39,6 +39,8 @@
 
     :root {
       --world-size: 2048px;
+      /* 중앙 거점 전체 세로 이동값. +값은 아래쪽으로 이동합니다. */
+      --central-area-offset-y: 20px;
       --zombie-width: 64px;
       --zombie-height: 128px;
       --deer-width: 85.3333px;
@@ -73,15 +75,15 @@
         - size: 표시 크기(정사각형)
       */
       --house-left: 814px;
-      --house-top: 730px;
+      --house-top: calc(730px + var(--central-area-offset-y));
       --house-size: 490px;
 
-      --shed-left: 530px;
-      --shed-top: 565px;
+      --shed-left: 540px;
+      --shed-top: 575px;
       --shed-size: 190px;
 
       --fence-left: 782px;
-      --fence-top: 792px;
+      --fence-top: calc(792px + var(--central-area-offset-y));
       --fence-size: 490px;
 
       --car-left: 1140px;
@@ -90,7 +92,7 @@
 
       /* 메일함 위치와 크기: 자동차처럼 여기서 직접 수정할 수 있습니다. */
       --mailbox-left: 943px;
-      --mailbox-top: 1066px;
+      --mailbox-top: calc(1066px + var(--central-area-offset-y));
       --mailbox-size: 64px;
 
       /*
@@ -99,20 +101,20 @@
         - 지붕과 벽은 기본 집 위치에 맞춰 두었으며 각각 따로 조정할 수 있습니다.
       */
       --garden-left: 946px;
-      --garden-top: 990px;
+      --garden-top: calc(990px + var(--central-area-offset-y));
       --garden-size: 128px;
 
       --roof-left: 902px;
-      --roof-top: 820px;
+      --roof-top: calc(820px + var(--central-area-offset-y));
       --roof-size: 244px;
 
       --walls-left: 902px;
-      --walls-top: 868px;
+      --walls-top: calc(868px + var(--central-area-offset-y));
       --walls-size: 244px;
 
       /* 나무 위치와 표시 배율. 뎁스 영역 판정도 이 값을 함께 사용합니다. */
       --tree-left: 1103px;
-      --tree-top: 562px;
+      --tree-top: 592px;
       --tree-scale: 0.6;
 
       /*
@@ -897,7 +899,7 @@
       --stump-image: url("images/bg_stump_axe.png");
       position: absolute;
       left: 720px;
-      top: 1020px;
+      top: calc(1020px + var(--central-area-offset-y));
       width: 179.2px;
       height: 179.2px;
       transform-origin: left top;
@@ -3622,7 +3624,7 @@
     #exploringStatus {
       position: fixed;
       right: max(22px, calc(env(safe-area-inset-right) + 16px));
-      top: max(80px, calc(env(safe-area-inset-top) + 16px));
+      top: max(70px, calc(env(safe-area-inset-top) + 6px));
       z-index: 120;
       display: block;
       color: #fff;
@@ -3745,7 +3747,7 @@
     #dayStatus {
       position: fixed;
       right: max(22px, calc(env(safe-area-inset-right) + 16px));
-      top: max(80px, calc(env(safe-area-inset-top) + 16px));
+      top: max(70px, calc(env(safe-area-inset-top) + 6px));
       z-index: 120;
       display: block;
       color: #fff;
@@ -4265,7 +4267,7 @@
 
     #safeZone {
       left: 814px;
-      top: 874px;
+      top: calc(874px + var(--central-area-offset-y));
       width: 420px;
       height: 300px;
       border: 2px solid rgba(255, 235, 80, 0.95);
@@ -4281,7 +4283,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.196"
+  data-game-version="0.197"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4842,12 +4844,17 @@ You can leave the game and come back anytime.</div>
       // 중앙 1024×1024 대신 드래그로 확인 가능한 확장 영역을 생성 범위로 사용합니다.
       const EXPANDED_SPAWN_POPULATION_THRESHOLD = 3;
 
-      // 월드 중심(1024, 1024)을 기준으로 한 420×300 안전영역입니다.
+      // 중앙 거점 세로 이동값은 :root의 --central-area-offset-y 하나로 관리합니다.
+      const CENTRAL_AREA_OFFSET_Y = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--central-area-offset-y")
+      ) || 0;
+
+      // 기본 420×300 안전영역도 중앙 거점과 같은 세로 오프셋을 사용합니다.
       const SAFE_ZONE = {
         left: 814,
-        top: 874,
+        top: 874 + CENTRAL_AREA_OFFSET_Y,
         right: 1234,
-        bottom: 1174
+        bottom: 1174 + CENTRAL_AREA_OFFSET_Y
       };
 
       /*
@@ -4997,7 +5004,7 @@ You can leave the game and come back anytime.</div>
       const CAT_START_X = 430;
       const CAT_START_Y = 1295;
       const CAT_TARGET_X = 956;
-      const CAT_TARGET_Y = 1124;
+      const CAT_TARGET_Y = 1124 + CENTRAL_AREA_OFFSET_Y;
       const CAT_WALK_NE_FRAME_SEQUENCE = Object.freeze([
         0, 1, 2, 3, 4, 5, 6, 7, 8
       ]);
@@ -5164,7 +5171,7 @@ You can leave the game and come back anytime.</div>
       // 새 게임에서 최초 1회 생성되는 첫 좀비의 고정 월드 좌표입니다.
       // 이 좀비만 이동하지 않으며, 살아 있는 동안 새로고침해도 같은 위치로 복원됩니다.
       const FIRST_ZOMBIE_SPAWN_X = 1060;
-      const FIRST_ZOMBIE_SPAWN_Y = 1238;
+      const FIRST_ZOMBIE_SPAWN_Y = 1238 + CENTRAL_AREA_OFFSET_Y;
       // 게임 플레이를 시작한 뒤 첫 좀비가 등장하기까지의 지연 시간입니다.
       const FIRST_ZOMBIE_SPAWN_DELAY_MS = 3_000;
 
@@ -5962,12 +5969,12 @@ You can leave the game and come back anytime.</div>
       const CLOUD_SHADOW_NIGHT_TRANSITION_MS = 3_000;
 
       // 실제 구름과 구름 그림자는 각각의 중앙 안전 구역을 가급적 피하도록 생성합니다.
-      // 구름 그림자 전용 영역은 월드 중심(1024, 1024)의 128×128 영역입니다.
+      // 구름 그림자 전용 128×128 영역도 중앙 거점과 같은 세로 오프셋을 사용합니다.
       const CLOUD_SHADOW_SAFE_ZONE = Object.freeze({
         left: 960,
-        top: 960,
+        top: 960 + CENTRAL_AREA_OFFSET_Y,
         right: 1088,
-        bottom: 1088
+        bottom: 1088 + CENTRAL_AREA_OFFSET_Y
       });
       // 0.00 = 침범 불가 / 0.10 = 약 10% 침범 허용 / 1.00 = 제한 없음
       const CLOUD_SAFE_ZONE_INTRUSION_RATIO = 0.90;
