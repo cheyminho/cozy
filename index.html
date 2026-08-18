@@ -40,7 +40,7 @@
     :root {
       --world-size: 2048px;
       /* 중앙 거점 전체 세로 이동값. +값은 아래쪽으로 이동합니다. */
-      --central-area-offset-y: 20px;
+      --central-area-offset-y: 45px;
       --zombie-width: 64px;
       --zombie-height: 128px;
       --deer-width: 85.3333px;
@@ -133,8 +133,8 @@
       --start-screen-title-weight: 650;
       --start-screen-title-color: #fff;
       --start-screen-title-letter-spacing: 0.07em;
-      --start-screen-survived-gap: 9px;
-      --start-screen-survived-size: 14px;
+      --start-screen-survived-gap: 7px;
+      --start-screen-survived-size: 13px;
       --start-screen-survived-weight: 450;
       --start-screen-survived-color: rgba(255, 255, 255, 0.9);
 	  --start-screen-survived-letter-spacing: 0.05em;
@@ -434,11 +434,11 @@
       border: 0;
       padding: 0;
       margin: 0;
-      cursor: pointer;
+      cursor: default;
       z-index: 9;
       appearance: none;
       -webkit-appearance: none;
-      pointer-events: auto;
+      pointer-events: none;
       touch-action: none;
     }
 
@@ -483,7 +483,7 @@
     #todoListOverlay {
       position: absolute;
       right: 26px;
-      top: 170px;
+      top: 165px;
       z-index: 30;
       color: #fff;
       font-family: "Kalam", cursive;
@@ -572,27 +572,6 @@
       transform: translateY(-50%);
     }
 
-    #todoDoneNote,
-    #todoRewardNote {
-      display: block;
-      color: inherit;
-      font: inherit;
-      text-transform: lowercase;
-      opacity: 1;
-    }
-
-    #todoDoneNote {
-      margin-top: 12px;
-    }
-
-    #todoRewardNote {
-      margin-top: 2px;
-    }
-
-    #todoDoneNote[hidden],
-    #todoRewardNote[hidden] {
-      display: none;
-    }
 
     /* =========================================================
        초반 버튼/오브젝트 튜토리얼 가이드
@@ -612,11 +591,28 @@
     }
 
     #tutorialGuideLayer[hidden],
+    #tutorialVillageGuideLayer[hidden],
     #findZombieGuideLayer[hidden] {
       display: none;
     }
 
+    /* 탐험 메뉴 안 Village 가이드는 탐험 오버레이(140)와 우측 버튼(150)보다 위에 표시합니다. */
+    #tutorialVillageGuideLayer {
+      position: fixed;
+      inset: 0;
+      z-index: 152;
+      overflow: visible;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    /* Explore 가이드도 메뉴가 열린 동안 함께 보이도록 잠시 위 레이어로 올립니다. */
+    #tutorialGuideLayer.is-above-exploration {
+      z-index: 151;
+    }
+
     #tutorialGuideLayer.is-fading-in,
+    #tutorialVillageGuideLayer.is-fading-in,
     #findZombieGuideLayer.is-fading-in {
       animation: tutorial-guide-fade-in 320ms ease-out both;
     }
@@ -633,6 +629,8 @@
     */
     #tutorialGuideArrow.is-entering,
     #tutorialGuideText.is-entering,
+    #tutorialVillageGuideArrow.is-entering,
+    #tutorialVillageGuideText.is-entering,
     #findZombieGuideArrow.is-entering,
     #findZombieGuideText.is-entering {
       animation: tutorial-guide-position-entry 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -650,22 +648,24 @@
     }
 
     #tutorialGuideArrow,
+    #tutorialVillageGuideArrow,
     #findZombieGuideArrow {
       position: fixed;
       left: 0;
       top: 0;
-      width: 128px;
-      height: 128px;
+      width: 32px;
+      height: 64px;
       background-image: url("images/arrow_guide.png");
       background-repeat: no-repeat;
-      background-size: 256px 256px;
-      background-position: 0 0;
+      background-size: 32px 64px;
+      background-position: center;
       transform-origin: center center;
       pointer-events: none;
       will-change: left, top, transform, margin-left, margin-top;
     }
 
     #tutorialGuideText,
+    #tutorialVillageGuideText,
     #findZombieGuideText {
       position: fixed;
       left: 0;
@@ -4283,7 +4283,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.197"
+  data-game-version="0.198"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4423,10 +4423,8 @@
           <div id="fenceObject" class="world-structure" hidden></div>
           <div
             id="mailboxObject"
-            class="world-structure world-interactive"
-            role="button"
-            tabindex="0"
-            aria-label="메일함 확인"
+            class="world-structure"
+            aria-hidden="true"
           ></div>
         </div>
         <div id="axeStump" aria-hidden="false">
@@ -4504,8 +4502,6 @@
       <span class="todo-item" data-todo-key="item1">clear the zombies</span>
       <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
       <span class="todo-item" data-todo-key="item3">explore the village</span>
-      <span id="todoDoneNote" hidden>when done, write back.</span>
-      <span id="todoRewardNote" hidden></span>
     </div>
     <div id="exploringStatus" aria-live="polite">
       <div id="exploringLabel">Exploring</div>
@@ -4529,6 +4525,10 @@
   <div id="tutorialGuideLayer" aria-hidden="true" hidden>
     <div id="tutorialGuideArrow" aria-hidden="true"></div>
     <div id="tutorialGuideText" aria-hidden="true"></div>
+  </div>
+  <div id="tutorialVillageGuideLayer" aria-hidden="true" hidden>
+    <div id="tutorialVillageGuideArrow" aria-hidden="true"></div>
+    <div id="tutorialVillageGuideText" aria-hidden="true"></div>
   </div>
   <div id="findZombieGuideLayer" aria-hidden="true" hidden>
     <div id="findZombieGuideArrow" aria-hidden="true"></div>
@@ -4640,12 +4640,8 @@ You can leave the game and come back anytime.</div>
               <span class="inventory-item__quantity">0%</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="musicBox" hidden>
-              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Music Box</span></span>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Walkman</span></span>
               <span class="inventory-item__quantity">OFF</span>
-            </button>
-            <button class="inventory-item" type="button" role="menuitem" data-item="strangerLetter" hidden>
-              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">A Stranger’s Letter</span></span>
-              <span class="inventory-item__quantity">ON</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="compass" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Compass</span></span>
@@ -5017,7 +5013,7 @@ You can leave the game and come back anytime.</div>
       // 편지를 우편함에 넣는 동작의 중간 지점에서 실제 배달 완료와 사운드를 한 번 처리합니다.
       const CAT_MAILBOX_SOUND_DELIVERY_FRAME_INDEX = 5;
       // 이전 버전은 고양이 출발 시 배달 완료로 저장했기 때문에 새 규칙과 구분합니다.
-      const CAT_MAIL_DELIVERY_SCHEMA_VERSION = 2;
+      const CAT_MAIL_DELIVERY_SCHEMA_VERSION = 3;
       const CAT_DEPTH_POINT_OFFSET_Y = CAT_SIZE * 0.34;
 
       /*
@@ -5103,9 +5099,7 @@ You can leave the game and come back anytime.</div>
           "rifleAmmo",
           "chainsawBattery"
         ]),
-        notes: Object.freeze([
-          "strangerLetter"
-        ])
+        notes: Object.freeze([])
       });
 
       /*
@@ -5127,7 +5121,6 @@ You can leave the game and come back anytime.</div>
       // 같은 하위 그룹 안에서는 화면에 표시되는 영문 이름 기준으로 정렬합니다.
       const INVENTORY_ITEM_SORT_GROUPS = Object.freeze({
         musicBox: 0,
-        strangerLetter: 0,
         axe: 1,
         handgun: 1,
         shotgun: 1,
@@ -5202,9 +5195,9 @@ You can leave the game and come back anytime.</div>
       const CHAINSAW_ZOMBIE_PARTICLE_OFFSET_X = 0;
       const CHAINSAW_ZOMBIE_PARTICLE_OFFSET_Y = -12;
 
-      // 생성 간격: 좀비 30초 / 사슴 1분
-      const SPAWN_INTERVAL_MS = 30_000;
-      const DEER_SPAWN_INTERVAL_MS = 60_000;
+      // 생성 간격: 좀비 10초 / 사슴 20초
+      const SPAWN_INTERVAL_MS = 10_000;
+      const DEER_SPAWN_INTERVAL_MS = 20_000;
       const EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS = 5_000;
       const ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS = 1_000;
       // iOS Safari는 복귀 직후 잠시 hidden 상태를 유지하거나 복귀 이벤트를 누락할 수 있습니다.
@@ -5491,7 +5484,7 @@ You can leave the game and come back anytime.</div>
       const BGM_FADE_OUT_MS = 2_500;
       const BGM_QUIET_HOLD_MS = 1_000;
       const BGM_FADE_IN_MS = 2_500;
-      // 빗소리는 Music Box 설정과 별개로 날씨만 따라가며 부드럽게 나타나고 사라집니다.
+      // 빗소리는 Walkman 설정과 별개로 날씨만 따라가며 부드럽게 나타나고 사라집니다.
       const RAIN_AMBIENT_FADE_IN_MS = 2_500;
       const RAIN_AMBIENT_FADE_OUT_MS = 2_500;
       const RAIN_AMBIENT_VOLUME = 0.5;
@@ -5646,7 +5639,7 @@ You can leave the game and come back anytime.</div>
       const EXPLORE_BLOCKED_TOAST_MESSAGE = "I should clear zombies.";
       const INVENTORY_EMPTY_TOAST_MESSAGE = "My bag’s empty.";
       const AXE_SELECTED_TOAST_MESSAGE = "Problem solver.";
-      const MUSIC_BOX_FOUND_TOAST_MESSAGE = "A music box... on a zombie?";
+      const MUSIC_BOX_FOUND_TOAST_MESSAGE = "A Walkman... on a zombie?";
       const MUSIC_BOX_SELECTED_TOAST_MESSAGE = "It still works.";
       const HANDGUN_SELECTED_TOAST_MESSAGE = "Better than bare hands.";
       const HANDGUN_AMMO_SELECTED_TOAST_MESSAGE = "Every bullet counts.";
@@ -5666,18 +5659,13 @@ You can leave the game and come back anytime.</div>
       const CAR_REPAIR_TOAST_MESSAGE = "This car needs repairs.";
       const CAR_REPAIRED_TOAST_MESSAGE = "Ready for the road.";
       const MAIL_FIRST_TOAST_MESSAGE = "I’ve got mail.";
-      const MAIL_DONE_TOAST_MESSAGE = "Done. Let’s see.";
       const MAIL_NEXT_TOAST_MESSAGE = "Another list… and a gift?";
-      const MAIL_READ_FIRST_TOAST_MESSAGE = "To Do first.";
-      const MAIL_WAIT_TOAST_MESSAGE = "Maybe tomorrow.";
-      const MAIL_EMPTY_TOAST_MESSAGE = "Nothing here yet.";
       const COMPASS_SELECTED_TOAST_MESSAGE = "Now I know where I’m going.";
       const FUEL_SELECTED_TOAST_MESSAGE = "More for the tank.";
       const REPAIR_KIT_SELECTED_TOAST_MESSAGE = "This should do the trick.";
       const MAP_SELECTED_TOAST_MESSAGE = "Now I know how to get there.";
       const CAR_PARTS_SELECTED_TOAST_MESSAGE = "I might need these for the car.";
       const PAINT_SELECTED_TOAST_MESSAGE = "I could paint something.";
-      const STRANGER_LETTER_SELECTED_TOAST_MESSAGE = "Let’s find out.";
       const REPAIR_GRID_ITEM_COUNT = 30;
       const REPAIR_CATEGORY_ORDER = [
         "outdoor",
@@ -6126,9 +6114,6 @@ You can leave the game and come back anytime.</div>
       const musicBoxInventoryItem = document.querySelector(
         '.inventory-item[data-item="musicBox"]'
       );
-      const strangerLetterInventoryItem = document.querySelector(
-        '.inventory-item[data-item="strangerLetter"]'
-      );
       const compassInventoryItem = document.querySelector(
         '.inventory-item[data-item="compass"]'
       );
@@ -6228,14 +6213,15 @@ You can leave the game and come back anytime.</div>
       const tutorialGuideLayer = document.getElementById("tutorialGuideLayer");
       const tutorialGuideArrow = document.getElementById("tutorialGuideArrow");
       const tutorialGuideText = document.getElementById("tutorialGuideText");
+      const tutorialVillageGuideLayer = document.getElementById("tutorialVillageGuideLayer");
+      const tutorialVillageGuideArrow = document.getElementById("tutorialVillageGuideArrow");
+      const tutorialVillageGuideText = document.getElementById("tutorialVillageGuideText");
       const findZombieGuideLayer = document.getElementById("findZombieGuideLayer");
       const findZombieGuideArrow = document.getElementById("findZombieGuideArrow");
       const findZombieGuideText = document.getElementById("findZombieGuideText");
       const todoItemElements = Array.from(
         document.querySelectorAll("#todoListOverlay .todo-item")
       );
-      const todoDoneNote = document.getElementById("todoDoneNote");
-      const todoRewardNote = document.getElementById("todoRewardNote");
       const hudActionButtons = [
         repairButton,
         inventoryButton,
@@ -6590,106 +6576,74 @@ You can leave the game and come back anytime.</div>
       let chainsawBatteryPausedForBackground = false;
       let hasMusicBox = false;
       let isMusicOn = false;
-      // Music Box ON/OFF와 별개인 전체 소리 버튼 상태입니다.
+      // Walkman ON/OFF와 별개인 전체 소리 버튼 상태입니다.
       let isGameSoundOn = true;
       let hasNewInventoryItem = false;
       const newInventoryItemTypes = new Set();
       // NEW 태그는 유지하되, 해당 페이지를 한 번 표시하면 페이지 표시만 원래 색으로 돌립니다.
       const viewedInventoryNewItemTypes = new Set();
       let hasCompass = false;
-      let hasStrangerLetter = false;
-      let isStrangerLetterOn = false;
 
       /*
         초반 튜토리얼 가이드 수정 위치
         ---------------------------------------------------------
         anchor: 표시 기준 대상
-          mailbox / axe / firstZombie / remainingZombie / food / explore / exploringTime
-        arrowFrame: arrow_guide.png의 1~4번째 칸
+          axe / firstZombie / remainingZombie / food / explore / exploringTime
         arrowOffsetX/Y: 기준점 중심에서 화살표 중심까지의 화면 px 오프셋
         arrowRotation: 화살표 회전 각도(deg)
         arrowScale: 화살표 표시 배율
-        arrowFlipX / arrowFlipY: 좌우 / 상하 반전
         entryDirection: 등장 시작 방향 ("up" / "down" / "left" / "right")
           - 해당 방향으로 100px 떨어진 위치에서 현재 위치까지 easeOutBack으로 이동
         textOffsetX/Y: 기준점 중심에서 텍스트 기준점까지의 화면 px 오프셋
-        textAlign: "left" 또는 "right"
+        textAlign: "left" / "center" / "right"
           - left는 textOffset 위치가 텍스트의 왼쪽 기준
+          - center는 textOffset 위치가 텍스트의 가운데 기준
           - right는 textOffset 위치가 텍스트의 오른쪽 기준
       */
       const TUTORIAL_GUIDE_DEFINITIONS = {
-        1: {
-          anchor: "mailbox", arrowFrame: 2,
-          arrowOffsetX: 56, arrowOffsetY: 10, arrowRotation: 5, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: true,
-          entryDirection: "right",
-          textOffsetX: 100, textOffsetY: 2, textAlign: "left",
-          text: "The cat left something.\nCheck the mailbox."
-        },
         2: {
-          anchor: "axe", arrowFrame: 1,
-          arrowOffsetX: 12, arrowOffsetY: -50, arrowRotation: -70, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
+          anchor: "axe",
+          arrowOffsetX: 50, arrowOffsetY: 18, arrowRotation: -65, arrowScale: 0.65,
           entryDirection: "up",
-          textOffsetX: -5, textOffsetY: -88, textAlign: "right",
-          text: "This axe can be \nused as a weapon."
+          textOffsetX: 68, textOffsetY: 18, textAlign: "left",
+          text: "Weapon"
         },
         3: {
-          anchor: "firstZombie", arrowFrame: 3,
-          arrowOffsetX: 50, arrowOffsetY: -30, arrowRotation: -45, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
+          anchor: "firstZombie",
+          arrowOffsetX: 30, arrowOffsetY: -30, arrowRotation: -130, arrowScale: 0.65,
           entryDirection: "right",
-          textOffsetX: 85, textOffsetY: -65, textAlign: "left",
-          text: "Press the zombie to attack."
+          textOffsetX: 47, textOffsetY: -50, textAlign: "left",
+          text: "Attack"
         },
         4: {
-          anchor: "remainingZombie", arrowFrame: 4,
-          arrowOffsetX: -20, arrowOffsetY: -22, arrowRotation: -5, arrowScale: 0.55,
-          arrowFlipX: true, arrowFlipY: true,
+          anchor: "remainingZombie",
+          arrowOffsetX: 2, arrowOffsetY: -22, arrowRotation: 140, arrowScale: 0.55,
           entryDirection: "left",
-          textOffsetX: -60, textOffsetY: -36, textAlign: "right",
-          text: "Find the remaining zombie."
+          textOffsetX: -13, textOffsetY: -37, textAlign: "right",
+          text: "Find Zombie"
         },
         5: {
-          anchor: "food", arrowFrame: 1,
-          arrowOffsetX: -58, arrowOffsetY: 20, arrowRotation: 150, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
-          entryDirection: "up",
-          textOffsetX: -62, textOffsetY: 36, textAlign: "left",
-          text: "Hunt a deer for food.\nDeer are quick to dodge,\nso stay focused."
+          anchor: "food",
+          arrowOffsetX: -1, arrowOffsetY: 28, arrowRotation: 0, arrowScale: 0.65,
+          entryDirection: "down",
+          textOffsetX: 0, textOffsetY: 46, textAlign: "center",
+          text: "Hunt Deer"
         },
         6: {
-          anchor: "explore", arrowFrame: 1,
-          arrowOffsetX: 4, arrowOffsetY: -65, arrowRotation: -78, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
-          entryDirection: "down",
-          textOffsetX: -13, textOffsetY: -100, textAlign: "right",
-          text: "Go explore.\nOnly the Village is\navailable for now."
-        },
-        8: {
-          anchor: "mailbox", arrowFrame: 2,
-          arrowOffsetX: 56, arrowOffsetY: 10, arrowRotation: 5, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: true,
-          entryDirection: "right",
-          textOffsetX: 100, textOffsetY: 2, textAlign: "left",
-          text: "Use the mailbox\nto send your reply."
-        },
-        9: {
-          anchor: "explore", arrowFrame: 1,
-          arrowOffsetX: 4, arrowOffsetY: -65, arrowRotation: -78, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
-          entryDirection: "down",
-          textOffsetX: -13, textOffsetY: -100, textAlign: "right",
-          text: "Keep exploring\nand pass the days."
-        },
-        10: {
-          anchor: "mailbox", arrowFrame: 2,
-          arrowOffsetX: 56, arrowOffsetY: 10, arrowRotation: 5, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: true,
-          entryDirection: "right",
-          textOffsetX: 100, textOffsetY: 2, textAlign: "left",
-          text: "The cat left\nsomething again."
+          anchor: "explore",
+          arrowOffsetX: -50, arrowOffsetY: -15, arrowRotation: 125, arrowScale: 0.65,
+          entryDirection: "left",
+          textOffsetX: -64, textOffsetY: -40, textAlign: "right",
+          text: "Go"
         }
+      };
+
+      /* 탐험 화면을 연 뒤 Village 버튼 왼쪽에 함께 표시하는 보조 가이드입니다. */
+      const TUTORIAL_VILLAGE_GUIDE_DEFINITION = {
+        arrowOffsetX: 67, arrowOffsetY: 2, arrowRotation: -90, arrowScale: 0.65,
+        entryDirection: "right",
+        textOffsetX: 86, textOffsetY: -6, textAlign: "left",
+        text: "Explore"
       };
       /*
         좀비 찾기 화살표 가이드 수정 위치
@@ -6700,35 +6654,27 @@ You can leave the game and come back anytime.</div>
       */
       const FIND_ZOMBIE_GUIDE_DEFINITIONS = {
         topLeft: {
-          arrowFrame: 1,
-          arrowOffsetX: 50, arrowOffsetY: 10, arrowRotation: 20, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
+          arrowOffsetX: 30, arrowOffsetY: 20, arrowRotation: -45, arrowScale: 0.65,
           entryDirection: "right",
-          textOffsetX: 70, textOffsetY: -16, textAlign: "left",
+          textOffsetX: 30, textOffsetY: 34, textAlign: "left",
           text: "Here!"
         },
         topRight: {
-          arrowFrame: 1,
-          arrowOffsetX: -50, arrowOffsetY: 10, arrowRotation: -20, arrowScale: 0.65,
-          arrowFlipX: true, arrowFlipY: false,
+          arrowOffsetX: -30, arrowOffsetY: 20, arrowRotation: 45, arrowScale: 0.65,
           entryDirection: "left",
-          textOffsetX: -70, textOffsetY: -16, textAlign: "right",
+          textOffsetX: -30, textOffsetY: 34, textAlign: "right",
           text: "Here!"
         },
         bottomLeft: {
-          arrowFrame: 1,
-          arrowOffsetX: 50, arrowOffsetY: 10, arrowRotation: 20, arrowScale: 0.65,
-          arrowFlipX: false, arrowFlipY: false,
+          arrowOffsetX: 30, arrowOffsetY: -20, arrowRotation: -135, arrowScale: 0.65,
           entryDirection: "right",
-          textOffsetX: 70, textOffsetY: -16, textAlign: "left",
+          textOffsetX: 30, textOffsetY: -50, textAlign: "left",
           text: "Here!"
         },
         bottomRight: {
-          arrowFrame: 1,
-          arrowOffsetX: -50, arrowOffsetY: 10, arrowRotation: -20, arrowScale: 0.65,
-          arrowFlipX: true, arrowFlipY: false,
+          arrowOffsetX: -30, arrowOffsetY: -20, arrowRotation: 135, arrowScale: 0.65,
           entryDirection: "left",
-          textOffsetX: -70, textOffsetY: -16, textAlign: "right",
+          textOffsetX: -30, textOffsetY: -50, textAlign: "right",
           text: "Here!"
         }
       };
@@ -6887,8 +6833,8 @@ You can leave the game and come back anytime.</div>
       };
       let mailboxIntroTriggered = false;
       let currentTodoListId = 0;
-      let todoSubmittedListId = 0;
-      let todoSubmittedDay = 0;
+      let todoCompletedListId = 0;
+      let todoCompletedDay = 0;
       // 5차 비 미션은 미션을 실제로 받은 날부터의 비만 인정합니다.
       let todoRainMissionAcceptedDay = 0;
       // 고양이가 실제로 우편함에 편지를 넣은 메일 ID만 저장합니다.
@@ -6903,7 +6849,7 @@ You can leave the game and come back anytime.</div>
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
       const TODO_MAX_LIST_ID = 8;
-      const TODO_SCHEMA_VERSION = 4;
+      const TODO_SCHEMA_VERSION = 5;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -8047,20 +7993,18 @@ You can leave the game and come back anytime.</div>
           return 0;
         }
 
-        if (currentTodoListId > 0) {
-          return 0;
-        }
-
-        if (!mailboxIntroTriggered && todoSubmittedListId === 0) {
-          return 1;
+        if (currentTodoListId <= 0) {
+          return !mailboxIntroTriggered ? 1 : 0;
         }
 
         if (
-          todoSubmittedListId > 0 &&
-          todoSubmittedListId < TODO_MAX_LIST_ID &&
-          dayCount > todoSubmittedDay
+          currentTodoListId < TODO_MAX_LIST_ID &&
+          todoCompletedListId === currentTodoListId &&
+          todoCompletedDay > 0 &&
+          dayCount > todoCompletedDay &&
+          isTodoListComplete(currentTodoListId)
         ) {
-          return todoSubmittedListId + 1;
+          return currentTodoListId + 1;
         }
 
         return 0;
@@ -8073,16 +8017,15 @@ You can leave the game and come back anytime.</div>
         if (cat?.deliveryTodoListId === availableTodoListId) return false;
 
         // 첫 번째 투두 배달만 게임 시작과 동시에 이동 경로의 중간 지점에서 바로 등장시킵니다.
-        // 이후 고양이 배달은 기존처럼 원래 출발점에서 시작합니다.
+        // 이후 배달은 새 DAY가 시작된 뒤 기존 출발점에서 시작합니다.
         const startFirstDeliveryAtMidpoint =
           options.firstGameStart === true &&
           availableTodoListId === 1 &&
           !mailboxIntroTriggered &&
-          todoSubmittedListId === 0 &&
+          currentTodoListId === 0 &&
           lastCatDeliveredTodoListId === 0;
 
-        // 출발 시점에는 배달 완료로 저장하지 않습니다.
-        // 실제 편지 투입 프레임에 도달해야만 우편함에서 새 메일을 받을 수 있습니다.
+        // 실제 투입 프레임에 도달하기 전에는 리스트/보상 상태를 바꾸지 않습니다.
         startCatDelivery(availableTodoListId, {
           startAtMidpoint: startFirstDeliveryAtMidpoint,
           skipFadeIn: startFirstDeliveryAtMidpoint
@@ -8090,38 +8033,115 @@ You can leave the game and come back anytime.</div>
         return true;
       }
 
-      function deliverTodoList(listId, shouldMarkNew = true) {
+      function syncCurrentTodoCompletionState() {
+        if (
+          currentTodoListId <= 0 ||
+          !isTodoListComplete(currentTodoListId)
+        ) {
+          return false;
+        }
+
+        if (
+          todoCompletedListId === currentTodoListId &&
+          todoCompletedDay > 0
+        ) {
+          return false;
+        }
+
+        todoCompletedListId = currentTodoListId;
+        todoCompletedDay = dayCount;
+        return true;
+      }
+
+      function deliverTodoList(listId) {
         if (todoListRevealTimerId !== null) {
           clearTimeout(todoListRevealTimerId);
           todoListRevealTimerId = null;
         }
 
-        currentTodoListId = listId;
-        if (listId === 5 && todoRainMissionAcceptedDay <= 0) {
+        currentTodoListId = clamp(
+          Math.round(Number(listId) || 0),
+          0,
+          TODO_MAX_LIST_ID
+        );
+        todoCompletedListId = 0;
+        todoCompletedDay = 0;
+
+        if (currentTodoListId === 5 && todoRainMissionAcceptedDay <= 0) {
           todoRainMissionAcceptedDay = dayCount;
           // 이전 날의 비로 미리 완료된 값이 남아 있어도 미션 수령 시점에 폐기합니다.
           todoProgress[5].item1 = false;
         }
-        syncTodoProgressFromCurrentState(listId);
-        hasStrangerLetter = true;
-        isStrangerLetterOn = true;
-        todoSubmittedListId = 0;
-        todoSubmittedDay = 0;
+
+        syncTodoProgressFromCurrentState(currentTodoListId);
         isTodoListRevealDelayed = true;
-
-        if (shouldMarkNew) {
-          markInventoryItemAsNew("strangerLetter");
-        }
-
-        applyInventoryState();
         updateTodoListUI();
-        saveResourceState();
 
         todoListRevealTimerId = window.setTimeout(() => {
           todoListRevealTimerId = null;
           isTodoListRevealDelayed = false;
           updateTodoListUI();
         }, TODO_LIST_MAIL_REVEAL_DELAY_MS);
+      }
+
+      function awardTodoRewardForCompletedList(completedListId) {
+        if (completedListId === 1) {
+          unlockWoodenFenceBlueprint();
+          return true;
+        }
+
+        if (completedListId === 2) {
+          hasCompass = true;
+          markInventoryItemAsNew("compass");
+          updateExplorationRequirements();
+          return true;
+        }
+
+        if (completedListId === 3) {
+          const didNotHaveRifle = !hasRifle;
+          hasRifle = true;
+          if (didNotHaveRifle) {
+            markInventoryItemAsNew("rifle");
+          }
+
+          const previousRifleAmmoCount = rifleAmmoCount;
+          rifleAmmoCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            rifleAmmoCount + 10
+          );
+          hasRifleAmmo = rifleAmmoCount > 0;
+          if (rifleAmmoCount > previousRifleAmmoCount) {
+            markInventoryItemAsNew("rifleAmmo");
+          }
+          return true;
+        }
+
+        if (completedListId === 4) {
+          const wasMissingMap = !hasMap;
+          hasMap = true;
+          if (wasMissingMap) {
+            markInventoryItemAsNew("map");
+          }
+          updateExplorationRequirements();
+          return true;
+        }
+
+        if (completedListId === 5) {
+          awardTodoBuildingBlueprintOrWood(TIMBER_ROOF_BLUEPRINT_ID, 10);
+          return true;
+        }
+
+        if (completedListId === 6) {
+          awardTodoBuildingBlueprintOrWood(TIMBER_WALLS_BLUEPRINT_ID, 15);
+          return true;
+        }
+
+        if (completedListId === 7) {
+          awardSeventhTodoReward();
+          return true;
+        }
+
+        return false;
       }
 
       function getUnlockedBlueprintCount() {
@@ -8192,6 +8212,10 @@ You can leave the game and come back anytime.</div>
           complete("item3", hasBuiltOutdoorSectionItem("garden"));
         }
 
+        if (listId === currentTodoListId) {
+          syncCurrentTodoCompletionState();
+        }
+
         return changed;
       }
 
@@ -8199,6 +8223,9 @@ You can leave the game and come back anytime.</div>
         const list = todoProgress[listId];
         if (!list || !(key in list) || list[key] === value) return false;
         list[key] = value;
+        if (listId === currentTodoListId) {
+          syncCurrentTodoCompletionState();
+        }
         updateTodoListUI();
         saveResourceState();
         return true;
@@ -8210,7 +8237,6 @@ You can leave the game and come back anytime.</div>
       }
 
       function getTutorialGuideTarget(anchor) {
-        if (anchor === "mailbox") return mailboxObject;
         if (anchor === "axe") return axePickupHitArea;
         if (anchor === "remainingZombie") return remainingZombieLabel;
         if (anchor === "food") return foodCountElement;
@@ -8337,23 +8363,20 @@ You can leave the game and come back anytime.</div>
         const definition = FIND_ZOMBIE_GUIDE_DEFINITIONS[type];
         if (!definition || !findZombieGuideArrow || !findZombieGuideText) return;
 
-        const frame = clamp(Math.round(Number(definition.arrowFrame) || 1), 1, 4) - 1;
-        const column = frame % 2;
-        const row = Math.floor(frame / 2);
-        findZombieGuideArrow.style.backgroundPosition = `${-column * 128}px ${-row * 128}px`;
-
         const scale = Math.max(0.01, Number(definition.arrowScale) || 1);
-        const scaleX = scale * (definition.arrowFlipX === true ? -1 : 1);
-        const scaleY = scale * (definition.arrowFlipY === true ? -1 : 1);
         const rotation = Number(definition.arrowRotation) || 0;
         findZombieGuideArrow.style.transform =
-          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`;
+          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`;
 
-        const textAlign = definition.textAlign === "left" ? "left" : "right";
+        const textAlign = definition.textAlign === "center"
+          ? "center"
+          : definition.textAlign === "left" ? "left" : "right";
         findZombieGuideText.textContent = definition.text || "";
         findZombieGuideText.style.textAlign = textAlign;
         findZombieGuideText.style.transform =
-          textAlign === "right" ? "translateX(-100%)" : "none";
+          textAlign === "right"
+            ? "translateX(-100%)"
+            : textAlign === "center" ? "translateX(-50%)" : "none";
 
         if (restartEntry) {
           restartFindZombieGuidePositionEntry(definition);
@@ -8478,11 +8501,8 @@ You can leave the game and come back anytime.</div>
           if (condition) tutorialCompletedGuideIds.add(guideId);
         };
 
-        // 저장 버전에 튜토리얼 진행값이 없더라도 실제 게임 상태에서 안전하게 복구합니다.
-        completeSilently(
-          1,
-          mailboxIntroTriggered || currentTodoListId >= 1 || todoSubmittedListId >= 1
-        );
+        // 우편함 클릭/회신 가이드는 제거되었으므로 해당 단계는 상태만 자동 통과합니다.
+        completeSilently(1, true);
         completeSilently(2, hasAxe);
         completeSilently(3, firstKillBirdFlockPlayed || zombieCount >= 1);
         completeSilently(
@@ -8496,7 +8516,7 @@ You can leave the game and come back anytime.</div>
         completeSilently(
           6,
           todoProgress[1]?.item3 === true ||
-            todoSubmittedListId >= 1 ||
+            todoCompletedListId >= 1 ||
             currentTodoListId >= 2 ||
             dayCount >= 2
         );
@@ -8506,24 +8526,19 @@ You can leave the game and come back anytime.</div>
         );
         completeSilently(
           8,
-          todoSubmittedListId >= 1 || currentTodoListId >= 2
+          isTodoListComplete(1) ||
+            todoCompletedListId >= 1 ||
+            currentTodoListId >= 2
         );
-        completeSilently(
-          9,
-          tutorialCompletedGuideIds.has(8) && dayCount >= 3
-        );
-        completeSilently(
-          10,
-          currentTodoListId >= 2 || todoSubmittedListId >= 2
-        );
+        completeSilently(10, true);
       }
 
       function getNextTutorialGuideId() {
         syncTutorialGuideProgressFromCurrentState();
 
-        if (!tutorialCompletedGuideIds.has(1)) {
-          return lastCatDeliveredTodoListId >= 1 ? 1 : 0;
-        }
+        // 첫 투두가 실제로 우편함에 들어오기 전에는 다음 튜토리얼 가이드를 먼저 띄우지 않습니다.
+        if (!mailboxIntroTriggered && currentTodoListId <= 0) return 0;
+
         if (!tutorialCompletedGuideIds.has(2)) return 2;
         if (!tutorialCompletedGuideIds.has(3)) return 3;
         if (!tutorialCompletedGuideIds.has(4)) return 4;
@@ -8534,23 +8549,115 @@ You can leave the game and come back anytime.</div>
           return 0;
         }
 
+        // 8번은 제거된 회신 가이드의 내부 진행 상태입니다.
         if (!tutorialCompletedGuideIds.has(8)) {
-          return dayCount >= 2 ? 8 : 0;
-        }
-        if (!tutorialCompletedGuideIds.has(9)) return 9;
-
-        if (!tutorialCompletedGuideIds.has(10)) {
-          return lastCatDeliveredTodoListId >= 2 ? 10 : 0;
+          return 0;
         }
 
         return 0;
+      }
+
+      function hideTutorialVillageGuide() {
+        if (!tutorialVillageGuideLayer) return;
+        tutorialVillageGuideLayer.classList.remove("is-fading-in");
+        tutorialVillageGuideArrow?.classList.remove("is-entering");
+        tutorialVillageGuideText?.classList.remove("is-entering");
+        tutorialVillageGuideLayer.hidden = true;
+        tutorialVillageGuideLayer.style.visibility = "hidden";
+      }
+
+      function restartTutorialVillageGuideFadeIn() {
+        if (!tutorialVillageGuideLayer) return;
+        tutorialVillageGuideLayer.classList.remove("is-fading-in");
+        void tutorialVillageGuideLayer.offsetWidth;
+        tutorialVillageGuideLayer.classList.add("is-fading-in");
+      }
+
+      function applyTutorialVillageGuideVisual() {
+        const definition = TUTORIAL_VILLAGE_GUIDE_DEFINITION;
+        if (!tutorialVillageGuideLayer || !tutorialVillageGuideArrow || !tutorialVillageGuideText) return;
+
+        const scale = Math.max(0.01, Number(definition.arrowScale) || 1);
+        const rotation = Number(definition.arrowRotation) || 0;
+        tutorialVillageGuideArrow.style.transform =
+          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`;
+
+        const textAlign = definition.textAlign === "center"
+          ? "center"
+          : definition.textAlign === "left" ? "left" : "right";
+        tutorialVillageGuideText.textContent = definition.text || "";
+        tutorialVillageGuideText.style.textAlign = textAlign;
+        tutorialVillageGuideText.style.transform =
+          textAlign === "right"
+            ? "translateX(-100%)"
+            : textAlign === "center" ? "translateX(-50%)" : "none";
+      }
+
+      function restartTutorialVillageGuidePositionEntry() {
+        if (!tutorialVillageGuideArrow || !tutorialVillageGuideText) return;
+        const offset = getTutorialGuideEntryOffset(TUTORIAL_VILLAGE_GUIDE_DEFINITION);
+        for (const element of [tutorialVillageGuideArrow, tutorialVillageGuideText]) {
+          element.style.setProperty("--tutorial-guide-entry-offset-x", `${offset.x}px`);
+          element.style.setProperty("--tutorial-guide-entry-offset-y", `${offset.y}px`);
+          element.classList.remove("is-entering");
+        }
+        void tutorialVillageGuideArrow.offsetWidth;
+        tutorialVillageGuideArrow.classList.add("is-entering");
+        tutorialVillageGuideText.classList.add("is-entering");
+      }
+
+      function renderTutorialVillageGuidePosition() {
+        if (
+          tutorialActiveGuideId !== 6 ||
+          !isExplorationMenuOpen ||
+          isExploring ||
+          !tutorialVillageGuideLayer ||
+          !tutorialVillageGuideArrow ||
+          !tutorialVillageGuideText
+        ) {
+          hideTutorialVillageGuide();
+          return;
+        }
+
+        const villageOption = explorationOptions.find(
+          (option) => option.dataset.destination === "village"
+        );
+        if (!villageOption || !villageOption.isConnected) {
+          hideTutorialVillageGuide();
+          return;
+        }
+
+        const rect = villageOption.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          hideTutorialVillageGuide();
+          return;
+        }
+
+        const definition = TUTORIAL_VILLAGE_GUIDE_DEFINITION;
+        const anchorX = rect.left + rect.width / 2;
+        const anchorY = rect.top + rect.height / 2;
+        tutorialVillageGuideArrow.style.left = `${anchorX + (Number(definition.arrowOffsetX) || 0)}px`;
+        tutorialVillageGuideArrow.style.top = `${anchorY + (Number(definition.arrowOffsetY) || 0)}px`;
+        tutorialVillageGuideText.style.left = `${anchorX + (Number(definition.textOffsetX) || 0)}px`;
+        tutorialVillageGuideText.style.top = `${anchorY + (Number(definition.textOffsetY) || 0)}px`;
+
+        if (tutorialVillageGuideLayer.hidden) {
+          tutorialVillageGuideLayer.hidden = false;
+          tutorialVillageGuideLayer.style.visibility = "hidden";
+          applyTutorialVillageGuideVisual();
+          restartTutorialVillageGuideFadeIn();
+          restartTutorialVillageGuidePositionEntry();
+        }
+        tutorialVillageGuideLayer.style.visibility = "visible";
       }
 
       function hideTutorialGuide() {
         tutorialActiveGuideId = 0;
         tutorialGuideRenderedVisible = false;
         tutorialGuideShowAt = 0;
+        hideTutorialVillageGuide();
         if (!tutorialGuideLayer) return;
+        tutorialGuideLayer.classList.remove("is-above-exploration");
         tutorialGuideLayer.classList.remove("is-fading-in");
         tutorialGuideArrow?.classList.remove("is-entering");
         tutorialGuideText?.classList.remove("is-entering");
@@ -8598,23 +8705,20 @@ You can leave the game and come back anytime.</div>
           return;
         }
 
-        const frame = clamp(Math.round(Number(definition.arrowFrame) || 1), 1, 4) - 1;
-        const column = frame % 2;
-        const row = Math.floor(frame / 2);
-        tutorialGuideArrow.style.backgroundPosition = `${-column * 128}px ${-row * 128}px`;
-
         const scale = Math.max(0.01, Number(definition.arrowScale) || 1);
-        const scaleX = scale * (definition.arrowFlipX === true ? -1 : 1);
-        const scaleY = scale * (definition.arrowFlipY === true ? -1 : 1);
         const rotation = Number(definition.arrowRotation) || 0;
         tutorialGuideArrow.style.transform =
-          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`;
+          `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`;
 
-        const textAlign = definition.textAlign === "left" ? "left" : "right";
+        const textAlign = definition.textAlign === "center"
+          ? "center"
+          : definition.textAlign === "left" ? "left" : "right";
         tutorialGuideText.textContent = definition.text || "";
         tutorialGuideText.style.textAlign = textAlign;
         tutorialGuideText.style.transform =
-          textAlign === "right" ? "translateX(-100%)" : "none";
+          textAlign === "right"
+            ? "translateX(-100%)"
+            : textAlign === "center" ? "translateX(-50%)" : "none";
       }
 
       function renderTutorialGuidePosition() {
@@ -8642,8 +8746,21 @@ You can leave the game and come back anytime.</div>
           return;
         }
 
-        const anchorX = rect.left + rect.width / 2;
+        let anchorX = rect.left + rect.width / 2;
         const anchorY = rect.top + rect.height / 2;
+
+        // Explore 버튼은 오른쪽 고정 상태에서 호버 시 왼쪽으로 폭이 늘어납니다.
+        // 가이드도 버튼의 왼쪽 끝 이동량과 동일하게 따라가도록,
+        // 현재 중심 대신 접힌 상태의 중심 위치를 기준으로 잡습니다.
+        if (definition.anchor === "explore") {
+          const collapsedWidth = parseFloat(
+            getComputedStyle(target).getPropertyValue("--collapsed-width")
+          );
+          if (Number.isFinite(collapsedWidth) && collapsedWidth > 0) {
+            anchorX = rect.left + collapsedWidth / 2;
+          }
+        }
+
         const arrowX = anchorX + (Number(definition.arrowOffsetX) || 0);
         const arrowY = anchorY + (Number(definition.arrowOffsetY) || 0);
         const textX = anchorX + (Number(definition.textOffsetX) || 0);
@@ -8662,6 +8779,21 @@ You can leave the game and come back anytime.</div>
         } else {
           tutorialGuideLayer.style.visibility = "visible";
         }
+
+        tutorialGuideLayer.classList.toggle(
+          "is-above-exploration",
+          tutorialActiveGuideId === 6 && isExplorationMenuOpen
+        );
+        renderTutorialVillageGuidePosition();
+
+        // Explore Village 가이드가 실제로 표시되는 동안에는 탐험 버튼의 Go 가이드를 숨깁니다.
+        const isVillageGuideVisible =
+          tutorialActiveGuideId === 6 &&
+          isExplorationMenuOpen &&
+          tutorialVillageGuideLayer &&
+          !tutorialVillageGuideLayer.hidden &&
+          tutorialVillageGuideLayer.style.visibility === "visible";
+        tutorialGuideLayer.style.visibility = isVillageGuideVisible ? "hidden" : "visible";
       }
 
       function scheduleTutorialGuidePositionUpdate() {
@@ -8696,6 +8828,7 @@ You can leave the game and come back anytime.</div>
         }
 
         if (tutorialActiveGuideId !== nextGuideId) {
+          hideTutorialVillageGuide();
           tutorialActiveGuideId = nextGuideId;
           tutorialGuideRenderedVisible = false;
           tutorialGuideShowAt = performance.now() + TUTORIAL_GUIDE_SHOW_DELAY_MS;
@@ -8860,19 +8993,7 @@ You can leave the game and come back anytime.</div>
           ]
         };
 
-        const rewardTexts = {
-          1: "i'll send you a gift.",
-          2: "i'll send you a gift.",
-          3: "i'll send you a gift.",
-          4: "i'll send you a gift.",
-          5: "i'll send you a gift.",
-          6: "i'll send you a gift.",
-          7: "i'll send you a gift."
-        };
-
         const visible =
-          hasStrangerLetter &&
-          isStrangerLetterOn &&
           currentTodoListId > 0 &&
           !isTodoListRevealDelayed;
         if (visible) {
@@ -8894,150 +9015,6 @@ You can leave the game and come back anytime.</div>
           element.classList.toggle("is-complete", Boolean(text) && progress[key] === true);
         });
 
-        const isComplete = isTodoListComplete(currentTodoListId);
-        const rewardText = rewardTexts[currentTodoListId] || "";
-
-        todoDoneNote.hidden = !isComplete;
-        if (todoRewardNote) {
-          todoRewardNote.textContent = rewardText;
-          todoRewardNote.hidden = !isComplete || !rewardText;
-        }
-      }
-
-      function handleMailboxInteraction(event) {
-        if (event) {
-          event.preventDefault();
-        }
-
-        if (isExploring || document.body.classList.contains("is-night")) {
-          return;
-        }
-
-        const availableTodoListId = getAvailableMailboxTodoListId();
-        if (
-          availableTodoListId > 0 &&
-          lastCatDeliveredTodoListId !== availableTodoListId
-        ) {
-          // 고양이가 아직 편지를 넣지 않았다면 메일/보상을 선획득할 수 없습니다.
-          // 우편함이 아직 비어 있음을 알려주고, 연출이 유실된 예외 상황이면 다시 시작합니다.
-          showToast(MAIL_EMPTY_TOAST_MESSAGE);
-          triggerMailboxCatDeliveryIfAvailable();
-          return;
-        }
-
-        if (!mailboxIntroTriggered && currentTodoListId === 0 && todoSubmittedListId === 0) {
-          mailboxIntroTriggered = true;
-          deliverTodoList(1);
-          completeTutorialGuide(1);
-          showToast(MAIL_FIRST_TOAST_MESSAGE);
-          return;
-        }
-
-        if (currentTodoListId > 0) {
-          if (isTodoListComplete(currentTodoListId)) {
-            const submittedTodoListId = currentTodoListId;
-            playSound(MAILBOX_SOUND);
-            todoSubmittedListId = currentTodoListId;
-            todoSubmittedDay = dayCount;
-            currentTodoListId = 0;
-            hasStrangerLetter = false;
-            isStrangerLetterOn = false;
-            applyInventoryState();
-            updateTodoListUI();
-            saveResourceState();
-            if (submittedTodoListId === 1) {
-              completeTutorialGuide(8);
-            }
-            showToast(MAIL_DONE_TOAST_MESSAGE);
-            return;
-          }
-
-          showToast(MAIL_READ_FIRST_TOAST_MESSAGE);
-          return;
-        }
-
-        if (todoSubmittedListId > 0) {
-          if (dayCount > todoSubmittedDay) {
-            if (todoSubmittedListId === 1) {
-              unlockWoodenFenceBlueprint();
-              deliverTodoList(2);
-              completeTutorialGuide(10);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-
-            if (todoSubmittedListId === 2) {
-              hasCompass = true;
-              markInventoryItemAsNew("compass");
-              // 획득 즉시 Forest 조건에서 Compass를 숨기고 잠금 상태도 갱신합니다.
-              updateExplorationRequirements();
-              deliverTodoList(3);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-
-            if (todoSubmittedListId === 3) {
-              const didNotHaveRifle = !hasRifle;
-              hasRifle = true;
-              if (didNotHaveRifle) {
-                markInventoryItemAsNew("rifle");
-              }
-
-              const previousRifleAmmoCount = rifleAmmoCount;
-              rifleAmmoCount = Math.min(
-                MAX_INVENTORY_QUANTITY,
-                rifleAmmoCount + 10
-              );
-              hasRifleAmmo = rifleAmmoCount > 0;
-              if (rifleAmmoCount > previousRifleAmmoCount) {
-                markInventoryItemAsNew("rifleAmmo");
-              }
-
-              deliverTodoList(4);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-
-            if (todoSubmittedListId === 4) {
-              const wasMissingMap = !hasMap;
-              hasMap = true;
-              if (wasMissingMap) {
-                markInventoryItemAsNew("map");
-              }
-              // 획득 즉시 City 조건에서 Map을 숨기고 잠금 상태도 갱신합니다.
-              updateExplorationRequirements();
-              deliverTodoList(5);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-
-            if (todoSubmittedListId === 5) {
-              // Timber Roof 설계도가 이미 있으면 동일 제작비인 Wood 10을 대신 지급합니다.
-              awardTodoBuildingBlueprintOrWood(TIMBER_ROOF_BLUEPRINT_ID, 10);
-              deliverTodoList(6);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-
-            if (todoSubmittedListId === 6) {
-              // Timber Walls 설계도가 이미 있으면 동일 제작비인 Wood 15를 대신 지급합니다.
-              awardTodoBuildingBlueprintOrWood(TIMBER_WALLS_BLUEPRINT_ID, 15);
-              deliverTodoList(7);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-
-            if (todoSubmittedListId === 7) {
-              // 미보유 비흰색 카 페인트 → White → 전 색상 Paint 1개씩 순서로 대체합니다.
-              awardSeventhTodoReward();
-              deliverTodoList(8);
-              showToast(MAIL_NEXT_TOAST_MESSAGE);
-              return;
-            }
-          }
-
-          showToast(MAIL_WAIT_TOAST_MESSAGE);
-        }
       }
 
       function isRepairCategory(value) {
@@ -10496,8 +10473,6 @@ You can leave the game and come back anytime.</div>
             }
           }
           hasCompass = parsed.hasCompass === true;
-          hasStrangerLetter = parsed.hasStrangerLetter === true;
-          isStrangerLetterOn = hasStrangerLetter && parsed.isStrangerLetterOn !== false;
           carPartsCount = normalizeStoredCount(parsed.carParts, getMaxCarPartsCount());
           flowerCount = normalizeStoredCount(parsed.flowers, MAX_INVENTORY_QUANTITY);
           const storedPaintCounts = parsed.paintCounts && typeof parsed.paintCounts === "object"
@@ -10524,12 +10499,34 @@ You can leave the game and come back anytime.</div>
             0,
             TODO_MAX_LIST_ID
           );
-          todoSubmittedListId = clamp(
+          const legacyTodoSubmittedListId = clamp(
             Math.round(Number(parsed.todoSubmittedListId) || 0),
             0,
             TODO_MAX_LIST_ID
           );
-          todoSubmittedDay = normalizeDayCount(parsed.todoSubmittedDay || 0);
+          const legacyTodoSubmittedDay = normalizeDayCount(
+            parsed.todoSubmittedDay || 0
+          );
+          todoCompletedListId = clamp(
+            Math.round(
+              Number(
+                parsed.todoCompletedListId ?? legacyTodoSubmittedListId
+              ) || 0
+            ),
+            0,
+            TODO_MAX_LIST_ID
+          );
+          todoCompletedDay = normalizeDayCount(
+            parsed.todoCompletedDay ?? legacyTodoSubmittedDay
+          );
+
+          // 기존 회신 완료 세이브는 완료된 투두가 화면에 계속 남도록 새 상태로 옮깁니다.
+          if (currentTodoListId <= 0 && legacyTodoSubmittedListId > 0) {
+            currentTodoListId = legacyTodoSubmittedListId;
+            todoCompletedListId = legacyTodoSubmittedListId;
+            todoCompletedDay = legacyTodoSubmittedDay || dayCount;
+          }
+
           todoRainMissionAcceptedDay = normalizeDayCount(
             parsed.todoRainMissionAcceptedDay || 0
           );
@@ -10568,7 +10565,7 @@ You can leave the game and come back anytime.</div>
 
           if (
             storedTutorialGuideSchemaVersion < TUTORIAL_GUIDE_SCHEMA_VERSION &&
-            (dayCount >= 2 || todoSubmittedListId >= 1 || currentTodoListId >= 2)
+            (dayCount >= 2 || todoCompletedListId >= 1 || currentTodoListId >= 2)
           ) {
             tutorialCompletedGuideIds.add(7);
           }
@@ -10602,12 +10599,10 @@ You can leave the game and come back anytime.</div>
                   todoProgress[listId][key] = false;
                 }
               }
-              if (todoSubmittedListId >= 5) {
-                todoSubmittedListId = 0;
-                todoSubmittedDay = 0;
+              if (legacyTodoSubmittedListId >= 5) {
                 currentTodoListId = 5;
-                hasStrangerLetter = true;
-                isStrangerLetterOn = true;
+                todoCompletedListId = 0;
+                todoCompletedDay = 0;
               }
             }
 
@@ -10624,13 +10619,31 @@ You can leave the game and come back anytime.</div>
             todoProgress[6].item3 = dayCount >= TODO_DAY_28_TARGET;
           }
 
+          // 회신 기반 저장값을 자동 완료/다음 DAY 배달 상태로 마이그레이션합니다.
+          if (currentTodoListId > 0 && isTodoListComplete(currentTodoListId)) {
+            if (
+              todoCompletedListId !== currentTodoListId ||
+              todoCompletedDay <= 0
+            ) {
+              todoCompletedListId = currentTodoListId;
+              todoCompletedDay =
+                legacyTodoSubmittedListId === currentTodoListId &&
+                legacyTodoSubmittedDay > 0
+                  ? legacyTodoSubmittedDay
+                  : dayCount;
+            }
+          } else if (todoCompletedListId !== currentTodoListId) {
+            todoCompletedListId = 0;
+            todoCompletedDay = 0;
+          }
+
           // 이전 버전 저장에는 5차 비 미션 수령일이 없으므로 현재 진행 상태에 맞춰 보정합니다.
           // 아직 5차를 받기 전이면 과거 비로 미리 완료된 값은 제거합니다.
           if (todoRainMissionAcceptedDay <= 0) {
             if (currentTodoListId === 5) {
               todoRainMissionAcceptedDay = dayCount;
               todoProgress[5].item1 = getCurrentRainState();
-            } else if (todoSubmittedListId < 5 && currentTodoListId < 5) {
+            } else if (todoCompletedListId < 5 && currentTodoListId < 5) {
               todoProgress[5].item1 = false;
             }
           }
@@ -10809,8 +10822,6 @@ You can leave the game and come back anytime.</div>
               newInventoryItems: Array.from(newInventoryItemTypes),
               viewedInventoryNewItems: Array.from(viewedInventoryNewItemTypes),
               hasCompass,
-              hasStrangerLetter,
-              isStrangerLetterOn,
               carParts: carPartsCount,
               flowers: flowerCount,
               paintCounts: { ...paintCounts },
@@ -10819,8 +10830,8 @@ You can leave the game and come back anytime.</div>
               hasRepairKit: repairKitCount > 0,
               mailboxIntroTriggered,
               currentTodoListId,
-              todoSubmittedListId,
-              todoSubmittedDay,
+              todoCompletedListId,
+              todoCompletedDay,
               todoRainMissionAcceptedDay,
               lastCatDeliveredTodoListId,
               tutorialGuideSchemaVersion: TUTORIAL_GUIDE_SCHEMA_VERSION,
@@ -11422,6 +11433,7 @@ You can leave the game and come back anytime.</div>
         explorationOverlay.setAttribute("aria-hidden", "true");
         setHudActionMenuState(exploreButton, false);
         if (syncBackdrop) syncMenuBackdrop();
+        updateTutorialGuide();
       }
 
       function closeInventory(syncBackdrop = true) {
@@ -11455,7 +11467,6 @@ You can leave the game and come back anytime.</div>
           hasChainsaw ||
           hasChainsawBattery ||
           hasMusicBox ||
-          hasStrangerLetter ||
           hasCompass ||
           carPartsCount > 0 ||
           fuelCount > 0 ||
@@ -11808,6 +11819,7 @@ You can leave the game and come back anytime.</div>
         explorationOverlay.setAttribute("aria-hidden", "false");
         setHudActionMenuState(exploreButton, true);
         syncMenuBackdrop();
+        updateTutorialGuide();
 
         const firstOption = explorationOptions[0];
         if (firstOption && shouldAutoFocusMenuEntry()) {
@@ -12396,7 +12408,7 @@ You can leave the game and come back anytime.</div>
         const isStructureInteractive =
           !isExploring && !document.body.classList.contains("is-night");
 
-        [shedObject, carObject, mailboxObject].forEach((element) => {
+        [shedObject, carObject].forEach((element) => {
           const isElementInteractive =
             isStructureInteractive &&
             !(element === carObject && isCarTraveling);
@@ -12883,18 +12895,13 @@ You can leave the game and come back anytime.</div>
       }
 
       function startExploration(destination) {
-        if (destination === "village") {
-          if (
-            tutorialCompletedGuideIds.has(5) &&
-            !tutorialCompletedGuideIds.has(6)
-          ) {
-            completeTutorialGuide(6);
-          } else if (
-            tutorialCompletedGuideIds.has(8) &&
-            !tutorialCompletedGuideIds.has(9)
-          ) {
-            completeTutorialGuide(9);
-          }
+        if (
+          destination === "village" &&
+          tutorialCompletedGuideIds.has(5) &&
+          !tutorialCompletedGuideIds.has(6)
+        ) {
+          // Explore / Explore Village 두 가이드는 Village 탐험 시작을 같은 완료 조건으로 사용합니다.
+          completeTutorialGuide(6);
         }
         if (isChainsawEquipped) {
           setEquippedWeapon("", { render: true, save: false });
@@ -13376,6 +13383,17 @@ You can leave the game and come back anytime.</div>
         explorationDestination = "";
         explorationEndsAt = 0;
         explorationDepartureDay = 0;
+
+        // 탐험지 자체가 목표인 투두는 출발 DAY의 완료로 기록합니다.
+        // 바로 다음 줄에서 DAY가 증가하므로, 복귀한 새 DAY에 고양이가 즉시 배달을 시작할 수 있습니다.
+        if (completedDestination === "village") {
+          setTodoProgress(1, "item3", true);
+        } else if (completedDestination === "forest") {
+          setTodoProgress(3, "item3", true);
+        } else if (completedDestination === "city") {
+          setTodoProgress(5, "item3", true);
+        }
+
         dayCount += 1;
         if (syncTodoProgressFromCurrentState(6)) {
           updateTodoListUI();
@@ -13411,12 +13429,9 @@ You can leave the game and come back anytime.</div>
         applyTreeVisualState();
 
         let didGuaranteeTodoFlower = false;
-        if (completedDestination === "village") {
-          setTodoProgress(1, "item3", true);
-        } else if (completedDestination === "forest") {
+        if (completedDestination === "forest") {
           woodCount = Math.min(getMaxWoodCount(), woodCount + 10);
           stoneCount = Math.min(getMaxStoneCount(), stoneCount + 3);
-          setTodoProgress(3, "item3", true);
 
           // 5차를 받은 뒤 첫 Forest 복귀에서는 설계도 보상 여부와 관계없이 꽃 1개를 보장합니다.
           if (
@@ -13427,8 +13442,6 @@ You can leave the game and come back anytime.</div>
             setTodoProgress(5, "item2", true);
             didGuaranteeTodoFlower = true;
           }
-        } else if (completedDestination === "city") {
-          setTodoProgress(5, "item3", true);
         }
 
         awardExplorationRewards(
@@ -13687,7 +13700,6 @@ You can leave the game and come back anytime.</div>
           hasChainsawBattery &&
           chainsawBatteryPercent >= TEST_CHAINSAW_BATTERY_PERCENT &&
           hasMusicBox &&
-          hasStrangerLetter &&
           hasCompass &&
           (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
           flowerCount > 0 &&
@@ -13733,9 +13745,6 @@ You can leave the game and come back anytime.</div>
 
         markNewIfMissing("musicBox", hasMusicBox);
         hasMusicBox = true;
-
-        markNewIfMissing("strangerLetter", hasStrangerLetter);
-        hasStrangerLetter = true;
 
         markNewIfMissing("compass", hasCompass);
         hasCompass = true;
@@ -16146,12 +16155,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           musicBoxInventoryItem.hidden = !hasMusicBox;
           setInventoryValue(musicBoxInventoryItem, isMusicOn ? "ON" : "OFF");
         }
-
-        if (strangerLetterInventoryItem) {
-          strangerLetterInventoryItem.hidden = !hasStrangerLetter;
-          setInventoryValue(strangerLetterInventoryItem, isStrangerLetterOn ? "ON" : "OFF");
-        }
-
 
         if (compassInventoryItem) {
           compassInventoryItem.hidden = !hasCompass;
@@ -19059,16 +19062,36 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const deliveredTodoListId = clamp(
           Math.round(Number(activeCat.deliveryTodoListId) || 0),
           0,
-          5
+          TODO_MAX_LIST_ID
         );
         if (deliveredTodoListId <= 0) return;
+        if (lastCatDeliveredTodoListId === deliveredTodoListId) return;
 
-        // 이 순간부터 우편함을 눌러 새 편지와 연결된 보상을 받을 수 있습니다.
-        if (lastCatDeliveredTodoListId !== deliveredTodoListId) {
-          lastCatDeliveredTodoListId = deliveredTodoListId;
-          saveResourceState();
-          updateTutorialGuide();
+        if (deliveredTodoListId === 1) {
+          if (currentTodoListId > 0) return;
+          mailboxIntroTriggered = true;
+          deliverTodoList(1);
+          showToast(MAIL_FIRST_TOAST_MESSAGE);
+        } else {
+          const completedListId = deliveredTodoListId - 1;
+          if (
+            currentTodoListId !== completedListId ||
+            todoCompletedListId !== completedListId ||
+            !isTodoListComplete(completedListId)
+          ) {
+            return;
+          }
+
+          awardTodoRewardForCompletedList(completedListId);
+          deliverTodoList(deliveredTodoListId);
+          showToast(MAIL_NEXT_TOAST_MESSAGE);
         }
+
+        lastCatDeliveredTodoListId = deliveredTodoListId;
+        applyInventoryState();
+        updateExplorationRequirements();
+        saveResourceState();
+        updateTutorialGuide();
       }
 
       function updateCatMovement(activeCat, deltaMs) {
@@ -22767,14 +22790,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           isCarRepaired() ? CAR_HORN_SOUND : CAR_FAIL_SOUND
         );
       });
-      mailboxObject.addEventListener("pointerup", (event) => {
-        if (!shouldActivateFieldObject(event, mailboxObject)) return;
-        handleMailboxInteraction(event);
-      });
-      mailboxObject.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        handleMailboxInteraction(event);
-      });
       bindReliableTap(weatherStatusRow, handleFindZombieButton);
       weatherStatusRow.addEventListener("pointerdown", (event) => event.stopPropagation());
       weatherStatusRow.addEventListener("pointerup", (event) => event.stopPropagation());
@@ -23204,20 +23219,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           return;
         }
 
-        if (itemType === "strangerLetter" && hasStrangerLetter) {
-          const willTurnLetterOn = !isStrangerLetterOn;
-          playSound(INVENTORY_SET_SOUND);
-          isStrangerLetterOn = willTurnLetterOn;
-          if (willTurnLetterOn) {
-            showToast(STRANGER_LETTER_SELECTED_TOAST_MESSAGE);
-          }
-          updateTodoListUI();
-          applyInventoryState();
-          saveResourceState();
-          return;
-        }
-
-
         if (itemType === "compass" && hasCompass) {
           playSound(INVENTORY_SET_SOUND);
           showToast(COMPASS_SELECTED_TOAST_MESSAGE);
@@ -23317,7 +23318,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         });
       }
 
-      // 저장된 Music Box가 On인데 브라우저가 자동 재생을 막은 경우,
+      // 저장된 Walkman이 On인데 브라우저가 자동 재생을 막은 경우,
       // 다음 일반 클릭에서 현재 낮/밤 트랙 재생을 다시 시도합니다.
       document.addEventListener("click", () => {
         if (hasMusicBox && isMusicOn && !bgmStarted) {
