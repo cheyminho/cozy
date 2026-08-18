@@ -78,6 +78,17 @@
       --house-top: calc(730px + var(--central-area-offset-y));
       --house-size: 490px;
 
+      /*
+        탐험 완료 시 켜지는 집 조명 위치/크기 수정 위치
+        - offset-x: 집 왼쪽 기준 오른쪽 이동값
+        - offset-y: 집 위쪽 기준 아래쪽 이동값
+        - width / height: house_1_light.png 표시 크기
+      */
+      --house-light-offset-x: 183px;
+      --house-light-offset-y: 254px;
+      --house-light-width: 108px;
+      --house-light-height: 54px;
+
       --shed-left: 540px;
       --shed-top: 575px;
       --shed-size: 190px;
@@ -420,6 +431,54 @@
     }
 
     /*
+      탐험 100% 완료 시 집 위에 켜지는 조명입니다.
+      houseObject 내부가 아닌 독립 구조물로 두어 wallsObject(z-index: 4)보다 앞에 표시합니다.
+      위치는 :root의 --house-light-offset-x / y에서 조정합니다.
+    */
+    #houseLightObject {
+      position: absolute;
+      left: calc(var(--house-left) + var(--house-light-offset-x));
+      top: calc(var(--house-top) + var(--house-light-offset-y));
+      z-index: 8;
+      width: var(--house-light-width);
+      height: var(--house-light-height);
+      background: center / 100% 100% no-repeat url("images/house_1_light.png");
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      will-change: opacity;
+    }
+
+    /* 탐험 완료 조명은 애니메이션 없이 즉시 켜고 끕니다. */
+    #houseLightObject.is-on {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    /*
+      탐험 100% 완료 후 복귀용 집 입력 영역입니다.
+      집 중앙을 기준으로 256×256 영역을 사용합니다.
+    */
+    #explorationReturnHouseHitArea {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      width: 256px;
+      height: 256px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      cursor: default;
+      touch-action: none;
+      outline: none;
+    }
+
+    body.is-exploration-complete #explorationReturnHouseHitArea {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    /*
       창고 / 울타리 / 차는 낮 이미지와 밤 컬러 이미지를 겹쳐 놓고
       집·나무·배경처럼 3초 동안 크로스페이드합니다.
       filter 자체는 보간하지 않고 밤 레이어의 opacity만 전환해 색이 튀는 현상을 방지합니다.
@@ -506,8 +565,8 @@
 
     #todoListOverlay.is-showing {
       animation:
-        todo-list-slide-in 700ms cubic-bezier(0.39, 0.575, 0.565, 1) both,
-        todo-list-fade-in 700ms linear both;
+        todo-list-slide-in 1000ms cubic-bezier(0.16, 1, 0.3, 1) both,
+        todo-list-fade-in 1000ms linear both;
     }
 
     #todoListOverlay.is-hiding {
@@ -515,7 +574,7 @@
     }
 
     @keyframes todo-list-slide-in {
-      from { transform: translateX(100px); }
+      from { transform: translateX(140px); }
       to { transform: translateX(0); }
     }
 
@@ -548,6 +607,7 @@
       margin-left: auto;
       padding-left: 0;
       text-align: right;
+      line-height: 0.4;
     }
 
     .todo-item + .todo-item {
@@ -570,6 +630,89 @@
       top: calc(50% + 0px);
       border-top: 1px solid currentColor;
       transform: translateY(-50%);
+    }
+
+
+    /* =========================================================
+       탐험 전리품 리스트
+       - Todo 리스트와 같은 위치/폰트/등장 모션을 사용합니다.
+       - 평상시에는 Todo, 탐험 중에는 Loot 리스트만 표시합니다.
+       ========================================================= */
+    #lootListOverlay {
+      position: absolute;
+      right: 26px;
+      top: 165px;
+      z-index: 30;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-size: 16px;
+      font-style: normal;
+      font-weight: 300;
+      line-height: 0.4;
+      text-align: right;
+      opacity: 1;
+      transform: translateX(0);
+      white-space: pre-wrap;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    #lootListOverlay[hidden] {
+      display: none;
+    }
+
+    #lootListOverlay.is-showing {
+      animation:
+        todo-list-slide-in 1000ms cubic-bezier(0.16, 1, 0.3, 1) both,
+        todo-list-fade-in 1000ms linear both;
+    }
+
+    #lootListOverlay.is-hiding {
+      animation: todo-list-fade-out 300ms linear forwards;
+    }
+
+    /* 귀환 시작 시 우상단 상태와 동일한 1초 페이드아웃을 사용합니다.
+       기존 is-showing 애니메이션의 fill-mode가 opacity를 붙잡지 않도록 animation을 해제합니다. */
+    #lootListOverlay.is-return-fading-out {
+      opacity: 0;
+      visibility: visible;
+      animation: none !important;
+      transition: opacity 1000ms ease-in;
+    }
+
+    #lootListTitle {
+      font-size: 18px;
+      display: block;
+      margin-bottom: 6px;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-weight: 200;
+      line-height: 0.36;
+    }
+
+    /* Loot 항목 컨테이너는 레이아웃 박스를 만들지 않아
+       Todo 항목과 동일한 블록 배치 기준으로 계산되게 합니다. */
+    #lootListItems {
+      display: contents;
+    }
+
+    .loot-item {
+      position: relative;
+      display: block;
+      width: max-content;
+      max-width: 320px;
+      margin-left: auto;
+      padding-left: 0;
+      text-align: right;
+      line-height: 0.4;
+    }
+
+    .loot-item + .loot-item {
+      /* Todo는 부모의 white-space: pre-wrap 때문에 HTML 줄바꿈 공백이
+         약 0.4em 높이의 추가 세로 공간으로 보입니다.
+         JS로 연속 생성되는 Loot에는 그 공백 노드가 없으므로 같은 4px만 쓰면 더 붙어 보입니다. */
+      margin-top: calc(9px + 0.4em);
     }
 
 
@@ -783,10 +926,10 @@
       outline: none;
     }
 
-    /* 밤에는 나무와 동일하게 창고와 자동차 입력을 받지 않습니다. */
+    /* 밤에도 포인터 입력은 유지합니다. 탐험 중 상호작용 차단은 JavaScript에서
+       공통 토스트로 처리해 pointerup/드래그 종료 흐름이 끊기지 않게 합니다. */
     body.is-night #shedObject,
     body.is-night #carObject {
-      pointer-events: none;
       cursor: default;
     }
 
@@ -1038,9 +1181,19 @@
       transform-origin: left top;
     }
 
+    /* 밤에도 터치 판정은 유지하고 실제 동작 여부는 JavaScript에서 결정합니다. */
     body.is-night #treeHitArea {
-      pointer-events: none;
       cursor: default;
+    }
+
+    /*
+      탐험 100% 완료 상태에서는 밤 전용 default 커서보다 완료 상태를 우선합니다.
+      좀비와 동일하게 창고·나무·자동차도 손가락 커서를 유지합니다.
+    */
+    body.is-exploration-complete #shedObject,
+    body.is-exploration-complete #treeHitArea,
+    body.is-exploration-complete #carObject {
+      cursor: pointer;
     }
 
     /* 나무 파츠 그림자는 지면 오브젝트처럼 엔티티보다 아래에 표시합니다. */
@@ -1820,6 +1973,7 @@
     /* 시작화면에서는 게임 HUD와 필드 입력을 완전히 감춥니다. */
     body.is-start-screen #hud,
     body.is-start-screen #todoListOverlay,
+    body.is-start-screen #lootListOverlay,
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton,
@@ -1864,7 +2018,8 @@
       translate: 0 0;
     }
 
-    body.is-start-screen #todoListOverlay {
+    body.is-start-screen #todoListOverlay,
+    body.is-start-screen #lootListOverlay {
       translate: 140px 0;
     }
 
@@ -1894,6 +2049,7 @@
     }
 
     body.is-entering-game #todoListOverlay,
+    body.is-entering-game #lootListOverlay,
     body.is-entering-game #repairButton,
     body.is-entering-game #inventoryButton,
     body.is-entering-game #exploreButton,
@@ -1916,6 +2072,38 @@
       pointer-events: none;
     }
 
+    /*
+      밤→낮 복귀 자체가 시작된 뒤에도 복귀 UI만 1초 더 숨깁니다.
+      우측 버튼/좌측 옵션은 탐험 중과 같은 화면 밖 위치를 유지하고,
+      DAY 정보는 1초 뒤 기존 게임 진입과 같은 우측 진입 모션을 다시 재생합니다.
+    */
+    body.is-exploration-return-ui-delayed #repairButton,
+    body.is-exploration-return-ui-delayed #inventoryButton,
+    body.is-exploration-return-ui-delayed #exploreButton {
+      opacity: 0;
+      translate: 140px 0;
+      pointer-events: none;
+      transition: none;
+    }
+
+    body.is-exploration-return-ui-delayed #optionControls {
+      opacity: 0;
+      translate: -180px 0;
+      pointer-events: none;
+      transition: none;
+    }
+
+    body.is-exploration-return-ui-delayed #optionControls .option-control-button {
+      pointer-events: none;
+    }
+
+    body.is-exploration-return-ui-delayed #dayStatus {
+      opacity: 0;
+      visibility: hidden;
+      translate: 140px 0;
+      transition: none;
+    }
+
     /* 탐험 중 하단 중앙 소리 버튼 + 안내 문구 그룹입니다. 둘이 같은 타이밍으로 표시/숨김됩니다. */
     #exploringGuideGroup {
       position: fixed;
@@ -1929,10 +2117,12 @@
       gap: 10px;
       opacity: 0;
       visibility: hidden;
-      transform: translateX(-50%);
+      /* 탐험 시작 전에는 화면 아래쪽에 대기합니다. */
+      transform: translate(-50%, 160px);
       pointer-events: none;
       transition:
         opacity 700ms ease,
+        transform 900ms cubic-bezier(0.215, 0.61, 0.355, 1),
         visibility 0s linear 700ms;
     }
 
@@ -1957,14 +2147,43 @@
     body.is-exploring #exploringGuideGroup {
       opacity: 1;
       visibility: visible;
+      transform: translate(-50%, 0);
+      transition: none;
+    }
+
+    /* 탐험 시작 시 하단 안내 그룹도 우상단 탐험 상태와 같은 프레임에서
+       같은 1000ms / easeOutExpo 커브로 진입합니다. */
+    body.is-exploring #exploringGuideGroup.is-status-entering {
+      opacity: 0;
+      visibility: visible;
+      transform: translate(-50%, 160px);
+      transition: none;
+    }
+
+    body.is-exploring #exploringGuideGroup.is-status-entering.is-status-entering-active {
+      opacity: 1;
+      transform: translate(-50%, 0);
       transition:
-        opacity 900ms ease 250ms,
-        visibility 0s linear 0s;
+        transform var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* 집을 눌러 귀환을 시작하면 하단 안내와 사운드 버튼도
+       Complete / 100%와 같은 1초 타이밍으로 제자리 페이드아웃합니다. */
+    body.is-exploration-return-fading-out #exploringGuideGroup {
+      opacity: 0;
+      visibility: visible;
+      transition: opacity 1000ms ease-in;
+    }
+
+    body.is-exploration-return-fading-out #exploringSoundToggleButton {
+      pointer-events: none;
     }
 
     body.is-start-screen #exploringGuideGroup {
       opacity: 0 !important;
       visibility: hidden !important;
+      transform: translate(-50%, 160px) !important;
       transition: none !important;
     }
 
@@ -3636,11 +3855,19 @@
       transition: none;
     }
 
-    /* 탐험 정보는 나타날 때만 2초 동안 페이드인하고, 사라질 때는 즉시 숨깁니다. */
+    /* 탐험 정보는 나타날 때 2초 동안 페이드인합니다. */
     #exploringStatus.is-visible {
       opacity: 1;
       visibility: visible;
       transition: opacity 2s ease-out;
+    }
+
+    /* 탐험 100% 완료 후 집을 누르면, 낮 전환 전 1초 대기 동안
+       Complete / 100% 정보를 제자리에서 페이드아웃합니다. */
+    #exploringStatus.is-return-fading-out {
+      opacity: 0;
+      visibility: visible;
+      transition: opacity 1000ms ease-in;
     }
 
     #exploringLabel {
@@ -3734,6 +3961,9 @@
       width: max-content;
       margin-left: auto;
       margin-right: 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: flex-end;
       font-size: 59px;
       font-weight: 500;
       line-height: 0.9;
@@ -3742,6 +3972,14 @@
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
       font-feature-settings: "tnum" 1;
+    }
+
+    /* 탐험 진행률의 % 기호도 숫자와 같은 크기로 표시합니다. */
+    #exploringPercentSign {
+      margin-left: 0.06em;
+      font-size: 1em;
+      font-weight: 500;
+      letter-spacing: 0;
     }
 
     #dayStatus {
@@ -3770,6 +4008,27 @@
     body.is-initializing-status #exploringStatus,
     body.is-initializing-status #dayStatus {
       transition: none !important;
+    }
+
+    /*
+      낮/탐험 정보가 다시 나타날 때는 게임 최초 진입과 같은 우측 진입 모션을 재생합니다.
+      사라지는 쪽은 기존처럼 제자리에서 즉시 숨기고, 새로 나타나는 쪽만 오른쪽 140px에서 들어옵니다.
+    */
+    #exploringStatus.is-status-entering,
+    #dayStatus.is-status-entering {
+      visibility: visible;
+      opacity: 0;
+      translate: 140px 0;
+      transition: none;
+    }
+
+    #exploringStatus.is-status-entering.is-status-entering-active,
+    #dayStatus.is-status-entering.is-status-entering-active {
+      opacity: 1;
+      translate: 0 0;
+      transition:
+        translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     #dayNumber {
@@ -4283,7 +4542,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.198"
+  data-game-version="0.199"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4388,11 +4647,18 @@
         }
 
         const savedExplorationEndsAt = Number(parsed.explorationEndsAt);
-
-        if (
+        const explorationNightThresholdMs = 5 * 60_000;
+        const savedExplorationRemainingMs = savedExplorationEndsAt - Date.now();
+        const shouldRestoreExplorationNight =
           Number.isFinite(savedExplorationEndsAt) &&
-          savedExplorationEndsAt > Date.now()
-        ) {
+          savedExplorationEndsAt > 0 &&
+          (
+            parsed.explorationCompletePending === true ||
+            savedExplorationRemainingMs <= explorationNightThresholdMs
+          );
+
+        // 탐험 완료 5분 전부터는 새로고침/재실행 직후에도 밤 화면으로 시작합니다.
+        if (shouldRestoreExplorationNight) {
           document.body.classList.add("is-night", "is-restored-night");
         }
 
@@ -4416,7 +4682,15 @@
       <div id="rainSpotLayer" aria-hidden="true"></div>
       <div id="props">
         <div id="structures">
-          <div id="houseObject" class="world-structure"></div>
+          <div id="houseObject" class="world-structure">
+            <div
+              id="explorationReturnHouseHitArea"
+              role="button"
+              aria-label="탐험에서 복귀"
+              aria-hidden="true"
+            ></div>
+          </div>
+          <div id="houseLightObject" aria-hidden="true"></div>
           <div id="wallsObject" class="world-structure" hidden></div>
           <div id="roofObject" class="world-structure" hidden></div>
           <div id="gardenObject" class="world-structure" hidden></div>
@@ -4503,9 +4777,13 @@
       <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
       <span class="todo-item" data-todo-key="item3">explore the village</span>
     </div>
+    <div id="lootListOverlay" hidden>
+      <span id="lootListTitle">searching village...</span>
+      <div id="lootListItems"></div>
+    </div>
     <div id="exploringStatus" aria-live="polite">
       <div id="exploringLabel">Exploring</div>
-      <div id="exploringTime">0%</div>
+      <div id="exploringTime"><span id="exploringPercentValue">0</span><span id="exploringPercentSign">%</span></div>
     </div>
     <div id="dayStatus" aria-live="polite">
       <div id="weatherStatusRow" role="button" tabindex="0" aria-label="Find remaining zombies">
@@ -5116,6 +5394,34 @@ You can leave the game and come back anytime.</div>
         fuel: Object.freeze({ min: 5, max: 20 })
       });
 
+      // 한 번의 실제 탐험에서 획득하는 서로 다른 보상 종류 수입니다.
+      // City의 기존 수량 x2 규칙은 사용하지 않고, 대신 더 많은 종류를 찾습니다.
+      const EXPLORATION_REWARD_TYPE_COUNT_RANGES = Object.freeze({
+        village: Object.freeze({ min: 1, max: 3 }),
+        city: Object.freeze({ min: 2, max: 5 })
+      });
+      const EXPLORATION_LOOT_REVEAL_MIN_PROGRESS = 0.08;
+      const EXPLORATION_LOOT_REVEAL_MAX_PROGRESS = 0.92;
+      const EXPLORATION_LOOT_ITEM_LABELS = Object.freeze({
+        handgun: "Handgun",
+        handgunAmmo: "Handgun Ammo",
+        shotgun: "Shotgun",
+        shotgunAmmo: "Shotgun Ammo",
+        rifleAmmo: "Rifle Ammo",
+        chainsaw: "Chainsaw",
+        chainsawBattery: "Chainsaw Battery",
+        carParts: "Car Parts",
+        repairKit: "Repair Kit",
+        fuel: "Fuel",
+        flowers: "Flowers",
+        whitePaint: "White Paint",
+        blackPaint: "Black Paint",
+        redPaint: "Red Paint",
+        yellowPaint: "Yellow Paint",
+        bluePaint: "Blue Paint",
+        greenPaint: "Green Paint"
+      });
+
       // 가방 정렬 순서: ON/OFF → 장착 → 수량 → 수량 없는 고유 아이템.
       // 수량 아이템은 체인소우 배터리 → 탄약 → 페인트 → 나머지 순서이며,
       // 같은 하위 그룹 안에서는 화면에 표시되는 영문 이름 기준으로 정렬합니다.
@@ -5213,14 +5519,23 @@ You can leave the game and come back anytime.</div>
       const EMPTY_ZOMBIE_SPAWN_MAX_DELAY_MS = 5_000;
       const TODO_LIST_MAIL_REVEAL_DELAY_MS = 1_000;
 
-      const VILLAGE_EXPLORATION_DURATION_MS = 5 * 60_000;
-      const FOREST_EXPLORATION_DURATION_MS = 15 * 60_000;
+      const VILLAGE_EXPLORATION_DURATION_MS = 10 * 60_000;
+      const FOREST_EXPLORATION_DURATION_MS = 20 * 60_000;
       const CITY_EXPLORATION_DURATION_MS = 30 * 60_000;
+      // 모든 탐험지는 완료 5분 전부터 밤으로 전환합니다.
+      const EXPLORATION_NIGHT_REMAINING_MS = 5 * 60_000;
+      // Village/Forest 복귀 발자국은 완료 5초 전에, City 차량 소리/복귀 애니메이션은 완료 10초 전에 시작합니다.
+      const EXPLORATION_RETURN_SOUND_REMAINING_MS = 5_000;
+      const CITY_EXPLORATION_RETURN_CUE_REMAINING_MS = 10_000;
       const RESOURCE_STORAGE_KEY = "cozy.resources.v1";
       const START_SCREEN_NEW_GAME_SESSION_KEY = "cozy.start.new-game.v1";
       const START_SCREEN_GAMEPLAY_SESSION_KEY = "cozy.start.gameplay-active.v1";
       const START_SCREEN_FADE_MS = 500;
       const GAME_UI_ENTRY_CLEANUP_MS = 1_050;
+      // 집을 누른 뒤 조명/스위치음은 즉시 처리하고, 실제 밤→낮 복귀는 1초 뒤 시작합니다.
+      const EXPLORATION_RETURN_TRANSITION_DELAY_MS = 1_000;
+      // 밤→낮 전환이 시작된 뒤, 복귀 UI는 추가로 1초 더 기다렸다가 나타납니다.
+      const EXPLORATION_RETURN_UI_DELAY_MS = 1_000;
       const GAME_VERSION = String(
         document.body.dataset.gameVersion || ""
       ).trim();
@@ -5862,7 +6177,11 @@ You can leave the game and come back anytime.</div>
       const CARRY_FULL_TOAST_MESSAGE = "I can't carry any more.";
       const DEER_FOOD_FULL_TOAST_MESSAGE = "I’ve got enough.";
       const NO_FOOD_TOAST_MESSAGE = "No food, no adventure.";
-      const EXPLORING_BUSY_TOAST_MESSAGE = "I'm already out there.";
+      const EXPLORING_BUSY_TOAST_MESSAGE = "I'm out exploring.";
+      const EXPLORING_GUIDE_DEFAULT_MESSAGE =
+        "Exploring takes time, but rewards await.\nYou can leave the game and come back anytime.";
+      const EXPLORATION_COMPLETE_GUIDE_MESSAGE =
+        "Exploration complete.\nTap the house to start a new day.";
       const FOREST_BLOCKED_TOAST_MESSAGE =
         "I shouldn't go without a compass.";
       const CITY_BLOCKED_TOAST_MESSAGE = "It's too far to walk.";
@@ -6161,7 +6480,11 @@ You can leave the game and come back anytime.</div>
       const repairNewBadge = document.getElementById("repairNewBadge");
       const exploreNewBadge = document.getElementById("exploreNewBadge");
       const exploringStatus = document.getElementById("exploringStatus");
+      const exploringLabel = document.getElementById("exploringLabel");
       const exploringTime = document.getElementById("exploringTime");
+      const exploringPercentValue = document.getElementById("exploringPercentValue");
+      const exploringGuideGroup = document.getElementById("exploringGuideGroup");
+      const exploringGuide = document.getElementById("exploringGuide");
       const weatherStatusRow = document.getElementById("weatherStatusRow");
       const weatherLabel = document.getElementById("weatherLabel");
       const remainingZombieLabel = document.getElementById("remainingZombieLabel");
@@ -6185,6 +6508,7 @@ You can leave the game and come back anytime.</div>
       const cancelNewGameButton = document.getElementById("cancelNewGameButton");
       const confirmNewGameButton = document.getElementById("confirmNewGameButton");
       const houseObject = document.getElementById("houseObject");
+      const houseLightObject = document.getElementById("houseLightObject");
       const wallsObject = document.getElementById("wallsObject");
       const roofObject = document.getElementById("roofObject");
       const gardenObject = document.getElementById("gardenObject");
@@ -6210,6 +6534,9 @@ You can leave the game and come back anytime.</div>
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
       const todoListOverlay = document.getElementById("todoListOverlay");
+      const lootListOverlay = document.getElementById("lootListOverlay");
+      const lootListTitle = document.getElementById("lootListTitle");
+      const lootListItems = document.getElementById("lootListItems");
       const tutorialGuideLayer = document.getElementById("tutorialGuideLayer");
       const tutorialGuideArrow = document.getElementById("tutorialGuideArrow");
       const tutorialGuideText = document.getElementById("tutorialGuideText");
@@ -6763,12 +7090,22 @@ You can leave the game and come back anytime.</div>
         })
       );
       let isExploring = false;
+      let isExplorationCompletePending = false;
       let explorationDestination = "";
       let explorationEndsAt = 0;
       // DAY 5 보상 판정은 귀환 후 증가한 DAY가 아니라 출발 시점의 DAY를 사용합니다.
       let explorationDepartureDay = 0;
+      // 실제 탐험 보상은 출발 순간에 미리 확정해 표시와 실제 지급 결과를 일치시킵니다.
+      let explorationRewardPlan = null;
+      let hasPlayedExplorationReturnFootsteps = false;
+      let hasStartedCityExplorationReturn = false;
+      let explorationReturnCueTimerId = null;
       let explorationTimerId = null;
       let explorationCompleteToastTimerId = null;
+      let isExplorationReturnHouseLocked = true;
+      let suppressExplorationCompletionClickUntil = 0;
+      let explorationReturnTransitionTimerId = null;
+      let explorationReturnUiTimerId = null;
       let returnZombieSpawnTimerId = null;
       let carTravelAnimationFrameId = null;
       let carDriveFrameTimerId = null;
@@ -6846,6 +7183,7 @@ You can leave the game and come back anytime.</div>
       let pendingEmptyDeerSpawnTimerId = null;
       let lastZombieVisibilityCheckAt = 0;
       let todoListHideTimerId = null;
+      let lootListHideTimerId = null;
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
       const TODO_MAX_LIST_ID = 8;
@@ -8339,6 +8677,30 @@ You can leave the game and come back anytime.</div>
         return isLeft ? "bottomLeft" : "bottomRight";
       }
 
+      // 화면 중심에서 대상 좀비가 있는 방향을 12방향 시계 위치로 변환합니다.
+      function getZombieClockDirection(zombie) {
+        if (!zombie?.element?.isConnected) return null;
+
+        const rect = zombie.element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return null;
+
+        const zombieCenterX = rect.left + rect.width / 2;
+        const zombieCenterY = rect.top + rect.height / 2;
+        const dx = zombieCenterX - window.innerWidth / 2;
+        const dy = zombieCenterY - window.innerHeight / 2;
+
+        // 12시는 위쪽, 3시는 오른쪽이 되도록 위쪽 기준 시계방향 각도를 사용합니다.
+        const clockwiseDegrees = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+        const clockIndex = Math.round(clockwiseDegrees / 30) % 12;
+        return clockIndex === 0 ? 12 : clockIndex;
+      }
+
+      function showZombieClockDirectionToast(zombie) {
+        const hour = getZombieClockDirection(zombie);
+        if (hour === null) return;
+        showToast(`Zombie at ${hour} o'clock.`);
+      }
+
       function restartFindZombieGuideFadeIn() {
         if (!findZombieGuideLayer) return;
         findZombieGuideLayer.classList.remove("is-fading-in");
@@ -8477,6 +8839,7 @@ You can leave the game and come back anytime.</div>
           return;
         }
 
+        showZombieClockDirectionToast(zombie);
         hideTutorialGuide();
         findZombieGuideTargetId = zombie.id;
         findZombieGuideType = getFindZombieGuideType(zombie);
@@ -8995,7 +9358,9 @@ You can leave the game and come back anytime.</div>
 
         const visible =
           currentTodoListId > 0 &&
-          !isTodoListRevealDelayed;
+          !isTodoListRevealDelayed &&
+          !isExploring &&
+          !document.body.classList.contains("is-exploration-return-ui-delayed");
         if (visible) {
           showTodoListOverlay();
         } else {
@@ -9015,6 +9380,103 @@ You can leave the game and come back anytime.</div>
           element.classList.toggle("is-complete", Boolean(text) && progress[key] === true);
         });
 
+      }
+
+      function showLootListOverlay() {
+        if (!lootListOverlay) return;
+        if (lootListHideTimerId !== null) {
+          clearTimeout(lootListHideTimerId);
+          lootListHideTimerId = null;
+        }
+
+        const wasHidden = lootListOverlay.hidden;
+        lootListOverlay.classList.remove("is-hiding");
+        lootListOverlay.hidden = false;
+
+        if (
+          wasHidden &&
+          hasGameInitialized &&
+          !document.body.classList.contains("is-start-screen")
+        ) {
+          lootListOverlay.classList.remove("is-showing");
+          void lootListOverlay.offsetWidth;
+          lootListOverlay.classList.add("is-showing");
+        } else if (wasHidden) {
+          lootListOverlay.classList.remove("is-showing");
+        }
+      }
+
+      function hideLootListOverlay() {
+        if (!lootListOverlay || lootListOverlay.hidden) return;
+        if (lootListHideTimerId !== null) {
+          clearTimeout(lootListHideTimerId);
+        }
+
+        lootListOverlay.classList.remove("is-showing");
+        lootListOverlay.classList.add("is-hiding");
+        lootListHideTimerId = window.setTimeout(() => {
+          lootListHideTimerId = null;
+          lootListOverlay.hidden = true;
+          lootListOverlay.classList.remove("is-hiding");
+        }, 500);
+      }
+
+      function getExplorationDestinationDisplayName(destination) {
+        if (destination === "forest") return "Forest";
+        if (destination === "city") return "City";
+        return "Village";
+      }
+
+      function getExplorationProgressRatio() {
+        if (!isExploring) return 0;
+        if (isExplorationCompletePending) return 1;
+        const totalDurationMs = Math.max(1, getExplorationDurationMs(explorationDestination));
+        const remainingMs = Math.max(0, explorationEndsAt - Date.now());
+        return clamp((totalDurationMs - remainingMs) / totalDurationMs, 0, 1);
+      }
+
+      function formatExplorationLootQuantity(reward, quantity) {
+        const normalized = Math.max(0, Math.round(Number(quantity) || 0));
+        if (reward?.itemType === "chainsawBattery") {
+          return `${normalized}%`;
+        }
+        return `x${normalized}`;
+      }
+
+      function updateExplorationLootUI(progressOverride = null) {
+        if (!lootListOverlay || !lootListTitle || !lootListItems) return;
+        if (!isExploring || !explorationRewardPlan) {
+          hideLootListOverlay();
+          return;
+        }
+
+        const progress = progressOverride === null
+          ? getExplorationProgressRatio()
+          : clamp(Number(progressOverride) || 0, 0, 1);
+        const destinationName = getExplorationDestinationDisplayName(explorationDestination);
+        lootListTitle.textContent = (isExplorationCompletePending || progress >= 1
+          ? `${destinationName} Loot`
+          : `Searching ${destinationName}...`).toLowerCase();
+
+        const fragment = document.createDocumentFragment();
+        for (const reward of explorationRewardPlan.rewards || []) {
+          const isProgressive = reward.progressive === true;
+          if (!isProgressive && progress < (Number(reward.revealProgress) || 0)) {
+            continue;
+          }
+
+          const line = document.createElement("span");
+          line.className = "loot-item";
+          const finalQuantity = Math.max(0, Math.round(Number(reward.quantity) || 0));
+          const visibleQuantity = isProgressive
+            ? Math.min(finalQuantity, Math.floor(progress * finalQuantity + 1e-9))
+            : finalQuantity;
+          line.textContent = `${reward.label || reward.itemType || "loot"} ${formatExplorationLootQuantity(reward, visibleQuantity)}`.toLowerCase();
+          fragment.appendChild(line);
+        }
+
+        lootListItems.replaceChildren(fragment);
+        showLootListOverlay();
       }
 
       function isRepairCategory(value) {
@@ -10688,6 +11150,16 @@ You can leave the game and come back anytime.</div>
           explorationDepartureDay = explorationEndsAt > 0
             ? normalizeDayCount(parsed.explorationDepartureDay ?? dayCount)
             : 0;
+          explorationRewardPlan = explorationEndsAt > 0
+            ? normalizeExplorationRewardPlan(parsed.explorationRewardPlan, explorationDestination)
+            : null;
+          hasPlayedExplorationReturnFootsteps =
+            explorationEndsAt > 0 && parsed.hasPlayedExplorationReturnFootsteps === true;
+          hasStartedCityExplorationReturn =
+            explorationEndsAt > 0 && parsed.hasStartedCityExplorationReturn === true;
+          isExplorationCompletePending =
+            explorationEndsAt > 0 &&
+            (parsed.explorationCompletePending === true || explorationEndsAt <= Date.now());
           if (explorationEndsAt > 0 && isChainsawEquipped) {
             isChainsawEquipped = false;
           }
@@ -10852,6 +11324,12 @@ You can leave the game and come back anytime.</div>
               explorationDestination,
               explorationEndsAt: isExploring ? explorationEndsAt : 0,
               explorationDepartureDay: isExploring ? explorationDepartureDay : 0,
+              explorationRewardPlan: isExploring ? explorationRewardPlan : null,
+              hasPlayedExplorationReturnFootsteps:
+                isExploring && hasPlayedExplorationReturnFootsteps,
+              hasStartedCityExplorationReturn:
+                isExploring && hasStartedCityExplorationReturn,
+              explorationCompletePending: isExploring && isExplorationCompletePending,
               activeZombies: getLivingZombieCount(),
               fixedFirstZombieAlive: hasLivingFixedFirstZombie(),
               activeDeer: getLivingDeerCount(),
@@ -11859,15 +12337,179 @@ You can leave the game and come back anytime.</div>
         }
       }
 
+      function resetHouseExplorationLight() {
+        if (!houseLightObject) return;
+        houseLightObject.classList.remove("is-on");
+      }
+
+      function turnOnHouseExplorationLight() {
+        if (!houseLightObject) return;
+        const wasOn = houseLightObject.classList.contains("is-on");
+        houseLightObject.classList.add("is-on");
+        if (!wasOn) {
+          playSound(INVENTORY_SET_SOUND);
+        }
+      }
+
+      function turnOffHouseExplorationLight() {
+        if (!houseLightObject) return;
+        const wasOn = houseLightObject.classList.contains("is-on");
+        houseLightObject.classList.remove("is-on");
+        if (wasOn) {
+          playSound(INVENTORY_SET_SOUND);
+        }
+      }
+
+      function replayTopRightStatusEntry(element) {
+        if (!element || document.body.classList.contains("is-start-screen")) return;
+
+        element.classList.remove("is-status-entering", "is-status-entering-active");
+        void element.offsetWidth;
+        element.classList.add("is-status-entering");
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!element.classList.contains("is-status-entering")) return;
+            element.classList.add("is-status-entering-active");
+          });
+        });
+
+        window.setTimeout(() => {
+          element.classList.remove("is-status-entering", "is-status-entering-active");
+        }, GAME_UI_ENTRY_CLEANUP_MS);
+      }
+
+      function setExplorationProgressPercent(value) {
+        exploringPercentValue.textContent = String(clamp(Math.round(value), 0, 100));
+      }
+
+      function syncExplorationProgressUI() {
+        document.body.classList.toggle(
+          "is-exploration-complete",
+          isExploring && isExplorationCompletePending
+        );
+        exploringLabel.textContent = isExplorationCompletePending ? "Complete" : "Exploring";
+
+        // 집을 눌러 복귀 페이드가 진행 중일 때는 하단 문구를 바꾸지 않습니다.
+        // Complete 안내가 그대로 사라진 뒤, 완전히 숨은 상태에서 다음 탐험용 기본 문구로 되돌립니다.
+        if (!document.body.classList.contains("is-exploration-return-fading-out")) {
+          exploringGuide.textContent = isExplorationCompletePending
+            ? EXPLORATION_COMPLETE_GUIDE_MESSAGE
+            : EXPLORING_GUIDE_DEFAULT_MESSAGE;
+        }
+      }
+
+      function enterExplorationCompletePendingState(options = {}) {
+        if (!isExploring) return;
+
+        const wasPending = isExplorationCompletePending;
+        isExplorationCompletePending = true;
+        if (!wasPending) {
+          isExplorationReturnHouseLocked = false;
+        }
+        setExplorationProgressPercent(100);
+        syncExplorationProgressUI();
+        updateExplorationLootUI(1);
+        setNightMode(true);
+        if (!wasPending) {
+          turnOnHouseExplorationLight();
+        }
+        exploringStatus.classList.remove("is-return-fading-out");
+        exploringStatus.classList.add("is-visible");
+        updateDayStatus();
+
+        if (explorationTimerId !== null) {
+          clearInterval(explorationTimerId);
+          explorationTimerId = null;
+        }
+        if (explorationReturnCueTimerId !== null) {
+          clearTimeout(explorationReturnCueTimerId);
+          explorationReturnCueTimerId = null;
+        }
+
+        if (!wasPending && options.save !== false) {
+          saveResourceState();
+        }
+      }
+
+      function getExplorationReturnCueRemainingMs() {
+        return explorationDestination === "city"
+          ? CITY_EXPLORATION_RETURN_CUE_REMAINING_MS
+          : EXPLORATION_RETURN_SOUND_REMAINING_MS;
+      }
+
+      function maybePlayExplorationReturnSound(remainingMs) {
+        if (
+          !isExploring ||
+          isExplorationCompletePending ||
+          hasPlayedExplorationReturnFootsteps
+        ) {
+          return;
+        }
+
+        const normalizedRemainingMs = Math.max(0, Number(remainingMs) || 0);
+        const returnCueRemainingMs = getExplorationReturnCueRemainingMs();
+        if (
+          normalizedRemainingMs > 0 &&
+          normalizedRemainingMs <= returnCueRemainingMs
+        ) {
+          hasPlayedExplorationReturnFootsteps = true;
+          playSound(
+            explorationDestination === "city"
+              ? CITY_EXPLORATION_STOP_SOUND
+              : EXPLORING_FOOTSTEPS_SOUND
+          );
+          if (explorationDestination === "city" && !hasStartedCityExplorationReturn) {
+            hasStartedCityExplorationReturn = true;
+            startCityCarReturn();
+          }
+          // 새로고침으로 완료 직전 복귀 사운드/차량 복귀가 중복 실행되지 않도록 즉시 저장합니다.
+          saveResourceState();
+        }
+      }
+
+      function scheduleExplorationReturnCue() {
+        if (explorationReturnCueTimerId !== null) {
+          clearTimeout(explorationReturnCueTimerId);
+          explorationReturnCueTimerId = null;
+        }
+        if (!isExploring || isExplorationCompletePending || explorationEndsAt <= 0) return;
+
+        const returnCueRemainingMs = getExplorationReturnCueRemainingMs();
+        const delayMs = explorationEndsAt - Date.now() - returnCueRemainingMs;
+        if (delayMs <= 0) {
+          maybePlayExplorationReturnSound(Math.max(0, explorationEndsAt - Date.now()));
+          return;
+        }
+
+        explorationReturnCueTimerId = window.setTimeout(() => {
+          explorationReturnCueTimerId = null;
+          maybePlayExplorationReturnSound(Math.max(0, explorationEndsAt - Date.now()));
+        }, delayMs);
+      }
+
       function updateExploringCountdown() {
         if (!isExploring) return;
 
+        if (isExplorationCompletePending) {
+          setExplorationProgressPercent(100);
+          syncExplorationProgressUI();
+          updateExplorationLootUI(1);
+          return;
+        }
+
         const remainingMs = Math.max(0, explorationEndsAt - Date.now());
         const totalDurationMs = Math.max(1, getExplorationDurationMs(explorationDestination));
+        maybePlayExplorationReturnSound(remainingMs);
+        const shouldBeNight = remainingMs <= EXPLORATION_NIGHT_REMAINING_MS;
+
+        // 탐험 완료 5분 전부터 밤으로 전환합니다. 같은 상태에서는 전환 함수를 반복 호출하지 않습니다.
+        if (document.body.classList.contains("is-night") !== shouldBeNight) {
+          setNightMode(shouldBeNight);
+        }
 
         if (remainingMs <= 0) {
-          exploringTime.textContent = "100%";
-          finishExploration();
+          enterExplorationCompletePendingState();
           return;
         }
 
@@ -11877,7 +12519,8 @@ You can leave the game and come back anytime.</div>
           0,
           99
         );
-        exploringTime.textContent = `${progressPercent}%`;
+        setExplorationProgressPercent(progressPercent);
+        updateExplorationLootUI(elapsedMs / totalDurationMs);
       }
 
       function getCurrentBgmAudio() {
@@ -12919,6 +13562,17 @@ You can leave the game and come back anytime.</div>
           returnZombieSpawnTimerId = null;
         }
 
+        if (explorationReturnTransitionTimerId !== null) {
+          clearTimeout(explorationReturnTransitionTimerId);
+          explorationReturnTransitionTimerId = null;
+        }
+
+        if (explorationReturnUiTimerId !== null) {
+          clearTimeout(explorationReturnUiTimerId);
+          explorationReturnUiTimerId = null;
+        }
+        document.body.classList.remove("is-exploration-return-ui-delayed");
+
         const isCityExploration = destination === "city";
         playSound(
           isCityExploration
@@ -12937,18 +13591,30 @@ You can leave the game and come back anytime.</div>
             completeStageOnExit: false
           });
         }
+        resetHouseExplorationLight();
+        isExplorationReturnHouseLocked = true;
         isExploring = true;
+        isExplorationCompletePending = false;
         explorationDestination = destination;
         explorationDepartureDay = dayCount;
         explorationEndsAt = Date.now() + getExplorationDurationMs(destination);
+        explorationRewardPlan = createExplorationRewardPlan(destination, explorationDepartureDay);
+        hasPlayedExplorationReturnFootsteps = false;
+        hasStartedCityExplorationReturn = false;
         if (isCityExploration) {
           startCityCarDeparture();
         }
+        setNightMode(false);
+        syncExplorationProgressUI();
+        updateTodoListUI();
+        updateExplorationLootUI(0);
         commitResourceState();
-        setNightMode(true);
         exploringStatus.classList.add("is-visible");
+        replayTopRightStatusEntry(exploringStatus);
+        replayTopRightStatusEntry(exploringGuideGroup);
         updateDayStatus();
         updateExploringCountdown();
+        scheduleExplorationReturnCue();
         updateTutorialGuide();
 
         if (explorationTimerId !== null) {
@@ -12963,70 +13629,629 @@ You can leave the game and come back anytime.</div>
 
       function restoreExplorationState(options = {}) {
         const previewOnly = options.previewOnly === true;
-
-        if (previewOnly) {
-          if (explorationTimerId !== null) {
-            clearInterval(explorationTimerId);
-            explorationTimerId = null;
-          }
-
-          const isSavedExplorationStillActive = explorationEndsAt > Date.now();
-          isExploring = isSavedExplorationStillActive;
-
-          if (isSavedExplorationStillActive) {
-            if (explorationDestination === "city") {
-              setCarAwayForRestoredCityExploration();
-            } else {
-              resetCarToHomePosition();
-            }
-            setNightMode(true);
-          } else {
-            resetCarToHomePosition();
-            setNightMode(false);
-          }
-
-          updateDayStatus();
-          return;
-        }
-
-        if (explorationEndsAt <= Date.now()) {
-          if (explorationEndsAt > 0) {
-            // 페이지가 닫혀 있는 동안 탐험이 끝난 경우에도 귀환 1회로 처리합니다.
-            isExploring = true;
-            finishExploration();
-            return;
-          }
-
-          isExploring = false;
-          explorationDestination = "";
-          explorationEndsAt = 0;
-          explorationDepartureDay = 0;
-          resetCarToHomePosition();
-          setNightMode(false);
-          updateDayStatus();
-          saveResourceState();
-          return;
-        }
-
-        isExploring = true;
-        if (explorationDestination === "city") {
-          setCarAwayForRestoredCityExploration();
-        } else {
-          resetCarToHomePosition();
-        }
-        setNightMode(true);
-        exploringStatus.classList.add("is-visible");
-        updateDayStatus();
-        updateExploringCountdown();
+        const hasSavedExploration = explorationEndsAt > 0;
+        const hasReachedCompletion =
+          hasSavedExploration &&
+          (isExplorationCompletePending || explorationEndsAt <= Date.now());
 
         if (explorationTimerId !== null) {
           clearInterval(explorationTimerId);
+          explorationTimerId = null;
         }
 
-        explorationTimerId = window.setInterval(
-          updateExploringCountdown,
-          1_000
+        if (!hasSavedExploration) {
+          resetHouseExplorationLight();
+          isExplorationReturnHouseLocked = true;
+          isExploring = false;
+          isExplorationCompletePending = false;
+          explorationDestination = "";
+          explorationEndsAt = 0;
+          explorationDepartureDay = 0;
+          explorationRewardPlan = null;
+          hasPlayedExplorationReturnFootsteps = false;
+          hasStartedCityExplorationReturn = false;
+          if (explorationReturnCueTimerId !== null) {
+            clearTimeout(explorationReturnCueTimerId);
+            explorationReturnCueTimerId = null;
+          }
+          hideLootListOverlay();
+          resetCarToHomePosition();
+          setNightMode(false);
+          syncExplorationProgressUI();
+          updateDayStatus();
+          if (!previewOnly) saveResourceState();
+          return;
+        }
+
+        isExplorationReturnHouseLocked = true;
+        isExploring = true;
+        isExplorationCompletePending = false;
+        if (!explorationRewardPlan) {
+          explorationRewardPlan = createExplorationRewardPlan(
+            explorationDestination,
+            explorationDepartureDay > 0 ? explorationDepartureDay : dayCount
+          );
+        }
+        updateTodoListUI();
+
+        if (explorationDestination === "city") {
+          const restoredRemainingMs = Math.max(0, explorationEndsAt - Date.now());
+          if (
+            hasStartedCityExplorationReturn ||
+            restoredRemainingMs <= CITY_EXPLORATION_RETURN_CUE_REMAINING_MS
+          ) {
+            hasStartedCityExplorationReturn = true;
+            const elapsedReturnMs = Math.max(
+              0,
+              CITY_EXPLORATION_RETURN_CUE_REMAINING_MS - restoredRemainingMs
+            );
+            const returnProgress = clamp(
+              elapsedReturnMs / CAR_TRAVEL_DURATION_MS,
+              0,
+              1
+            );
+            const easedReturnProgress = 1 - (1 - returnProgress) * (1 - returnProgress);
+            cancelCarTravelAnimation({ restoreIdleFrame: false });
+            carObject.style.visibility = "visible";
+            setCarTravelTransform(
+              CAR_CITY_RETURN_START_OFFSET_X * (1 - easedReturnProgress),
+              CAR_CITY_RETURN_START_OFFSET_Y * (1 - easedReturnProgress)
+            );
+            if (returnProgress < 1) {
+              // City는 완료 10초 전에 복귀를 시작하고 5초 동안 이동합니다.
+              // 새로고침 시 이미 지난 만큼의 진행률에서 남은 이동만 이어서 재생합니다.
+              const remainingDuration = Math.max(
+                1,
+                CAR_TRAVEL_DURATION_MS - elapsedReturnMs
+              );
+              const startProgress = returnProgress;
+              cancelCarTravelAnimation({ restoreIdleFrame: false });
+              const animationToken = carTravelAnimationToken;
+              const startedAt = performance.now();
+              isCarTraveling = true;
+              carObject.classList.add("is-traveling");
+              carObject.style.visibility = "visible";
+              startCarDriveFrameLoop();
+              updateStructureInteractivity();
+              const stepRestoredCityReturn = (now) => {
+                if (animationToken !== carTravelAnimationToken) return;
+                const localProgress = Math.min(1, Math.max(0, (now - startedAt) / remainingDuration));
+                const globalProgress = startProgress + (1 - startProgress) * localProgress;
+                const easedProgress = 1 - (1 - globalProgress) * (1 - globalProgress);
+                setCarTravelTransform(
+                  CAR_CITY_RETURN_START_OFFSET_X * (1 - easedProgress),
+                  CAR_CITY_RETURN_START_OFFSET_Y * (1 - easedProgress)
+                );
+                if (localProgress < 1) {
+                  carTravelAnimationFrameId = requestAnimationFrame(stepRestoredCityReturn);
+                  return;
+                }
+                isCarTraveling = false;
+                carObject.classList.remove("is-traveling");
+                stopCarDriveFrameLoop({ restoreIdleFrame: true });
+                setCarTravelTransform(0, 0);
+                updateStructureInteractivity();
+              };
+              carTravelAnimationFrameId = requestAnimationFrame(stepRestoredCityReturn);
+            } else {
+              isCarTraveling = false;
+              carObject.classList.remove("is-traveling");
+              stopCarDriveFrameLoop({ restoreIdleFrame: true });
+              setCarTravelTransform(0, 0);
+              updateStructureInteractivity();
+            }
+          } else {
+            setCarAwayForRestoredCityExploration();
+          }
+        } else {
+          resetCarToHomePosition();
+        }
+
+        // 진행 중에도 완료까지 5분 이하가 남았거나 완료 대기 상태라면 밤으로 복원합니다.
+        const remainingMs = Math.max(0, explorationEndsAt - Date.now());
+        setNightMode(
+          hasReachedCompletion || remainingMs <= EXPLORATION_NIGHT_REMAINING_MS
         );
+        syncExplorationProgressUI();
+        exploringStatus.classList.add("is-visible");
+        updateDayStatus();
+        updateExplorationLootUI(hasReachedCompletion ? 1 : null);
+
+        if (hasReachedCompletion) {
+          enterExplorationCompletePendingState({ save: !previewOnly });
+          return;
+        }
+
+        updateExploringCountdown();
+        scheduleExplorationReturnCue();
+
+        if (!previewOnly) {
+          explorationTimerId = window.setInterval(
+            updateExploringCountdown,
+            1_000
+          );
+        }
+      }
+
+      function randomIntegerInclusive(min, max) {
+        const normalizedMin = Math.ceil(Number(min) || 0);
+        const normalizedMax = Math.max(normalizedMin, Math.floor(Number(max) || normalizedMin));
+        return normalizedMin + Math.floor(Math.random() * (normalizedMax - normalizedMin + 1));
+      }
+
+      function getExplorationBlueprintRewardKey(category, blueprintId) {
+        return `blueprint:${category}:${blueprintId}`;
+      }
+
+      function getExplorationBlueprintLabel(category, blueprintId) {
+        let definition = null;
+        if (category === "repair") definition = REPAIR_BLUEPRINT_DEFINITIONS[blueprintId];
+        if (category === "outdoor") definition = OUTDOOR_BLUEPRINT_DEFINITIONS[blueprintId];
+        if (category === "buildings") definition = BUILDING_BLUEPRINT_DEFINITIONS[blueprintId];
+        const name = definition?.name || "Blueprint";
+        return `${name} Blueprint`;
+      }
+
+      function isExplorationBlueprintUnlocked(reward) {
+        if (!reward?.blueprintId) return true;
+        if (reward.category === "repair") {
+          return getRepairBlueprintItem(reward.blueprintId)?.unlocked === true;
+        }
+        if (reward.category === "outdoor") {
+          return getOutdoorBlueprintItem(reward.blueprintId)?.unlocked === true;
+        }
+        if (reward.category === "buildings") {
+          return getBuildingBlueprintItem(reward.blueprintId)?.unlocked === true;
+        }
+        return repairItemsByCategory[reward.category]?.[reward.index]?.unlocked === true;
+      }
+
+      function createPlannedBlueprintReward(reward, extra = {}) {
+        if (!reward?.blueprintId) return null;
+        return {
+          kind: "blueprint",
+          category: reward.category,
+          blueprintId: reward.blueprintId,
+          key: getExplorationBlueprintRewardKey(reward.category, reward.blueprintId),
+          label: getExplorationBlueprintLabel(reward.category, reward.blueprintId),
+          quantity: 1,
+          progressive: false,
+          revealProgress: 1,
+          ...extra
+        };
+      }
+
+      function getAvailableExplorationBlueprintRewards(destination, usedKeys = new Set()) {
+        return EXPLORATION_BLUEPRINT_REWARDS.filter((reward) => {
+          if (!reward.destinations?.includes(destination)) return false;
+          if (isExplorationBlueprintUnlocked(reward)) return false;
+          return !usedKeys.has(getExplorationBlueprintRewardKey(reward.category, reward.blueprintId));
+        });
+      }
+
+      function rollPlannedExplorationBlueprint(destination, usedKeys = new Set()) {
+        const dropChance = EXPLORATION_BLUEPRINT_DROP_CHANCE[destination] || 0;
+        const candidates = getAvailableExplorationBlueprintRewards(destination, usedKeys);
+        if (dropChance <= 0 || candidates.length === 0 || Math.random() >= dropChance) {
+          return null;
+        }
+        const reward = candidates[Math.floor(Math.random() * candidates.length)];
+        return createPlannedBlueprintReward(reward);
+      }
+
+      function getExplorationItemRemainingCapacity(itemType) {
+        if (itemType === "handgunAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - handgunAmmoCount);
+        if (itemType === "shotgunAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - shotgunAmmoCount);
+        if (itemType === "rifleAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - rifleAmmoCount);
+        if (itemType === "chainsawBattery") return Math.max(0, MAX_CHAINSAW_BATTERY - chainsawBatteryPercent);
+        if (itemType === "carParts") return Math.max(0, getMaxCarPartsCount() - carPartsCount);
+        if (itemType === "repairKit") return Math.max(0, MAX_INVENTORY_QUANTITY - repairKitCount);
+        if (itemType === "fuel") return Math.max(0, MAX_INVENTORY_QUANTITY - fuelCount);
+        if (itemType === "flowers") return Math.max(0, MAX_INVENTORY_QUANTITY - flowerCount);
+        if (itemType in paintCounts) return Math.max(0, MAX_INVENTORY_QUANTITY - paintCounts[itemType]);
+        if (itemType === "handgun") return hasHandgun ? 0 : 1;
+        if (itemType === "shotgun") return hasShotgun ? 0 : 1;
+        if (itemType === "chainsaw") return hasChainsaw ? 0 : 1;
+        return 0;
+      }
+
+      function getPlannedItemQuantity(plan, itemType) {
+        return (plan?.rewards || []).reduce((sum, reward) => {
+          return reward.kind === "item" && reward.itemType === itemType
+            ? sum + Math.max(0, Number(reward.quantity) || 0)
+            : sum;
+        }, 0);
+      }
+
+      function getRemainingCapacityAfterPlan(plan, itemType) {
+        return Math.max(
+          0,
+          getExplorationItemRemainingCapacity(itemType) - getPlannedItemQuantity(plan, itemType)
+        );
+      }
+
+      function createPlannedItemReward(itemType, quantity, extra = {}) {
+        const normalizedQuantity = Math.max(0, Math.round(Number(quantity) || 0));
+        if (normalizedQuantity <= 0) return null;
+        return {
+          kind: "item",
+          itemType,
+          key: `item:${itemType}`,
+          label: EXPLORATION_LOOT_ITEM_LABELS[itemType] || itemType,
+          quantity: normalizedQuantity,
+          progressive: false,
+          revealProgress: 1,
+          ...extra
+        };
+      }
+
+      function addPlannedReward(plan, reward) {
+        if (!plan || !reward) return false;
+        if (reward.kind === "item") {
+          const existing = plan.rewards.find(
+            (entry) => entry.kind === "item" && entry.itemType === reward.itemType
+          );
+          if (existing) {
+            existing.quantity += Math.max(0, Math.round(Number(reward.quantity) || 0));
+            if (reward.todoFlowerGuarantee === true) existing.todoFlowerGuarantee = true;
+            return true;
+          }
+        }
+        if (plan.rewards.some((entry) => entry.key === reward.key)) return false;
+        plan.rewards.push(reward);
+        return true;
+      }
+
+      function getPlanRewardTypeKeys(plan, options = {}) {
+        const includeResources = options.includeResources === true;
+        return new Set(
+          (plan?.rewards || [])
+            .filter((reward) => includeResources || reward.kind !== "resource")
+            .map((reward) => reward.key)
+            .filter(Boolean)
+        );
+      }
+
+      function rollPlannedExplorationItemQuantity(plan, itemType, rangeOverride = null) {
+        const range = rangeOverride || getExplorationItemQuantityRange(itemType);
+        const min = Math.max(1, Math.round(Number(range?.min) || 1));
+        const max = Math.max(min, Math.round(Number(range?.max) || min));
+        const rolled = randomIntegerInclusive(min, max);
+        return Math.min(rolled, getRemainingCapacityAfterPlan(plan, itemType));
+      }
+
+      function addWeaponBundleToPlan(plan, weaponType, ammoType) {
+        const usedKeys = getPlanRewardTypeKeys(plan);
+        if (usedKeys.has(`item:${weaponType}`) || getExplorationItemRemainingCapacity(weaponType) <= 0) {
+          return false;
+        }
+
+        addPlannedReward(plan, createPlannedItemReward(weaponType, 1));
+        if (ammoType && !usedKeys.has(`item:${ammoType}`)) {
+          const starterRange = weaponType === "chainsaw"
+            ? CHAINSAW_STARTER_BATTERY_RANGE
+            : WEAPON_STARTER_AMMO_RANGE;
+          const quantity = rollPlannedExplorationItemQuantity(plan, ammoType, starterRange);
+          if (quantity > 0) {
+            addPlannedReward(plan, createPlannedItemReward(ammoType, quantity, { starterSupply: true }));
+          }
+        }
+        return true;
+      }
+
+      function getNormalExplorationRewardDescriptors(plan, slotsRemaining) {
+        const usedKeys = getPlanRewardTypeKeys(plan);
+        const descriptors = [];
+
+        const addSimple = (itemType) => {
+          if (usedKeys.has(`item:${itemType}`)) return;
+          if (getRemainingCapacityAfterPlan(plan, itemType) <= 0) return;
+          descriptors.push({ kind: "item", itemType, cost: 1 });
+        };
+
+        const addWeapon = (weaponType, ammoType) => {
+          if (usedKeys.has(`item:${weaponType}`)) return;
+          if (getExplorationItemRemainingCapacity(weaponType) <= 0) return;
+          const needsStarterType =
+            ammoType &&
+            !usedKeys.has(`item:${ammoType}`) &&
+            getRemainingCapacityAfterPlan(plan, ammoType) > 0;
+          const cost = 1 + (needsStarterType ? 1 : 0);
+          if (cost <= slotsRemaining) {
+            descriptors.push({ kind: "weapon", weaponType, ammoType, cost });
+          }
+        };
+
+        addWeapon("handgun", "handgunAmmo");
+        addWeapon("shotgun", "shotgunAmmo");
+        addWeapon("chainsaw", "chainsawBattery");
+        addSimple("handgunAmmo");
+        addSimple("shotgunAmmo");
+        addSimple("rifleAmmo");
+        addSimple("chainsawBattery");
+        if (!isCarRepaired()) addSimple("carParts");
+        addSimple("repairKit");
+        addSimple("fuel");
+        for (const itemType of Object.keys(paintCounts)) addSimple(itemType);
+
+        return descriptors;
+      }
+
+      function addRandomNormalExplorationRewards(plan, targetTypeCount) {
+        let safety = 100;
+        while (getPlanRewardTypeKeys(plan).size < targetTypeCount && safety-- > 0) {
+          const currentCount = getPlanRewardTypeKeys(plan).size;
+          const slotsRemaining = Math.max(0, targetTypeCount - currentCount);
+          const candidates = getNormalExplorationRewardDescriptors(plan, slotsRemaining);
+          if (candidates.length === 0) break;
+
+          const descriptor = candidates[Math.floor(Math.random() * candidates.length)];
+          if (descriptor.kind === "weapon") {
+            addWeaponBundleToPlan(plan, descriptor.weaponType, descriptor.ammoType);
+            continue;
+          }
+
+          const quantity = rollPlannedExplorationItemQuantity(plan, descriptor.itemType);
+          if (quantity <= 0) continue;
+          addPlannedReward(plan, createPlannedItemReward(descriptor.itemType, quantity));
+        }
+      }
+
+      function rollPlannedFourthTodoVillageReward(destination, usedKeys = new Set()) {
+        if (destination !== "village" || currentTodoListId !== 4 || Math.random() >= 0.5) {
+          return null;
+        }
+
+        const candidates = [];
+        const carBlueprintKey = getExplorationBlueprintRewardKey("repair", CAR_REPAIR_BLUEPRINT_ID);
+        if (
+          getRepairBlueprintItem(CAR_REPAIR_BLUEPRINT_ID)?.unlocked !== true &&
+          !usedKeys.has(carBlueprintKey)
+        ) {
+          candidates.push({ kind: "blueprint", category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID });
+        }
+        if (repairKitCount < 1 && !usedKeys.has("item:repairKit")) candidates.push({ kind: "item", itemType: "repairKit" });
+        if (!isCarRepaired() && carPartsCount < 3 && !usedKeys.has("item:carParts")) candidates.push({ kind: "item", itemType: "carParts" });
+        if (fuelCount < 10 && !usedKeys.has("item:fuel")) candidates.push({ kind: "item", itemType: "fuel" });
+        if (candidates.length === 0) return null;
+
+        const selected = candidates[Math.floor(Math.random() * candidates.length)];
+        if (selected.kind === "blueprint") {
+          return createPlannedBlueprintReward(selected, { todoFourBonus: true });
+        }
+        const temporaryPlan = { rewards: [] };
+        const quantity = Math.min(
+          rollExplorationItemQuantity(selected.itemType),
+          getExplorationItemRemainingCapacity(selected.itemType)
+        );
+        return createPlannedItemReward(selected.itemType, quantity, { todoFourBonus: true });
+      }
+
+      function finalizeExplorationRewardRevealSchedule(plan) {
+        if (!plan) return plan;
+        const fixedResources = (plan.rewards || []).filter((reward) => reward.progressive === true);
+        const dynamicRewards = (plan.rewards || []).filter((reward) => reward.progressive !== true);
+
+        for (const reward of dynamicRewards) {
+          reward.revealProgress =
+            EXPLORATION_LOOT_REVEAL_MIN_PROGRESS +
+            Math.random() *
+              (EXPLORATION_LOOT_REVEAL_MAX_PROGRESS - EXPLORATION_LOOT_REVEAL_MIN_PROGRESS);
+        }
+        dynamicRewards.sort((a, b) => a.revealProgress - b.revealProgress);
+        plan.rewards = plan.destination === "forest"
+          ? [...fixedResources, ...dynamicRewards]
+          : dynamicRewards;
+        return plan;
+      }
+
+      function createExplorationRewardPlan(destination, departureDay) {
+        configureExplorationBlueprintDefinitions();
+        const plan = {
+          version: 1,
+          destination,
+          departureDay: normalizeDayCount(departureDay || dayCount),
+          rewards: [],
+          todoFlowerGuaranteed: false
+        };
+
+        if (destination === "forest") {
+          const woodReward = {
+            kind: "resource",
+            itemType: "wood",
+            key: "resource:wood",
+            label: "Wood",
+            quantity: Math.max(0, Math.min(10, getMaxWoodCount() - woodCount)),
+            progressive: true,
+            revealProgress: 0
+          };
+          const stoneReward = {
+            kind: "resource",
+            itemType: "stone",
+            key: "resource:stone",
+            label: "Stone",
+            quantity: Math.max(0, Math.min(3, getMaxStoneCount() - stoneCount)),
+            progressive: true,
+            revealProgress: 0
+          };
+          plan.rewards.push(woodReward, stoneReward);
+
+          // 기존 DAY 5 보장 규칙은 Forest에서도 유지합니다.
+          if (plan.departureDay >= 5 && !hasHandgun) {
+            addPlannedReward(plan, createPlannedItemReward("handgun", 1, { guaranteedDayFive: true }));
+            const ammoQuantity = Math.min(5, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
+            if (ammoQuantity > 0) {
+              addPlannedReward(plan, createPlannedItemReward("handgunAmmo", ammoQuantity, { guaranteedDayFive: true }));
+            }
+            return finalizeExplorationRewardRevealSchedule(plan);
+          }
+
+          if (currentTodoListId === 5 && todoProgress[5].item2 !== true) {
+            // 기존 규칙처럼 첫 Forest 탐험 자체로 꽃 찾기 투두는 완료합니다.
+            // 가방이 가득 찬 경우 실제 Flowers 획득량은 0일 수 있으므로 Loot에는 획득한 경우만 표시합니다.
+            plan.todoFlowerGuaranteed = true;
+            const flowerQuantity = Math.min(1, getRemainingCapacityAfterPlan(plan, "flowers"));
+            if (flowerQuantity > 0) {
+              addPlannedReward(plan, createPlannedItemReward("flowers", flowerQuantity, { todoFlowerGuarantee: true }));
+            }
+          }
+
+          const blueprintReward = rollPlannedExplorationBlueprint("forest", getPlanRewardTypeKeys(plan));
+          if (blueprintReward) {
+            addPlannedReward(plan, blueprintReward);
+          } else if (!plan.todoFlowerGuaranteed) {
+            const flowerQuantity = Math.min(1, getRemainingCapacityAfterPlan(plan, "flowers"));
+            if (flowerQuantity > 0) {
+              addPlannedReward(plan, createPlannedItemReward("flowers", flowerQuantity));
+            }
+          }
+          return finalizeExplorationRewardRevealSchedule(plan);
+        }
+
+        const countRange = EXPLORATION_REWARD_TYPE_COUNT_RANGES[destination] || { min: 1, max: 1 };
+        let targetTypeCount = randomIntegerInclusive(countRange.min, countRange.max);
+
+        // DAY 5 이후 핸드건이 없다면 Handgun + Ammo 5를 확정 슬롯으로 넣습니다.
+        if (plan.departureDay >= 5 && !hasHandgun) {
+          addPlannedReward(plan, createPlannedItemReward("handgun", 1, { guaranteedDayFive: true }));
+          const ammoQuantity = Math.min(5, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
+          if (ammoQuantity > 0) {
+            addPlannedReward(plan, createPlannedItemReward("handgunAmmo", ammoQuantity, { guaranteedDayFive: true }));
+          }
+          targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
+        }
+
+        // Todo 4 Village 보정 보상도 한 슬롯으로 취급합니다.
+        const todoFourReward = rollPlannedFourthTodoVillageReward(
+          destination,
+          getPlanRewardTypeKeys(plan)
+        );
+        if (todoFourReward) {
+          addPlannedReward(plan, todoFourReward);
+          targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
+        }
+
+        // Blueprint 확률은 탐험당 한 번만 판정하고, 당첨 시 한 종류 슬롯을 차지합니다.
+        if (getPlanRewardTypeKeys(plan).size < targetTypeCount) {
+          const blueprintReward = rollPlannedExplorationBlueprint(
+            destination,
+            getPlanRewardTypeKeys(plan)
+          );
+          if (blueprintReward) addPlannedReward(plan, blueprintReward);
+        }
+
+        const hardMax = Math.max(countRange.min, countRange.max);
+        targetTypeCount = Math.min(hardMax, Math.max(countRange.min, targetTypeCount));
+        addRandomNormalExplorationRewards(plan, targetTypeCount);
+        return finalizeExplorationRewardRevealSchedule(plan);
+      }
+
+      function normalizeExplorationRewardPlan(rawPlan, destination) {
+        if (!rawPlan || typeof rawPlan !== "object" || !Array.isArray(rawPlan.rewards)) return null;
+        if (rawPlan.destination && rawPlan.destination !== destination) return null;
+        const rewards = [];
+        for (const rawReward of rawPlan.rewards) {
+          if (!rawReward || typeof rawReward !== "object") continue;
+          const kind = ["resource", "item", "blueprint"].includes(rawReward.kind)
+            ? rawReward.kind
+            : "";
+          if (!kind) continue;
+          const quantity = Math.max(0, Math.round(Number(rawReward.quantity) || 0));
+          if (kind !== "resource" && quantity <= 0) continue;
+          rewards.push({
+            ...rawReward,
+            kind,
+            quantity,
+            progressive: rawReward.progressive === true,
+            revealProgress: clamp(Number(rawReward.revealProgress) || 0, 0, 1)
+          });
+        }
+        if (rewards.length === 0) return null;
+        return {
+          version: 1,
+          destination,
+          departureDay: normalizeDayCount(rawPlan.departureDay || explorationDepartureDay || dayCount),
+          rewards,
+          todoFlowerGuaranteed: rawPlan.todoFlowerGuaranteed === true
+        };
+      }
+
+      function applyPlannedExplorationItemReward(reward) {
+        const quantity = Math.max(0, Math.round(Number(reward?.quantity) || 0));
+        const itemType = reward?.itemType;
+        if (!itemType || quantity <= 0) return false;
+
+        if (itemType === "handgun") {
+          hasHandgun = true;
+        } else if (itemType === "handgunAmmo") {
+          handgunAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, handgunAmmoCount + quantity);
+          hasHandgunAmmo = handgunAmmoCount > 0;
+        } else if (itemType === "shotgun") {
+          hasShotgun = true;
+        } else if (itemType === "shotgunAmmo") {
+          shotgunAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, shotgunAmmoCount + quantity);
+          hasShotgunAmmo = shotgunAmmoCount > 0;
+        } else if (itemType === "rifleAmmo") {
+          rifleAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, rifleAmmoCount + quantity);
+          hasRifleAmmo = rifleAmmoCount > 0;
+        } else if (itemType === "chainsaw") {
+          hasChainsaw = true;
+        } else if (itemType === "chainsawBattery") {
+          chainsawBatteryPercent = Math.min(MAX_CHAINSAW_BATTERY, chainsawBatteryPercent + quantity);
+          hasChainsawBattery = chainsawBatteryPercent > 0;
+        } else if (itemType === "carParts") {
+          carPartsCount = Math.min(getMaxCarPartsCount(), carPartsCount + quantity);
+        } else if (itemType === "repairKit") {
+          repairKitCount = Math.min(MAX_INVENTORY_QUANTITY, repairKitCount + quantity);
+        } else if (itemType === "fuel") {
+          fuelCount = Math.min(MAX_INVENTORY_QUANTITY, fuelCount + quantity);
+          if (fuelCount >= 10) setTodoProgress(4, "item2", true);
+        } else if (itemType === "flowers") {
+          flowerCount = Math.min(MAX_INVENTORY_QUANTITY, flowerCount + quantity);
+        } else if (itemType in paintCounts) {
+          paintCounts[itemType] = Math.min(MAX_INVENTORY_QUANTITY, paintCounts[itemType] + quantity);
+        } else {
+          return false;
+        }
+
+        markInventoryItemAsNew(itemType);
+        return true;
+      }
+
+      function applyPlannedExplorationBlueprintReward(reward) {
+        if (!reward?.blueprintId) return false;
+        if (reward.category === "repair") return unlockRepairBlueprint(reward.blueprintId);
+        if (reward.category === "outdoor") return unlockOutdoorBlueprint(reward.blueprintId);
+        if (reward.category === "buildings") return unlockBuildingBlueprint(reward.blueprintId);
+        return false;
+      }
+
+      function applyExplorationRewardPlan(plan) {
+        if (!plan || !Array.isArray(plan.rewards)) return false;
+        let changedInventory = false;
+        let changedRepair = false;
+
+        for (const reward of plan.rewards) {
+          const quantity = Math.max(0, Math.round(Number(reward.quantity) || 0));
+          if (reward.kind === "resource") {
+            if (reward.itemType === "wood") {
+              woodCount = Math.min(getMaxWoodCount(), woodCount + quantity);
+            } else if (reward.itemType === "stone") {
+              stoneCount = Math.min(getMaxStoneCount(), stoneCount + quantity);
+            }
+          } else if (reward.kind === "item") {
+            changedInventory = applyPlannedExplorationItemReward(reward) || changedInventory;
+          } else if (reward.kind === "blueprint") {
+            changedRepair = applyPlannedExplorationBlueprintReward(reward) || changedRepair;
+          }
+        }
+
+        if (plan.todoFlowerGuaranteed) {
+          setTodoProgress(5, "item2", true);
+        }
+        if (changedInventory) applyInventoryState();
+        if (changedRepair) applyRepairState();
+        return true;
       }
 
       function tryAwardExplorationBlueprint(destination) {
@@ -13158,7 +14383,7 @@ You can leave the game and come back anytime.</div>
         if (candidates.length === 0) return false;
 
         const reward = candidates[Math.floor(Math.random() * candidates.length)];
-        const quantityMultiplier = destination === "city" ? 2 : 1;
+        const quantityMultiplier = 1;
         if (reward === "handgun") {
           hasHandgun = true;
           grantStarterSupplyForWeapon("handgun");
@@ -13356,19 +14581,20 @@ You can leave the game and come back anytime.</div>
       }
 
       function finishExploration() {
-        if (!isExploring) return;
+        if (!isExploring || !isExplorationCompletePending) return;
 
         const completedDestination = explorationDestination;
         const completedDepartureDay = explorationDepartureDay > 0
           ? explorationDepartureDay
           : dayCount;
-        playSound(
-          completedDestination === "city"
-            ? CITY_EXPLORATION_STOP_SOUND
-            : EXPLORING_FOOTSTEPS_SOUND
-        );
+        const completedRewardPlan = explorationRewardPlan;
+        // Village/Forest 발자국은 완료 5초 전에, City 차량 소리/복귀는 완료 10초 전에 이미 시작합니다.
+        // 집 클릭 뒤에는 City 차량 애니메이션을 다시 시작하지 않습니다.
         if (completedDestination === "city") {
-          startCityCarReturn();
+          if (!hasStartedCityExplorationReturn) {
+            hasStartedCityExplorationReturn = true;
+            resetCarToHomePosition();
+          }
         } else {
           resetCarToHomePosition();
         }
@@ -13379,10 +14605,38 @@ You can leave the game and come back anytime.</div>
           removeDog({ resync: false });
         }
 
+        turnOffHouseExplorationLight();
         isExploring = false;
+        isExplorationCompletePending = false;
         explorationDestination = "";
         explorationEndsAt = 0;
         explorationDepartureDay = 0;
+        explorationRewardPlan = null;
+        hasPlayedExplorationReturnFootsteps = false;
+        hasStartedCityExplorationReturn = false;
+        if (explorationReturnCueTimerId !== null) {
+          clearTimeout(explorationReturnCueTimerId);
+          explorationReturnCueTimerId = null;
+        }
+
+        // Loot는 집 클릭 순간 이미 1초 페이드아웃을 끝냈으므로
+        // 여기서 다시 300ms hide 애니메이션을 재생하지 않고 바로 숨깁니다.
+        if (lootListHideTimerId !== null) {
+          clearTimeout(lootListHideTimerId);
+          lootListHideTimerId = null;
+        }
+        if (lootListOverlay) {
+          lootListOverlay.hidden = true;
+          lootListOverlay.classList.remove(
+            "is-showing",
+            "is-hiding",
+            "is-return-fading-out"
+          );
+        }
+
+        // 밤→낮 전환은 지금 시작하지만, 복귀 UI는 여기서부터 1초 더 숨겨 둡니다.
+        document.body.classList.add("is-exploration-return-ui-delayed");
+        syncExplorationProgressUI();
 
         // 탐험지 자체가 목표인 투두는 출발 DAY의 완료로 기록합니다.
         // 바로 다음 줄에서 DAY가 증가하므로, 복귀한 새 DAY에 고양이가 즉시 배달을 시작할 수 있습니다.
@@ -13428,33 +14682,12 @@ You can leave the game and come back anytime.</div>
         }
         applyTreeVisualState();
 
-        let didGuaranteeTodoFlower = false;
-        if (completedDestination === "forest") {
-          woodCount = Math.min(getMaxWoodCount(), woodCount + 10);
-          stoneCount = Math.min(getMaxStoneCount(), stoneCount + 3);
-
-          // 5차를 받은 뒤 첫 Forest 복귀에서는 설계도 보상 여부와 관계없이 꽃 1개를 보장합니다.
-          if (
-            currentTodoListId === 5 &&
-            todoProgress[5].item2 !== true
-          ) {
-            awardForestFlower();
-            setTodoProgress(5, "item2", true);
-            didGuaranteeTodoFlower = true;
-          }
-        }
-
-        awardExplorationRewards(
-          completedDestination,
-          completedDepartureDay,
-          {
-            isActualExploration: true,
-            skipForestFlower: didGuaranteeTodoFlower
-          }
-        );
+        // 출발 시 미리 확정해 두었던 전리품을 그대로 지급합니다.
+        // 화면에 표시된 수량/종류와 실제 보상이 항상 일치합니다.
+        applyExplorationRewardPlan(completedRewardPlan);
         applyWeatherState();
         setNightMode(false);
-        exploringStatus.classList.remove("is-visible");
+        exploringStatus.classList.remove("is-visible", "is-return-fading-out");
         if (
           tutorialCompletedGuideIds.has(6) &&
           !tutorialCompletedGuideIds.has(7)
@@ -13462,6 +14695,22 @@ You can leave the game and come back anytime.</div>
           completeTutorialGuide(7);
         }
         commitResourceState({ animateDay: true });
+
+        // commitResourceState()에서 body.is-exploring이 제거된 뒤에 복귀 페이드 상태를 정리합니다.
+        // 이 순서를 지켜야 하단 그룹이 순간적으로 다시 나타나는 플래시가 생기지 않습니다.
+        document.body.classList.remove("is-exploration-return-fading-out");
+        exploringGuide.textContent = EXPLORING_GUIDE_DEFAULT_MESSAGE;
+
+        if (explorationReturnUiTimerId !== null) {
+          clearTimeout(explorationReturnUiTimerId);
+        }
+        explorationReturnUiTimerId = window.setTimeout(() => {
+          explorationReturnUiTimerId = null;
+          document.body.classList.remove("is-exploration-return-ui-delayed");
+          updateTodoListUI();
+          replayTopRightStatusEntry(dayStatus);
+        }, EXPLORATION_RETURN_UI_DELAY_MS);
+
         syncDogForCurrentDay({ startFromNightTransition: true });
         triggerMailboxCatDeliveryIfAvailable();
         scheduleEmptyFieldDeerSpawn();
@@ -13599,8 +14848,17 @@ You can leave the game and come back anytime.</div>
           event.preventDefault();
           event.stopPropagation();
         }
-        explorationEndsAt = Date.now() + 3_000;
+        explorationEndsAt = Date.now() + 12_000;
+        // 테스트 버튼을 다시 눌러도 Village/Forest 5초 전, City 10초 전 복귀 연출을 확인할 수 있게 리셋합니다.
+        hasPlayedExplorationReturnFootsteps = false;
+        hasStartedCityExplorationReturn = false;
+        if (explorationDestination === "city") {
+          setCarAwayForRestoredCityExploration();
+        }
         updateExploringCountdown();
+        scheduleExplorationReturnCue();
+        // 테스트 단축 상태도 저장해 새로고침 시 동일한 밤/완료 직전 상태를 복원합니다.
+        saveResourceState();
       }
 
       function configureAllBlueprintDefinitionsForTest() {
@@ -20414,10 +21672,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (!activeSupplyBox) return;
 
         if (activeSupplyBox.hitArea instanceof Element) {
-          const canInteract =
-            !isExploring &&
-            (activeSupplyBox.state === "flying" || activeSupplyBox.state === "landed");
-          activeSupplyBox.hitArea.style.pointerEvents = canInteract ? "auto" : "none";
+          // 탐험 중에도 풍선 상자의 호버/탭 판정 영역은 유지합니다.
+          // 실제 상호작용은 탐험 중 공통 입력 처리에서 막고 안내 토스트만 표시합니다.
+          const canReceivePointer =
+            activeSupplyBox.state === "flying" || activeSupplyBox.state === "landed";
+          activeSupplyBox.hitArea.style.pointerEvents = canReceivePointer ? "auto" : "none";
         }
 
         if (
@@ -23272,6 +24531,37 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         setGameSoundOn(!isGameSoundOn);
       });
 
+      // 탐험 진행 중에는 낮에 조작 가능한 모든 필드 오브젝트의 입력을 공통으로 막고
+      // 실제 상호작용 대신 동일한 안내 토스트만 표시합니다.
+      const EXPLORING_FIELD_INTERACTIVE_SELECTOR =
+        ".world-interactive, .zombie, .deer-hitbox, .dog, .supply-box-hit-area";
+
+      document.addEventListener("pointerup", (event) => {
+        if (!isExploring) return;
+        if (!(event.target instanceof Element)) return;
+
+        const fieldTarget = event.target.closest(
+          EXPLORING_FIELD_INTERACTIVE_SELECTOR
+        );
+        if (!fieldTarget) return;
+
+        // 탐험 중 필드 오브젝트에서 시작한 탭도 viewport의 배경 드래그가 함께 시작될 수 있습니다.
+        // capture 단계에서 토스트를 띄우며 전파를 끊기 전에 드래그 종료를 직접 처리해
+        // pointerup 이후에도 드래그 상태가 남는 문제를 방지합니다.
+        const isMatchingBackgroundDrag =
+          dragState.active && event.pointerId === dragState.pointerId;
+        const didPan = isMatchingBackgroundDrag && dragState.moved;
+        if (isMatchingBackgroundDrag) {
+          endBackgroundDrag(event);
+        }
+
+        // 실제 화면 팬으로 판정된 입력은 오브젝트 탭으로 처리하지 않습니다.
+        if (didPan || !shouldActivateFieldObject(event, fieldTarget)) return;
+
+        clearFieldEntityPressState(event.pointerId);
+        showExploringBusyToast(event);
+      }, true);
+
       for (const item of inventoryItems) {
         let touchPointerId = null;
 
@@ -23317,6 +24607,72 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           activateInventoryItem(item);
         });
       }
+
+      // 탐험이 100% 완료된 밤에는 집 중앙 256×256 영역을 눌렀을 때만 다음 낮으로 넘어갑니다.
+      // 집 위에 다른 필드 요소가 겹쳐 있어도 화면 좌표로 중앙 터치 영역을 판정합니다.
+      document.addEventListener("pointerdown", (event) => {
+        if (
+          !isExplorationCompletePending ||
+          isExplorationReturnHouseLocked ||
+          !houseObject
+        ) return;
+
+        const houseRect = houseObject.getBoundingClientRect();
+        const houseStyle = getComputedStyle(houseObject);
+        const houseCssWidth = parseFloat(houseStyle.width) || 490;
+        const houseCssHeight = parseFloat(houseStyle.height) || 490;
+        const hitWidth = 256 * (houseRect.width / houseCssWidth);
+        const hitHeight = 256 * (houseRect.height / houseCssHeight);
+        const hitCenterX = houseRect.left + houseRect.width / 2;
+        const hitCenterY = houseRect.top + houseRect.height / 2;
+        const isInsideHouse =
+          event.clientX >= hitCenterX - hitWidth / 2 &&
+          event.clientX <= hitCenterX + hitWidth / 2 &&
+          event.clientY >= hitCenterY - hitHeight / 2 &&
+          event.clientY <= hitCenterY + hitHeight / 2;
+
+        if (!isInsideHouse) return;
+
+        // 첫 입력에서 즉시 잠가 연타가 다시 귀환 처리를 실행하지 못하게 합니다.
+        isExplorationReturnHouseLocked = true;
+        document.body.classList.remove("is-exploration-complete");
+
+        // 집을 누른 순간에는 조명을 즉시 끄고 스위치 효과음만 바로 재생합니다.
+        // Complete / 100% 정보는 실제 밤→낮 전환 전 1초 대기 동안 제자리에서 페이드아웃합니다.
+        // 실제 밤→낮 전환과 나머지 UI 복귀는 1초 뒤 시작합니다.
+        turnOffHouseExplorationLight();
+
+        // 우상단 100%/Complete, Loot 리스트, 하단 안내/사운드 버튼을
+        // 모두 같은 프레임에서 같은 1초 페이드아웃으로 시작합니다.
+        document.body.classList.add("is-exploration-return-fading-out");
+        exploringStatus.classList.add("is-return-fading-out");
+        if (lootListOverlay && !lootListOverlay.hidden) {
+          lootListOverlay.classList.remove("is-showing", "is-hiding", "is-return-fading-out");
+          // 기존 등장 애니메이션의 fill 상태를 먼저 해제한 뒤 1 → 0 전환을 시작합니다.
+          void lootListOverlay.offsetWidth;
+          lootListOverlay.classList.add("is-return-fading-out");
+        }
+
+        // 지연 중 발생하는 같은 탭의 click이 뒤쪽 필드 오브젝트를 실행하지 않게 합니다.
+        suppressExplorationCompletionClickUntil =
+          performance.now() + EXPLORATION_RETURN_TRANSITION_DELAY_MS + 300;
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (explorationReturnTransitionTimerId !== null) {
+          clearTimeout(explorationReturnTransitionTimerId);
+        }
+        explorationReturnTransitionTimerId = window.setTimeout(() => {
+          explorationReturnTransitionTimerId = null;
+          finishExploration();
+        }, EXPLORATION_RETURN_TRANSITION_DELAY_MS);
+      }, true);
+
+      document.addEventListener("click", (event) => {
+        if (performance.now() >= suppressExplorationCompletionClickUntil) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
 
       // 저장된 Walkman이 On인데 브라우저가 자동 재생을 막은 경우,
       // 다음 일반 클릭에서 현재 낮/밤 트랙 재생을 다시 시도합니다.
