@@ -2588,6 +2588,8 @@
       #repairButton:hover .hud-action-button__label {
         opacity: 1;
         transform: translateX(0);
+        transition-duration: 280ms, 280ms;
+        transition-delay: 0ms;
       }
     }
 
@@ -2602,6 +2604,8 @@
     #repairButton:focus-visible .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
+      transition-duration: 280ms, 280ms;
+      transition-delay: 0ms;
     }
 
     #exploreButton.is-menu-open.is-entry-expanded,
@@ -2615,6 +2619,8 @@
     #repairButton.is-menu-open.is-entry-expanded .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
+      transition-duration: 280ms, 280ms;
+      transition-delay: 0ms;
     }
 
     #exploreButton.is-menu-open:not(.is-entry-expanded),
@@ -2642,6 +2648,8 @@
       #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label {
         opacity: 1;
         transform: translateX(0);
+        transition-duration: 280ms, 280ms;
+        transition-delay: 0ms;
       }
     }
 
@@ -4635,7 +4643,7 @@
     #sceneColorTestControls {
       position: fixed;
       left: 50%;
-      bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
+      bottom: max(14px, calc(env(safe-area-inset-bottom) + 10px));
       z-index: 220;
       display: flex;
       align-items: flex-start;
@@ -4654,7 +4662,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 7px;
+      gap: 3px;
       color: #fff;
       font-size: 11px;
       font-weight: 450;
@@ -4698,7 +4706,7 @@
     }
 
     .scene-color-test-button[data-scene-tone="sunset"] {
-      --scene-test-swatch: #fb997c;
+      --scene-test-swatch: #fff9e1;
     }
 
     .scene-color-test-button[data-scene-tone="night"] {
@@ -4744,7 +4752,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.200"
+  data-game-version="0.201"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4858,12 +4866,12 @@
         birdColor: "#f1efe4"
       }),
       sunset: Object.freeze({
-        swatch: "#fb997c",
+        swatch: "#fff9e1",
         brightness: 1,
         saturation: 0.9,
         contrast: 1.1,
         colorBalance: Object.freeze({ red: 1, green: .8, blue: .7 }),
-        tint: "rgba(251, 153, 124, 0.05)",
+        tint: "rgba(255, 249, 225, 0.05)",
         opacity: 1,
         nightMix: 0,
         birdColor: "#f0c0aa"
@@ -4913,7 +4921,7 @@
         saturation: 0.4,
         contrast: 1.3,
         colorBalance: Object.freeze({ red: 1, green: 0.75, blue: 0.55 }),
-        tint: "rgba(251, 153, 124, 0.12)",
+        tint: "rgba(255, 249, 225, 0.12)",
         opacity: 1
       }),
       night: Object.freeze({
@@ -5000,7 +5008,7 @@
             0,
             destinationDurationMs - explorationNightThresholdMs
           );
-          const sunsetElapsedMs = nightStartElapsedMs / 2;
+          const sunsetElapsedMs = nightStartElapsedMs * (0.9 / 2);
           let nightMix = 0;
           let sunsetMix = 0;
 
@@ -5905,9 +5913,11 @@ You can leave the game and come back anytime.</div>
       const CHAINSAW_ZOMBIE_PARTICLE_OFFSET_X = 0;
       const CHAINSAW_ZOMBIE_PARTICLE_OFFSET_Y = -12;
 
-      // 생성 간격: 좀비 10초 / 사슴 20초
+      // 낮 정규 생성 간격: 좀비 10초 / 사슴 20초.
+      // 탐험 중에는 정규 생성만 3배 느리게 진행합니다(좀비 30초 / 사슴 60초).
       const SPAWN_INTERVAL_MS = 10_000;
       const DEER_SPAWN_INTERVAL_MS = 20_000;
+      const EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER = 3;
       const EMPTY_ZOMBIE_REGULAR_SPAWN_GUARD_MS = 5_000;
       const ZOMBIE_VISIBILITY_CHECK_INTERVAL_MS = 1_000;
       // iOS Safari는 복귀 직후 잠시 hidden 상태를 유지하거나 복귀 이벤트를 누락할 수 있습니다.
@@ -5927,8 +5937,10 @@ You can leave the game and come back anytime.</div>
       const FOREST_EXPLORATION_DURATION_MS = 20 * 60_000;
       const CITY_EXPLORATION_DURATION_MS = 30 * 60_000;
       // 모든 탐험지는 완료 5분 전을 Night 기준점으로 사용합니다.
-      // Sunset 기준점은 "탐험 시작 ~ Night 기준점" 구간의 정확한 중간입니다.
+      // 컬러 타임라인은 Day 0 -> Sunset 0.9 -> Night 2 비율을 사용합니다.
       const EXPLORATION_NIGHT_REMAINING_MS = 5 * 60_000;
+      const EXPLORATION_COLOR_TIMELINE_SUNSET = 0.9;
+      const EXPLORATION_COLOR_TIMELINE_NIGHT = 2;
       const EXPLORATION_SCENE_COLOR_UPDATE_MS = 1_000;
       // Village/Forest 복귀 발자국은 완료 5초 전에, City 차량 소리/복귀 애니메이션은 완료 10초 전에 시작합니다.
       const EXPLORATION_RETURN_SOUND_REMAINING_MS = 5_000;
@@ -5950,12 +5962,12 @@ You can leave the game and come back anytime.</div>
       /*
         비 발생 확률 수정 위치
         - DAY 1~4에는 비가 오지 않습니다.
-        - DAY 5부터 5%로 시작하며, 맑은 날이 지날 때마다 5%씩 증가합니다.
+        - DAY 5부터 5%로 시작하며, 맑은 날이 지날 때마다 1%씩 증가합니다.
         - 비가 온 날에는 다음 날 확률을 다시 5%로 낮춥니다.
       */
       const RAIN_FIRST_ELIGIBLE_DAY = 5;
       const INITIAL_RAIN_CHANCE_PERCENT = 5;
-      const RAIN_CHANCE_DAILY_INCREASE_PERCENT = 5;
+      const RAIN_CHANCE_DAILY_INCREASE_PERCENT = 1;
       const MAX_RAIN_CHANCE_PERCENT = 100;
 
       /*
@@ -6592,6 +6604,7 @@ You can leave the game and come back anytime.</div>
       const DEER_FOOD_FULL_TOAST_MESSAGE = "I’ve got enough.";
       const NO_FOOD_TOAST_MESSAGE = "No food, no adventure.";
       const EXPLORING_BUSY_TOAST_MESSAGE = "I'm out exploring.";
+      const EXPLORATION_COMPLETE_BUSY_TOAST_MESSAGE = "I need some sleep.";
       const EXPLORING_GUIDE_DEFAULT_MESSAGE =
         "Exploring takes time, but rewards await.\nYou can leave the game and come back anytime.";
       const EXPLORATION_COMPLETE_GUIDE_MESSAGE =
@@ -7578,6 +7591,14 @@ You can leave the game and come back anytime.</div>
       let versionTestLastClickAt = -Infinity;
       let sceneColorTestOverride = loadSceneColorTestOverride();
       let sceneColorTransitionResetFrameId = null;
+      // 진행 중인 장면 Night Mix 전환 상태를 추적합니다.
+      // 컬러 전환 도중 새로 생성되는 좀비/사슴도 현재 중간 밝기에서 시작하도록 사용합니다.
+      let sceneNightMixTransitionState = {
+        from: 0,
+        to: 0,
+        startedAt: performance.now(),
+        durationMs: 0
+      };
       // 구름은 brightness / saturation / contrast / RGB balance / tint를
       // 하나의 rAF 보간으로 묶어 Day / Sunset / Night 및 Night → Day 귀환까지
       // 모든 컬러 항목이 정확히 같은 진행률로 전환되게 합니다.
@@ -12179,10 +12200,55 @@ You can leave the game and come back anytime.</div>
         let targetDeerCount = snapshot.activeDeer;
 
         if (isExploring) {
-          // 탐험 중 닫았다가 다시 열면 기존 개체 수만 복원하고,
-          // 탐험 중 경과 시간은 필드 생성 시간으로 계산하지 않습니다.
-          lastZombieSpawnAt = now;
-          lastDeerSpawnAt = now;
+          // 탐험 중에도 정규 생성은 3배 느린 주기로 계속 누적합니다.
+          const explorationZombieIntervalMs =
+            SPAWN_INTERVAL_MS * EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER;
+          const explorationDeerIntervalMs =
+            DEER_SPAWN_INTERVAL_MS * EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER;
+          const elapsedZombieTicks = isWaitingForFirstTutorialZombie()
+            ? 0
+            : Math.max(
+                0,
+                Math.floor((now - lastZombieSpawnAt) / explorationZombieIntervalMs)
+              );
+          const elapsedDeerTicks = firstKillBirdFlockPlayed
+            ? Math.max(
+                0,
+                Math.floor((now - lastDeerSpawnAt) / explorationDeerIntervalMs)
+              )
+            : 0;
+          const remainingZombieCapacity = Math.max(
+            0,
+            Math.min(
+              MAX_ACTIVE_ZOMBIES,
+              zombieKillRequirement - zombieCount
+            )
+          );
+
+          targetZombieCount = Math.min(
+            remainingZombieCapacity,
+            targetZombieCount + elapsedZombieTicks
+          );
+          targetDeerCount = firstKillBirdFlockPlayed
+            ? Math.min(
+                MAX_ACTIVE_DEER,
+                targetDeerCount +
+                  (foodCount < getMaxFoodCount() ? elapsedDeerTicks : 0)
+              )
+            : 0;
+
+          if (elapsedZombieTicks > 0) {
+            lastZombieSpawnAt = Math.min(
+              now,
+              lastZombieSpawnAt + elapsedZombieTicks * explorationZombieIntervalMs
+            );
+          }
+          if (elapsedDeerTicks > 0) {
+            lastDeerSpawnAt = Math.min(
+              now,
+              lastDeerSpawnAt + elapsedDeerTicks * explorationDeerIntervalMs
+            );
+          }
         } else {
           const explorationFinishedWhileClosed =
             snapshot.explorationEndsAt > snapshot.savedAt;
@@ -12309,7 +12375,6 @@ You can leave the game and come back anytime.</div>
 
       function canCreateZombie() {
         return (
-          !isExploring &&
           Date.now() >= zombieSpawnBlockedUntil &&
           hasActivePopulationCapacity() &&
           zombieCount + getLivingZombieCount() < zombieKillRequirement
@@ -12322,7 +12387,11 @@ You can leave the game and come back anytime.</div>
           event.stopPropagation();
         }
 
-        showToast(EXPLORING_BUSY_TOAST_MESSAGE);
+        showToast(
+          isExplorationCompletePending
+            ? EXPLORATION_COMPLETE_BUSY_TOAST_MESSAGE
+            : EXPLORING_BUSY_TOAST_MESSAGE
+        );
       }
 
       function syncMenuBackdrop() {
@@ -14111,6 +14180,82 @@ You can leave the game and come back anytime.</div>
         });
       }
 
+      function getCurrentSceneNightMixVisual(now = performance.now()) {
+        const state = sceneNightMixTransitionState;
+        const durationMs = Math.max(0, Number(state?.durationMs) || 0);
+        const target = clamp01(state?.to ?? 0);
+        if (durationMs <= 0) return target;
+
+        const progress = clamp01((now - state.startedAt) / durationMs);
+        const from = clamp01(state?.from ?? target);
+        return clamp01(from + (target - from) * progress);
+      }
+
+      function beginSceneNightMixTransition(targetNightMix, durationMs) {
+        const now = performance.now();
+        const currentNightMix = getCurrentSceneNightMixVisual(now);
+        sceneNightMixTransitionState = {
+          from: currentNightMix,
+          to: clamp01(targetNightMix),
+          startedAt: now,
+          durationMs: Math.max(0, Number(durationMs) || 0)
+        };
+      }
+
+      function syncNewEntityToSceneColorTransition(dayVisual, nightVisual) {
+        if (!(dayVisual instanceof HTMLElement) || !(nightVisual instanceof HTMLElement)) {
+          return;
+        }
+
+        const state = sceneNightMixTransitionState;
+        const now = performance.now();
+        const elapsedMs = Math.max(0, now - state.startedAt);
+        const remainingMs = Math.max(0, state.durationMs - elapsedMs);
+        if (remainingMs <= 16) return;
+
+        const currentNightMix = getCurrentSceneNightMixVisual(now);
+        const targetNightMix = clamp01(state.to);
+        const currentDayMix = 1 - currentNightMix;
+        const targetDayMix = 1 - targetNightMix;
+
+        // 새 요소는 이전 computed opacity가 없어 전환 중에도 목표값으로 바로 그려질 수 있습니다.
+        // 첫 프레임을 현재 장면의 중간값으로 고정한 뒤 남은 시간만큼 같은 목표값으로 이어 갑니다.
+        dayVisual.style.setProperty("opacity", String(currentDayMix), "important");
+        nightVisual.style.setProperty("opacity", String(currentNightMix), "important");
+        dayVisual.style.setProperty("transition-duration", "0ms", "important");
+        nightVisual.style.setProperty("transition-duration", "0ms", "important");
+
+        requestAnimationFrame(() => {
+          if (!dayVisual.isConnected || !nightVisual.isConnected) return;
+
+          const nextNow = performance.now();
+          const nextRemainingMs = Math.max(0, state.durationMs - (nextNow - state.startedAt));
+          if (nextRemainingMs <= 0) {
+            dayVisual.style.removeProperty("opacity");
+            nightVisual.style.removeProperty("opacity");
+            dayVisual.style.removeProperty("transition-duration");
+            nightVisual.style.removeProperty("transition-duration");
+            return;
+          }
+
+          // 0ms 초기값을 실제 스타일로 확정한 후, 배경과 같은 남은 시간으로 전환합니다.
+          void dayVisual.offsetWidth;
+          const remainingCss = `${Math.max(0, Math.round(nextRemainingMs))}ms`;
+          dayVisual.style.setProperty("transition-duration", remainingCss, "important");
+          nightVisual.style.setProperty("transition-duration", remainingCss, "important");
+          dayVisual.style.setProperty("opacity", String(targetDayMix), "important");
+          nightVisual.style.setProperty("opacity", String(targetNightMix), "important");
+
+          window.setTimeout(() => {
+            if (!dayVisual.isConnected || !nightVisual.isConnected) return;
+            dayVisual.style.removeProperty("opacity");
+            nightVisual.style.removeProperty("opacity");
+            dayVisual.style.removeProperty("transition-duration");
+            nightVisual.style.removeProperty("transition-duration");
+          }, nextRemainingMs + 50);
+        });
+      }
+
       function applySceneColorVisual(tone, options = {}) {
         const durationMs = options.instant === true
           ? 0
@@ -14121,6 +14266,7 @@ You can leave the game and come back anytime.</div>
 
         const effective = getEffectiveToneSettings(tone);
         const normalizedNightMix = clamp01(tone?.nightMix ?? 0);
+        beginSceneNightMixTransition(normalizedNightMix, durationMs);
         const rootStyle = document.documentElement.style;
         rootStyle.setProperty("--scene-night-mix", String(normalizedNightMix));
         rootStyle.setProperty("--scene-brightness", String(effective.brightness));
@@ -14300,7 +14446,8 @@ You can leave the game and come back anytime.</div>
         const safeTotal = Math.max(1, Number(totalDurationMs) || 1);
         const elapsedMs = clamp(safeTotal - Math.max(0, remainingMs), 0, safeTotal);
         const nightStartElapsedMs = Math.max(0, safeTotal - EXPLORATION_NIGHT_REMAINING_MS);
-        const sunsetElapsedMs = nightStartElapsedMs / 2;
+        const sunsetElapsedMs = nightStartElapsedMs *
+          (EXPLORATION_COLOR_TIMELINE_SUNSET / EXPLORATION_COLOR_TIMELINE_NIGHT);
 
         if (nightStartElapsedMs <= 0 || elapsedMs >= nightStartElapsedMs) {
           return { from: "night", to: "night", progress: 1 };
@@ -14533,6 +14680,9 @@ You can leave the game and come back anytime.</div>
         isExplorationReturnHouseLocked = true;
         isExploring = true;
         isExplorationCompletePending = false;
+        const explorationPopulationSpawnStartedAt = Date.now();
+        lastZombieSpawnAt = explorationPopulationSpawnStartedAt;
+        lastDeerSpawnAt = explorationPopulationSpawnStartedAt;
         explorationDestination = destination;
         explorationDepartureDay = dayCount;
         explorationEndsAt = Date.now() + getExplorationDurationMs(destination);
@@ -14554,6 +14704,9 @@ You can leave the game and come back anytime.</div>
         updateDayStatus();
         updateExploringCountdown();
         scheduleExplorationReturnCue();
+        scheduleNextZombieSpawnTick();
+        scheduleNextDeerSpawnTick();
+        scheduleNextSupplyBoxSpawnTick();
         updateTutorialGuide();
 
         if (explorationTimerId !== null) {
@@ -15549,6 +15702,9 @@ You can leave the game and come back anytime.</div>
         turnOffHouseExplorationLight();
         isExploring = false;
         isExplorationCompletePending = false;
+        scheduleNextZombieSpawnTick();
+        scheduleNextDeerSpawnTick();
+        scheduleNextSupplyBoxSpawnTick();
         explorationDestination = "";
         explorationEndsAt = 0;
         explorationDepartureDay = 0;
@@ -17720,6 +17876,57 @@ You can leave the game and come back anytime.</div>
           : GAME_ZONE;
       }
 
+      // 우하단 HUD 액션 버튼은 생성 위치의 최하위 회피 조건으로만 사용합니다.
+      // 기존 안전 구역 / 구름 / 개체 간 거리 조건을 먼저 만족시키고, 가능한 경우에만 버튼 아래 생성을 피합니다.
+      const SPAWN_ACTION_UI_AVOID_PADDING_PX = 12;
+
+      function getBottomRightActionUiSpawnAvoidZone() {
+        const buttons = [repairButton, inventoryButton, exploreButton].filter(Boolean);
+        const visibleRects = buttons
+          .map((button) => button.getBoundingClientRect())
+          .filter((rect) =>
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.right > 0 &&
+            rect.bottom > 0 &&
+            rect.left < window.innerWidth &&
+            rect.top < window.innerHeight
+          );
+
+        if (visibleRects.length === 0) return null;
+
+        const padding = SPAWN_ACTION_UI_AVOID_PADDING_PX;
+        const screenLeft = Math.max(0, Math.min(...visibleRects.map((rect) => rect.left)) - padding);
+        const screenTop = Math.max(0, Math.min(...visibleRects.map((rect) => rect.top)) - padding);
+        const screenRight = Math.min(
+          window.innerWidth,
+          Math.max(...visibleRects.map((rect) => rect.right)) + padding
+        );
+        const screenBottom = Math.min(
+          window.innerHeight,
+          Math.max(...visibleRects.map((rect) => rect.bottom)) + padding
+        );
+        const visibleBounds = getVisibleWorldBounds();
+        const safeScale = Math.max(worldScale, 0.001);
+
+        return {
+          left: visibleBounds.left + screenLeft / safeScale,
+          top: visibleBounds.top + screenTop / safeScale,
+          right: visibleBounds.left + screenRight / safeScale,
+          bottom: visibleBounds.top + screenBottom / safeScale
+        };
+      }
+
+      function doesSpawnOverlapActionUi(zone, x, y, halfWidth, halfHeight) {
+        if (!zone) return false;
+        return (
+          x + halfWidth > zone.left &&
+          x - halfWidth < zone.right &&
+          y + halfHeight > zone.top &&
+          y - halfHeight < zone.bottom
+        );
+      }
+
       function getRandomSpawnPosition(options = {}) {
         const spawnZone = options.spawnZone || GAME_ZONE;
         const gameMinX = spawnZone.left + HALF_W;
@@ -17768,9 +17975,15 @@ You can leave the game and come back anytime.</div>
 
         let bestCandidate = null;
         let bestMinimumDistance = -1;
+        let bestCandidateOutsideActionUi = null;
+        let bestCandidateOutsideActionUiDistance = -1;
         let bestCloudClearCandidate = null;
         let bestCloudClearMinimumDistance = -1;
+        let bestCloudClearCandidateOutsideActionUi = null;
+        let bestCloudClearOutsideActionUiDistance = -1;
+        let idealCandidateUnderActionUi = null;
         const zombieSafeZones = getZombieSafeZones();
+        const actionUiAvoidZone = getBottomRightActionUiSpawnAvoidZone();
 
         for (let attempt = 0; attempt < 500; attempt += 1) {
           const x = minX + Math.random() * (maxX - minX);
@@ -17804,9 +18017,24 @@ You can leave the game and come back anytime.</div>
             HALF_H
           );
 
-          // 기존 거리 기준을 만족하면서 실제 구름 아래가 아니면 가장 먼저 사용합니다.
+          const overlapsActionUi = doesSpawnOverlapActionUi(
+            actionUiAvoidZone,
+            x,
+            y,
+            HALF_W,
+            HALF_H
+          );
+
+          // 기존 거리/구름 조건을 모두 만족한 후보가 최우선입니다.
+          // 그 안에서만 우하단 HUD 버튼 아래를 피하며, 피할 곳이 없으면 버튼 영역도 허용합니다.
           if (!isCoveredBySkyCloud && minimumDistance >= MIN_SPAWN_DISTANCE) {
-            return { x, y };
+            if (!overlapsActionUi) {
+              return { x, y };
+            }
+            if (!idealCandidateUnderActionUi) {
+              idealCandidateUnderActionUi = { x, y };
+            }
+            continue;
           }
 
           // 구름을 피한 후보를 최우선 fallback으로 별도 기억합니다.
@@ -17814,16 +18042,40 @@ You can leave the game and come back anytime.</div>
             bestCloudClearMinimumDistance = minimumDistance;
             bestCloudClearCandidate = { x, y };
           }
+          if (
+            !isCoveredBySkyCloud &&
+            !overlapsActionUi &&
+            minimumDistance > bestCloudClearOutsideActionUiDistance
+          ) {
+            bestCloudClearOutsideActionUiDistance = minimumDistance;
+            bestCloudClearCandidateOutsideActionUi = { x, y };
+          }
 
           // 구름 없는 후보가 정말 없을 때를 대비해 기존 최장거리 후보도 보관합니다.
           if (minimumDistance > bestMinimumDistance) {
             bestMinimumDistance = minimumDistance;
             bestCandidate = { x, y };
           }
+          if (!overlapsActionUi && minimumDistance > bestCandidateOutsideActionUiDistance) {
+            bestCandidateOutsideActionUiDistance = minimumDistance;
+            bestCandidateOutsideActionUi = { x, y };
+          }
+        }
+
+        if (idealCandidateUnderActionUi) {
+          return idealCandidateUnderActionUi;
+        }
+
+        if (bestCloudClearCandidateOutsideActionUi) {
+          return bestCloudClearCandidateOutsideActionUi;
         }
 
         if (bestCloudClearCandidate) {
           return bestCloudClearCandidate;
+        }
+
+        if (bestCandidateOutsideActionUi) {
+          return bestCandidateOutsideActionUi;
         }
 
         if (bestCandidate) {
@@ -17896,10 +18148,13 @@ You can leave the game and come back anytime.</div>
 
         let bestCandidate = null;
         let bestCandidateCoveredByCloud = true;
+        let bestCandidateOverlapsActionUi = true;
         let bestAvoidShortfall = Infinity;
         let bestDeerDistance = -1;
         let bestZombieDistance = -1;
+        let idealCandidateUnderActionUi = null;
         const deerSafeZones = getDeerSafeZones();
+        const actionUiAvoidZone = getBottomRightActionUiSpawnAvoidZone();
 
         for (let attempt = 0; attempt < 500; attempt += 1) {
           const x = minX + Math.random() * (maxX - minX);
@@ -17973,17 +18228,30 @@ You can leave the game and come back anytime.</div>
             DEER_HALF_H
           );
 
+          const overlapsActionUi = doesSpawnOverlapActionUi(
+            actionUiAvoidZone,
+            x,
+            y,
+            DEER_HALF_W,
+            DEER_HALF_H
+          );
+
           if (
             !isCoveredBySkyCloud &&
             minimumZombieDistance >= MIN_DEER_SPAWN_DISTANCE &&
             minimumDeerDistance >= MIN_DEER_TO_DEER_SPAWN_DISTANCE &&
             avoidDistance >= minAvoidDistance
           ) {
-            return { x, y };
+            if (!overlapsActionUi) {
+              return { x, y };
+            }
+            if (!idealCandidateUnderActionUi) {
+              idealCandidateUnderActionUi = { x, y };
+            }
+            continue;
           }
 
-          // 모든 기준을 만족하는 곳이 없으면 구름 회피를 가장 먼저 우선하고,
-          // 그 안에서 기존 회피 거리/개체 거리 기준으로 가장 좋은 후보를 사용합니다.
+          // 모든 기존 조건의 우선순위를 유지한 뒤, 마지막 동률 조건으로만 HUD 버튼 회피를 사용합니다.
           const avoidShortfall = Math.max(
             0,
             minAvoidDistance - avoidDistance
@@ -17996,15 +18264,25 @@ You can leave the game and come back anytime.</div>
                   minimumDeerDistance > bestDeerDistance) ||
                 (avoidShortfall === bestAvoidShortfall &&
                   minimumDeerDistance === bestDeerDistance &&
-                  minimumZombieDistance > bestZombieDistance)));
+                  minimumZombieDistance > bestZombieDistance) ||
+                (avoidShortfall === bestAvoidShortfall &&
+                  minimumDeerDistance === bestDeerDistance &&
+                  minimumZombieDistance === bestZombieDistance &&
+                  !overlapsActionUi &&
+                  bestCandidateOverlapsActionUi)));
 
           if (isBetterCandidate) {
             bestCandidateCoveredByCloud = isCoveredBySkyCloud;
+            bestCandidateOverlapsActionUi = overlapsActionUi;
             bestAvoidShortfall = avoidShortfall;
             bestDeerDistance = minimumDeerDistance;
             bestZombieDistance = minimumZombieDistance;
             bestCandidate = { x, y };
           }
+        }
+
+        if (idealCandidateUnderActionUi) {
+          return idealCandidateUnderActionUi;
         }
 
         if (bestCandidate) {
@@ -18014,7 +18292,9 @@ You can leave the game and come back anytime.</div>
         // 무작위 탐색에서 후보를 찾지 못한 경우에도 안전 구역을
         // 가로지르지 않는 세로 위치를 위에서 아래로 다시 확인합니다.
         // 이 단계에서도 실제 구름 아래가 아닌 위치를 우선합니다.
+        let cloudClearPathUnderActionUiFallback = null;
         let cloudCoveredPathFallback = null;
+        let cloudCoveredPathUnderActionUiFallback = null;
         for (let y = minY; y <= maxY; y += 1) {
           const crossesSafeZone = deerSafeZones.some((zone) =>
             doesDeerHorizontalPathCrossZone(y, zone)
@@ -18025,22 +18305,44 @@ You can leave the game and come back anytime.</div>
               x: Math.min(maxX, minX + 8),
               y
             };
-            if (!isEntitySpawnCoveredBySkyCloud(
+            const isCoveredBySkyCloud = isEntitySpawnCoveredBySkyCloud(
               candidate.x,
               candidate.y,
               DEER_HALF_W,
               DEER_HALF_H
-            )) {
-              return candidate;
-            }
-            if (!cloudCoveredPathFallback) {
+            );
+            const overlapsActionUi = doesSpawnOverlapActionUi(
+              actionUiAvoidZone,
+              candidate.x,
+              candidate.y,
+              DEER_HALF_W,
+              DEER_HALF_H
+            );
+            if (!isCoveredBySkyCloud) {
+              if (!overlapsActionUi) {
+                return candidate;
+              }
+              if (!cloudClearPathUnderActionUiFallback) {
+                cloudClearPathUnderActionUiFallback = candidate;
+              }
+            } else if (!overlapsActionUi && !cloudCoveredPathFallback) {
               cloudCoveredPathFallback = candidate;
+            } else if (!cloudCoveredPathUnderActionUiFallback) {
+              cloudCoveredPathUnderActionUiFallback = candidate;
             }
           }
         }
 
+        if (cloudClearPathUnderActionUiFallback) {
+          return cloudClearPathUnderActionUiFallback;
+        }
+
         if (cloudCoveredPathFallback) {
           return cloudCoveredPathFallback;
+        }
+
+        if (cloudCoveredPathUnderActionUiFallback) {
+          return cloudCoveredPathUnderActionUiFallback;
         }
 
         // 모든 수평 이동 경로가 안전 구역과 겹치면 사슴을 생성하지 않습니다.
@@ -21883,7 +22185,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       function createDeer(options = {}) {
         const force = options.force === true;
         if (
-          (!force && isExploring) ||
           getLivingDeerCount() >= MAX_ACTIVE_DEER ||
           !hasActivePopulationCapacity()
         ) {
@@ -21938,6 +22239,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         element.appendChild(dayVisual);
         element.appendChild(nightVisual);
         element.appendChild(hitbox);
+        syncNewEntityToSceneColorTransition(dayVisual, nightVisual);
         entities.appendChild(element);
 
         const skipBirth = options.skipBirth === true;
@@ -22530,6 +22832,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         nightVisual.appendChild(nightOverlay);
         element.appendChild(dayVisual);
         element.appendChild(nightVisual);
+        syncNewEntityToSceneColorTransition(dayVisual, nightVisual);
         entities.appendChild(element);
 
         const skipBirth = options.skipBirth === true;
@@ -24245,6 +24548,18 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         requestAnimationFrame(gameLoop);
       }
 
+      function getCurrentZombieSpawnIntervalMs() {
+        return SPAWN_INTERVAL_MS * (
+          isExploring ? EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER : 1
+        );
+      }
+
+      function getCurrentDeerSpawnIntervalMs() {
+        return DEER_SPAWN_INTERVAL_MS * (
+          isExploring ? EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER : 1
+        );
+      }
+
       function scheduleNextZombieSpawnTick() {
         if (zombieSpawnTimerId !== null) {
           clearTimeout(zombieSpawnTimerId);
@@ -24259,7 +24574,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         }
 
         const elapsed = Math.max(0, Date.now() - lastZombieSpawnAt);
-        const delay = Math.max(0, SPAWN_INTERVAL_MS - elapsed);
+        const delay = Math.max(0, getCurrentZombieSpawnIntervalMs() - elapsed);
 
         zombieSpawnTimerId = window.setTimeout(() => {
           zombieSpawnTimerId = null;
@@ -24310,7 +24625,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         }
 
         const elapsed = Math.max(0, Date.now() - lastDeerSpawnAt);
-        const delay = Math.max(0, DEER_SPAWN_INTERVAL_MS - elapsed);
+        const delay = Math.max(0, getCurrentDeerSpawnIntervalMs() - elapsed);
 
         deerSpawnTimerId = window.setTimeout(() => {
           deerSpawnTimerId = null;
@@ -24326,7 +24641,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
           if (
             firstKillBirdFlockPlayed &&
-            !isExploring &&
             getLivingDeerCount() < MAX_ACTIVE_DEER &&
             hasActivePopulationCapacity() &&
             foodCount < getMaxFoodCount()
@@ -24397,8 +24711,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       /*
         iOS에서 화면 잠금이나 백그라운드 전환으로 타이머가 멈춘 경우,
-        다시 화면이 활성화될 때 집에 머문 경과 시간만큼 누락된 좀비와 사슴 생성을 보정합니다.
-        탐험 중 경과 시간은 필드 엔티티 생성 시간에 포함하지 않습니다.
+        다시 화면이 활성화될 때 누락된 좀비와 사슴 정규 생성을 보정합니다.
+        탐험 중 경과 시간은 3배 느린 생성 주기를 적용합니다.
       */
       function refreshPopulationAfterResume() {
         if (!hasGameInitialized || document.visibilityState === "hidden") {
@@ -24435,9 +24749,75 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
             return;
           }
 
-          // 아직 탐험 중이라면 백그라운드에 있던 시간을 생성 주기에서 제외합니다.
-          lastZombieSpawnAt = now;
-          lastDeerSpawnAt = now;
+          // 아직 탐험 중이라면 백그라운드 경과 시간도 3배 느린 정규 생성 주기로 보정합니다.
+          const explorationZombieIntervalMs =
+            SPAWN_INTERVAL_MS * EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER;
+          const explorationDeerIntervalMs =
+            DEER_SPAWN_INTERVAL_MS * EXPLORATION_POPULATION_SPAWN_INTERVAL_MULTIPLIER;
+          const elapsedZombieTicks = isWaitingForFirstTutorialZombie()
+            ? 0
+            : Math.max(
+                0,
+                Math.floor((now - lastZombieSpawnAt) / explorationZombieIntervalMs)
+              );
+          let createdZombieCount = 0;
+          for (let index = 0; index < elapsedZombieTicks; index += 1) {
+            if (!canCreateZombie()) break;
+            const created = createZombie({
+              silent: true,
+              persist: false,
+              skipBirth: true,
+              preferVisible: true
+            });
+            if (!created) break;
+            createdZombieCount += 1;
+          }
+          if (elapsedZombieTicks > 0) {
+            lastZombieSpawnAt = Math.min(
+              now,
+              lastZombieSpawnAt + elapsedZombieTicks * explorationZombieIntervalMs
+            );
+          }
+          if (createdZombieCount > 0 && pendingEmptyZombieSpawnTimerId !== null) {
+            clearTimeout(pendingEmptyZombieSpawnTimerId);
+            pendingEmptyZombieSpawnTimerId = null;
+          }
+
+          const elapsedDeerTicks = firstKillBirdFlockPlayed
+            ? Math.max(
+                0,
+                Math.floor((now - lastDeerSpawnAt) / explorationDeerIntervalMs)
+              )
+            : 0;
+          let createdDeerCount = 0;
+          for (let index = 0; index < elapsedDeerTicks; index += 1) {
+            if (
+              !firstKillBirdFlockPlayed ||
+              getLivingDeerCount() >= MAX_ACTIVE_DEER ||
+              !hasActivePopulationCapacity() ||
+              foodCount >= getMaxFoodCount()
+            ) {
+              break;
+            }
+            const created = createDeer({
+              persist: false,
+              skipBirth: true,
+              preferVisible: true
+            });
+            if (!created) break;
+            createdDeerCount += 1;
+          }
+          if (elapsedDeerTicks > 0) {
+            lastDeerSpawnAt = Math.min(
+              now,
+              lastDeerSpawnAt + elapsedDeerTicks * explorationDeerIntervalMs
+            );
+          }
+          if (createdDeerCount > 0 && pendingEmptyDeerSpawnTimerId !== null) {
+            clearTimeout(pendingEmptyDeerSpawnTimerId);
+            pendingEmptyDeerSpawnTimerId = null;
+          }
+
           const elapsedSupplyTicks = Math.max(
             0,
             Math.floor((now - lastSupplyBoxSpawnAt) / SUPPLY_BOX_SPAWN_INTERVAL_MS)
@@ -24590,7 +24970,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       function getRemainingUntilRegularZombieSpawn() {
         const elapsed = Math.max(0, Date.now() - lastZombieSpawnAt);
-        return Math.max(0, SPAWN_INTERVAL_MS - elapsed);
+        return Math.max(0, getCurrentZombieSpawnIntervalMs() - elapsed);
       }
 
       function scheduleEmptyFieldZombieSpawn() {
@@ -25558,13 +25938,23 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         cycleEquippedWeapon();
       });
 
-      bindReliableTap(soundToggleButton, () => {
-        setGameSoundOn(!isGameSoundOn);
-      });
+      function toggleGameSoundWithSetSfx() {
+        const nextSoundOn = !isGameSoundOn;
+        setGameSoundOn(nextSoundOn);
 
-      bindReliableTap(exploringSoundToggleButton, () => {
-        setGameSoundOn(!isGameSoundOn);
-      });
+        // 사운드를 켜거나 끌 때 모두 sfx_set을 한 번 들려줍니다.
+        // OFF 직후에도 피드백음 자체는 끝까지 재생되도록 일반 SFX mute 레지스트리와 분리합니다.
+        if (document.visibilityState !== "hidden") {
+          try {
+            const toggleAudio = new Audio(INVENTORY_SET_SOUND);
+            toggleAudio.volume = 1;
+            toggleAudio.play().catch(() => {});
+          } catch (_) {}
+        }
+      }
+
+      bindReliableTap(soundToggleButton, toggleGameSoundWithSetSfx);
+      bindReliableTap(exploringSoundToggleButton, toggleGameSoundWithSetSfx);
 
       // 탐험 진행 중에는 낮에 조작 가능한 모든 필드 오브젝트의 입력을 공통으로 막고
       // 실제 상호작용 대신 동일한 안내 토스트만 표시합니다.
