@@ -64,9 +64,13 @@
       --option-control-size: 33.6px;
       --option-control-gap: 8px;
 
-      /* 좀비·사슴·개의 밤 전용 밝기와 채도입니다. */
-      --entity-night-brightness: 0.42;
-      --entity-night-saturation: 0.7;
+      /* 기존 201 버전의 밤 오브젝트/엔티티 기본 톤.
+         SCENE_COLOR_TONES.night.baseLayer 값에서 런타임에 갱신합니다. */
+      --base-night-brightness: 0.4;
+      --base-night-saturation: 0.55;
+      --base-night-contrast: 1;
+      --base-night-entity-brightness: 0.42;
+      --base-night-entity-saturation: 0.7;
 
       /*
         집 / 창고 / 울타리 / 차 위치와 크기 수정 위치
@@ -202,6 +206,24 @@
       --field-background-size: 185%;
       --field-pattern-day-size: 384px;
       --field-pattern-night-size: 384px;
+
+      /*
+        Day / Sunset / Night 런타임 컬러 값입니다.
+        실제 조정값은 JavaScript의 SCENE_COLOR_TONES / CLOUD_COLOR_TONES에서 수정합니다.
+      */
+      --scene-night-mix: 0;
+      --scene-brightness: 1;
+      --scene-saturation: 1;
+      --scene-contrast: 1;
+      --scene-color-balance-overlay: rgba(0, 0, 0, 0);
+      --scene-tint: rgba(0, 0, 0, 0);
+      --scene-color-transition-duration: 1000ms;
+      --scene-bird-color: #f1efe4;
+      --scene-rain-day-opacity: 1;
+      --scene-rain-night-opacity: 0;
+      --cloud-brightness: 1;
+      --cloud-saturation: 1;
+      --cloud-contrast: 1;
     }
 
     * {
@@ -419,7 +441,7 @@
     /* 밤 컬러 레이어도 같은 전체 이미지를 사용합니다. */
     #houseObject::after {
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     body.is-night #houseObject::before {
@@ -519,7 +541,7 @@
 
     #mailboxObject::after {
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     body.is-night #mailboxObject::before {
@@ -1017,7 +1039,7 @@
     #gardenObject::after,
     #carObject::after {
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     body.is-night #shedObject::before,
@@ -1074,7 +1096,7 @@
 
     #axeStump::after {
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     body.is-night #axeStump::before {
@@ -1148,7 +1170,7 @@
       background-position: -512px 0;
       background-size: 1024px 1024px;
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
       transition: opacity 3s ease;
       will-change: background-position, opacity;
     }
@@ -1286,7 +1308,7 @@
 
     .tree-falling-part-image::after {
       opacity: var(--tree-part-night-opacity, 0);
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     /* 좀비 머리·신체 파츠는 나무 파츠와 분리된 전용 레이어를 사용합니다. */
@@ -1383,7 +1405,7 @@
 
     .supply-box::after {
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     body.is-night .supply-box::before {
@@ -1435,7 +1457,7 @@
 
     .supply-box-shadow::after {
       opacity: 0;
-      filter: url(#nightCoolBalance) brightness(0.4) saturate(0.55);
+      filter: url(#nightCoolBalance) brightness(var(--base-night-brightness)) saturate(var(--base-night-saturation)) contrast(var(--base-night-contrast));
     }
 
     body.is-night .supply-box-shadow::before {
@@ -1513,7 +1535,7 @@
 
     /* 실제 구름은 좀비보다 높은 상공 레이어에 표시합니다. */
     #clouds {
-      z-index: 20;
+      z-index: 21;
     }
 
     /*
@@ -1686,7 +1708,7 @@
     #birds {
       position: absolute;
       inset: 0;
-      z-index: 19;
+      z-index: 20;
       overflow: visible;
       pointer-events: none;
     }
@@ -1719,35 +1741,33 @@
       pointer-events: none;
     }
 
-    .cloud-visual::before,
-    .cloud-visual::after {
+    .cloud-visual::before {
       content: "";
       position: absolute;
       inset: 0;
+      background-image: url("images/bg_field_default_clouds.png");
       background-repeat: no-repeat;
       background-position: var(--cloud-position, 0 0);
       background-size: 1024px 1024px;
       pointer-events: none;
-      transition: opacity 3s ease;
     }
 
-    .cloud-visual::before {
-      background-image: url("images/bg_field_default_clouds.png");
-      opacity: 1;
+    /*
+      실제 구름은 Day / Sunset / Night별 CLOUD_COLOR_TONES 값으로 별도 조정합니다.
+      구름 그림자는 기존 그림자 필터를 유지하고 이 톤의 영향을 받지 않습니다.
+    */
+    .cloud-sprite::before {
+      filter:
+        url(#cloudToneFilter)
+        brightness(var(--cloud-brightness))
+        saturate(var(--cloud-saturation))
+        contrast(var(--cloud-contrast));
+      /* 구름 컬러는 JavaScript에서 모든 항목을 같은 rAF 타임라인으로 보간합니다.
+         CSS filter transition을 함께 사용하면 Night → Day 귀환 시
+         밝기/채도/대비와 SVG RGB/tint의 진행 시점이 어긋날 수 있습니다. */
+      transition: none;
     }
 
-    .cloud-visual::after {
-      background-image: url("images/bg_field_default_clouds_night.png");
-      opacity: 0;
-    }
-
-    body.is-night .cloud-visual::before {
-      opacity: 0;
-    }
-
-    body.is-night .cloud-visual::after {
-      opacity: 1;
-    }
 
     .cloud-shadow {
       opacity: 0.3;
@@ -4413,8 +4433,9 @@
     .cat-visual-night .cat-sprite {
       filter:
         url(#nightCoolBalance)
-        brightness(var(--entity-night-brightness))
-        saturate(var(--entity-night-saturation));
+        brightness(var(--base-night-entity-brightness))
+        saturate(var(--base-night-entity-saturation))
+        contrast(var(--base-night-contrast));
     }
 
     body.is-night .zombie-visual-day,
@@ -4476,8 +4497,6 @@
     body.is-restored-night #treeDayVisual,
     body.is-restored-night #treeDayFadeVisual,
     body.is-restored-night #treeNightVisual,
-    body.is-restored-night .cloud-visual::before,
-    body.is-restored-night .cloud-visual::after,
     body.is-restored-night .zombie-visual-layer,
     body.is-restored-night .deer-visual-layer,
     body.is-restored-night .dog-visual-layer,
@@ -4501,6 +4520,189 @@
     body.is-restored-night #mailboxObject::after,
     body.is-restored-night .bird {
       transition: none !important;
+    }
+
+    /* =========================================================
+       Day / Sunset / Night 연속 컬러 전환
+       - 게임 진행 중에는 1초 단위 업데이트를 부드럽게 연결합니다.
+       - 테스트 버튼은 JavaScript에서 transition 시간을 0ms로 바꿔 즉시 확인합니다.
+       ========================================================= */
+    #sceneColorTone {
+      position: absolute;
+      inset: 0;
+      z-index: 19;
+      background: var(--scene-tint);
+      -webkit-backdrop-filter:
+        brightness(var(--scene-brightness))
+        saturate(var(--scene-saturation))
+        contrast(var(--scene-contrast));
+      backdrop-filter:
+        brightness(var(--scene-brightness))
+        saturate(var(--scene-saturation))
+        contrast(var(--scene-contrast));
+      transition:
+        background-color var(--scene-color-transition-duration) linear,
+        -webkit-backdrop-filter var(--scene-color-transition-duration) linear,
+        backdrop-filter var(--scene-color-transition-duration) linear;
+      pointer-events: none;
+    }
+
+    /* RGB Color Balance는 Safari 호환성을 위해 별도 반투명 컬러 레이어로 근사합니다. */
+    #sceneColorTone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--scene-color-balance-overlay);
+      transition: background-color var(--scene-color-transition-duration) linear;
+      pointer-events: none;
+    }
+
+    /* 기존 낮/밤 두 레이어의 시각 혼합을 is-night 클래스와 분리해
+       탐험 시간에 따라 연속적으로 보간할 수 있게 합니다. */
+    #world::after,
+    #houseObject::after,
+    #mailboxObject::after,
+    #shedObject::after,
+    #fenceObject::after,
+    #wallsObject::after,
+    #roofObject::after,
+    #gardenObject::after,
+    #carObject::after,
+    #axeStump::after,
+    #treeNightVisual,
+    .supply-box::after,
+    .supply-box-shadow::after,
+    .zombie-visual-night,
+    .deer-visual-night,
+    .dog-visual-night,
+    .cat-visual-night {
+      opacity: var(--scene-night-mix) !important;
+      transition-duration: var(--scene-color-transition-duration) !important;
+      transition-timing-function: linear !important;
+    }
+
+    #houseObject::before,
+    #mailboxObject::before,
+    #shedObject::before,
+    #fenceObject::before,
+    #wallsObject::before,
+    #roofObject::before,
+    #gardenObject::before,
+    #carObject::before,
+    #axeStump::before,
+    #treeDayVisual,
+    .supply-box::before,
+    .supply-box-shadow::before,
+    .zombie-visual-day,
+    .deer-visual-day,
+    .dog-visual-day,
+    .cat-visual-day {
+      opacity: calc(1 - var(--scene-night-mix)) !important;
+      transition-duration: var(--scene-color-transition-duration) !important;
+      transition-timing-function: linear !important;
+    }
+
+    /* 귀환 직후 새로 생성되는 개는 기존처럼 밤 레이어에서 시작한 뒤 낮으로 전환합니다. */
+    .dog.is-starting-from-night .dog-visual-day {
+      opacity: 0 !important;
+    }
+
+    .dog.is-starting-from-night .dog-visual-night {
+      opacity: 1 !important;
+    }
+
+    .bird {
+      background-color: var(--scene-bird-color) !important;
+      transition: background-color var(--scene-color-transition-duration) linear !important;
+    }
+
+    /* 비 오는 날도 Sunset → Night 구간에서 낮/밤 톤이 함께 섞이게 합니다. */
+    body.is-rainy #rainDayTone {
+      visibility: visible !important;
+      opacity: var(--scene-rain-day-opacity) !important;
+      transition: opacity var(--scene-color-transition-duration) linear;
+      transition-delay: 0s;
+    }
+
+    body.is-rainy #rainNightTone {
+      visibility: visible !important;
+      opacity: var(--scene-rain-night-opacity) !important;
+      transition: opacity var(--scene-color-transition-duration) linear;
+      transition-delay: 0s;
+    }
+
+    /* 테스트 모드에서 자원 충전 후 표시되는 장면 컬러 버튼입니다. */
+    #sceneColorTestControls {
+      position: fixed;
+      left: 50%;
+      bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
+      z-index: 220;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 22px;
+      transform: translateX(-50%);
+      pointer-events: auto;
+    }
+
+    #sceneColorTestControls[hidden],
+    body.is-start-screen #sceneColorTestControls {
+      display: none;
+    }
+
+    .scene-color-test-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 450;
+      line-height: 1;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.18);
+    }
+
+    .scene-color-test-button {
+      --scene-test-swatch: #fff;
+      position: relative;
+      width: 24px;
+      height: 24px;
+      margin: 4px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--scene-test-swatch);
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      touch-action: none;
+      outline: none;
+    }
+
+    .scene-color-test-button::after {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border: 2px solid rgba(255, 255, 255, 1);
+      border-radius: 50%;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .scene-color-test-button.is-active::after {
+      opacity: 1;
+    }
+
+    .scene-color-test-button[data-scene-tone="day"] {
+      --scene-test-swatch: #68d2fa;
+    }
+
+    .scene-color-test-button[data-scene-tone="sunset"] {
+      --scene-test-swatch: #fb997c;
+    }
+
+    .scene-color-test-button[data-scene-tone="night"] {
+      --scene-test-swatch: #0066b1;
     }
 
     /* 주소 끝에 ?debug=1을 붙이면 안전 영역과 게임 영역을 확인할 수 있습니다. */
@@ -4542,12 +4744,14 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.199"
+  data-game-version="0.200"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <!-- 201 버전과 동일한 밤 기본 RGB 밸런스. SCENE_COLOR_TONES.night.baseLayer에서 갱신합니다. -->
     <filter id="nightCoolBalance" color-interpolation-filters="sRGB">
       <feColorMatrix
+        id="nightCoolBalanceMatrix"
         type="matrix"
         values="
           0.4 0    0    0 0
@@ -4556,6 +4760,23 @@
           0    0    0    1 0
         "
       />
+    </filter>
+    <filter id="cloudToneFilter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feColorMatrix
+        id="cloudToneColorMatrix"
+        in="SourceGraphic"
+        type="matrix"
+        values="
+          1 0 0 0 0
+          0 1 0 0 0
+          0 0 1 0 0
+          0 0 0 1 0
+        "
+        result="balanced"
+      />
+      <feFlood id="cloudToneTintFlood" flood-color="rgb(0, 0, 0)" flood-opacity="0" result="tint" />
+      <feComposite in="tint" in2="SourceAlpha" operator="in" result="tintMasked" />
+      <feBlend in="balanced" in2="tintMasked" mode="normal" />
     </filter>
     <!-- 비 오는 낮의 기본 RGB 컬러 밸런스입니다. JavaScript 설정값으로 갱신됩니다. -->
     <filter id="rainDayColorBalance" color-interpolation-filters="sRGB">
@@ -4594,6 +4815,11 @@
       - TEST_MODE = false: FORCE_RAIN_FOR_TEST 값을 무시하고 실제 저장/확률 날씨를 사용합니다.
     */
     const TEST_MODE = true;
+    // 컬러 테스트 선택 상태는 같은 탭의 새로고침 동안 유지합니다.
+    const SCENE_COLOR_TEST_STORAGE_KEY = "cozy.scene-color-test.v1";
+    // 컬러 테스트 버튼 표시 상태도 별도로 저장합니다. 자원 수치는 플레이 중 변할 수 있으므로
+    // F5 복원 여부를 areTestResourcesFull() 판정에 의존하지 않습니다.
+    const SCENE_COLOR_TEST_CONTROLS_STORAGE_KEY = "cozy.scene-color-test-controls.v1";
     const FORCE_RAIN_FOR_TEST = null;
 
     /*
@@ -4604,7 +4830,105 @@
     */
     const FORCE_DAY_NUMBER_FOR_TEST = 0;
 
+    /*
+      =========================================================
+      일반 장면 Day / Sunset / Night 컬러 수정 위치
+      =========================================================
+      - brightness: 밝기 (1 = 기본)
+      - saturation: 채도 (1 = 기본)
+      - contrast: 대비 (1 = 기본)
+      - colorBalance: RGB 비율 (red / green / blue, 1 = 기본)
+      - tint: 화면에 더하는 컬러. rgba()의 alpha로 틴트 강도를 조절
+      - opacity: 위 컬러 조정 전체 강도 (0~1)
+      - nightMix: 내부 낮/밤 이미지 혼합값. 보통 Day/Sunset=0, Night=1 유지
+      - birdColor: 새 실루엣 컬러
+      - Night의 baseLayer: 201 버전의 기존 밤 구조물/엔티티 기본 필터
+        (기본 Night 화면을 예전과 동일하게 유지하기 위한 값)
+    */
+    const SCENE_COLOR_TONES = Object.freeze({
+      day: Object.freeze({
+        swatch: "#68d2fa",
+        brightness: 1,
+        saturation: 1,
+        contrast: 1,
+        colorBalance: Object.freeze({ red: 1, green: 1, blue: 1 }),
+        tint: "rgba(0, 0, 0, 0)",
+        opacity: 1,
+        nightMix: 0,
+        birdColor: "#f1efe4"
+      }),
+      sunset: Object.freeze({
+        swatch: "#fb997c",
+        brightness: 1,
+        saturation: 0.9,
+        contrast: 1.1,
+        colorBalance: Object.freeze({ red: 1, green: .8, blue: .7 }),
+        tint: "rgba(251, 153, 124, 0.05)",
+        opacity: 1,
+        nightMix: 0,
+        birdColor: "#f0c0aa"
+      }),
+      night: Object.freeze({
+        swatch: "#0066b1",
+        // 전역 추가 보정값. 기본값은 중립으로 두어 201의 밤 비주얼을 그대로 유지합니다.
+        brightness: 1,
+        saturation: 1,
+        contrast: 1,
+        colorBalance: Object.freeze({ red: 1, green: 1, blue: 1 }),
+        tint: "rgba(0, 0, 0, 0)",
+        opacity: 1,
+        nightMix: 1,
+        birdColor: "#7198bd",
+        // 201에서 사용하던 구조물/엔티티 밤 기본 필터.
+        baseLayer: Object.freeze({
+          brightness: 0.4,
+          saturation: 0.55,
+          contrast: 1,
+          colorBalance: Object.freeze({ red: 0.4, green: 0.9, blue: 2.5 }),
+          entityBrightness: 0.42,
+          entitySaturation: 0.7
+        })
+      })
+    });
+
+    /*
+      =========================================================
+      구름 Day / Sunset / Night 컬러 수정 위치
+      =========================================================
+      bg_field_default_clouds.png 한 장만 사용합니다.
+      조정 항목은 일반 장면과 동일합니다.
+      실제 구름에만 적용되며 구름 그림자는 제외됩니다.
+    */
+    const CLOUD_COLOR_TONES = Object.freeze({
+      day: Object.freeze({
+        brightness: 1,
+        saturation: 1,
+        contrast: 1,
+        colorBalance: Object.freeze({ red: 1, green: 1, blue: 1 }),
+        tint: "rgba(0, 0, 0, 0)",
+        opacity: 1
+      }),
+      sunset: Object.freeze({
+        brightness: 1.2,
+        saturation: 0.4,
+        contrast: 1.3,
+        colorBalance: Object.freeze({ red: 1, green: 0.75, blue: 0.55 }),
+        tint: "rgba(251, 153, 124, 0.12)",
+        opacity: 1
+      }),
+      night: Object.freeze({
+        brightness: 0.6,
+        saturation: 0.55,
+        contrast: 1.7,
+        colorBalance: Object.freeze({ red: 0.65, green: 0.9, blue: 1.9 }),
+        tint: "rgba(0, 70, 125, 0.16)",
+        opacity: 1
+      })
+    });
+
+
     (() => {
+      applyBaseNightLayerTone();
       try {
         const hasForcedRainTest = TEST_MODE && FORCE_RAIN_FOR_TEST !== null;
         if (hasForcedRainTest) {
@@ -4649,6 +4973,11 @@
         const savedExplorationEndsAt = Number(parsed.explorationEndsAt);
         const explorationNightThresholdMs = 5 * 60_000;
         const savedExplorationRemainingMs = savedExplorationEndsAt - Date.now();
+        const destinationDurationMs = {
+          village: 10 * 60_000,
+          forest: 20 * 60_000,
+          city: 30 * 60_000
+        }[parsed.explorationDestination] || 0;
         const shouldRestoreExplorationNight =
           Number.isFinite(savedExplorationEndsAt) &&
           savedExplorationEndsAt > 0 &&
@@ -4657,7 +4986,66 @@
             savedExplorationRemainingMs <= explorationNightThresholdMs
           );
 
-        // 탐험 완료 5분 전부터는 새로고침/재실행 직후에도 밤 화면으로 시작합니다.
+        // 새로고침 첫 프레임부터 현재 탐험 시각에 가까운 컬러 혼합값을 적용합니다.
+        if (
+          Number.isFinite(savedExplorationEndsAt) &&
+          savedExplorationEndsAt > 0 &&
+          destinationDurationMs > 0
+        ) {
+          const elapsedMs = Math.max(
+            0,
+            Math.min(destinationDurationMs, destinationDurationMs - savedExplorationRemainingMs)
+          );
+          const nightStartElapsedMs = Math.max(
+            0,
+            destinationDurationMs - explorationNightThresholdMs
+          );
+          const sunsetElapsedMs = nightStartElapsedMs / 2;
+          let nightMix = 0;
+          let sunsetMix = 0;
+
+          if (elapsedMs >= nightStartElapsedMs) {
+            nightMix = 1;
+          } else if (elapsedMs <= sunsetElapsedMs) {
+            sunsetMix = sunsetElapsedMs > 0 ? elapsedMs / sunsetElapsedMs : 1;
+          } else {
+            const phaseProgress =
+              (elapsedMs - sunsetElapsedMs) /
+              Math.max(1, nightStartElapsedMs - sunsetElapsedMs);
+            nightMix = phaseProgress;
+            sunsetMix = 1 - phaseProgress;
+          }
+
+          document.documentElement.style.setProperty(
+            "--scene-night-mix",
+            String(Math.max(0, Math.min(1, nightMix)))
+          );
+          const initialTone = nightMix >= 1
+            ? SCENE_COLOR_TONES.night
+            : (sunsetMix >= 0.5 ? SCENE_COLOR_TONES.sunset : SCENE_COLOR_TONES.day);
+          document.documentElement.style.setProperty(
+            "--scene-brightness",
+            String(initialTone.brightness)
+          );
+          document.documentElement.style.setProperty(
+            "--scene-saturation",
+            String(initialTone.saturation)
+          );
+          document.documentElement.style.setProperty(
+            "--scene-contrast",
+            String(initialTone.contrast)
+          );
+          document.documentElement.style.setProperty(
+            "--scene-tint",
+            initialTone.tint
+          );
+          document.documentElement.style.setProperty(
+            "--scene-color-transition-duration",
+            "0ms"
+          );
+        }
+
+        // 게임 규칙상 Night 상태 자체는 기존처럼 완료 5분 전부터 복원합니다.
         if (shouldRestoreExplorationNight) {
           document.body.classList.add("is-night", "is-restored-night");
         }
@@ -4748,6 +5136,7 @@
       <div id="zombiePartLayer" aria-hidden="true"></div>
       <div id="particleLayer" aria-hidden="true"></div>
       <div id="supplyBoxLayer" aria-hidden="true"></div>
+      <div id="sceneColorTone" aria-hidden="true"></div>
       <div id="birds"></div>
       <div id="clouds"></div>
       <div id="gameZone" class="debug-zone"></div>
@@ -5050,6 +5439,21 @@ You can leave the game and come back anytime.</div>
     </button>
   </div>
   <div id="versionLabel"><button id="versionTestButton" type="button" aria-label="테스트 기능">v</button><span id="versionNumber"></span></div>
+
+  <div id="sceneColorTestControls" aria-label="Scene color test" hidden>
+    <div class="scene-color-test-item">
+      <button class="scene-color-test-button" type="button" data-scene-tone="day" aria-label="Test Day color" aria-pressed="false"></button>
+      <span>Day</span>
+    </div>
+    <div class="scene-color-test-item">
+      <button class="scene-color-test-button" type="button" data-scene-tone="sunset" aria-label="Test Sunset color" aria-pressed="false"></button>
+      <span>Sunset</span>
+    </div>
+    <div class="scene-color-test-item">
+      <button class="scene-color-test-button" type="button" data-scene-tone="night" aria-label="Test Night color" aria-pressed="false"></button>
+      <span>Night</span>
+    </div>
+  </div>
 
   <div id="startScreen" aria-label="Start menu">
     <div id="startScreenHeader">
@@ -5522,8 +5926,10 @@ You can leave the game and come back anytime.</div>
       const VILLAGE_EXPLORATION_DURATION_MS = 10 * 60_000;
       const FOREST_EXPLORATION_DURATION_MS = 20 * 60_000;
       const CITY_EXPLORATION_DURATION_MS = 30 * 60_000;
-      // 모든 탐험지는 완료 5분 전부터 밤으로 전환합니다.
+      // 모든 탐험지는 완료 5분 전을 Night 기준점으로 사용합니다.
+      // Sunset 기준점은 "탐험 시작 ~ Night 기준점" 구간의 정확한 중간입니다.
       const EXPLORATION_NIGHT_REMAINING_MS = 5 * 60_000;
+      const EXPLORATION_SCENE_COLOR_UPDATE_MS = 1_000;
       // Village/Forest 복귀 발자국은 완료 5초 전에, City 차량 소리/복귀 애니메이션은 완료 10초 전에 시작합니다.
       const EXPLORATION_RETURN_SOUND_REMAINING_MS = 5_000;
       const CITY_EXPLORATION_RETURN_CUE_REMAINING_MS = 10_000;
@@ -5710,8 +6116,6 @@ You can leave the game and come back anytime.</div>
         "images/bg_field_default_nigth_pattern.png";
       const RAIN_SPOT_SHEET =
         "images/bg_field_default_rainy_spot.png";
-      const NIGHT_CLOUD_SHEET =
-        "images/bg_field_default_clouds_night.png";
       const TREE_DAY_SHEET = "images/bg_tree.png";
       const TREE_DAY_STAGE_TWO_IMAGE = "images/bg_tree_2.png";
       const TREE_DAY_STAGE_THREE_IMAGE = "images/bg_tree_3.png";
@@ -5795,6 +6199,7 @@ You can leave the game and come back anytime.</div>
       const RAINY_DAY_BGM_SOUND = "sounds/rainy_day.mp3";
       const RAINY_NIGHT_BGM_SOUND = "sounds/rainy_night.mp3";
       const RAIN_AMBIENT_SOUND = "sounds/sfx_rain.wav";
+      const MORNING_BIRDS_SOUND = "sounds/sfx_morningbirds.wav";
       // 기존 곡이 먼저 줄어든 뒤 잠시 조용한 구간을 두고 새 곡이 올라옵니다.
       const BGM_FADE_OUT_MS = 2_500;
       const BGM_QUIET_HOLD_MS = 1_000;
@@ -6145,18 +6550,27 @@ You can leave the game and come back anytime.</div>
           framePosition: "right top"
         }
       };
+      /*
+        탐험 설계도 기본 획득 확률 / 지역 수정 위치
+        - 모든 탐험지는 1회당 10%로 동일합니다.
+        - Decor(outdoor)   -> Forest
+        - House(buildings) -> Village
+        - Restore(repair)  -> City
+        - 예외: Car Repair Blueprint는 Village에서도 획득합니다.
+        - 이미 획득한 설계도는 기존 규칙대로 후보에서 제외합니다.
+      */
       const EXPLORATION_BLUEPRINT_DROP_CHANCE = {
-        village: 0.30,
-        forest: 0.20,
-        city: 0.60
+        village: 0.10,
+        forest: 0.10,
+        city: 0.10
       };
       const EXPLORATION_BLUEPRINT_REWARDS = [
-        { destinations: ["village", "city"], category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "outdoor", blueprintId: WHITE_FENCE_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "buildings", blueprintId: TIMBER_ROOF_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "buildings", blueprintId: CHARCOAL_ROOF_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "buildings", blueprintId: TIMBER_WALLS_BLUEPRINT_ID },
-        { destinations: ["village", "city"], category: "buildings", blueprintId: MINT_WALLS_BLUEPRINT_ID },
+        { destinations: ["village"], category: "repair", blueprintId: CAR_REPAIR_BLUEPRINT_ID },
+        { destinations: ["forest"], category: "outdoor", blueprintId: WHITE_FENCE_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: TIMBER_ROOF_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: CHARCOAL_ROOF_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: TIMBER_WALLS_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: MINT_WALLS_BLUEPRINT_ID },
         { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_WHITE_BLUEPRINT_ID },
         { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_BLACK_BLUEPRINT_ID },
         { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_BLUE_BLUEPRINT_ID },
@@ -6209,6 +6623,14 @@ You can leave the game and come back anytime.</div>
       const CLOUD_SHEET_ROWS = 2;
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
+
+      /*
+        좀비/사슴 생성 시 실제 구름(skyClouds) 아래를 가급적 피하는 범위입니다.
+        PNG의 투명 가장자리를 고려해 구름 사각형 전체보다 조금 작게 판정합니다.
+        그림자(shadowClouds)는 이 판정에서 제외합니다.
+      */
+      const CLOUD_ENTITY_SPAWN_AVOIDANCE_RATIO = 0.72;
+      const CLOUD_ENTITY_SPAWN_AVOIDANCE_PADDING = 12;
 
       /*
         구름 크기 / 생성 시작 위치 수정 위치
@@ -6498,6 +6920,10 @@ You can leave the game and come back anytime.</div>
       const dayNumberTrack = document.getElementById("dayNumberTrack");
       const versionTestButton = document.getElementById("versionTestButton");
       const versionNumber = document.getElementById("versionNumber");
+      const sceneColorTestControls = document.getElementById("sceneColorTestControls");
+      const sceneColorTestButtons = Array.from(
+        document.querySelectorAll(".scene-color-test-button")
+      );
       const startScreen = document.getElementById("startScreen");
       const startScreenSurvived = document.getElementById("startScreenSurvived");
       const startGameButton = document.getElementById("startGameButton");
@@ -7150,6 +7576,13 @@ You can leave the game and come back anytime.</div>
       let lastPopulationWallClockAt = Date.now();
       let versionTestClickCount = 0;
       let versionTestLastClickAt = -Infinity;
+      let sceneColorTestOverride = loadSceneColorTestOverride();
+      let sceneColorTransitionResetFrameId = null;
+      // 구름은 brightness / saturation / contrast / RGB balance / tint를
+      // 하나의 rAF 보간으로 묶어 Day / Sunset / Night 및 Night → Day 귀환까지
+      // 모든 컬러 항목이 정확히 같은 진행률로 전환되게 합니다.
+      let cloudColorAnimationFrameId = null;
+      let currentCloudColorVisual = null;
       // 시작화면에 머무는 동안에는 어떤 자동 저장도 새 저장 데이터를 만들지 않습니다.
       let isStateSaveSuppressed = true;
       let isGameplayStarting = false;
@@ -8404,6 +8837,7 @@ You can leave the game and come back anytime.</div>
         );
         todoCompletedListId = 0;
         todoCompletedDay = 0;
+
 
         if (currentTodoListId === 5 && todoRainMissionAcceptedDay <= 0) {
           todoRainMissionAcceptedDay = dayCount;
@@ -12411,6 +12845,9 @@ You can leave the game and come back anytime.</div>
         syncExplorationProgressUI();
         updateExplorationLootUI(1);
         setNightMode(true);
+        if (sceneColorTestOverride === null) {
+          applySceneColorPreset("night");
+        }
         if (!wasPending) {
           turnOnHouseExplorationLight();
         }
@@ -12503,10 +12940,12 @@ You can leave the game and come back anytime.</div>
         maybePlayExplorationReturnSound(remainingMs);
         const shouldBeNight = remainingMs <= EXPLORATION_NIGHT_REMAINING_MS;
 
-        // 탐험 완료 5분 전부터 밤으로 전환합니다. 같은 상태에서는 전환 함수를 반복 호출하지 않습니다.
+        // 게임 규칙상 Night 상태는 완료 5분 전부터 시작합니다.
+        // 시각 컬러는 시작~Night 기준점의 중간을 Sunset으로 삼아 매초 연속 보간합니다.
         if (document.body.classList.contains("is-night") !== shouldBeNight) {
           setNightMode(shouldBeNight);
         }
+        applyExplorationSceneColor();
 
         if (remainingMs <= 0) {
           enterExplorationCompletePendingState();
@@ -13523,6 +13962,505 @@ You can leave the game and come back anytime.</div>
         carObject.style.visibility = "visible";
       }
 
+      function clamp01(value) {
+        return clamp(Number(value) || 0, 0, 1);
+      }
+
+      function parseHexColor(hex) {
+        const normalized = String(hex || "").trim().replace(/^#/, "");
+        if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+          return { r: 255, g: 255, b: 255 };
+        }
+        return {
+          r: parseInt(normalized.slice(0, 2), 16),
+          g: parseInt(normalized.slice(2, 4), 16),
+          b: parseInt(normalized.slice(4, 6), 16)
+        };
+      }
+
+      function mixHexColor(fromHex, toHex, progress) {
+        const t = clamp01(progress);
+        const from = parseHexColor(fromHex);
+        const to = parseHexColor(toHex);
+        const mix = (a, b) => Math.round(a + (b - a) * t);
+        return `rgb(${mix(from.r, to.r)}, ${mix(from.g, to.g)}, ${mix(from.b, to.b)})`;
+      }
+
+      function parseCssColor(color) {
+        const value = String(color || "").trim();
+        if (value.startsWith("#")) {
+          const hex = value.slice(1);
+          if (hex.length === 3) {
+            return {
+              r: parseInt(hex[0] + hex[0], 16),
+              g: parseInt(hex[1] + hex[1], 16),
+              b: parseInt(hex[2] + hex[2], 16),
+              a: 1
+            };
+          }
+          if (hex.length === 6) {
+            return {
+              r: parseInt(hex.slice(0, 2), 16),
+              g: parseInt(hex.slice(2, 4), 16),
+              b: parseInt(hex.slice(4, 6), 16),
+              a: 1
+            };
+          }
+        }
+        const match = value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+        if (match) {
+          return {
+            r: clamp(Number(match[1]) || 0, 0, 255),
+            g: clamp(Number(match[2]) || 0, 0, 255),
+            b: clamp(Number(match[3]) || 0, 0, 255),
+            a: clamp01(match[4] === undefined ? 1 : Number(match[4]))
+          };
+        }
+        return { r: 0, g: 0, b: 0, a: 0 };
+      }
+
+      function mixCssColor(fromColor, toColor, progress) {
+        const t = clamp01(progress);
+        const from = parseCssColor(fromColor);
+        const to = parseCssColor(toColor);
+        const mix = (a, b) => a + (b - a) * t;
+        return `rgba(${Math.round(mix(from.r, to.r))}, ${Math.round(mix(from.g, to.g))}, ${Math.round(mix(from.b, to.b))}, ${mix(from.a, to.a).toFixed(4)})`;
+      }
+
+      function multiplyCssColorAlpha(color, multiplier) {
+        const parsed = parseCssColor(color);
+        return `rgba(${Math.round(parsed.r)}, ${Math.round(parsed.g)}, ${Math.round(parsed.b)}, ${(parsed.a * clamp01(multiplier)).toFixed(4)})`;
+      }
+
+      function interpolateColorBalance(fromBalance, toBalance, progress) {
+        const t = clamp01(progress);
+        const from = fromBalance || { red: 1, green: 1, blue: 1 };
+        const to = toBalance || { red: 1, green: 1, blue: 1 };
+        const mix = (a, b) => {
+          const fromValue = Number(a);
+          const toValue = Number(b);
+          const resolvedFrom = Number.isFinite(fromValue) ? fromValue : 1;
+          const resolvedTo = Number.isFinite(toValue) ? toValue : 1;
+          return resolvedFrom + (resolvedTo - resolvedFrom) * t;
+        };
+        return {
+          red: mix(from.red, to.red),
+          green: mix(from.green, to.green),
+          blue: mix(from.blue, to.blue)
+        };
+      }
+
+      function applyBaseNightLayerTone() {
+        const base = SCENE_COLOR_TONES.night.baseLayer || {};
+        const balance = base.colorBalance || { red: 0.4, green: 0.9, blue: 2.5 };
+        const rootStyle = document.documentElement.style;
+        rootStyle.setProperty("--base-night-brightness", String(Number(base.brightness) || 0.4));
+        rootStyle.setProperty("--base-night-saturation", String(Number(base.saturation) || 0.55));
+        rootStyle.setProperty("--base-night-contrast", String(Number(base.contrast) || 1));
+        rootStyle.setProperty("--base-night-entity-brightness", String(Number(base.entityBrightness) || 0.42));
+        rootStyle.setProperty("--base-night-entity-saturation", String(Number(base.entitySaturation) || 0.7));
+
+        const matrix = document.getElementById("nightCoolBalanceMatrix");
+        if (matrix) {
+          matrix.setAttribute(
+            "values",
+            `${Number(balance.red) || 0.4} 0 0 0 0\n` +
+            `0 ${Number(balance.green) || 0.9} 0 0 0\n` +
+            `0 0 ${Number(balance.blue) || 2.5} 0 0\n` +
+            `0 0 0 1 0`
+          );
+        }
+      }
+
+      function getEffectiveToneSettings(tone) {
+        const strength = clamp01(tone?.opacity ?? 1);
+        const towardNeutral = (value) => {
+          const numeric = Number(value);
+          const resolved = Number.isFinite(numeric) ? numeric : 1;
+          return 1 + (resolved - 1) * strength;
+        };
+        const balance = tone?.colorBalance || { red: 1, green: 1, blue: 1 };
+        return {
+          brightness: towardNeutral(tone?.brightness),
+          saturation: towardNeutral(tone?.saturation),
+          contrast: towardNeutral(tone?.contrast),
+          colorBalance: {
+            red: towardNeutral(balance.red),
+            green: towardNeutral(balance.green),
+            blue: towardNeutral(balance.blue)
+          },
+          tint: multiplyCssColorAlpha(tone?.tint || "rgba(0, 0, 0, 0)", strength)
+        };
+      }
+
+      function setSceneColorTransitionDuration(durationMs) {
+        const normalized = Math.max(0, Math.round(Number(durationMs) || 0));
+        document.documentElement.style.setProperty(
+          "--scene-color-transition-duration",
+          `${normalized}ms`
+        );
+      }
+
+      function restoreDefaultSceneColorTransitionNextFrame() {
+        if (sceneColorTransitionResetFrameId !== null) {
+          cancelAnimationFrame(sceneColorTransitionResetFrameId);
+        }
+        sceneColorTransitionResetFrameId = requestAnimationFrame(() => {
+          sceneColorTransitionResetFrameId = null;
+          setSceneColorTransitionDuration(EXPLORATION_SCENE_COLOR_UPDATE_MS);
+        });
+      }
+
+      function applySceneColorVisual(tone, options = {}) {
+        const durationMs = options.instant === true
+          ? 0
+          : (Number.isFinite(options.durationMs)
+              ? Math.max(0, options.durationMs)
+              : EXPLORATION_SCENE_COLOR_UPDATE_MS);
+        setSceneColorTransitionDuration(durationMs);
+
+        const effective = getEffectiveToneSettings(tone);
+        const normalizedNightMix = clamp01(tone?.nightMix ?? 0);
+        const rootStyle = document.documentElement.style;
+        rootStyle.setProperty("--scene-night-mix", String(normalizedNightMix));
+        rootStyle.setProperty("--scene-brightness", String(effective.brightness));
+        rootStyle.setProperty("--scene-saturation", String(effective.saturation));
+        rootStyle.setProperty("--scene-contrast", String(effective.contrast));
+        rootStyle.setProperty(
+          "--scene-color-balance-overlay",
+          getRainColorBalanceOverlay(effective.colorBalance)
+        );
+        rootStyle.setProperty("--scene-tint", effective.tint);
+        rootStyle.setProperty(
+          "--scene-bird-color",
+          tone?.birdColor || SCENE_COLOR_TONES.day.birdColor
+        );
+        rootStyle.setProperty(
+          "--scene-rain-day-opacity",
+          String((1 - normalizedNightMix) * RAIN_DAY_TONE.opacity)
+        );
+        rootStyle.setProperty(
+          "--scene-rain-night-opacity",
+          String(normalizedNightMix * RAIN_NIGHT_TONE.opacity)
+        );
+
+        if (options.instant === true) {
+          restoreDefaultSceneColorTransitionNextFrame();
+        }
+      }
+
+      function setCloudSvgToneVisual(tone) {
+        const matrix = document.getElementById("cloudToneColorMatrix");
+        if (matrix) {
+          matrix.setAttribute(
+            "values",
+            `${tone.colorBalance.red} 0 0 0 0\n` +
+            `0 ${tone.colorBalance.green} 0 0 0\n` +
+            `0 0 ${tone.colorBalance.blue} 0 0\n` +
+            `0 0 0 1 0`
+          );
+        }
+
+        const tintFlood = document.getElementById("cloudToneTintFlood");
+        if (tintFlood) {
+          const tint = parseCssColor(tone.tint);
+          tintFlood.setAttribute(
+            "flood-color",
+            `rgb(${Math.round(tint.r)}, ${Math.round(tint.g)}, ${Math.round(tint.b)})`
+          );
+          tintFlood.setAttribute("flood-opacity", String(clamp01(tint.a)));
+        }
+      }
+
+      function setCloudColorVisual(tone) {
+        const rootStyle = document.documentElement.style;
+        rootStyle.setProperty("--cloud-brightness", String(tone.brightness));
+        rootStyle.setProperty("--cloud-saturation", String(tone.saturation));
+        rootStyle.setProperty("--cloud-contrast", String(tone.contrast));
+        setCloudSvgToneVisual(tone);
+      }
+
+      function interpolateEffectiveCloudTone(fromTone, toTone, progress) {
+        const t = clamp01(progress);
+        const mix = (a, b) =>
+          (Number(a) || 0) + ((Number(b) || 0) - (Number(a) || 0)) * t;
+        return {
+          brightness: mix(fromTone.brightness, toTone.brightness),
+          saturation: mix(fromTone.saturation, toTone.saturation),
+          contrast: mix(fromTone.contrast, toTone.contrast),
+          colorBalance: interpolateColorBalance(
+            fromTone.colorBalance,
+            toTone.colorBalance,
+            t
+          ),
+          tint: mixCssColor(fromTone.tint, toTone.tint, t)
+        };
+      }
+
+      function animateCloudColorVisual(targetTone, durationMs) {
+        if (cloudColorAnimationFrameId !== null) {
+          cancelAnimationFrame(cloudColorAnimationFrameId);
+          cloudColorAnimationFrameId = null;
+        }
+
+        const target = {
+          brightness: targetTone.brightness,
+          saturation: targetTone.saturation,
+          contrast: targetTone.contrast,
+          colorBalance: { ...targetTone.colorBalance },
+          tint: targetTone.tint
+        };
+
+        if (!currentCloudColorVisual || durationMs <= 0) {
+          currentCloudColorVisual = target;
+          setCloudColorVisual(currentCloudColorVisual);
+          return;
+        }
+
+        const from = {
+          brightness: currentCloudColorVisual.brightness,
+          saturation: currentCloudColorVisual.saturation,
+          contrast: currentCloudColorVisual.contrast,
+          colorBalance: { ...currentCloudColorVisual.colorBalance },
+          tint: currentCloudColorVisual.tint
+        };
+        const startedAt = performance.now();
+
+        const step = (now) => {
+          const progress = clamp01((now - startedAt) / Math.max(1, durationMs));
+          currentCloudColorVisual = interpolateEffectiveCloudTone(
+            from,
+            target,
+            progress
+          );
+          setCloudColorVisual(currentCloudColorVisual);
+
+          if (progress < 1) {
+            cloudColorAnimationFrameId = requestAnimationFrame(step);
+          } else {
+            cloudColorAnimationFrameId = null;
+            currentCloudColorVisual = target;
+            setCloudColorVisual(currentCloudColorVisual);
+          }
+        };
+
+        cloudColorAnimationFrameId = requestAnimationFrame(step);
+      }
+
+      function applyCloudColorVisual(tone, options = {}) {
+        const durationMs = options.instant === true
+          ? 0
+          : (Number.isFinite(options.durationMs)
+              ? Math.max(0, options.durationMs)
+              : EXPLORATION_SCENE_COLOR_UPDATE_MS);
+        const effective = getEffectiveToneSettings(tone);
+        animateCloudColorVisual(effective, durationMs);
+      }
+
+      function getInterpolatedSceneColorVisual(fromTone, toTone, progress) {
+        const t = clamp01(progress);
+        const mix = (a, b) => (Number(a) || 0) + ((Number(b) || 0) - (Number(a) || 0)) * t;
+        return {
+          brightness: mix(fromTone.brightness, toTone.brightness),
+          saturation: mix(fromTone.saturation, toTone.saturation),
+          contrast: mix(fromTone.contrast, toTone.contrast),
+          colorBalance: interpolateColorBalance(fromTone.colorBalance, toTone.colorBalance, t),
+          tint: mixCssColor(fromTone.tint, toTone.tint, t),
+          opacity: mix(fromTone.opacity, toTone.opacity),
+          nightMix: mix(fromTone.nightMix, toTone.nightMix),
+          birdColor: mixHexColor(fromTone.birdColor, toTone.birdColor, t)
+        };
+      }
+
+      function getInterpolatedCloudColorVisual(fromTone, toTone, progress) {
+        const t = clamp01(progress);
+        const mix = (a, b) => (Number(a) || 0) + ((Number(b) || 0) - (Number(a) || 0)) * t;
+        return {
+          brightness: mix(fromTone.brightness, toTone.brightness),
+          saturation: mix(fromTone.saturation, toTone.saturation),
+          contrast: mix(fromTone.contrast, toTone.contrast),
+          colorBalance: interpolateColorBalance(fromTone.colorBalance, toTone.colorBalance, t),
+          tint: mixCssColor(fromTone.tint, toTone.tint, t),
+          opacity: mix(fromTone.opacity, toTone.opacity)
+        };
+      }
+
+      function applySceneColorPreset(toneName, options = {}) {
+        applySceneColorVisual(
+          SCENE_COLOR_TONES[toneName] || SCENE_COLOR_TONES.day,
+          options
+        );
+        applyCloudColorVisual(
+          CLOUD_COLOR_TONES[toneName] || CLOUD_COLOR_TONES.day,
+          options
+        );
+      }
+
+      function getExplorationTonePhase(remainingMs, totalDurationMs) {
+        const safeTotal = Math.max(1, Number(totalDurationMs) || 1);
+        const elapsedMs = clamp(safeTotal - Math.max(0, remainingMs), 0, safeTotal);
+        const nightStartElapsedMs = Math.max(0, safeTotal - EXPLORATION_NIGHT_REMAINING_MS);
+        const sunsetElapsedMs = nightStartElapsedMs / 2;
+
+        if (nightStartElapsedMs <= 0 || elapsedMs >= nightStartElapsedMs) {
+          return { from: "night", to: "night", progress: 1 };
+        }
+        if (sunsetElapsedMs <= 0 || elapsedMs <= sunsetElapsedMs) {
+          return {
+            from: "day",
+            to: "sunset",
+            progress: sunsetElapsedMs <= 0 ? 1 : elapsedMs / sunsetElapsedMs
+          };
+        }
+        return {
+          from: "sunset",
+          to: "night",
+          progress:
+            (elapsedMs - sunsetElapsedMs) /
+            Math.max(1, nightStartElapsedMs - sunsetElapsedMs)
+        };
+      }
+
+      function getExplorationSceneColorVisual(remainingMs, totalDurationMs) {
+        const phase = getExplorationTonePhase(remainingMs, totalDurationMs);
+        if (phase.from === phase.to) return SCENE_COLOR_TONES[phase.to];
+        return getInterpolatedSceneColorVisual(
+          SCENE_COLOR_TONES[phase.from],
+          SCENE_COLOR_TONES[phase.to],
+          phase.progress
+        );
+      }
+
+      function getExplorationCloudColorVisual(remainingMs, totalDurationMs) {
+        const phase = getExplorationTonePhase(remainingMs, totalDurationMs);
+        if (phase.from === phase.to) return CLOUD_COLOR_TONES[phase.to];
+        return getInterpolatedCloudColorVisual(
+          CLOUD_COLOR_TONES[phase.from],
+          CLOUD_COLOR_TONES[phase.to],
+          phase.progress
+        );
+      }
+
+      function applyExplorationSceneColor(options = {}) {
+        if (sceneColorTestOverride !== null && options.ignoreTestOverride !== true) {
+          return;
+        }
+
+        if (!isExploring || !explorationDestination || explorationEndsAt <= 0) {
+          applySceneColorPreset("day", options);
+          return;
+        }
+
+        const remainingMs = Math.max(0, explorationEndsAt - Date.now());
+        const totalDurationMs = Math.max(
+          1,
+          getExplorationDurationMs(explorationDestination)
+        );
+        applySceneColorVisual(
+          getExplorationSceneColorVisual(remainingMs, totalDurationMs),
+          options
+        );
+        applyCloudColorVisual(
+          getExplorationCloudColorVisual(remainingMs, totalDurationMs),
+          options
+        );
+      }
+
+      function loadSceneColorTestOverride() {
+        if (!TEST_MODE) return null;
+        try {
+          const savedTone = sessionStorage.getItem(SCENE_COLOR_TEST_STORAGE_KEY);
+          return SCENE_COLOR_TONES[savedTone] ? savedTone : null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function saveSceneColorTestOverride() {
+        try {
+          if (!TEST_MODE || sceneColorTestOverride === null) {
+            sessionStorage.removeItem(SCENE_COLOR_TEST_STORAGE_KEY);
+            return;
+          }
+          sessionStorage.setItem(
+            SCENE_COLOR_TEST_STORAGE_KEY,
+            sceneColorTestOverride
+          );
+        } catch (_) {}
+      }
+
+      function clearSceneColorTestOverride() {
+        sceneColorTestOverride = null;
+        saveSceneColorTestOverride();
+      }
+
+      function loadSceneColorTestControlsEnabled() {
+        if (!TEST_MODE) return false;
+        try {
+          return sessionStorage.getItem(SCENE_COLOR_TEST_CONTROLS_STORAGE_KEY) === "1";
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function saveSceneColorTestControlsEnabled(enabled) {
+        try {
+          if (!TEST_MODE || !enabled) {
+            sessionStorage.removeItem(SCENE_COLOR_TEST_CONTROLS_STORAGE_KEY);
+            return;
+          }
+          sessionStorage.setItem(SCENE_COLOR_TEST_CONTROLS_STORAGE_KEY, "1");
+        } catch (_) {}
+      }
+
+      function clearSceneColorTestSessionState() {
+        clearSceneColorTestOverride();
+        saveSceneColorTestControlsEnabled(false);
+      }
+
+      function updateSceneColorTestButtonState() {
+        for (const button of sceneColorTestButtons) {
+          const toneName = button.dataset.sceneTone || "";
+          const tone = SCENE_COLOR_TONES[toneName];
+          if (tone?.swatch) {
+            button.style.setProperty("--scene-test-swatch", tone.swatch);
+          }
+          const isActive = toneName === sceneColorTestOverride;
+          button.classList.toggle("is-active", isActive);
+          button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        }
+      }
+
+      function showSceneColorTestControls() {
+        if (!TEST_MODE || !sceneColorTestControls) return;
+        sceneColorTestControls.hidden = false;
+        saveSceneColorTestControlsEnabled(true);
+        updateSceneColorTestButtonState();
+      }
+
+      function handleSceneColorTestButton(button, event) {
+        if (!TEST_MODE || !button) return;
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        const toneName = button.dataset.sceneTone;
+        if (!SCENE_COLOR_TONES[toneName]) return;
+
+        if (sceneColorTestOverride === toneName) {
+          clearSceneColorTestOverride();
+          updateSceneColorTestButtonState();
+          applyExplorationSceneColor({ instant: true, ignoreTestOverride: true });
+          return;
+        }
+
+        sceneColorTestOverride = toneName;
+        saveSceneColorTestOverride();
+        updateSceneColorTestButtonState();
+        applySceneColorPreset(toneName, { instant: true });
+      }
+
       function setNightMode(enabled) {
         const wasNight = document.body.classList.contains("is-night");
 
@@ -13605,6 +14543,7 @@ You can leave the game and come back anytime.</div>
           startCityCarDeparture();
         }
         setNightMode(false);
+        applyExplorationSceneColor({ instant: true });
         syncExplorationProgressUI();
         updateTodoListUI();
         updateExplorationLootUI(0);
@@ -13623,7 +14562,7 @@ You can leave the game and come back anytime.</div>
 
         explorationTimerId = window.setInterval(
           updateExploringCountdown,
-          1_000
+          EXPLORATION_SCENE_COLOR_UPDATE_MS
         );
       }
 
@@ -13657,6 +14596,7 @@ You can leave the game and come back anytime.</div>
           hideLootListOverlay();
           resetCarToHomePosition();
           setNightMode(false);
+          applySceneColorPreset("day", { instant: true });
           syncExplorationProgressUI();
           updateDayStatus();
           if (!previewOnly) saveResourceState();
@@ -13747,11 +14687,12 @@ You can leave the game and come back anytime.</div>
           resetCarToHomePosition();
         }
 
-        // 진행 중에도 완료까지 5분 이하가 남았거나 완료 대기 상태라면 밤으로 복원합니다.
+        // 저장된 탐험은 현재 경과 시간에 맞는 Day / Sunset / Night 혼합값으로 즉시 복원합니다.
         const remainingMs = Math.max(0, explorationEndsAt - Date.now());
         setNightMode(
           hasReachedCompletion || remainingMs <= EXPLORATION_NIGHT_REMAINING_MS
         );
+        applyExplorationSceneColor({ instant: true, ignoreTestOverride: true });
         syncExplorationProgressUI();
         exploringStatus.classList.add("is-visible");
         updateDayStatus();
@@ -13768,7 +14709,7 @@ You can leave the game and come back anytime.</div>
         if (!previewOnly) {
           explorationTimerId = window.setInterval(
             updateExploringCountdown,
-            1_000
+            EXPLORATION_SCENE_COLOR_UPDATE_MS
           );
         }
       }
@@ -14477,7 +15418,7 @@ You can leave the game and come back anytime.</div>
       /*
         네 번째 to do list 진행 중 실제 Village 탐험에서만 사용하는 보정 보상입니다.
         50% 확률로 아직 목표 수량을 채우지 못한 자동차 수리 관련 항목 중 하나를 지급합니다.
-        지급 수량은 기존 탐험 기본 규칙을 그대로 사용합니다.
+        Car Repair 설계도는 이미 획득했다면 후보에서 제외합니다.
       */
       function tryAwardFourthTodoVillageReward(destination, options = {}) {
         if (
@@ -14687,6 +15628,14 @@ You can leave the game and come back anytime.</div>
         applyExplorationRewardPlan(completedRewardPlan);
         applyWeatherState();
         setNightMode(false);
+        // 실제 탐험 복귀의 밤→낮 전환에서만 아침 새소리를 재생합니다.
+        // 테스트 컬러 버튼은 이 효과음을 호출하지 않습니다.
+        playSound(MORNING_BIRDS_SOUND);
+        if (sceneColorTestOverride === null) {
+          applySceneColorPreset("day", { durationMs: 3_000 });
+        } else {
+          applySceneColorPreset(sceneColorTestOverride, { instant: true });
+        }
         exploringStatus.classList.remove("is-visible", "is-return-fading-out");
         if (
           tutorialCompletedGuideIds.has(6) &&
@@ -14828,6 +15777,7 @@ You can leave the game and come back anytime.</div>
         }
 
         isStateSaveSuppressed = true;
+        clearSceneColorTestSessionState();
 
         try {
           // 이 게임에서 저장하는 모든 진행 상태를 제거합니다.
@@ -15094,6 +16044,7 @@ You can leave the game and come back anytime.</div>
         // 테스트 모드는 개의 친밀도 진행이나 등장 조건을 강제로 변경하지 않습니다.
         startCatDelivery();
         spawnOrReplaceSupplyBox({ resetTimer: true });
+        showSceneColorTestControls();
 
         commitResourceState();
       }
@@ -15214,7 +16165,6 @@ You can leave the game and come back anytime.</div>
           preloadImage(STUMP_WITH_AXE_IMAGE),
           preloadImage(STUMP_EMPTY_IMAGE),
           preloadImage(NIGHT_BACKGROUND_IMAGE),
-          preloadImage(NIGHT_CLOUD_SHEET),
           preloadImage(TREE_DAY_SHEET),
           preloadImage(TREE_DAY_STAGE_TWO_IMAGE),
           preloadImage(TREE_DAY_STAGE_THREE_IMAGE),
@@ -15592,6 +16542,33 @@ You can leave the game and come back anytime.</div>
         );
       }
 
+      function isEntitySpawnCoveredBySkyCloud(x, y, halfWidth, halfHeight) {
+        if (skyClouds.length === 0) return false;
+
+        const parallaxOffset = getCloudParallaxWorldOffset("sky");
+        const entityBounds = {
+          left: x - halfWidth,
+          top: y - halfHeight,
+          right: x + halfWidth,
+          bottom: y + halfHeight
+        };
+
+        return skyClouds.some((cloud) => {
+          const halfCloud =
+            getCloudHalfSize(cloud.scale) * CLOUD_ENTITY_SPAWN_AVOIDANCE_RATIO +
+            CLOUD_ENTITY_SPAWN_AVOIDANCE_PADDING;
+          const cloudCenterX = cloud.x + parallaxOffset.x;
+          const cloudCenterY = cloud.y + parallaxOffset.y;
+          const cloudBounds = {
+            left: cloudCenterX - halfCloud,
+            top: cloudCenterY - halfCloud,
+            right: cloudCenterX + halfCloud,
+            bottom: cloudCenterY + halfCloud
+          };
+          return doCloudBoundsOverlap(entityBounds, cloudBounds);
+        });
+      }
+
       function overlapsCloudGroup(x, y, scale, group) {
         const candidateBounds = getCloudBounds(
           x,
@@ -15844,7 +16821,7 @@ You can leave the game and come back anytime.</div>
           `${-col * CLOUD_FRAME_SIZE}px ` +
           `${-row * CLOUD_FRAME_SIZE}px`;
 
-        // 낮/밤 구름 레이어가 동일한 스프라이트 위치를 사용합니다.
+        // 단일 구름 이미지가 동일한 스프라이트 위치를 사용합니다.
         element.style.setProperty("--cloud-position", position);
       }
 
@@ -16791,6 +17768,8 @@ You can leave the game and come back anytime.</div>
 
         let bestCandidate = null;
         let bestMinimumDistance = -1;
+        let bestCloudClearCandidate = null;
+        let bestCloudClearMinimumDistance = -1;
         const zombieSafeZones = getZombieSafeZones();
 
         for (let attempt = 0; attempt < 500; attempt += 1) {
@@ -16818,16 +17797,33 @@ You can leave the game and come back anytime.</div>
             minimumDistance = Math.min(minimumDistance, distance);
           }
 
-          // 다른 좀비가 없거나 충분히 멀리 떨어진 위치면 바로 사용합니다.
-          if (minimumDistance >= MIN_SPAWN_DISTANCE) {
+          const isCoveredBySkyCloud = isEntitySpawnCoveredBySkyCloud(
+            x,
+            y,
+            HALF_W,
+            HALF_H
+          );
+
+          // 기존 거리 기준을 만족하면서 실제 구름 아래가 아니면 가장 먼저 사용합니다.
+          if (!isCoveredBySkyCloud && minimumDistance >= MIN_SPAWN_DISTANCE) {
             return { x, y };
           }
 
-          // 충분한 위치를 못 찾을 경우를 대비해 가장 멀었던 후보를 기억합니다.
+          // 구름을 피한 후보를 최우선 fallback으로 별도 기억합니다.
+          if (!isCoveredBySkyCloud && minimumDistance > bestCloudClearMinimumDistance) {
+            bestCloudClearMinimumDistance = minimumDistance;
+            bestCloudClearCandidate = { x, y };
+          }
+
+          // 구름 없는 후보가 정말 없을 때를 대비해 기존 최장거리 후보도 보관합니다.
           if (minimumDistance > bestMinimumDistance) {
             bestMinimumDistance = minimumDistance;
             bestCandidate = { x, y };
           }
+        }
+
+        if (bestCloudClearCandidate) {
+          return bestCloudClearCandidate;
         }
 
         if (bestCandidate) {
@@ -16899,6 +17895,7 @@ You can leave the game and come back anytime.</div>
           : 0;
 
         let bestCandidate = null;
+        let bestCandidateCoveredByCloud = true;
         let bestAvoidShortfall = Infinity;
         let bestDeerDistance = -1;
         let bestZombieDistance = -1;
@@ -16969,7 +17966,15 @@ You can leave the game and come back anytime.</div>
               ? Math.hypot(x - avoidX, y - avoidY)
               : Infinity;
 
+          const isCoveredBySkyCloud = isEntitySpawnCoveredBySkyCloud(
+            x,
+            y,
+            DEER_HALF_W,
+            DEER_HALF_H
+          );
+
           if (
+            !isCoveredBySkyCloud &&
             minimumZombieDistance >= MIN_DEER_SPAWN_DISTANCE &&
             minimumDeerDistance >= MIN_DEER_TO_DEER_SPAWN_DISTANCE &&
             avoidDistance >= minAvoidDistance
@@ -16977,21 +17982,24 @@ You can leave the game and come back anytime.</div>
             return { x, y };
           }
 
-          // 모든 기준을 만족하는 곳이 없으면 회피 거리 조건을 우선하고,
-          // 그다음 기존 사슴과 가장 멀리 떨어진 후보를 사용합니다.
+          // 모든 기준을 만족하는 곳이 없으면 구름 회피를 가장 먼저 우선하고,
+          // 그 안에서 기존 회피 거리/개체 거리 기준으로 가장 좋은 후보를 사용합니다.
           const avoidShortfall = Math.max(
             0,
             minAvoidDistance - avoidDistance
           );
           const isBetterCandidate =
-            avoidShortfall < bestAvoidShortfall ||
-            (avoidShortfall === bestAvoidShortfall &&
-              minimumDeerDistance > bestDeerDistance) ||
-            (avoidShortfall === bestAvoidShortfall &&
-              minimumDeerDistance === bestDeerDistance &&
-              minimumZombieDistance > bestZombieDistance);
+            (!isCoveredBySkyCloud && bestCandidateCoveredByCloud) ||
+            (isCoveredBySkyCloud === bestCandidateCoveredByCloud &&
+              (avoidShortfall < bestAvoidShortfall ||
+                (avoidShortfall === bestAvoidShortfall &&
+                  minimumDeerDistance > bestDeerDistance) ||
+                (avoidShortfall === bestAvoidShortfall &&
+                  minimumDeerDistance === bestDeerDistance &&
+                  minimumZombieDistance > bestZombieDistance)));
 
           if (isBetterCandidate) {
+            bestCandidateCoveredByCloud = isCoveredBySkyCloud;
             bestAvoidShortfall = avoidShortfall;
             bestDeerDistance = minimumDeerDistance;
             bestZombieDistance = minimumZombieDistance;
@@ -17005,17 +18013,34 @@ You can leave the game and come back anytime.</div>
 
         // 무작위 탐색에서 후보를 찾지 못한 경우에도 안전 구역을
         // 가로지르지 않는 세로 위치를 위에서 아래로 다시 확인합니다.
+        // 이 단계에서도 실제 구름 아래가 아닌 위치를 우선합니다.
+        let cloudCoveredPathFallback = null;
         for (let y = minY; y <= maxY; y += 1) {
           const crossesSafeZone = deerSafeZones.some((zone) =>
             doesDeerHorizontalPathCrossZone(y, zone)
           );
 
           if (!crossesSafeZone) {
-            return {
+            const candidate = {
               x: Math.min(maxX, minX + 8),
               y
             };
+            if (!isEntitySpawnCoveredBySkyCloud(
+              candidate.x,
+              candidate.y,
+              DEER_HALF_W,
+              DEER_HALF_H
+            )) {
+              return candidate;
+            }
+            if (!cloudCoveredPathFallback) {
+              cloudCoveredPathFallback = candidate;
+            }
           }
+        }
+
+        if (cloudCoveredPathFallback) {
+          return cloudCoveredPathFallback;
         }
 
         // 모든 수평 이동 경로가 안전 구역과 겹치면 사슴을 생성하지 않습니다.
@@ -23901,6 +24926,15 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           fadeInInitial: !skipStartTransition,
           preserveExistingShadows: shadowClouds.length > 0
         });
+
+        // F5 복원에서는 loadResourceState() / restoreExplorationState()가 실제 장면 컬러를
+        // 먼저 복원하므로, 저장된 컬러 테스트 오버라이드는 실제 플레이 상태 복원이 끝난 뒤
+        // 마지막에 다시 적용해야 버튼 상태와 화면 컬러가 일치합니다.
+        if (TEST_MODE && sceneColorTestOverride !== null) {
+          applySceneColorPreset(sceneColorTestOverride, { instant: true });
+          updateSceneColorTestButtonState();
+        }
+
         startSpawner();
         updateTodoListUI();
         updateTutorialGuide();
@@ -23964,6 +24998,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         cancelNewGameButton.disabled = true;
 
         const canAutoStartAfterReload = rememberNewGameAutoStart();
+        clearSceneColorTestSessionState();
 
         try {
           localStorage.removeItem(RESOURCE_STORAGE_KEY);
@@ -24719,7 +25754,25 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       versionNumber.textContent = GAME_VERSION;
       versionTestButton.classList.toggle("is-test-active", TEST_MODE);
       versionTestButton.tabIndex = TEST_MODE ? 0 : -1;
+      const shouldRestoreSceneColorTestControls = TEST_MODE && (
+        loadSceneColorTestControlsEnabled() ||
+        sceneColorTestOverride !== null ||
+        areTestResourcesFull()
+      );
+      if (shouldRestoreSceneColorTestControls) {
+        // 테스트 버튼을 한 번 활성화한 뒤에는 자원/좀비 수치가 플레이 중 변해도
+        // 같은 탭의 F5 새로고침에서 컬러 테스트 UI를 그대로 복원합니다.
+        showSceneColorTestControls();
+        if (sceneColorTestOverride !== null) {
+          applySceneColorPreset(sceneColorTestOverride, { instant: true });
+        }
+      }
       versionTestButton.addEventListener("pointerdown", handleVersionLabelTestAction);
+      for (const button of sceneColorTestButtons) {
+        button.addEventListener("pointerdown", (event) => {
+          handleSceneColorTestButton(button, event);
+        });
+      }
 
       viewport.addEventListener("pointerdown", startBackgroundDrag);
       viewport.addEventListener("pointermove", moveBackgroundDrag);
