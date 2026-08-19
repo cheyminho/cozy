@@ -1676,11 +1676,15 @@
       opacity: var(--rain-drop-night-opacity);
     }
 
-    /* 게임 시작 시에는 날씨를 즉시 적용하고 낮·밤 변경부터 전환을 사용합니다. */
+    /* 게임 시작 및 테스트 토글에서는 날씨를 즉시 적용하고, 일반 날씨 변화만 전환을 사용합니다. */
     body.is-initializing-weather #rainDayTone,
     body.is-initializing-weather #rainNightTone,
     body.is-initializing-weather #rainLayer,
-    body.is-initializing-weather .rain-drop::before {
+    body.is-initializing-weather .rain-drop::before,
+    body.is-weather-test-instant #rainDayTone,
+    body.is-weather-test-instant #rainNightTone,
+    body.is-weather-test-instant #rainLayer,
+    body.is-weather-test-instant .rain-drop::before {
       transition: none !important;
     }
 
@@ -2159,7 +2163,18 @@
       pointer-events: none;
     }
 
-    #exploringSoundToggleButton {
+    /* 탐험 중 옵션 버튼은 버튼 수가 달라져도 행 전체가 항상 가운데 정렬됩니다. */
+    #exploringOptionControls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--option-control-gap);
+      width: max-content;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    #exploringOptionControls .option-control-button {
       flex: 0 0 auto;
       pointer-events: auto;
     }
@@ -2196,7 +2211,7 @@
       transition: opacity 1000ms ease-in;
     }
 
-    body.is-exploration-return-fading-out #exploringSoundToggleButton {
+    body.is-exploration-return-fading-out #exploringOptionControls .option-control-button {
       pointer-events: none;
     }
 
@@ -2413,6 +2428,22 @@
 
     .sound-toggle-button.is-sound-off {
       background-position: 33.333333% 0%;
+    }
+
+    /* 컬러 테스트 UI가 켜졌을 때만 표시되는 날씨 테스트 토글입니다.
+       icon_weather.png: 128×64, 2열×1행 (맑음 / 비). */
+    .weather-test-toggle-button {
+      background-image: url("images/icon_weather.png");
+      background-size: 200% 100%;
+      background-position: 0% 0%;
+    }
+
+    .weather-test-toggle-button.is-rainy {
+      background-position: 100% 0%;
+    }
+
+    .weather-test-toggle-button[hidden] {
+      display: none;
     }
 
     #weaponSwitchButton[data-weapon="fist"] {
@@ -4752,7 +4783,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.201"
+  data-game-version="0.202"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -4828,7 +4859,7 @@
     // 컬러 테스트 버튼 표시 상태도 별도로 저장합니다. 자원 수치는 플레이 중 변할 수 있으므로
     // F5 복원 여부를 areTestResourcesFull() 판정에 의존하지 않습니다.
     const SCENE_COLOR_TEST_CONTROLS_STORAGE_KEY = "cozy.scene-color-test-controls.v1";
-    const FORCE_RAIN_FOR_TEST = null;
+    let FORCE_RAIN_FOR_TEST = null;
 
     /*
       우하단 DAY 표시 숫자 테스트
@@ -5158,6 +5189,7 @@
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
 
   <div id="optionControls" aria-label="Game options">
+        <button id="weatherTestToggleButton" class="option-control-button weather-test-toggle-button" type="button" aria-label="Set test weather to rainy" aria-pressed="false" hidden></button>
 		<button id="soundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
 	    <button id="weaponSwitchButton" class="option-control-button" type="button" data-weapon="fist" aria-label="Switch weapon"></button>
   </div>
@@ -5210,7 +5242,10 @@
     <div id="findZombieGuideText" aria-hidden="true"></div>
   </div>
   <div id="exploringGuideGroup">
-    <button id="exploringSoundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
+    <div id="exploringOptionControls" aria-label="Exploration options">
+      <button id="exploringSoundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
+      <button id="exploringWeatherTestToggleButton" class="option-control-button weather-test-toggle-button" type="button" aria-label="Set test weather to rainy" aria-pressed="false" hidden></button>
+    </div>
     <div id="exploringGuide">Exploring takes time, but rewards await.
 You can leave the game and come back anytime.</div>
   </div>
@@ -5598,8 +5633,8 @@ You can leave the game and come back anytime.</div>
         - 달리기: 각 방향 줄의 1~6번째 이미지를 looping 으로 사용합니다.
         - 서 있기 idle: 각 방향 줄의 7~11번째 이미지를 pingpong 으로 사용합니다.
       */
-      const DOG_SPAWN_X = 1250;
-      const DOG_SPAWN_Y = 800;
+      const DOG_SPAWN_X = 1260;
+      const DOG_SPAWN_Y = 825;
       const DOG_FIRST_APPEAR_DAY = 2;
       const TODO_DAY_28_TARGET = 28;
       const DOG_STORY_MIN_DURATION_MS = 1_000;
@@ -5936,11 +5971,12 @@ You can leave the game and come back anytime.</div>
       const VILLAGE_EXPLORATION_DURATION_MS = 10 * 60_000;
       const FOREST_EXPLORATION_DURATION_MS = 20 * 60_000;
       const CITY_EXPLORATION_DURATION_MS = 30 * 60_000;
-      // 모든 탐험지는 완료 5분 전을 Night 기준점으로 사용합니다.
-      // 컬러 타임라인은 Day 0 -> Sunset 0.9 -> Night 2 비율을 사용합니다.
+      // 모든 탐험지는 완료 5분 전을 컬러 타임라인 1.0(Night 완료) 기준점으로 사용합니다.
+      // 0.0 = 탐험 출발 / 0.0~0.7 = Day 유지 / 0.7~0.9 = Day→Sunset / 0.9~1.0 = Sunset→Night.
       const EXPLORATION_NIGHT_REMAINING_MS = 5 * 60_000;
+      const EXPLORATION_COLOR_TIMELINE_DAY_END = 0.7;
       const EXPLORATION_COLOR_TIMELINE_SUNSET = 0.9;
-      const EXPLORATION_COLOR_TIMELINE_NIGHT = 2;
+      const EXPLORATION_COLOR_TIMELINE_NIGHT = 1;
       const EXPLORATION_SCENE_COLOR_UPDATE_MS = 1_000;
       // Village/Forest 복귀 발자국은 완료 5초 전에, City 차량 소리/복귀 애니메이션은 완료 10초 전에 시작합니다.
       const EXPLORATION_RETURN_SOUND_REMAINING_MS = 5_000;
@@ -6936,6 +6972,9 @@ You can leave the game and come back anytime.</div>
       const sceneColorTestControls = document.getElementById("sceneColorTestControls");
       const sceneColorTestButtons = Array.from(
         document.querySelectorAll(".scene-color-test-button")
+      );
+      const weatherTestButtons = Array.from(
+        document.querySelectorAll(".weather-test-toggle-button")
       );
       const startScreen = document.getElementById("startScreen");
       const startScreenSurvived = document.getElementById("startScreenSurvived");
@@ -9910,7 +9949,7 @@ You can leave the game and come back anytime.</div>
           : clamp(Number(progressOverride) || 0, 0, 1);
         const destinationName = getExplorationDestinationDisplayName(explorationDestination);
         lootListTitle.textContent = (isExplorationCompletePending || progress >= 1
-          ? `${destinationName} Loot`
+          ? `${destinationName} Loot :`
           : `Searching ${destinationName}...`).toLowerCase();
 
         const fragment = document.createDocumentFragment();
@@ -11874,6 +11913,7 @@ You can leave the game and come back anytime.</div>
             hideFindZombieGuide(true);
           }
         }
+        updateWeatherTestButtonState();
       }
 
       function showZombieKillDelta() {
@@ -14446,26 +14486,48 @@ You can leave the game and come back anytime.</div>
         const safeTotal = Math.max(1, Number(totalDurationMs) || 1);
         const elapsedMs = clamp(safeTotal - Math.max(0, remainingMs), 0, safeTotal);
         const nightStartElapsedMs = Math.max(0, safeTotal - EXPLORATION_NIGHT_REMAINING_MS);
-        const sunsetElapsedMs = nightStartElapsedMs *
-          (EXPLORATION_COLOR_TIMELINE_SUNSET / EXPLORATION_COLOR_TIMELINE_NIGHT);
 
-        if (nightStartElapsedMs <= 0 || elapsedMs >= nightStartElapsedMs) {
+        if (nightStartElapsedMs <= 0) {
           return { from: "night", to: "night", progress: 1 };
         }
-        if (sunsetElapsedMs <= 0 || elapsedMs <= sunsetElapsedMs) {
+
+        // 타임라인 0 = 탐험 출발, 1 = 완료 5분 전.
+        const timelineProgress = clamp01(elapsedMs / nightStartElapsedMs);
+
+        // 0.0~0.7: Day 컬러를 그대로 유지합니다.
+        if (timelineProgress <= EXPLORATION_COLOR_TIMELINE_DAY_END) {
+          return { from: "day", to: "day", progress: 1 };
+        }
+
+        // 0.7~0.9: Day -> Sunset.
+        if (timelineProgress <= EXPLORATION_COLOR_TIMELINE_SUNSET) {
           return {
             from: "day",
             to: "sunset",
-            progress: sunsetElapsedMs <= 0 ? 1 : elapsedMs / sunsetElapsedMs
+            progress:
+              (timelineProgress - EXPLORATION_COLOR_TIMELINE_DAY_END) /
+              Math.max(
+                0.000001,
+                EXPLORATION_COLOR_TIMELINE_SUNSET - EXPLORATION_COLOR_TIMELINE_DAY_END
+              )
           };
         }
-        return {
-          from: "sunset",
-          to: "night",
-          progress:
-            (elapsedMs - sunsetElapsedMs) /
-            Math.max(1, nightStartElapsedMs - sunsetElapsedMs)
-        };
+
+        // 0.9~1.0: Sunset -> Night. 1 이후(완료까지 남은 5분)는 Night 유지.
+        if (timelineProgress < EXPLORATION_COLOR_TIMELINE_NIGHT) {
+          return {
+            from: "sunset",
+            to: "night",
+            progress:
+              (timelineProgress - EXPLORATION_COLOR_TIMELINE_SUNSET) /
+              Math.max(
+                0.000001,
+                EXPLORATION_COLOR_TIMELINE_NIGHT - EXPLORATION_COLOR_TIMELINE_SUNSET
+              )
+          };
+        }
+
+        return { from: "night", to: "night", progress: 1 };
       }
 
       function getExplorationSceneColorVisual(remainingMs, totalDurationMs) {
@@ -14562,6 +14624,8 @@ You can leave the game and come back anytime.</div>
 
       function clearSceneColorTestSessionState() {
         clearSceneColorTestOverride();
+        FORCE_RAIN_FOR_TEST = null;
+        setWeatherTestButtonsVisible(false);
         saveSceneColorTestControlsEnabled(false);
       }
 
@@ -14578,11 +14642,51 @@ You can leave the game and come back anytime.</div>
         }
       }
 
+      function updateWeatherTestButtonState() {
+        const shouldRain = getCurrentRainState();
+        for (const button of weatherTestButtons) {
+          button.classList.toggle("is-rainy", shouldRain);
+          button.setAttribute("aria-pressed", shouldRain ? "true" : "false");
+          button.setAttribute(
+            "aria-label",
+            shouldRain ? "Set test weather to sunny" : "Set test weather to rainy"
+          );
+        }
+      }
+
+      function setWeatherTestButtonsVisible(visible) {
+        const shouldShow = TEST_MODE && visible;
+        for (const button of weatherTestButtons) {
+          button.hidden = !shouldShow;
+        }
+        updateWeatherTestButtonState();
+      }
+
+      function handleWeatherTestButton(button, event) {
+        if (!TEST_MODE || !button || button.hidden) return;
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        // 현재 화면에 보이는 날씨를 기준으로 즉시 반대로 강제합니다.
+        FORCE_RAIN_FOR_TEST = !document.body.classList.contains("is-rainy");
+        document.body.classList.add("is-weather-test-instant");
+        applyWeatherState();
+        // 한 프레임 동안 transition을 끈 상태를 유지해 비/맑음 시각이 즉시 바뀌게 합니다.
+        void rainLayer?.offsetWidth;
+        requestAnimationFrame(() => {
+          document.body.classList.remove("is-weather-test-instant");
+        });
+        updateWeatherTestButtonState();
+      }
+
       function showSceneColorTestControls() {
         if (!TEST_MODE || !sceneColorTestControls) return;
         sceneColorTestControls.hidden = false;
         saveSceneColorTestControlsEnabled(true);
         updateSceneColorTestButtonState();
+        setWeatherTestButtonsVisible(true);
       }
 
       function handleSceneColorTestButton(button, event) {
@@ -26161,6 +26265,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       for (const button of sceneColorTestButtons) {
         button.addEventListener("pointerdown", (event) => {
           handleSceneColorTestButton(button, event);
+        });
+      }
+      for (const button of weatherTestButtons) {
+        button.addEventListener("pointerdown", (event) => {
+          handleWeatherTestButton(button, event);
         });
       }
 
