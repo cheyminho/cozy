@@ -205,6 +205,29 @@
     return { x: 0, y: 0 };
   }
 
+  function getWorldLayoutMetrics() {
+    const world = document.getElementById("world");
+    if (!world) return null;
+    const rect = world.getBoundingClientRect();
+    const scaleX = rect.width / WORLD_SIZE;
+    const scaleY = rect.height / WORLD_SIZE;
+    if (!(scaleX > 0) || !(scaleY > 0)) return null;
+    return { rect, scaleX, scaleY };
+  }
+
+  function getElementWorldRect(element, metrics = getWorldLayoutMetrics()) {
+    if (!element || !metrics) return null;
+    const rect = element.getBoundingClientRect();
+    return {
+      left: (rect.left - metrics.rect.left) / metrics.scaleX,
+      top: (rect.top - metrics.rect.top) / metrics.scaleY,
+      width: rect.width / metrics.scaleX,
+      height: rect.height / metrics.scaleY,
+      centerX: (rect.left - metrics.rect.left + rect.width / 2) / metrics.scaleX,
+      centerY: (rect.top - metrics.rect.top + rect.height / 2) / metrics.scaleY
+    };
+  }
+
   function getRootNightMix() {
     const value = getComputedStyle(document.documentElement)
       .getPropertyValue("--scene-night-mix");
@@ -335,11 +358,18 @@
           continue;
         }
 
+        const worldMetrics = getWorldLayoutMetrics();
+        const visualRect = getElementWorldRect(element, worldMetrics);
+        if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
+          sprite.setVisible(false);
+          continue;
+        }
+
         let sourceStyle;
-        let cropHostWidth = element.offsetWidth;
-        let cropHostHeight = element.offsetHeight;
-        let displayWidth = cropHostWidth;
-        let displayHeight = cropHostHeight;
+        const cropHostWidth = element.offsetWidth;
+        const cropHostHeight = element.offsetHeight;
+        const displayWidth = visualRect.width;
+        const displayHeight = visualRect.height;
 
         if (definition.sourceElementId) {
           const sourceElement = document.getElementById(definition.sourceElementId);
@@ -350,15 +380,6 @@
           sourceStyle = getComputedStyle(sourceElement);
         } else {
           sourceStyle = getComputedStyle(element, definition.source || null);
-        }
-
-        if (definition.tree) {
-          const treeScale = numberFromPx(
-            getComputedStyle(document.documentElement).getPropertyValue("--tree-scale"),
-            1
-          );
-          displayWidth *= treeScale;
-          displayHeight *= treeScale;
         }
 
         const backgroundUrl = extractBackgroundUrl(sourceStyle.backgroundImage);
@@ -378,8 +399,7 @@
           displayHeight
         );
 
-        const translated = parseTranslate(element.style.transform || computed.transform);
-        sprite.setPosition(element.offsetLeft + translated.x, element.offsetTop + translated.y);
+        sprite.setPosition(visualRect.left, visualRect.top);
         sprite.setDepth(definition.depth);
         sprite.setAlpha(1);
         sprite.setTint(mixColor(0xffffff, FIELD_RENDER_CONFIG.structureNightTint, nightMix));
@@ -400,9 +420,14 @@
         sprite.setVisible(false);
         return;
       }
+      const visualRect = getElementWorldRect(element);
+      if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
+        sprite.setVisible(false);
+        return;
+      }
       sprite.setTexture(key);
-      sprite.setPosition(element.offsetLeft, element.offsetTop);
-      sprite.setDisplaySize(element.offsetWidth, element.offsetHeight);
+      sprite.setPosition(visualRect.left, visualRect.top);
+      sprite.setDisplaySize(visualRect.width, visualRect.height);
       sprite.setCrop();
       sprite.clearTint();
       sprite.setVisible(true);
@@ -494,8 +519,8 @@
         base,
         overlay,
         shadow,
-        width: element.offsetWidth || fallbackWidth,
-        height: element.offsetHeight || fallbackHeight
+        fallbackWidth,
+        fallbackHeight
       };
     }
 
@@ -506,14 +531,21 @@
     }
 
     updateEntityMirror(element, mirror, nightMix) {
-      const x = numberFromPx(element.style.left, element.offsetLeft + element.offsetWidth / 2);
-      const y = numberFromPx(element.style.top, element.offsetTop + element.offsetHeight / 2);
+      const visualRect = getElementWorldRect(element);
+      if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
+        mirror.base.setVisible(false);
+        mirror.overlay.setVisible(false);
+        mirror.shadow.setVisible(false);
+        return;
+      }
+      const x = visualRect.centerX;
+      const y = visualRect.centerY;
       const rootAlpha = getDomEntityAlpha(element);
       const sortY = numberFromPx(element.style.zIndex, y);
       const baseDepth = getLayerBaseDepth(element.parentElement?.id);
       const depth = baseDepth + Math.max(0, Math.min(9999, sortY)) / 10000;
-      const width = mirror.width;
-      const height = mirror.height;
+      const width = visualRect.width || mirror.fallbackWidth;
+      const height = visualRect.height || mirror.fallbackHeight;
 
       mirror.base.setPosition(x, y).setDepth(depth + 0.002);
       mirror.overlay.setPosition(x, y).setDepth(depth + 0.003);
@@ -694,10 +726,15 @@
     }
 
     updateSupplySprite(element, sprite, isShadow, nightMix) {
-      const width = numberFromPx(element.style.width, element.offsetWidth);
-      const height = numberFromPx(element.style.height, element.offsetHeight);
-      const x = numberFromPx(element.style.left, element.offsetLeft);
-      const y = numberFromPx(element.style.top, element.offsetTop);
+      const visualRect = getElementWorldRect(element);
+      if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
+        sprite.setVisible(false);
+        return;
+      }
+      const width = visualRect.width;
+      const height = visualRect.height;
+      const x = visualRect.left;
+      const y = visualRect.top;
       const alpha = getDomEntityAlpha(element);
       const imagePath = extractBackgroundUrl(
         element.style.getPropertyValue("--supply-box-image") ||
@@ -983,6 +1020,12 @@
       parent,
       width: WORLD_SIZE,
       height: WORLD_SIZE,
+      resolution: 1,
+      scale: {
+        mode: Phaser.Scale.NONE,
+        width: WORLD_SIZE,
+        height: WORLD_SIZE
+      },
       transparent: true,
       backgroundColor: "rgba(0,0,0,0)",
       render: {
