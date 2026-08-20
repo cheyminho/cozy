@@ -4977,7 +4977,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.209"
+  data-game-version="0.210"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -15185,18 +15185,36 @@ You can leave the game and come back anytime.</div>
         }
       }
 
-      function resetHouseExplorationLight() {
+      function isHouseLightForcedBySceneColorTest() {
+        return TEST_MODE && sceneColorTestOverride === "night";
+      }
+
+      function setHouseExplorationLightVisual(enabled) {
         if (!houseLightObject) return;
-        houseLightObject.classList.remove("is-on");
-        houseLightObject.hidden = true;
+        houseLightObject.classList.toggle("is-on", enabled);
+        houseLightObject.hidden = !enabled;
+        houseLightObject.style.opacity = enabled ? "1" : "0";
+      }
+
+      function syncHouseExplorationLightForSceneColorTest() {
+        const shouldBeOn =
+          isHouseLightForcedBySceneColorTest() ||
+          (isExploring && isExplorationCompletePending);
+        setHouseExplorationLightVisual(shouldBeOn);
+      }
+
+      function resetHouseExplorationLight() {
+        if (isHouseLightForcedBySceneColorTest()) {
+          setHouseExplorationLightVisual(true);
+          return;
+        }
+        setHouseExplorationLightVisual(false);
       }
 
       function turnOnHouseExplorationLight() {
         if (!houseLightObject) return;
         const wasOn = houseLightObject.classList.contains("is-on");
-        houseLightObject.classList.add("is-on");
-        houseLightObject.hidden = false;
-        houseLightObject.style.opacity = "1";
+        setHouseExplorationLightVisual(true);
         if (!wasOn) {
           playSound(INVENTORY_SET_SOUND);
         }
@@ -15204,9 +15222,12 @@ You can leave the game and come back anytime.</div>
 
       function turnOffHouseExplorationLight() {
         if (!houseLightObject) return;
+        if (isHouseLightForcedBySceneColorTest()) {
+          setHouseExplorationLightVisual(true);
+          return;
+        }
         const wasOn = houseLightObject.classList.contains("is-on");
-        houseLightObject.classList.remove("is-on");
-        houseLightObject.hidden = true;
+        setHouseExplorationLightVisual(false);
         if (wasOn) {
           playSound(INVENTORY_SET_SOUND);
         }
@@ -16980,6 +17001,7 @@ You can leave the game and come back anytime.</div>
 
       function clearSceneColorTestSessionState() {
         clearSceneColorTestOverride();
+        syncHouseExplorationLightForSceneColorTest();
         FORCE_RAIN_FOR_TEST = null;
         setWeatherTestButtonsVisible(false);
         saveSceneColorTestControlsEnabled(false);
@@ -17058,6 +17080,7 @@ You can leave the game and come back anytime.</div>
           clearSceneColorTestOverride();
           updateSceneColorTestButtonState();
           applyExplorationSceneColor({ instant: true, ignoreTestOverride: true });
+          syncHouseExplorationLightForSceneColorTest();
           return;
         }
 
@@ -17065,6 +17088,7 @@ You can leave the game and come back anytime.</div>
         saveSceneColorTestOverride();
         updateSceneColorTestButtonState();
         applySceneColorPreset(toneName, { instant: true });
+        syncHouseExplorationLightForSceneColorTest();
       }
 
       function setNightMode(enabled) {
@@ -28820,6 +28844,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         showSceneColorTestControls();
         if (sceneColorTestOverride !== null) {
           applySceneColorPreset(sceneColorTestOverride, { instant: true });
+          syncHouseExplorationLightForSceneColorTest();
         }
       }
       versionTestButton.addEventListener("pointerdown", handleVersionLabelTestAction);
