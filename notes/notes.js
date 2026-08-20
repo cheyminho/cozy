@@ -1,0 +1,48 @@
+window.NOTE_DATA = Object.freeze([
+  Object.freeze({
+    id: "note_001",
+    text: `God, grant me the serenity to accept the things I cannot change, courage to change the things I can, and wisdom to know the difference.`,
+    author: "Reinhold Niebuhr"
+  }),
+
+  Object.freeze({
+    id: "note_002",
+    text: `There is nothing either good or bad but thinking makes it so.`,
+    author: "William Shakespeare"
+  }),
+
+  Object.freeze({
+    id: "note_003",
+    text: `Someday, we’ll get fired, the company will go under, and we’ll die.`,
+    author: "Dong-soo Lee"
+  }),
+
+  Object.freeze({
+    id: "note_004",
+    text: `I'm no theologian, but long ago I came to the conclusion that the only thing that makes sense is that it's all a trial.`,
+    author: "Sir Radzig Kobyla"
+  }),
+
+  Object.freeze({
+    id: "note_005",
+    text: `Life isn't about waiting for the storm to pass.
+It's about learning to dance in the rain.`,
+    author: "Vivian Greene"
+  }),
+
+  Object.freeze({
+    id: "note_006",
+    text: `The outcome is already decided. We just don’t know it yet. So enjoy the game.`,
+    author: "Ah-seop Son"
+  }),
+
+  Object.freeze({
+    id: "note_007",
+    text: `Page 1:
+I cross-bred a silverback gorilla with a praying mantis, then gave it AK-47s for arms. Bob has been poking it with a stick non-stop for 80 hours now. Hopefully it doesn’t escape.
+
+Page 2:
+It escaped.`,
+    author: "Justin"
+  })
+]);
