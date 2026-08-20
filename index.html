@@ -2825,6 +2825,74 @@
       color: #fff;
     }
 
+    #inventoryMenu.is-note-reader-hidden {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* 가방 Notes 항목을 열었을 때 기존 메뉴 딤드 위에 한 겹 더 덮는 노트 전용 레이어입니다. */
+    #noteReaderOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 400;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding:
+        max(100px, env(safe-area-inset-top))
+        max(24px, env(safe-area-inset-right))
+        max(100px, env(safe-area-inset-bottom))
+        max(24px, env(safe-area-inset-left));
+      background: rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #noteReaderOverlay.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    #noteReaderContent {
+      position: relative;
+      z-index: 1;
+      width: min(74vw, 460px);
+      max-height: calc(100vh - 200px);
+      max-height: calc(100dvh - 200px);
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      color: #fff;
+      font-family: "Kalam", cursive;
+      font-size: clamp(18px, 2.3vw, 22px);
+      font-style: normal;
+      font-weight: 300;
+      line-height: 1.45;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #noteReaderContent::-webkit-scrollbar {
+      display: none;
+    }
+
+    #noteReaderText {
+      margin: 0;
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+
+    #noteReaderAuthor {
+      margin-top: 1.45em;
+      text-align: right;
+      white-space: pre-wrap;
+    }
+
     #repairMenu {
       display: flex;
       flex-direction: column;
@@ -3673,7 +3741,7 @@
       align-items: center;
       gap: 14px;
       width: 100%;
-      padding: 7px 0;
+      padding: 7px 6px;
       border: 0;
       appearance: none;
       -webkit-appearance: none;
@@ -3737,6 +3805,51 @@
 
     .inventory-item__quantity {
       text-align: right;
+      white-space: nowrap;
+    }
+
+    /* Notes 탭의 수량 자리는 즐겨찾기 책갈피 토글로 사용합니다. */
+    .inventory-note-bookmark {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: 36px;
+      height: 28px;
+      margin: -6px 0;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    .inventory-note-bookmark::before {
+      content: "";
+      display: block;
+      width: 11px;
+      height: 16px;
+      background: rgba(255, 255, 255, 0.1);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+      transition: background-color 120ms ease-out, transform 90ms ease-out;
+      pointer-events: none;
+    }
+
+    .inventory-note-bookmark.is-bookmarked::before {
+      background: #f6c062;
+    }
+
+    .inventory-note-bookmark:active::before {
+      transform: scale(0.86);
+    }
+
+    .inventory-item.is-note-item .inventory-item__name {
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .inventory-item.is-note-item .inventory-item__label {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
@@ -4783,7 +4896,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.203"
+  data-game-version="0.204"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5103,6 +5216,7 @@
       }
     })();
   </script>
+  <script src="notes/notes.js"></script>
   <div id="viewport">
     <div id="world">
       <div id="cloudShadows"></div>
@@ -5408,6 +5522,12 @@ You can leave the game and come back anytime.</div>
       </div>
       <div id="inventoryItemPool" aria-hidden="true"></div>
       <div id="inventoryPagination" class="inventory-pagination" aria-label="Bag pages" hidden></div>
+    </div>
+  </div>
+  <div id="noteReaderOverlay" aria-hidden="true">
+    <div id="noteReaderContent" role="dialog" aria-modal="true" aria-label="Note">
+      <div id="noteReaderText"></div>
+      <div id="noteReaderAuthor"></div>
     </div>
   </div>
   <div id="repairOverlay" aria-hidden="true">
@@ -5811,6 +5931,55 @@ You can leave the game and come back anytime.</div>
       const MAX_INVENTORY_QUANTITY = 99;
       const INVENTORY_ITEMS_PER_PAGE = 5;
       const INVENTORY_DOT_PAGE_LIMIT = 5;
+      const NOTE_DATA = Object.freeze(
+        (Array.isArray(window.NOTE_DATA) ? window.NOTE_DATA : []).filter((note) =>
+          note &&
+          typeof note.id === "string" && note.id.trim() !== "" &&
+          typeof note.text === "string"
+        )
+      );
+      const NOTE_BY_ID = new Map();
+      for (const note of NOTE_DATA) {
+        if (!NOTE_BY_ID.has(note.id)) NOTE_BY_ID.set(note.id, note);
+      }
+      const NOTE_IDS = Object.freeze(Array.from(NOTE_BY_ID.keys()));
+
+      function normalizeNoteId(noteId) {
+        const rawId = String(noteId || "").trim();
+        if (!rawId) return "";
+        if (NOTE_BY_ID.has(rawId)) return rawId;
+
+        const idMatch = /^note_(\d+)$/i.exec(rawId);
+        if (!idMatch) return "";
+        const noteNumber = Math.max(0, Number.parseInt(idMatch[1], 10) || 0);
+        const paddedCandidate = `note_${String(noteNumber).padStart(3, "0")}`;
+        if (NOTE_BY_ID.has(paddedCandidate)) return paddedCandidate;
+
+        return NOTE_IDS.find((candidateId) => {
+          const candidateMatch = /^note_(\d+)$/i.exec(candidateId);
+          return candidateMatch && Number.parseInt(candidateMatch[1], 10) === noteNumber;
+        }) || "";
+      }
+
+      function getNoteNumber(noteId) {
+        const normalizedId = normalizeNoteId(noteId) || String(noteId || "").trim();
+        const idMatch = /^note_(\d+)$/i.exec(normalizedId);
+        if (idMatch) return Math.max(0, Number.parseInt(idMatch[1], 10) || 0);
+        const noteIndex = NOTE_IDS.indexOf(normalizedId);
+        return noteIndex >= 0 ? noteIndex + 1 : Number.MAX_SAFE_INTEGER;
+      }
+
+      function getNoteDisplayName(noteId) {
+        const normalizedId = normalizeNoteId(noteId) || String(noteId || "").trim();
+        const idMatch = /^note_(\d+)$/i.exec(normalizedId);
+        if (idMatch) return `Note #${String(Number.parseInt(idMatch[1], 10) || 0).padStart(3, "0")}`;
+
+        const noteIndex = NOTE_IDS.indexOf(normalizedId);
+        return noteIndex >= 0
+          ? `Note #${String(noteIndex + 1).padStart(3, "0")}`
+          : "Note";
+      }
+
       const INVENTORY_CATEGORY_ORDER = Object.freeze(["all", "weapons", "notes"]);
       const INVENTORY_CATEGORY_ITEM_TYPES = Object.freeze({
         weapons: Object.freeze([
@@ -5824,7 +5993,7 @@ You can leave the game and come back anytime.</div>
           "rifleAmmo",
           "chainsawBattery"
         ]),
-        notes: Object.freeze([])
+        notes: NOTE_IDS
       });
 
       /*
@@ -6214,6 +6383,7 @@ You can leave the game and come back anytime.</div>
       const TREE_CHOP_SOUND = "sounds/sfx_axe_chop.wav";
       const TREE_FALL_SOUND = "sounds/sfx_tree_fall.wav";
       const INVENTORY_SET_SOUND = "sounds/sfx_set.wav";
+      const NOTE_PAPER_SOUND = "sounds/sfx_paper.wav";
       const MAILBOX_SOUND = "sounds/sfx_mailbox.wav";
       const CRAFTING_SOUND = "sounds/sfx_crafting.wav";
       const CAR_PAINT_SOUND = "sounds/sfx_paint.wav";
@@ -6871,6 +7041,45 @@ You can leave the game and come back anytime.</div>
       const inventoryTrack = document.getElementById("inventoryTrack");
       const inventoryItemPool = document.getElementById("inventoryItemPool");
       const inventoryPagination = document.getElementById("inventoryPagination");
+      const noteReaderOverlay = document.getElementById("noteReaderOverlay");
+      const noteReaderContent = document.getElementById("noteReaderContent");
+      const noteReaderText = document.getElementById("noteReaderText");
+      const noteReaderAuthor = document.getElementById("noteReaderAuthor");
+      const noteInventoryItems = new Map();
+
+      // notes.js만 수정하면 가방 항목도 자동으로 늘어나도록 시작 시 한 번 생성합니다.
+      for (const noteId of NOTE_IDS) {
+        const note = NOTE_BY_ID.get(noteId);
+        if (!note) continue;
+        const item = document.createElement("button");
+        item.className = "inventory-item is-note-item";
+        item.type = "button";
+        item.setAttribute("role", "menuitem");
+        item.dataset.item = noteId;
+        item.hidden = true;
+
+        const name = document.createElement("span");
+        name.className = "inventory-item__name";
+        const badge = document.createElement("span");
+        badge.className = "inventory-item-new-badge";
+        badge.hidden = true;
+        badge.textContent = "NEW";
+        const label = document.createElement("span");
+        label.className = "inventory-item__label";
+        label.textContent = getNoteDisplayName(noteId);
+        name.append(badge, label);
+
+        const quantity = document.createElement("span");
+        quantity.className = "inventory-item__quantity inventory-note-bookmark";
+        quantity.dataset.noteBookmark = noteId;
+        quantity.setAttribute("role", "button");
+        quantity.setAttribute("aria-label", `Bookmark ${getNoteDisplayName(noteId)}`);
+        quantity.setAttribute("aria-pressed", "false");
+        item.append(name, quantity);
+        inventoryItemPool.append(item);
+        noteInventoryItems.set(noteId, item);
+      }
+
       const inventoryItems = Array.from(
         document.querySelectorAll(".inventory-item")
       );
@@ -7387,6 +7596,9 @@ You can leave the game and come back anytime.</div>
       const newInventoryItemTypes = new Set();
       // NEW 태그는 유지하되, 해당 페이지를 한 번 표시하면 페이지 표시만 원래 색으로 돌립니다.
       const viewedInventoryNewItemTypes = new Set();
+      const acquiredNoteIds = new Set();
+      const bookmarkedNoteIds = new Set();
+      let activeNoteReaderId = "";
       let hasCompass = false;
 
       /*
@@ -11386,18 +11598,41 @@ You can leave the game and come back anytime.</div>
           inventorySelectedCategory = normalizeInventoryCategory(
             parsed.inventorySelectedCategory
           );
+          acquiredNoteIds.clear();
+          const storedAcquiredNoteIds = Array.isArray(parsed.acquiredNoteIds)
+            ? parsed.acquiredNoteIds
+            : [];
+          for (const noteId of storedAcquiredNoteIds) {
+            const normalizedNoteId = normalizeNoteId(noteId);
+            if (normalizedNoteId) acquiredNoteIds.add(normalizedNoteId);
+          }
+
+          bookmarkedNoteIds.clear();
+          const storedBookmarkedNoteIds = Array.isArray(parsed.bookmarkedNoteIds)
+            ? parsed.bookmarkedNoteIds
+            : [];
+          for (const noteId of storedBookmarkedNoteIds) {
+            const normalizedNoteId = normalizeNoteId(noteId);
+            if (normalizedNoteId && acquiredNoteIds.has(normalizedNoteId)) {
+              bookmarkedNoteIds.add(normalizedNoteId);
+            }
+          }
+
           const storedNewInventoryItems = Array.isArray(parsed.newInventoryItems)
             ? parsed.newInventoryItems
             : [];
 
           for (const itemType of storedNewInventoryItems) {
+            if (typeof itemType !== "string") continue;
+            const normalizedNoteId = normalizeNoteId(itemType);
+            const resolvedItemType = normalizedNoteId || itemType;
             if (
-              typeof itemType === "string" &&
               inventoryItems.some(
-                (item) => item.dataset.item === itemType
-              )
+                (item) => item.dataset.item === resolvedItemType
+              ) &&
+              (!NOTE_BY_ID.has(resolvedItemType) || acquiredNoteIds.has(resolvedItemType))
             ) {
-              newInventoryItemTypes.add(itemType);
+              newInventoryItemTypes.add(resolvedItemType);
             }
           }
 
@@ -11421,11 +11656,10 @@ You can leave the game and come back anytime.</div>
             ? parsed.viewedInventoryNewItems
             : [];
           for (const itemType of storedViewedInventoryNewItems) {
-            if (
-              typeof itemType === "string" &&
-              newInventoryItemTypes.has(itemType)
-            ) {
-              viewedInventoryNewItemTypes.add(itemType);
+            if (typeof itemType !== "string") continue;
+            const resolvedItemType = normalizeNoteId(itemType) || itemType;
+            if (newInventoryItemTypes.has(resolvedItemType)) {
+              viewedInventoryNewItemTypes.add(resolvedItemType);
             }
           }
           hasCompass = parsed.hasCompass === true;
@@ -11785,6 +12019,8 @@ You can leave the game and come back anytime.</div>
               isGameSoundOn,
               hasNewInventoryItem,
               inventorySelectedCategory,
+              acquiredNoteIds: Array.from(acquiredNoteIds),
+              bookmarkedNoteIds: Array.from(bookmarkedNoteIds),
               newInventoryItems: Array.from(newInventoryItemTypes),
               viewedInventoryNewItems: Array.from(viewedInventoryNewItemTypes),
               hasCompass,
@@ -12460,6 +12696,7 @@ You can leave the game and come back anytime.</div>
       function closeInventory(syncBackdrop = true) {
         if (!isInventoryOpen) return;
 
+        closeNoteReader({ restoreFocus: false });
         isInventoryOpen = false;
         inventoryOverlay.classList.remove("is-open");
         inventoryOverlay.setAttribute("aria-hidden", "true");
@@ -12493,6 +12730,7 @@ You can leave the game and come back anytime.</div>
           fuelCount > 0 ||
           repairKitCount > 0 ||
           hasMap ||
+          acquiredNoteIds.size > 0 ||
           Object.values(paintCounts).some((count) => count > 0);
       }
 
@@ -12609,6 +12847,23 @@ You can leave the game and come back anytime.</div>
 
       function sortInventoryItems(items) {
         return [...items].sort((leftItem, rightItem) => {
+          const leftItemType = leftItem?.dataset.item || "";
+          const rightItemType = rightItem?.dataset.item || "";
+          const leftIsNote = NOTE_BY_ID.has(leftItemType);
+          const rightIsNote = NOTE_BY_ID.has(rightItemType);
+
+          // 노트끼리는 즐겨찾기를 먼저, 그 안에서는 노트 번호 오름차순으로 정렬합니다.
+          if (leftIsNote && rightIsNote) {
+            const bookmarkDifference =
+              Number(bookmarkedNoteIds.has(rightItemType)) -
+              Number(bookmarkedNoteIds.has(leftItemType));
+            if (bookmarkDifference !== 0) return bookmarkDifference;
+
+            const noteNumberDifference =
+              getNoteNumber(leftItemType) - getNoteNumber(rightItemType);
+            if (noteNumberDifference !== 0) return noteNumberDifference;
+          }
+
           const leftGroup = getInventoryItemSortGroup(leftItem);
           const rightGroup = getInventoryItemSortGroup(rightItem);
           const groupDifference = leftGroup - rightGroup;
@@ -12797,6 +13052,116 @@ You can leave the game and come back anytime.</div>
         return !window.matchMedia ||
           window.matchMedia("(hover: hover) and (pointer: fine)").matches;
       }
+
+      function getNoteDefinition(noteId) {
+        const normalizedNoteId = normalizeNoteId(noteId);
+        return normalizedNoteId ? NOTE_BY_ID.get(normalizedNoteId) || null : null;
+      }
+
+      function updateNoteBookmarkButtonState(noteId) {
+        const normalizedNoteId = normalizeNoteId(noteId);
+        const item = noteInventoryItems.get(normalizedNoteId);
+        const bookmark = item?.querySelector(".inventory-note-bookmark");
+        if (!bookmark || !normalizedNoteId) return;
+
+        const isBookmarked = bookmarkedNoteIds.has(normalizedNoteId);
+        bookmark.classList.toggle("is-bookmarked", isBookmarked);
+        bookmark.setAttribute("aria-pressed", isBookmarked ? "true" : "false");
+        bookmark.setAttribute(
+          "aria-label",
+          `${isBookmarked ? "Remove bookmark from" : "Bookmark"} ${getNoteDisplayName(normalizedNoteId)}`
+        );
+      }
+
+      function toggleNoteBookmark(noteId) {
+        const normalizedNoteId = normalizeNoteId(noteId);
+        if (!normalizedNoteId || !acquiredNoteIds.has(normalizedNoteId)) return false;
+
+        if (bookmarkedNoteIds.has(normalizedNoteId)) {
+          bookmarkedNoteIds.delete(normalizedNoteId);
+        } else {
+          bookmarkedNoteIds.add(normalizedNoteId);
+        }
+
+        playSound(INVENTORY_SET_SOUND);
+        updateNoteBookmarkButtonState(normalizedNoteId);
+        // 즐겨찾기 토글 직후에는 현재 리스트 순서를 유지합니다.
+        // Notes 탭을 다시 열거나 가방을 다시 열 때 rebuildInventoryPages()에서 정렬을 갱신합니다.
+        saveResourceState();
+        return true;
+      }
+
+      function openNoteReader(noteId) {
+        if (!isInventoryOpen || !acquiredNoteIds.has(noteId)) return false;
+        const note = getNoteDefinition(noteId);
+        if (!note || !noteReaderOverlay || !noteReaderText || !noteReaderAuthor) return false;
+
+        activeNoteReaderId = noteId;
+        noteReaderText.textContent = String(note.text || "");
+        noteReaderAuthor.textContent = String(note.author || "");
+        inventoryMenu.classList.add("is-note-reader-hidden");
+        noteReaderOverlay.classList.add("is-open");
+        noteReaderOverlay.setAttribute("aria-hidden", "false");
+        if (noteReaderContent) noteReaderContent.scrollTop = 0;
+        playSound(NOTE_PAPER_SOUND);
+        return true;
+      }
+
+      function closeNoteReader(options = {}) {
+        if (!activeNoteReaderId && !noteReaderOverlay?.classList.contains("is-open")) return false;
+        const previousNoteId = activeNoteReaderId;
+        activeNoteReaderId = "";
+        noteReaderOverlay?.classList.remove("is-open");
+        noteReaderOverlay?.setAttribute("aria-hidden", "true");
+        inventoryMenu.classList.remove("is-note-reader-hidden");
+
+        if (options.restoreFocus !== false && isInventoryOpen && previousNoteId) {
+          const item = noteInventoryItems.get(previousNoteId);
+          if (item && !item.hidden && shouldAutoFocusMenuEntry()) {
+            window.setTimeout(() => item.focus(), 0);
+          }
+        }
+        return true;
+      }
+
+      let noteReaderPointerId = null;
+      let noteReaderPointerStartX = 0;
+      let noteReaderPointerStartY = 0;
+      let noteReaderPointerMoved = false;
+
+      noteReaderOverlay?.addEventListener("pointerdown", (event) => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        noteReaderPointerId = event.pointerId;
+        noteReaderPointerStartX = event.clientX;
+        noteReaderPointerStartY = event.clientY;
+        noteReaderPointerMoved = false;
+      });
+
+      noteReaderOverlay?.addEventListener("pointermove", (event) => {
+        if (event.pointerId !== noteReaderPointerId) return;
+        if (
+          Math.abs(event.clientX - noteReaderPointerStartX) > RELIABLE_TAP_MOVE_TOLERANCE_PX ||
+          Math.abs(event.clientY - noteReaderPointerStartY) > RELIABLE_TAP_MOVE_TOLERANCE_PX
+        ) {
+          noteReaderPointerMoved = true;
+        }
+      });
+
+      noteReaderOverlay?.addEventListener("pointerup", (event) => {
+        if (event.pointerId !== noteReaderPointerId) return;
+        const shouldClose = !noteReaderPointerMoved;
+        noteReaderPointerId = null;
+        noteReaderPointerMoved = false;
+        if (!shouldClose) return;
+        consumeMenuDismissEvent(event);
+        closeNoteReader();
+      });
+
+      noteReaderOverlay?.addEventListener("pointercancel", (event) => {
+        if (event.pointerId !== noteReaderPointerId) return;
+        noteReaderPointerId = null;
+        noteReaderPointerMoved = false;
+      });
 
       function openInventory() {
         if (isInventoryOpen) return;
@@ -14036,14 +14401,18 @@ You can leave the game and come back anytime.</div>
 
       function startCityCarDeparture() {
         makeNearbyDeerFleeFromCar();
-        animateCarTravel({
-          fromX: 0,
-          fromY: 0,
-          toX: CAR_CITY_DEPARTURE_OFFSET_X,
-          toY: CAR_CITY_DEPARTURE_OFFSET_Y,
-          easing: (progress) => progress * progress,
-          hideWhenComplete: true
-        });
+        // 출발 효과음 등 기존 시작 처리는 그대로 두고, 자동차 이동 애니메이션만 1초 늦게 시작합니다.
+        window.setTimeout(() => {
+          if (!isExploring || explorationDestination !== "city") return;
+          animateCarTravel({
+            fromX: 0,
+            fromY: 0,
+            toX: CAR_CITY_DEPARTURE_OFFSET_X,
+            toY: CAR_CITY_DEPARTURE_OFFSET_Y,
+            easing: (progress) => progress * progress,
+            hideWhenComplete: true
+          });
+        }, 2_000);
       }
 
       function startCityCarReturn() {
@@ -15037,6 +15406,39 @@ You can leave the game and come back anytime.</div>
         return createPlannedBlueprintReward(reward);
       }
 
+      function getAvailableExplorationNoteIds(plan = null) {
+        const plannedNoteIds = new Set(
+          (plan?.rewards || [])
+            .filter((reward) => reward?.kind === "note" && typeof reward.noteId === "string")
+            .map((reward) => reward.noteId)
+        );
+        return NOTE_IDS.filter(
+          (noteId) => !acquiredNoteIds.has(noteId) && !plannedNoteIds.has(noteId)
+        );
+      }
+
+      function createPlannedNoteReward(noteId, extra = {}) {
+        if (!NOTE_BY_ID.has(noteId) || acquiredNoteIds.has(noteId)) return null;
+        return {
+          kind: "note",
+          noteId,
+          key: `note:${noteId}`,
+          label: getNoteDisplayName(noteId),
+          quantity: 1,
+          progressive: false,
+          revealProgress: 1,
+          ...extra
+        };
+      }
+
+      function rollPlannedExplorationNote(plan) {
+        if ((plan?.rewards || []).some((reward) => reward?.kind === "note")) return null;
+        const candidates = getAvailableExplorationNoteIds(plan);
+        if (candidates.length === 0) return null;
+        const noteId = candidates[Math.floor(Math.random() * candidates.length)];
+        return createPlannedNoteReward(noteId);
+      }
+
       function getExplorationItemRemainingCapacity(itemType) {
         if (itemType === "handgunAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - handgunAmmoCount);
         if (itemType === "shotgunAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - shotgunAmmoCount);
@@ -15171,6 +15573,13 @@ You can leave the game and come back anytime.</div>
         addSimple("repairKit");
         addSimple("fuel");
         for (const itemType of Object.keys(paintCounts)) addSimple(itemType);
+        if (
+          !(plan?.rewards || []).some((reward) => reward?.kind === "note") &&
+          getAvailableExplorationNoteIds(plan).length > 0 &&
+          slotsRemaining >= 1
+        ) {
+          descriptors.push({ kind: "note", cost: 1 });
+        }
 
         return descriptors;
       }
@@ -15186,6 +15595,11 @@ You can leave the game and come back anytime.</div>
           const descriptor = candidates[Math.floor(Math.random() * candidates.length)];
           if (descriptor.kind === "weapon") {
             addWeaponBundleToPlan(plan, descriptor.weaponType, descriptor.ammoType);
+            continue;
+          }
+
+          if (descriptor.kind === "note") {
+            addPlannedReward(plan, rollPlannedExplorationNote(plan));
             continue;
           }
 
@@ -15350,16 +15764,25 @@ You can leave the game and come back anytime.</div>
         const rewards = [];
         for (const rawReward of rawPlan.rewards) {
           if (!rawReward || typeof rawReward !== "object") continue;
-          const kind = ["resource", "item", "blueprint"].includes(rawReward.kind)
+          const kind = ["resource", "item", "blueprint", "note"].includes(rawReward.kind)
             ? rawReward.kind
             : "";
           if (!kind) continue;
           const quantity = Math.max(0, Math.round(Number(rawReward.quantity) || 0));
           if (kind !== "resource" && quantity <= 0) continue;
+          const normalizedNoteId = kind === "note"
+            ? normalizeNoteId(rawReward.noteId)
+            : "";
+          if (kind === "note" && !normalizedNoteId) continue;
           rewards.push({
             ...rawReward,
             kind,
             quantity,
+            ...(kind === "note" ? {
+              noteId: normalizedNoteId,
+              key: `note:${normalizedNoteId}`,
+              label: getNoteDisplayName(normalizedNoteId)
+            } : {}),
             progressive: rawReward.progressive === true,
             revealProgress: clamp(Number(rawReward.revealProgress) || 0, 0, 1)
           });
@@ -15416,6 +15839,14 @@ You can leave the game and come back anytime.</div>
         return true;
       }
 
+      function applyPlannedExplorationNoteReward(reward) {
+        const noteId = normalizeNoteId(reward?.noteId);
+        if (!noteId || acquiredNoteIds.has(noteId)) return false;
+        acquiredNoteIds.add(noteId);
+        markInventoryItemAsNew(noteId);
+        return true;
+      }
+
       function applyPlannedExplorationBlueprintReward(reward) {
         if (!reward?.blueprintId) return false;
         if (reward.category === "repair") return unlockRepairBlueprint(reward.blueprintId);
@@ -15441,6 +15872,8 @@ You can leave the game and come back anytime.</div>
             changedInventory = applyPlannedExplorationItemReward(reward) || changedInventory;
           } else if (reward.kind === "blueprint") {
             changedRepair = applyPlannedExplorationBlueprintReward(reward) || changedRepair;
+          } else if (reward.kind === "note") {
+            changedInventory = applyPlannedExplorationNoteReward(reward) || changedInventory;
           }
         }
 
@@ -16154,7 +16587,9 @@ You can leave the game and come back anytime.</div>
       }
 
       function hasAllObtainableItemsForTest() {
-        return hasAxe &&
+        const hasAllNotes = NOTE_IDS.every((noteId) => acquiredNoteIds.has(noteId));
+        return hasAllNotes &&
+          hasAxe &&
           hasHandgun &&
           hasHandgunAmmo &&
           handgunAmmoCount >= TEST_AMMO_QUANTITY &&
@@ -16240,6 +16675,12 @@ You can leave the game and come back anytime.</div>
 
         markNewIfMissing("map", hasMap);
         hasMap = true;
+
+        for (const noteId of NOTE_IDS) {
+          markNewIfMissing(noteId, acquiredNoteIds.has(noteId));
+          acquiredNoteIds.add(noteId);
+        }
+
         syncTodoProgressFromCurrentState(3);
         syncTodoProgressFromCurrentState(4);
 
@@ -18895,6 +19336,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           const count = paintCounts[itemType] || 0;
           item.hidden = count <= 0;
           setInventoryValue(item, `×${count}`);
+        }
+
+        for (const [noteId, item] of noteInventoryItems) {
+          item.hidden = !acquiredNoteIds.has(noteId);
+          updateNoteBookmarkButtonState(noteId);
         }
 
         applyInventoryItemNewTagState();
@@ -25718,9 +26164,29 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (cameFromProtectedInventoryUi) return true;
 
         const target = event.target instanceof Element ? event.target : null;
-        return Boolean(target?.closest(
+        if (target?.closest(
           "#inventoryCategories, #inventoryViewport, #inventoryPagination"
-        ));
+        )) {
+          return true;
+        }
+
+        // 탭과 리스트 사이의 시각적 간격은 레이아웃을 그대로 두고 메뉴 조작 영역으로 취급합니다.
+        const categoriesRect = inventoryCategoriesElement?.getBoundingClientRect();
+        const listRect = inventoryListArea?.getBoundingClientRect();
+        if (categoriesRect && listRect) {
+          const gapLeft = Math.min(categoriesRect.left, listRect.left);
+          const gapRight = Math.max(categoriesRect.right, listRect.right);
+          if (
+            event.clientX >= gapLeft &&
+            event.clientX <= gapRight &&
+            event.clientY >= categoriesRect.bottom &&
+            event.clientY <= listRect.top
+          ) {
+            return true;
+          }
+        }
+
+        return false;
       }
 
       inventoryMenu.addEventListener("pointerdown", (event) => {
@@ -25769,9 +26235,29 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (cameFromProtectedRepairUi) return true;
 
         const target = event.target instanceof Element ? event.target : null;
-        return Boolean(target?.closest(
+        if (target?.closest(
           "#repairCategories, #repairGrid, #repairItemInfo, #repairActionButton"
-        ));
+        )) {
+          return true;
+        }
+
+        // 탭과 하위 수리 콘텐츠 사이의 간격도 메뉴 내부 조작 영역으로 유지합니다.
+        const categoriesRect = repairCategoriesElement?.getBoundingClientRect();
+        const contentRect = repairContent?.getBoundingClientRect();
+        if (categoriesRect && contentRect) {
+          const gapLeft = Math.min(categoriesRect.left, contentRect.left);
+          const gapRight = Math.max(categoriesRect.right, contentRect.right);
+          if (
+            event.clientX >= gapLeft &&
+            event.clientX <= gapRight &&
+            event.clientY >= categoriesRect.bottom &&
+            event.clientY <= contentRect.top
+          ) {
+            return true;
+          }
+        }
+
+        return false;
       }
 
       repairMenu.addEventListener("pointerdown", (event) => {
@@ -25995,6 +26481,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const itemType = item.dataset.item || "";
         clearInventoryItemNewState(itemType);
 
+        if (NOTE_BY_ID.has(itemType) && acquiredNoteIds.has(itemType)) {
+          openNoteReader(itemType);
+          return;
+        }
+
         if (itemType === "handgunAmmo" && hasHandgunAmmo) {
           playSound(INVENTORY_SET_SOUND);
           showToast(HANDGUN_AMMO_SELECTED_TOAST_MESSAGE);
@@ -26172,6 +26663,29 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         showExploringBusyToast(event);
       }, true);
 
+      for (const [noteId, item] of noteInventoryItems) {
+        const bookmark = item.querySelector(".inventory-note-bookmark");
+        if (!bookmark) continue;
+
+        bookmark.addEventListener("pointerdown", (event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          event.stopPropagation();
+        });
+
+        bookmark.addEventListener("pointerup", (event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          event.preventDefault();
+          event.stopPropagation();
+          toggleNoteBookmark(noteId);
+        });
+
+        bookmark.addEventListener("click", (event) => {
+          // pointerup에서 토글했으므로 뒤이어 생성되는 click은 부모 노트 열기로 전달하지 않습니다.
+          event.preventDefault();
+          event.stopPropagation();
+        });
+      }
+
       for (const item of inventoryItems) {
         let touchPointerId = null;
 
@@ -26307,6 +26821,10 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
+        if (activeNoteReaderId) {
+          closeNoteReader();
+          return;
+        }
         closeExplorationMenu();
         closeInventory();
         closeRepair();
