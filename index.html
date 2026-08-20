@@ -4888,6 +4888,80 @@
     }
 
   </style>
+
+  <style id="phaser-field-overrides">
+    /* Phaser field migration: the DOM #world is now only a viewport host. */
+    #world {
+      position: absolute !important;
+      inset: 0 !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      transform: none !important;
+      transform-origin: initial !important;
+      will-change: auto !important;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    #world::before, #world::after { display: none !important; content: none !important; }
+    #phaserField {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    #phaserField canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      touch-action: none;
+    }
+
+    /* Restore the pre-Phaser scene color path. The Phaser field stays below this
+       browser backdrop-filter, while sky effects are rendered in the transformed
+       DOM atmosphere layer above it just like the original DOM stack. */
+    #sceneColorTone {
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 19 !important;
+      pointer-events: none !important;
+    }
+    #atmosphereWorld {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 2048px;
+      height: 2048px;
+      z-index: 20;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      overflow: visible;
+      pointer-events: none;
+      will-change: left, top, transform;
+    }
+    #atmosphereWorld > #birds,
+    #atmosphereWorld > #clouds {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* Rain tone overlays intentionally remain DOM-based so brightness/saturation/contrast
+       match the pre-Phaser field exactly instead of being approximated with colored quads. */
+    #viewport > #rainDayTone,
+    #viewport > #rainNightTone {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 24 !important;
+      pointer-events: none !important;
+    }
+  </style>
 </head>
 <!--
   우하단 표시 및 저장 호환성 검사에 사용하는 현재 게임 버전입니다.
@@ -4896,7 +4970,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.204"
+  data-game-version="0.205"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5216,85 +5290,18 @@
       }
     })();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
   <script src="notes/notes.js"></script>
   <div id="viewport">
     <div id="world">
-      <div id="cloudShadows"></div>
-      <div id="rainSpotLayer" aria-hidden="true"></div>
-      <div id="props">
-        <div id="structures">
-          <div id="houseObject" class="world-structure">
-            <div
-              id="explorationReturnHouseHitArea"
-              role="button"
-              aria-label="탐험에서 복귀"
-              aria-hidden="true"
-            ></div>
-          </div>
-          <div id="houseLightObject" aria-hidden="true"></div>
-          <div id="wallsObject" class="world-structure" hidden></div>
-          <div id="roofObject" class="world-structure" hidden></div>
-          <div id="gardenObject" class="world-structure" hidden></div>
-          <div id="fenceObject" class="world-structure" hidden></div>
-          <div
-            id="mailboxObject"
-            class="world-structure"
-            aria-hidden="true"
-          ></div>
-        </div>
-        <div id="axeStump" aria-hidden="false">
-          <div
-            id="axePickupHitArea"
-            class="world-interactive"
-            role="button"
-            tabindex="0"
-            aria-label="도끼 얻기"
-          ></div>
-        </div>
-      </div>
-      <div id="supplyBoxShadowLayer" aria-hidden="true"></div>
-      <div
-        id="treeHitArea"
-        class="world-interactive"
-        role="button"
-        tabindex="0"
-        aria-label="나무 베기"
-      ></div>
-      <div id="treePartShadowLayer" aria-hidden="true"></div>
-      <div id="entitiesBehindShed"></div>
-      <div
-        id="shedObject"
-        class="world-structure world-interactive"
-        role="button"
-        tabindex="0"
-        aria-label="창고 확인"
-      ></div>
-      <div id="entitiesBehindTree"></div>
-      <div id="tree" aria-hidden="false">
-        <div id="treeDayVisual" aria-hidden="true"></div>
-        <div id="treeDayFadeVisual" aria-hidden="true"></div>
-        <div id="treeNightVisual" aria-hidden="true"></div>
-      </div>
-      <div id="entities"></div>
-      <div
-        id="carObject"
-        class="world-structure world-interactive"
-        role="button"
-        tabindex="0"
-        aria-label="자동차 확인"
-      ></div>
-      <div id="entitiesFrontStructures"></div>
-      <div id="treePartLayer" aria-hidden="true"></div>
-      <div id="zombiePartShadowLayer" aria-hidden="true"></div>
-      <div id="zombiePartLayer" aria-hidden="true"></div>
-      <div id="particleLayer" aria-hidden="true"></div>
-      <div id="supplyBoxLayer" aria-hidden="true"></div>
+      <div id="phaserField" role="application" aria-label="Game field"></div>
       <div id="sceneColorTone" aria-hidden="true"></div>
-      <div id="birds"></div>
-      <div id="clouds"></div>
-      <div id="gameZone" class="debug-zone"></div>
-      <div id="safeZone" class="debug-zone"></div>
+      <div id="atmosphereWorld" aria-hidden="true">
+        <div id="birds"></div>
+        <div id="clouds"></div>
+      </div>
     </div>
+    <!-- 비 컬러톤과 빗줄기는 첨부한 기존 DOM 방식 그대로 유지합니다. -->
     <div id="rainDayTone" aria-hidden="true"></div>
     <div id="rainNightTone" aria-hidden="true"></div>
     <div id="rainLayer" aria-hidden="true"></div>
@@ -6995,18 +7002,1693 @@ You can leave the game and come back anytime.</div>
         "soundes/sfx_zomebe_fall.wav"
       ];
 
+      /* =========================================================
+         Phaser field bridge
+         - Field visuals, hit areas, world coordinates and depth are Phaser-owned.
+         - Existing gameplay/state functions keep their data model, while these
+           lightweight adapters replace the former field DOM nodes.
+         - Sprite frames use the decoded image naturalWidth/naturalHeight and the
+           existing logical row/column definitions below. No source pixel size is guessed.
+         ========================================================= */
+      function createPhaserFieldBridge() {
+        const mount = document.getElementById("phaserField");
+        const atmosphereWorld = document.getElementById("atmosphereWorld");
+        const nodes = new Set();
+        const dualToneNodes = new Set();
+        const named = new Map();
+        const layers = new Map();
+        const assetPromises = new Map();
+        const assetInfo = new Map();
+        const screenRain = { drops: [], graphics: null };
+        const fieldTone = {
+          sceneGraphics: null,
+          rainGraphics: null,
+          lowLayer: null,
+          atmosphereLayer: null,
+          colorMatrixFx: null,
+          transition: null,
+          currentTone: null,
+          lastTargetKey: ""
+        };
+        let scene = null;
+        let game = null;
+        let readyResolve = null;
+        let readyReject = null;
+        const readyPromise = new Promise((resolve, reject) => {
+          readyResolve = resolve;
+          readyReject = reject;
+        });
+
+        const FRAME_LAYOUTS = new Map([
+          [WALK_SHEET, { columns: 4, rows: 2 }],
+          [DEAD_SHEET, { columns: 4, rows: 2 }],
+          [DEAD_NO_HEAD_SHEET, { columns: 4, rows: 2 }],
+          [DEATH_NO_HEAD_SHEET, { columns: 4, rows: 1 }],
+          [BIRTH_DEATH_SHEET, { columns: 4, rows: 2 }],
+          [ZOMBIE_PARTS_SHEET, { columns: 4, rows: 2 }],
+          [DEER_SHEET, { columns: DEER_SHEET_COLUMNS, rows: DEER_SHEET_ROWS }],
+          [DOG_SHEET, { columns: DOG_SHEET_COLUMNS, rows: DOG_SHEET_ROWS }],
+          [CAT_SHEET, { columns: CAT_SHEET_COLUMNS, rows: CAT_SHEET_ROWS }],
+          [RAIN_SPOT_SHEET, { columns: 2, rows: 2 }],
+          [TREE_DAY_SHEET, { columns: TREE_SHEET_COLUMNS, rows: TREE_SHEET_COLUMNS }],
+          [TREE_DAY_STAGE_TWO_IMAGE, { columns: TREE_SHEET_COLUMNS, rows: TREE_SHEET_COLUMNS }],
+          [TREE_DAY_STAGE_THREE_IMAGE, { columns: TREE_SHEET_COLUMNS, rows: TREE_SHEET_COLUMNS }],
+          [ZOMBIE_PARTS_SHEET, { columns: 4, rows: 2 }],
+          [SUPPLY_BOX_IMAGE, { columns: 3, rows: 2 }],
+          ["images/bg_field_default_clouds.png", { columns: CLOUD_SHEET_COLUMNS, rows: CLOUD_SHEET_ROWS }],
+          ["images/bird_fly.png", { columns: BIRD_SHEET_COLUMNS, rows: BIRD_SHEET_ROWS }],
+          ["images/shed_1.png", { columns: 2, rows: 2 }],
+          ["images/fence_1.png", { columns: 2, rows: 2 }],
+          ["images/house_1_walls.png", { columns: 2, rows: 2 }],
+          ["images/house_1_roof.png", { columns: 2, rows: 2 }],
+          ["images/garden_1.png", { columns: 2, rows: 2 }],
+          ["images/car.png", { columns: 2, rows: 2 }]
+        ]);
+
+        const STATIC_ASSETS = new Set([
+          DAY_BACKGROUND_IMAGE,
+          NIGHT_BACKGROUND_IMAGE,
+          WALK_SHEET,
+          DEAD_SHEET,
+          DEAD_NO_HEAD_SHEET,
+          DEATH_NO_HEAD_SHEET,
+          BIRTH_DEATH_SHEET,
+          ZOMBIE_PARTS_SHEET,
+          DEER_SHEET,
+          DOG_SHEET,
+          CAT_SHEET,
+          RAIN_SPOT_SHEET,
+          TREE_DAY_SHEET,
+          TREE_DAY_STAGE_TWO_IMAGE,
+          TREE_DAY_STAGE_THREE_IMAGE,
+          TREE_PART_IMAGE,
+          SUPPLY_BOX_IMAGE,
+          SUPPLY_BOX_BROKEN_IMAGE,
+          STUMP_WITH_AXE_IMAGE,
+          STUMP_EMPTY_IMAGE,
+          "images/house_1.png",
+          "images/house_1_light.png",
+          "images/mailbox.png",
+          "images/shed_1.png",
+          "images/fence_1.png",
+          "images/house_1_walls.png",
+          "images/house_1_roof.png",
+          "images/garden_1.png",
+          "images/car.png",
+          "images/bg_field_default_clouds.png",
+          "images/bird_fly.png"
+        ]);
+        for (const def of Object.values(CAR_PAINT_BLUEPRINT_DEFINITIONS || {})) {
+          if (!def?.image) continue;
+          STATIC_ASSETS.add(def.image);
+          FRAME_LAYOUTS.set(def.image, { columns: 2, rows: 2 });
+        }
+
+        const parsePx = (value, fallback = 0) => {
+          const n = Number.parseFloat(String(value ?? ""));
+          return Number.isFinite(n) ? n : fallback;
+        };
+        const parseUrl = (value) => {
+          const match = /url\(["']?([^"')]+)["']?\)/.exec(String(value || ""));
+          return match ? match[1] : "";
+        };
+        const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+        const hexToNumber = (value, fallback = 0xffffff) => {
+          const text = String(value || "").trim();
+          const m = /^#([0-9a-f]{6})$/i.exec(text);
+          return m ? Number.parseInt(m[1], 16) : fallback;
+        };
+
+        const parseCssOverlayColor = (value) => {
+          const text = String(value || "").trim();
+          const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(text);
+          if (rgba) {
+            const r = Math.max(0, Math.min(255, Number(rgba[1]) || 0));
+            const g = Math.max(0, Math.min(255, Number(rgba[2]) || 0));
+            const b = Math.max(0, Math.min(255, Number(rgba[3]) || 0));
+            const a = rgba[4] === undefined ? 1 : clamp01(rgba[4]);
+            return { color: (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b), alpha: a };
+          }
+          const hex = /^#([0-9a-f]{6})$/i.exec(text);
+          if (hex) return { color: Number.parseInt(hex[1], 16), alpha: 1 };
+          return { color: 0x000000, alpha: 0 };
+        };
+
+        const unpackColor = (packed) => ({
+          r: (packed.color >> 16) & 255,
+          g: (packed.color >> 8) & 255,
+          b: packed.color & 255,
+          a: clamp01(packed.alpha)
+        });
+        const packColor = (rgba) => ({
+          color:
+            (Math.max(0, Math.min(255, Math.round(rgba.r))) << 16) |
+            (Math.max(0, Math.min(255, Math.round(rgba.g))) << 8) |
+            Math.max(0, Math.min(255, Math.round(rgba.b))),
+          alpha: clamp01(rgba.a)
+        });
+        const lerpNumber = (a, b, t) => a + (b - a) * t;
+        const lerpPackedColor = (from, to, t) => {
+          const a = unpackColor(from);
+          const b = unpackColor(to);
+          return packColor({
+            r: lerpNumber(a.r, b.r, t),
+            g: lerpNumber(a.g, b.g, t),
+            b: lerpNumber(a.b, b.b, t),
+            a: lerpNumber(a.a, b.a, t)
+          });
+        };
+
+        function readSceneToneTarget() {
+          const rootStyle = getComputedStyle(document.documentElement);
+          return {
+            brightness: parsePx(rootStyle.getPropertyValue("--scene-brightness"), 1),
+            saturation: parsePx(rootStyle.getPropertyValue("--scene-saturation"), 1),
+            contrast: parsePx(rootStyle.getPropertyValue("--scene-contrast"), 1),
+            balance: parseCssOverlayColor(rootStyle.getPropertyValue("--scene-color-balance-overlay")),
+            tint: parseCssOverlayColor(rootStyle.getPropertyValue("--scene-tint")),
+            durationMs: Math.max(0, parsePx(rootStyle.getPropertyValue("--scene-color-transition-duration"), 0))
+          };
+        }
+
+        function toneKey(tone) {
+          return [
+            tone.brightness.toFixed(5),
+            tone.saturation.toFixed(5),
+            tone.contrast.toFixed(5),
+            tone.balance.color,
+            tone.balance.alpha.toFixed(5),
+            tone.tint.color,
+            tone.tint.alpha.toFixed(5),
+            Math.round(tone.durationMs)
+          ].join("|");
+        }
+
+        function interpolateSceneTone(from, to, progress) {
+          const t = clamp01(progress);
+          return {
+            brightness: lerpNumber(from.brightness, to.brightness, t),
+            saturation: lerpNumber(from.saturation, to.saturation, t),
+            contrast: lerpNumber(from.contrast, to.contrast, t),
+            balance: lerpPackedColor(from.balance, to.balance, t),
+            tint: lerpPackedColor(from.tint, to.tint, t),
+            durationMs: to.durationMs
+          };
+        }
+
+        function sampleSceneTone(now = performance.now()) {
+          const target = readSceneToneTarget();
+          const key = toneKey(target);
+          if (!fieldTone.currentTone) {
+            fieldTone.currentTone = target;
+            fieldTone.lastTargetKey = key;
+            fieldTone.transition = null;
+            return target;
+          }
+
+          if (key !== fieldTone.lastTargetKey) {
+            let from = fieldTone.currentTone;
+            const previous = fieldTone.transition;
+            if (previous) {
+              const p = previous.durationMs <= 0
+                ? 1
+                : clamp01((now - previous.startedAt) / previous.durationMs);
+              from = interpolateSceneTone(previous.from, previous.to, p);
+            }
+            fieldTone.lastTargetKey = key;
+            fieldTone.transition = {
+              from,
+              to: target,
+              startedAt: now,
+              durationMs: target.durationMs
+            };
+          }
+
+          const transition = fieldTone.transition;
+          if (!transition || transition.durationMs <= 0) {
+            fieldTone.currentTone = target;
+            fieldTone.transition = null;
+            return target;
+          }
+
+          const progress = clamp01((now - transition.startedAt) / transition.durationMs);
+          fieldTone.currentTone = interpolateSceneTone(transition.from, transition.to, progress);
+          if (progress >= 1) fieldTone.transition = null;
+          return fieldTone.currentTone;
+        }
+
+        function placeRootGameObject(node) {
+          if (!scene || !node?.go || node.parentElement instanceof FieldNode) return;
+          const isAtmosphere = node.special === "bird" || node.special === "cloud";
+          const targetLayer = isAtmosphere ? fieldTone.atmosphereLayer : fieldTone.lowLayer;
+          if (targetLayer && node.go.displayList !== targetLayer) {
+            targetLayer.add(node.go);
+          }
+        }
+
+        function getSceneNightMix() {
+          try {
+            if (typeof getCurrentSceneNightMixVisual === "function") {
+              const interpolated = getCurrentSceneNightMixVisual(performance.now());
+              if (Number.isFinite(interpolated)) return clamp01(interpolated);
+            }
+          } catch (_) {
+            // The scene transition state may still be initializing during early Phaser setup.
+          }
+          const value = Number.parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue("--scene-night-mix")
+          );
+          if (Number.isFinite(value)) return clamp01(value);
+          return document.body.classList.contains("is-night") ? 1 : 0;
+        }
+
+        function loadNaturalImage(path) {
+          if (!path) return Promise.resolve(null);
+          if (assetPromises.has(path)) return assetPromises.get(path);
+          const promise = new Promise((resolve) => {
+            const image = new Image();
+            image.addEventListener("load", () => {
+              const naturalWidth = image.naturalWidth;
+              const naturalHeight = image.naturalHeight;
+              if (!(naturalWidth > 0 && naturalHeight > 0)) {
+                resolve(null);
+                return;
+              }
+              const key = `field:${path}`;
+              if (scene && !scene.textures.exists(key)) {
+                scene.textures.addImage(key, image);
+              }
+              const info = { key, image, naturalWidth, naturalHeight };
+              assetInfo.set(path, info);
+              resolve(info);
+            }, { once: true });
+            image.addEventListener("error", () => resolve(null), { once: true });
+            image.src = path;
+          });
+          assetPromises.set(path, promise);
+          return promise;
+        }
+
+        function getLayout(path) {
+          return FRAME_LAYOUTS.get(path) || { columns: 1, rows: 1 };
+        }
+
+        // Build real Phaser texture frames from the decoded source image.
+        // Frame bounds come only from naturalWidth/naturalHeight + logical columns/rows.
+        function ensureGridTextureFrame(info, frame) {
+          if (!scene || !info) return null;
+          const texture = scene.textures.get(info.key);
+          if (!texture) return null;
+
+          const columns = Math.max(1, frame.columns || 1);
+          const rows = Math.max(1, frame.rows || 1);
+          const col = Math.max(0, Math.min(columns - 1, frame.col || 0));
+          const row = Math.max(0, Math.min(rows - 1, frame.row || 0));
+          const frameName = `grid:${columns}x${rows}:${col},${row}`;
+
+          if (!texture.has(frameName)) {
+            // Boundary rounding keeps every source pixel covered even if a source
+            // dimension is not perfectly divisible by its logical grid.
+            const x0 = Math.round((info.naturalWidth * col) / columns);
+            const y0 = Math.round((info.naturalHeight * row) / rows);
+            const x1 = Math.round((info.naturalWidth * (col + 1)) / columns);
+            const y1 = Math.round((info.naturalHeight * (row + 1)) / rows);
+            texture.add(
+              frameName,
+              0,
+              x0,
+              y0,
+              Math.max(1, x1 - x0),
+              Math.max(1, y1 - y0)
+            );
+          }
+
+          return texture.get(frameName);
+        }
+
+        // supplybox.png is a 3x2 logical sheet, but two visuals span multiple cells:
+        // - flying balloon box: cells 1 + 4 (vertical, left column)
+        // - flying balloon shadow: cells 5 + 6 (horizontal, bottom-right two cells)
+        // Fallen box/shadow continue to use single cells 2 and 3.
+        function ensureSupplyBoxCompositeFrame(info, node) {
+          if (!scene || !info || info.image?.src?.endsWith?.(SUPPLY_BOX_IMAGE) === false) return null;
+          if (node.backgroundPath !== SUPPLY_BOX_IMAGE) return null;
+
+          const texture = scene.textures.get(info.key);
+          if (!texture) return null;
+
+          let frameName = "";
+          let x0 = 0;
+          let y0 = 0;
+          let x1 = 0;
+          let y1 = 0;
+
+          if (node.classList.contains("is-flying-shadow")) {
+            frameName = "supply:flying-shadow:5+6";
+            x0 = Math.round(info.naturalWidth / 3);
+            y0 = Math.round(info.naturalHeight / 2);
+            x1 = info.naturalWidth;
+            y1 = info.naturalHeight;
+          } else if (node.classList.contains("is-flying")) {
+            frameName = "supply:flying-box:1+4";
+            x0 = 0;
+            y0 = 0;
+            x1 = Math.round(info.naturalWidth / 3);
+            y1 = info.naturalHeight;
+          } else {
+            return null;
+          }
+
+          if (!texture.has(frameName)) {
+            texture.add(
+              frameName,
+              0,
+              x0,
+              y0,
+              Math.max(1, x1 - x0),
+              Math.max(1, y1 - y0)
+            );
+          }
+          return texture.get(frameName);
+        }
+
+        const blurredShadowTextures = new Map();
+
+        function getBlurredShadowTexture(spec) {
+          if (!scene) return null;
+          const width = Math.max(1, Number(spec.width) || 1);
+          const height = Math.max(1, Number(spec.height) || 1);
+          const blur = Math.max(0, Number(spec.blur) || 0);
+          const skewDeg = Number(spec.skewDeg) || 0;
+          const scaleY = Math.max(0.01, Math.abs(Number(spec.scaleY) || 1));
+          const cacheKey = [width, height, blur, skewDeg, scaleY]
+            .map((value) => Number(value).toFixed(3))
+            .join(":");
+          if (blurredShadowTextures.has(cacheKey)) {
+            return blurredShadowTextures.get(cacheKey);
+          }
+
+          const skew = Math.tan((skewDeg * Math.PI) / 180);
+          const padding = Math.ceil(blur * 3 + 2);
+          const transformedWidth = width + Math.abs(skew) * height;
+          const transformedHeight = height * scaleY;
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.ceil(transformedWidth + padding * 2));
+          canvas.height = Math.max(1, Math.ceil(transformedHeight + padding * 2));
+
+          const context = canvas.getContext("2d");
+          if (!context) return null;
+          context.save();
+          context.translate(canvas.width / 2 - width / 2, canvas.height / 2);
+          context.transform(1, 0, skew, scaleY, 0, 0);
+          context.filter = blur > 0 ? `blur(${blur}px)` : "none";
+          context.fillStyle = "#000";
+          context.beginPath();
+          context.ellipse(width / 2, 0, width / 2, height / 2, 0, 0, Math.PI * 2);
+          context.fill();
+          context.restore();
+
+          const textureKey = `field:blur-shadow:${cacheKey}`;
+          if (!scene.textures.exists(textureKey)) {
+            scene.textures.addCanvas(textureKey, canvas);
+          }
+          const result = { key: textureKey, width: canvas.width, height: canvas.height };
+          blurredShadowTextures.set(cacheKey, result);
+          return result;
+        }
+
+        function frameFromPosition(node, position, path) {
+          const layout = getLayout(path);
+          const columns = Math.max(1, layout.columns || 1);
+          const rows = Math.max(1, layout.rows || 1);
+          let col = 0;
+          let row = 0;
+          const value = String(position || "0 0").trim().toLowerCase();
+          const parts = value.split(/\s+/);
+          const x = parts[0] || "0";
+          const y = parts[1] || "0";
+          const axisIndex = (token, count, displaySize) => {
+            if (token === "left" || token === "top") return 0;
+            if (token === "right" || token === "bottom") return Math.max(0, count - 1);
+            if (token.endsWith("%")) {
+              const pct = parsePx(token, 0);
+              return count <= 1 ? 0 : Math.round((pct / 100) * (count - 1));
+            }
+            const px = parsePx(token, 0);
+            const unit = Math.max(0.0001, displaySize || 1);
+            return Math.round(Math.abs(px) / unit);
+          };
+          col = axisIndex(x, columns, node.width || 1);
+          row = axisIndex(y, rows, node.height || 1);
+          col = Math.max(0, Math.min(columns - 1, col));
+          row = Math.max(0, Math.min(rows - 1, row));
+          return { col, row, columns, rows, index: row * columns + col };
+        }
+
+        class FieldClassList {
+          constructor(node) { this.node = node; this.values = new Set(); }
+          add(...names) { names.forEach((n) => n && this.values.add(n)); this.node.onClassChange(); }
+          remove(...names) { names.forEach((n) => this.values.delete(n)); this.node.onClassChange(); }
+          contains(name) { return this.values.has(name); }
+          toggle(name, force) {
+            const shouldAdd = force === undefined ? !this.values.has(name) : Boolean(force);
+            if (shouldAdd) this.values.add(name); else this.values.delete(name);
+            this.node.onClassChange();
+            return shouldAdd;
+          }
+          toString() { return Array.from(this.values).join(" "); }
+          setFromString(value) {
+            this.values = new Set(String(value || "").split(/\s+/).filter(Boolean));
+            this.node.onClassChange();
+          }
+        }
+
+        class FieldStyle {
+          constructor(node) {
+            this.node = node;
+            this.values = Object.create(null);
+            return new Proxy(this, {
+              get: (target, prop) => {
+                if (prop in target) return target[prop];
+                return target.values[prop] ?? "";
+              },
+              set: (target, prop, value) => {
+                target.values[prop] = String(value);
+                target.node.applyStyleProperty(String(prop), String(value));
+                return true;
+              }
+            });
+          }
+          setProperty(name, value) {
+            this.values[name] = String(value);
+            this.node.applyStyleProperty(name, String(value));
+          }
+          getPropertyValue(name) { return this.values[name] ?? ""; }
+          removeProperty(name) {
+            delete this.values[name];
+            this.node.applyStyleProperty(name, "");
+          }
+        }
+
+        class FieldNode {
+          constructor(options = {}) {
+            this.id = options.id || "";
+            this.parentElement = null;
+            this.children = [];
+            this.attributes = new Map();
+            this.listeners = new Map();
+            this.classList = new FieldClassList(this);
+            this.style = new FieldStyle(this);
+            this._className = "";
+            this._hidden = false;
+            this._connected = false;
+            this._tabIndex = -1;
+            this.width = options.width || 0;
+            this.height = options.height || 0;
+            this.baseX = options.x || 0;
+            this.baseY = options.y || 0;
+            this.translateX = 0;
+            this.translateY = 0;
+            this.scaleX = options.scaleX || 1;
+            this.scaleY = options.scaleY || 1;
+            this.rotationDeg = 0;
+            this.transformOriginX = 0;
+            this.transformOriginY = 0;
+            this.hasTransformOrigin = false;
+            this.opacity = options.opacity ?? 1;
+            this.opacityTransitionMs = 0;
+            this.visible = true;
+            this.pointerEnabled = false;
+            this.depthBand = options.depthBand ?? 0;
+            this.sortY = options.sortY ?? 0;
+            this.geometry = options.geometry || "topLeft";
+            this.backgroundPath = options.backgroundPath || "";
+            this.backgroundPosition = options.backgroundPosition || "0 0";
+            this.dualTone = options.dualTone === true;
+            this.visualRole = options.visualRole || "";
+            this.special = options.special || "";
+            this.go = null;
+            this.dayImage = null;
+            this.nightImage = null;
+            this.singleImage = null;
+            this.hitRect = null;
+            this.shadowGraphic = null;
+            nodes.add(this);
+            if (this.dualTone) dualToneNodes.add(this);
+            if (options.className) this.className = options.className;
+            if (scene) this.attachScene();
+          }
+
+          get className() { return this.classList.toString(); }
+          set className(value) { this.classList.setFromString(value); }
+          get hidden() { return this._hidden; }
+          set hidden(value) { this._hidden = Boolean(value); this.syncVisibility(); }
+          get tabIndex() { return this._tabIndex; }
+          set tabIndex(value) { this._tabIndex = Number(value) || 0; }
+          get isConnected() { return this._connected && !this._hidden; }
+          get childElementCount() { return this.children.length; }
+          get lastElementChild() { return this.children[this.children.length - 1] || null; }
+          get offsetLeft() { return this.baseX; }
+          get offsetTop() { return this.baseY; }
+          get offsetWidth() { return this.width; }
+          get offsetHeight() { return this.height; }
+          get offsetParent() { return this.parentElement; }
+          get offsetWidthForLayout() { return this.width; }
+
+          setAttribute(name, value) { this.attributes.set(name, String(value)); }
+          getAttribute(name) { return this.attributes.get(name) ?? null; }
+          removeAttribute(name) { this.attributes.delete(name); }
+          hasAttribute(name) { return this.attributes.has(name); }
+
+          append(...children) { children.forEach((child) => this.appendChild(child)); }
+          appendChild(child) {
+            if (!child) return child;
+            if (child.parentElement?.removeChild) child.parentElement.removeChild(child);
+            child.parentElement = this;
+            this.children.push(child);
+            child._connected = this._connected;
+            if (this.width > 0 && this.height > 0 && (child.width <= 0 || child.height <= 0)) {
+              child.inheritSize(this.width, this.height);
+            }
+            if (scene) {
+              child.attachScene();
+              if (this.go && child.go && child.go.parentContainer !== this.go) {
+                this.go.add(child.go);
+              }
+            }
+            child.syncAll();
+            return child;
+          }
+          removeChild(child) {
+            const index = this.children.indexOf(child);
+            if (index >= 0) this.children.splice(index, 1);
+            if (child?.go?.parentContainer === this.go) this.go.remove(child.go);
+            if (child) { child.parentElement = null; child._connected = false; }
+            return child;
+          }
+          replaceChildren(...newChildren) {
+            [...this.children].forEach((child) => child.remove());
+            newChildren.forEach((child) => this.appendChild(child));
+          }
+          remove() {
+            if (this.parentElement?.removeChild) this.parentElement.removeChild(this);
+            this._connected = false;
+            this.go?.destroy(true);
+            this.go = null;
+            nodes.delete(this);
+            dualToneNodes.delete(this);
+          }
+
+          inheritSize(width, height) {
+            if (!(this.width > 0)) this.width = width;
+            if (!(this.height > 0)) this.height = height;
+            for (const child of this.children) child.inheritSize(this.width, this.height);
+            this.syncSize();
+          }
+
+          onClassChange() {
+            const c = this.classList;
+            if (c.contains("zombie")) {
+              this.geometry = "center"; this.setSize(ZOMBIE_WIDTH, ZOMBIE_HEIGHT); this.depthBand = 14; this.special = "entityZombie";
+            } else if (c.contains("deer")) {
+              this.geometry = "center"; this.setSize(DEER_WIDTH, DEER_HEIGHT); this.depthBand = 14; this.special = "entityDeer";
+            } else if (c.contains("dog")) {
+              this.geometry = "center"; this.setSize(getDogRenderSize(), getDogRenderSize()); this.depthBand = 14; this.special = "entityDog";
+              this.opacityTransitionMs = getRootNumber("--dog-appear-duration", 300);
+              if (c.contains("is-appearing")) this.opacity = 0;
+              else if (this.opacity === 0) this.setOpacityValue(1, true);
+            } else if (c.contains("cat")) {
+              this.geometry = "center"; this.setSize(CAT_SIZE, CAT_SIZE); this.depthBand = 14; this.special = "entityCat";
+            } else if (c.contains("cloud-visual")) {
+              this.geometry = "center"; this.setSize(CLOUD_FRAME_SIZE, CLOUD_FRAME_SIZE);
+              this.depthBand = c.contains("cloud-shadow") ? 1 : 21;
+              this.special = c.contains("cloud-shadow") ? "cloudShadow" : "cloud";
+              this.setBackgroundImage('url("images/bg_field_default_clouds.png")');
+            } else if (c.contains("bird")) {
+              this.geometry = "center"; this.setSize(42.6667, 42.6667); this.depthBand = 20; this.special = "bird";
+              this.setBackgroundImage('url("images/bird_fly.png")');
+            } else if (c.contains("rain-spot")) {
+              this.geometry = "topLeft"; this.depthBand = 0.5; this.setBackgroundImage(`url("${RAIN_SPOT_SHEET}")`);
+            } else if (c.contains("gravity-particle")) {
+              this.geometry = "topLeft"; this.depthBand = 18; this.special = "particle";
+            } else if (c.contains("tree-falling-part-shadow")) {
+              this.geometry = "topLeft"; this.depthBand = 9; this.special = "ellipseShadow";
+            } else if (c.contains("zombie-falling-part-shadow")) {
+              this.geometry = "topLeft"; this.depthBand = 9; this.special = "ellipseShadow";
+            } else if (c.contains("tree-falling-part")) {
+              this.geometry = "topLeft"; this.setSize(256, 256); this.depthBand = 17;
+            } else if (c.contains("tree-falling-part-rotator")) {
+              this.geometry = "topLeft"; this.setSize(256, 256);
+            } else if (c.contains("tree-falling-part-image")) {
+              this.geometry = "topLeft"; this.setSize(256, 256); this.setBackgroundImage(`url("${TREE_PART_IMAGE}")`);
+            } else if (c.contains("zombie-falling-part")) {
+              this.geometry = "topLeft"; this.setSize(ZOMBIE_PART_SIZE, ZOMBIE_PART_SIZE); this.depthBand = 18;
+            } else if (c.contains("zombie-falling-part-image")) {
+              this.geometry = "topLeft"; this.setSize(ZOMBIE_PART_SIZE, ZOMBIE_PART_SIZE); this.setBackgroundImage(`url("${ZOMBIE_PARTS_SHEET}")`);
+            } else if (c.contains("supply-box-shadow")) {
+              this.geometry = "topLeft"; this.dualTone = true; dualToneNodes.add(this); this.depthBand = 1;
+            } else if (c.contains("supply-box")) {
+              this.geometry = "topLeft"; this.dualTone = true; dualToneNodes.add(this); this.depthBand = 19;
+            } else if (c.contains("deer-hitbox")) {
+              this.geometry = "center";
+            } else if (c.contains("supply-box-hit-area")) {
+              this.geometry = "topLeft";
+            }
+
+            if (
+              c.contains("zombie-visual-day") || c.contains("deer-visual-day") ||
+              c.contains("dog-visual-day") || c.contains("cat-visual-day")
+            ) this.visualRole = "day";
+            if (
+              c.contains("zombie-visual-night") || c.contains("deer-visual-night") ||
+              c.contains("dog-visual-night") || c.contains("cat-visual-night")
+            ) this.visualRole = "night";
+
+            if (
+              c.contains("zombie-sprite") || c.contains("zombie-sprite-overlay") ||
+              c.contains("deer-sprite") || c.contains("deer-sprite-overlay") ||
+              c.contains("dog-sprite") || c.contains("cat-sprite")
+            ) this.special = "sprite";
+
+            if (this.id === "carObject") {
+              this.pointerEnabled = !c.contains("is-traveling") &&
+                (this.listeners.has("pointerdown") || this.listeners.has("pointerup"));
+            }
+
+            if (scene) this.attachScene();
+            this.ensureSpecialGraphics();
+            placeRootGameObject(this);
+            this.syncAll();
+          }
+
+          setSize(width, height) {
+            const w = parsePx(width, this.width);
+            const h = parsePx(height, this.height);
+            if (w > 0) this.width = w;
+            if (h > 0) this.height = h;
+            for (const child of this.children) {
+              if (child.width <= 0 || child.height <= 0 || child.classList.contains("deer-hitbox") || child.classList.contains("supply-box-hit-area")) {
+                child.inheritSize(this.width, this.height);
+              }
+            }
+            this.syncSize();
+          }
+
+          getShadowSpec() {
+            if (this.special === "entityZombie") {
+              return { x: 23, y: 31, width: 70, height: 16, blur: 5, skewDeg: -28, scaleY: 0.4, alpha: 0.25 };
+            }
+            if (this.special === "entityDeer") {
+              return { x: 11.8333, y: 21.6667, width: 73.3333, height: 12, blur: 5, skewDeg: -28, scaleY: 0.42, alpha: 0.25 };
+            }
+            if (this.special === "entityDog") {
+              return {
+                x: this.width * 0.19,
+                y: this.height * 0.25,
+                width: this.width * 0.9,
+                height: this.height * 0.2,
+                blur: 5,
+                skewDeg: -28,
+                scaleY: 0.42,
+                alpha: 0.25
+              };
+            }
+            if (this.special === "entityCat") {
+              return {
+                x: this.width * 0.055,
+                y: this.height * 0.15,
+                width: this.width * 0.75,
+                height: this.height * 0.2,
+                blur: 5,
+                skewDeg: -28,
+                scaleY: 0.42,
+                alpha: 0.25
+              };
+            }
+            if (this.special === "ellipseShadow") {
+              if (!(this.width > 0 && this.height > 0)) return null;
+              const isZombiePart = this.classList.contains("zombie-falling-part-shadow");
+              return {
+                x: this.width / 2,
+                y: this.height / 2,
+                width: this.width,
+                height: this.height,
+                blur: isZombiePart ? 4 : 5,
+                skewDeg: isZombiePart ? -24 : -28,
+                scaleY: isZombiePart ? 0.42 : 0.4,
+                alpha: 1
+              };
+            }
+            return null;
+          }
+
+          refreshBlurredShadow() {
+            if (!scene || !this.go) return;
+            const spec = this.getShadowSpec();
+            if (!spec) return;
+            const texture = getBlurredShadowTexture(spec);
+            if (!texture) return;
+
+            if (this.shadowGraphic) {
+              this.go.remove(this.shadowGraphic, true);
+              this.shadowGraphic = null;
+            }
+            // Entity shadow specs are already expressed in the entity's centered
+            // local coordinates (the old DOM ::before position converted from
+            // top-left into translate(-50%, -50%) space). Do not subtract half
+            // the entity size again here.
+            this.shadowGraphic = scene.add.image(
+              spec.x,
+              spec.y,
+              texture.key
+            )
+              .setOrigin(0.5)
+              .setAlpha(spec.alpha);
+            this.go.addAt(this.shadowGraphic, 0);
+          }
+
+          ensureSpecialGraphics() {
+            if (!scene || !this.go || this.shadowGraphic) return;
+            if (this.special === "particle") {
+              this.shadowGraphic = scene.add.rectangle(0, 0, Math.max(1, this.width), Math.max(1, this.height), 0xffffff, 1).setOrigin(0, 0);
+              this.go.addAt(this.shadowGraphic, 0);
+              return;
+            }
+            if (this.special === "ellipseShadow" || [
+              "entityZombie", "entityDeer", "entityDog", "entityCat"
+            ].includes(this.special)) {
+              this.refreshBlurredShadow();
+            }
+          }
+
+          attachScene() {
+            if (!scene || this.go) return;
+            this.go = scene.add.container(this.baseX, this.baseY);
+            this.go.setDepth(this.depthBand * 100000 + this.sortY);
+            this._connected = true;
+            if (this.special === "particle") {
+              this.shadowGraphic = scene.add.rectangle(0, 0, Math.max(1, this.width), Math.max(1, this.height), 0xffffff, 1).setOrigin(0, 0);
+              this.go.add(this.shadowGraphic);
+            } else if (this.special === "ellipseShadow" || [
+              "entityZombie", "entityDeer", "entityDog", "entityCat"
+            ].includes(this.special)) {
+              // Created below by ensureSpecialGraphics(), after size/class state is known.
+            } else if (this.dualTone) {
+              this.dayImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.nightImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.go.add([this.dayImage, this.nightImage]);
+            } else if (this.backgroundPath || this.special === "sprite" || this.special === "cloud" || this.special === "cloudShadow" || this.special === "bird") {
+              this.singleImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.go.add(this.singleImage);
+            }
+            this.ensureSpecialGraphics();
+            placeRootGameObject(this);
+            for (const child of this.children) {
+              child.attachScene();
+              if (child.go && child.go.parentContainer !== this.go) this.go.add(child.go);
+            }
+            this.syncAll();
+          }
+
+          ensureImageObjects() {
+            if (!scene || !this.go) return;
+            if (this.dualTone && (!this.dayImage || !this.nightImage)) {
+              this.dayImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.nightImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.go.add([this.dayImage, this.nightImage]);
+            } else if (!this.dualTone && !this.singleImage && ![
+              "particle", "ellipseShadow", "entityZombie", "entityDeer", "entityDog", "entityCat"
+            ].includes(this.special)) {
+              this.singleImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.go.add(this.singleImage);
+            }
+          }
+
+          setBackgroundImage(value) {
+            const path = parseUrl(value) || String(value || "").trim();
+            if (!path) return;
+            this.backgroundPath = path;
+            this.ensureImageObjects();
+            this.applyTexture();
+          }
+          setBackgroundPosition(value) {
+            this.backgroundPosition = String(value || "0 0");
+            this.applyTexture();
+          }
+
+          async applyTexture() {
+            if (!scene || !this.backgroundPath) return;
+            this.ensureImageObjects();
+            const path = this.backgroundPath;
+            const info = assetInfo.get(path) || await loadNaturalImage(path);
+            if (!info || this.backgroundPath !== path || !this.go) return;
+            if (!scene.textures.exists(info.key)) scene.textures.addImage(info.key, info.image);
+            const frame = frameFromPosition(this, this.backgroundPosition, path);
+            const textureFrame =
+              ensureSupplyBoxCompositeFrame(info, this) ||
+              ensureGridTextureFrame(info, frame);
+            if (!textureFrame) return;
+            const images = this.dualTone ? [this.dayImage, this.nightImage] : [this.singleImage];
+            for (const image of images) {
+              if (!image) continue;
+              // setFrame makes the cropped cell the Game Object's actual source frame.
+              // setDisplaySize therefore scales one cell, not the full sprite sheet.
+              image.setTexture(info.key, textureFrame.name);
+              image.setDisplaySize(
+                Math.max(0.01, this.width || textureFrame.realWidth || textureFrame.width),
+                Math.max(0.01, this.height || textureFrame.realHeight || textureFrame.height)
+              );
+            }
+            this.applyNightVisualFilter();
+          }
+
+          applyNightVisualFilter() {
+            if (!scene) return;
+
+            let inheritedNightRole = this.visualRole === "night";
+            let ancestor = this.parentElement;
+            while (!inheritedNightRole && ancestor instanceof FieldNode) {
+              inheritedNightRole = ancestor.visualRole === "night";
+              ancestor = ancestor.parentElement;
+            }
+
+            const target = this.dualTone
+              ? this.nightImage
+              : (inheritedNightRole ? this.singleImage : null);
+            if (!target) return;
+
+            // The original DOM version does NOT use a flat tint for night sprites.
+            // It applies nightCoolBalance first, followed by CSS brightness(),
+            // saturate() and contrast(). Rebuild the same affine color matrix here
+            // so Phaser-rendered field objects match the pre-Phaser night color.
+            const base = SCENE_COLOR_TONES?.night?.baseLayer || {};
+            const balance = base.colorBalance || { red: 0.4, green: 0.9, blue: 2.5 };
+            const isEntity = this.special === "sprite";
+            const brightness = Number(
+              isEntity ? base.entityBrightness : base.brightness
+            );
+            const saturation = Number(
+              isEntity ? base.entitySaturation : base.saturation
+            );
+            const contrast = Number(base.contrast);
+
+            const b = Number.isFinite(brightness) ? brightness : (isEntity ? 0.42 : 0.4);
+            const s = Number.isFinite(saturation) ? saturation : (isEntity ? 0.7 : 0.55);
+            const c = Number.isFinite(contrast) ? contrast : 1;
+            const br = Number.isFinite(Number(balance.red)) ? Number(balance.red) : 0.4;
+            const bg = Number.isFinite(Number(balance.green)) ? Number(balance.green) : 0.9;
+            const bb = Number.isFinite(Number(balance.blue)) ? Number(balance.blue) : 2.5;
+            const signature = `${isEntity ? "entity" : "base"}|${b}|${s}|${c}|${br}|${bg}|${bb}`;
+
+            if (target.__cozzyNightFilterSignature === signature) return;
+            target.__cozzyNightFilterSignature = signature;
+            target.clearTint?.();
+
+            const identity5 = () => [
+              1, 0, 0, 0, 0,
+              0, 1, 0, 0, 0,
+              0, 0, 1, 0, 0,
+              0, 0, 0, 1, 0,
+              0, 0, 0, 0, 1
+            ];
+            const multiply5 = (left, right) => {
+              const out = new Array(25).fill(0);
+              for (let row = 0; row < 5; row += 1) {
+                for (let col = 0; col < 5; col += 1) {
+                  let sum = 0;
+                  for (let k = 0; k < 5; k += 1) {
+                    sum += left[row * 5 + k] * right[k * 5 + col];
+                  }
+                  out[row * 5 + col] = sum;
+                }
+              }
+              return out;
+            };
+
+            const balanceMatrix = identity5();
+            balanceMatrix[0] = br;
+            balanceMatrix[6] = bg;
+            balanceMatrix[12] = bb;
+
+            const brightnessMatrix = identity5();
+            brightnessMatrix[0] = b;
+            brightnessMatrix[6] = b;
+            brightnessMatrix[12] = b;
+
+            // CSS filter saturate(s) matrix from the Filter Effects specification.
+            const saturationMatrix = [
+              0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0,
+              0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0,
+              0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0,
+              0, 0, 0, 1, 0,
+              0, 0, 0, 0, 1
+            ];
+
+            const contrastMatrix = identity5();
+            const contrastOffset = 0.5 * (1 - c);
+            contrastMatrix[0] = c;
+            contrastMatrix[6] = c;
+            contrastMatrix[12] = c;
+            contrastMatrix[4] = contrastOffset;
+            contrastMatrix[9] = contrastOffset;
+            contrastMatrix[14] = contrastOffset;
+
+            // CSS order: url(#nightCoolBalance) -> brightness -> saturate -> contrast.
+            let combined = balanceMatrix;
+            combined = multiply5(brightnessMatrix, combined);
+            combined = multiply5(saturationMatrix, combined);
+            combined = multiply5(contrastMatrix, combined);
+
+            const phaserMatrix = [];
+            for (let row = 0; row < 4; row += 1) {
+              phaserMatrix.push(
+                combined[row * 5],
+                combined[row * 5 + 1],
+                combined[row * 5 + 2],
+                combined[row * 5 + 3],
+                combined[row * 5 + 4] * 255
+              );
+            }
+
+            try {
+              // ColorMatrix FX is WebGL-backed in Phaser 3.90. If available,
+              // this reproduces the original SVG/CSS night filter far more closely
+              // than the previous setTint approximation.
+              if (target.preFX?.addColorMatrix) {
+                if (!target.__cozzyNightColorMatrixFx) {
+                  target.__cozzyNightColorMatrixFx = target.preFX.addColorMatrix();
+                }
+                target.__cozzyNightColorMatrixFx.set(phaserMatrix);
+                target.__cozzyNightColorMatrixFx.active = true;
+                return;
+              }
+            } catch (_) {
+              // Canvas or unsupported FX path: fall through to a conservative tint.
+            }
+
+            // Fallback only. The normal WebGL path above is the intended rendering.
+            const fallbackR = Math.max(0, Math.min(255, Math.round(255 * b * br)));
+            const fallbackG = Math.max(0, Math.min(255, Math.round(255 * b * bg)));
+            const fallbackB = Math.max(0, Math.min(255, Math.round(255 * b * bb)));
+            target.setTint((fallbackR << 16) | (fallbackG << 8) | fallbackB);
+          }
+
+          setOpacityValue(value, animate = true) {
+            const next = clamp01(value);
+            if (
+              animate && scene && this.go && this.opacityTransitionMs > 0 &&
+              Math.abs(this.opacity - next) > 0.0001
+            ) {
+              scene.tweens.killTweensOf(this);
+              scene.tweens.add({
+                targets: this,
+                opacity: next,
+                duration: this.opacityTransitionMs,
+                ease: "Linear",
+                onUpdate: () => this.syncAlpha(),
+                onComplete: () => this.syncAlpha()
+              });
+              return;
+            }
+            this.opacity = next;
+            this.syncAlpha();
+          }
+
+          applyStyleProperty(name, value) {
+            switch (name) {
+              case "left": this.baseX = parsePx(value, this.baseX); break;
+              case "top": this.baseY = parsePx(value, this.baseY); break;
+              case "width": this.setSize(parsePx(value, this.width), this.height); break;
+              case "height": this.setSize(this.width, parsePx(value, this.height)); break;
+              case "opacity": this.setOpacityValue(value, true); break;
+              case "transition": {
+                const match = /opacity\s+([\d.]+)(ms|s)/i.exec(value);
+                if (match) this.opacityTransitionMs = Number(match[1]) * (match[2].toLowerCase() === "s" ? 1000 : 1);
+                break;
+              }
+              case "visibility": this.visible = value !== "hidden"; break;
+              case "pointerEvents": this.pointerEnabled = value !== "none"; this.syncInteractive(); break;
+              case "zIndex": this.sortY = parsePx(value, this.sortY); break;
+              case "backgroundImage": this.setBackgroundImage(value); break;
+              case "backgroundPosition": this.setBackgroundPosition(value); break;
+              case "transform": this.applyTransform(value); break;
+              case "transformOrigin": this.applyTransformOrigin(value); break;
+              case "webkitMaskPosition":
+              case "maskPosition": this.setBackgroundPosition(value); break;
+              case "backgroundColor":
+                if (this.special === "bird" && this.singleImage) this.singleImage.setTint(hexToNumber(value));
+                break;
+              case "--cloud-position": this.setBackgroundPosition(value); break;
+              case "--rain-spot-size": this.setSize(parsePx(value, this.width), parsePx(value, this.height)); break;
+              case "--rain-spot-frame-position": this.setBackgroundPosition(value); break;
+              case "--particle-size": this.setSize(parsePx(value, 1), parsePx(value, 1)); break;
+              case "--particle-color":
+                if (this.shadowGraphic?.setFillStyle) this.shadowGraphic.setFillStyle(hexToNumber(value), 1);
+                break;
+              case "--supply-box-image": this.setBackgroundImage(value); break;
+              case "--supply-box-background-position": this.setBackgroundPosition(value); break;
+              case "--stump-image": this.setBackgroundImage(value); break;
+              case "--car-image": this.setBackgroundImage(value); break;
+              case "--shed-frame-position":
+              case "--fence-frame-position":
+              case "--walls-frame-position":
+              case "--roof-frame-position":
+              case "--garden-frame-position":
+              case "--car-frame-position": this.setBackgroundPosition(value); break;
+              case "--tree-part-image": this.setBackgroundImage(value); break;
+              default: break;
+            }
+            this.syncAll();
+          }
+
+          applyTransformOrigin(value) {
+            const parts = String(value || "").trim().split(/\s+/);
+            const parseAxis = (token, size) => {
+              const text = String(token || "0").toLowerCase();
+              if (text === "center") return size / 2;
+              if (text === "left" || text === "top") return 0;
+              if (text === "right" || text === "bottom") return size;
+              if (text.endsWith("%")) return size * parsePx(text, 0) / 100;
+              return parsePx(text, 0);
+            };
+            this.transformOriginX = parseAxis(parts[0] || "0", this.width);
+            this.transformOriginY = parseAxis(parts[1] || parts[0] || "0", this.height);
+            this.hasTransformOrigin = true;
+          }
+
+          applyTransform(value) {
+            const text = String(value || "");
+            let tx = 0, ty = 0, sx = 1, sy = 1, rot = 0;
+            const translate3d = /translate3d\(\s*([-\d.]+)px\s*,\s*([-\d.]+)px/i.exec(text);
+            if (translate3d) { tx = parsePx(translate3d[1]); ty = parsePx(translate3d[2]); }
+            const scaleXMatch = /scaleX\(\s*([-\d.]+)\s*\)/i.exec(text);
+            if (scaleXMatch) sx = parsePx(scaleXMatch[1], 1);
+            const scaleYMatch = /scaleY\(\s*([-\d.]+)\s*\)/i.exec(text);
+            if (scaleYMatch) sy = parsePx(scaleYMatch[1], 1);
+            const scaleMatch = /(?:^|\s)scale\(\s*([-\d.]+)(?:\s*,\s*([-\d.]+))?\s*\)/i.exec(text);
+            if (scaleMatch) { sx *= parsePx(scaleMatch[1], 1); sy *= parsePx(scaleMatch[2] ?? scaleMatch[1], 1); }
+            const rotateMatch = /rotate\(\s*([-\d.]+)deg\s*\)/i.exec(text);
+            if (rotateMatch) rot = parsePx(rotateMatch[1], 0);
+            this.translateX = tx; this.translateY = ty; this.scaleX = sx; this.scaleY = sy; this.rotationDeg = rot;
+          }
+
+          syncPosition() {
+            if (!this.go) return;
+            let localOriginOffsetX = 0;
+            let localOriginOffsetY = 0;
+            // DOM entities used transform: translate(-50%, -50%). Their child
+            // visuals therefore lived in a top-left box whose origin was half a
+            // sprite above/left of the entity coordinate. Phaser Containers do
+            // not have an origin, so reproduce that box explicitly for top-left
+            // children while keeping centered hit areas at (0, 0).
+            if (
+              this.geometry === "topLeft" &&
+              this.parentElement instanceof FieldNode &&
+              this.parentElement.geometry === "center"
+            ) {
+              localOriginOffsetX -= this.parentElement.width / 2;
+              localOriginOffsetY -= this.parentElement.height / 2;
+            }
+
+            // Phaser Containers rotate/scale around local (0,0). Reproduce CSS
+            // transform-origin by moving this container's origin to the requested
+            // pivot and shifting its children back by the same amount.
+            if (this.parentElement instanceof FieldNode && this.parentElement.hasTransformOrigin) {
+              localOriginOffsetX -= this.parentElement.transformOriginX;
+              localOriginOffsetY -= this.parentElement.transformOriginY;
+            }
+
+            // The original DOM sprite/image layers use transform-origin: center center.
+            // Phaser Containers scale around local (0,0), so a negative scale would
+            // otherwise mirror around the left/top edge and shift the visible frame
+            // by a full frame width/height. Compensate only for the leaf visuals that
+            // are actually mirrored by the game logic. This keeps both facing
+            // directions anchored to the exact same world position and also keeps
+            // the second (mirrored) falling tree part on the same rotation axis.
+            const usesCenteredLeafFlip =
+              this.special === "sprite" ||
+              this.classList.contains("tree-falling-part-image") ||
+              this.classList.contains("zombie-falling-part-image");
+            if (usesCenteredLeafFlip) {
+              if (this.scaleX < 0) localOriginOffsetX += this.width;
+              if (this.scaleY < 0) localOriginOffsetY += this.height;
+            }
+
+            const ownPivotX = this.hasTransformOrigin ? this.transformOriginX : 0;
+            const ownPivotY = this.hasTransformOrigin ? this.transformOriginY : 0;
+
+            this.go.x = this.baseX + this.translateX + localOriginOffsetX + ownPivotX;
+            this.go.y = this.baseY + this.translateY + localOriginOffsetY + ownPivotY;
+            this.go.scaleX = this.scaleX;
+            this.go.scaleY = this.scaleY;
+            this.go.rotation = Phaser.Math.DegToRad(this.rotationDeg);
+            this.go.setDepth(this.depthBand * 100000 + this.sortY);
+          }
+          syncSize() {
+            if (this.singleImage) this.singleImage.setDisplaySize(Math.max(0.01, this.width), Math.max(0.01, this.height));
+            if (this.dayImage) this.dayImage.setDisplaySize(Math.max(0.01, this.width), Math.max(0.01, this.height));
+            if (this.nightImage) this.nightImage.setDisplaySize(Math.max(0.01, this.width), Math.max(0.01, this.height));
+            if (this.special === "ellipseShadow" || [
+              "entityZombie", "entityDeer", "entityDog", "entityCat"
+            ].includes(this.special)) {
+              if (this.width > 0 && this.height > 0) this.refreshBlurredShadow();
+            } else if (this.shadowGraphic) {
+              this.shadowGraphic.setSize?.(Math.max(0.01, this.width), Math.max(0.01, this.height));
+              this.shadowGraphic.setDisplaySize?.(Math.max(0.01, this.width), Math.max(0.01, this.height));
+            }
+            if (this.hitRect) {
+              this.hitRect.setSize(Math.max(0.01, this.width), Math.max(0.01, this.height));
+              this.hitRect.setPosition(this.geometry === "center" ? 0 : this.width / 2, this.geometry === "center" ? 0 : this.height / 2);
+            }
+            if (this.backgroundPath) this.applyTexture();
+          }
+          syncVisibility() {
+            if (!this.go) return;
+            this.go.visible = !this._hidden && this.visible;
+            if (this._hidden || !this.visible) this.hitRect?.disableInteractive(); else this.syncInteractive();
+          }
+          syncAlpha() {
+            if (!this.go) return;
+            const mix = getSceneNightMix();
+            let alpha = this.opacity;
+            if (this.visualRole === "day") alpha *= (1 - mix);
+            if (this.visualRole === "night") alpha *= mix;
+            this.go.alpha = alpha;
+            if (this.dualTone) {
+              if (this.dayImage) this.dayImage.alpha = 1 - mix;
+              if (this.nightImage) this.nightImage.alpha = mix;
+            }
+          }
+          syncInteractive() {
+            if (!scene || !this.go) return;
+            const returnHouseLockedOut =
+              this.id === "explorationReturnHouseHitArea" &&
+              !document.body.classList.contains("is-exploration-complete");
+            const wantsPointer = this.pointerEnabled;
+            if (!wantsPointer || returnHouseLockedOut || this._hidden || !this.visible || this.classList.contains("is-dead")) {
+              this.hitRect?.disableInteractive();
+              return;
+            }
+            if (!this.hitRect) {
+              this.hitRect = scene.add.rectangle(
+                this.geometry === "center" ? 0 : this.width / 2,
+                this.geometry === "center" ? 0 : this.height / 2,
+                Math.max(1, this.width), Math.max(1, this.height), 0xffffff, 0.0001
+              );
+              this.go.add(this.hitRect);
+              this.hitRect.setInteractive({ useHandCursor: true });
+              const emit = (type, pointer) => this.emitPointer(type, pointer);
+              this.hitRect.on("pointerdown", (pointer) => emit("pointerdown", pointer));
+              this.hitRect.on("pointerup", (pointer) => emit("pointerup", pointer));
+            } else if (!this.hitRect.input?.enabled) {
+              this.hitRect.setInteractive({ useHandCursor: true });
+            }
+          }
+          emitPointer(type, pointer) {
+            const handlers = this.listeners.get(type);
+            if (!handlers || handlers.size === 0) return;
+            if (isPointerBlockedByDomUi(pointer)) return;
+            const event = {
+              button: pointer.button,
+              pointerId: pointer.id,
+              clientX: pointer.x,
+              clientY: pointer.y,
+              currentTarget: this,
+              target: this,
+              cancelable: true,
+              preventDefault() {},
+              stopPropagation() {},
+              stopImmediatePropagation() {}
+            };
+            for (const handler of Array.from(handlers)) handler(event);
+          }
+          addEventListener(type, handler) {
+            if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+            this.listeners.get(type).add(handler);
+            if (type === "pointerdown" || type === "pointerup") {
+              this.pointerEnabled = true;
+              this.syncInteractive();
+            }
+          }
+          removeEventListener(type, handler) { this.listeners.get(type)?.delete(handler); }
+          getBoundingClientRect() {
+            const scale = getEffectiveViewScale();
+            const offset = getEffectiveViewOffset();
+            const width = this.width * Math.abs(this.scaleX) * scale;
+            const height = this.height * Math.abs(this.scaleY) * scale;
+            const worldX = this.getWorldX();
+            const worldY = this.getWorldY();
+            const centerX = (worldX - WORLD_SIZE / 2) * scale + window.innerWidth / 2 + offset.x;
+            const centerY = (worldY - WORLD_SIZE / 2) * scale + window.innerHeight / 2 + offset.y;
+            const left = this.geometry === "center" ? centerX - width / 2 : centerX;
+            const top = this.geometry === "center" ? centerY - height / 2 : centerY;
+            return { left, top, right: left + width, bottom: top + height, width, height, x: left, y: top };
+          }
+          getWorldX() {
+            let x = this.baseX + this.translateX;
+            let p = this.parentElement;
+            while (p instanceof FieldNode) { x += p.baseX + p.translateX; p = p.parentElement; }
+            return x;
+          }
+          getWorldY() {
+            let y = this.baseY + this.translateY;
+            let p = this.parentElement;
+            while (p instanceof FieldNode) { y += p.baseY + p.translateY; p = p.parentElement; }
+            return y;
+          }
+          syncAll() {
+            this.syncPosition();
+            this.syncSize();
+            this.syncVisibility();
+            this.syncAlpha();
+            this.syncInteractive();
+          }
+        }
+
+        class FieldLayer {
+          constructor(id, band) { this.id = id; this.band = band; this.children = []; }
+          get childElementCount() { return this.children.length; }
+          get lastElementChild() { return this.children[this.children.length - 1] || null; }
+          appendChild(node) {
+            if (!node) return node;
+            if (node.parentElement?.removeChild) node.parentElement.removeChild(node);
+            node.parentElement = this;
+            node.depthBand = this.band;
+            node._connected = true;
+            if (!this.children.includes(node)) this.children.push(node);
+            node.attachScene();
+            placeRootGameObject(node);
+            node.syncAll();
+            return node;
+          }
+          removeChild(node) {
+            const i = this.children.indexOf(node); if (i >= 0) this.children.splice(i, 1);
+            if (node) { node.parentElement = null; node._connected = false; }
+            return node;
+          }
+          replaceChildren(...children) { [...this.children].forEach((n) => n.remove()); children.forEach((n) => this.appendChild(n)); }
+        }
+
+        function getRootNumber(name, fallback) {
+          const n = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+          return Number.isFinite(n) ? n : fallback;
+        }
+        function staticNode(id, config) {
+          const node = new FieldNode({ id, ...config });
+          named.set(id, node);
+          node._connected = true;
+          return node;
+        }
+
+        const central = CENTRAL_AREA_OFFSET_Y;
+        staticNode("houseObject", { x: 814, y: 730 + central, width: 490, height: 490, backgroundPath: "images/house_1.png", dualTone: true, depthBand: 3 });
+        staticNode("explorationReturnHouseHitArea", { x: 814 + 245, y: 730 + central + 245, width: 256, height: 256, geometry: "center", depthBand: 30 });
+        staticNode("houseLightObject", { x: 814 + 183, y: 730 + central + 254, width: 108, height: 54, backgroundPath: "images/house_1_light.png", depthBand: 8 });
+        staticNode("wallsObject", { x: 902, y: 868 + central, width: 244, height: 244, backgroundPath: "images/house_1_walls.png", dualTone: true, depthBand: 4 });
+        staticNode("roofObject", { x: 902, y: 820 + central, width: 244, height: 244, backgroundPath: "images/house_1_roof.png", dualTone: true, depthBand: 5 });
+        staticNode("gardenObject", { x: 946, y: 990 + central, width: 128, height: 128, backgroundPath: "images/garden_1.png", dualTone: true, depthBand: 7 });
+        staticNode("shedObject", { x: 540, y: 575, width: 190, height: 190, backgroundPath: "images/shed_1.png", dualTone: true, depthBand: 11 });
+        staticNode("fenceObject", { x: 782, y: 792 + central, width: 490, height: 490, backgroundPath: "images/fence_1.png", dualTone: true, depthBand: 6 });
+        staticNode("carObject", { x: 1140, y: 1160, width: 256, height: 256, backgroundPath: "images/car.png", dualTone: true, depthBand: 15 });
+        staticNode("mailboxObject", { x: 943, y: 1066 + central, width: 64, height: 64, backgroundPath: "images/mailbox.png", dualTone: true, depthBand: 9 });
+        staticNode("axeStump", { x: 720, y: 1020 + central, width: 179.2, height: 179.2, backgroundPath: STUMP_WITH_AXE_IMAGE, dualTone: true, depthBand: 2 });
+        staticNode("axePickupHitArea", { x: 720 + 44.8, y: 1020 + central + 44.8, width: 89.6, height: 89.6, depthBand: 3 });
+        staticNode("tree", { x: 1103, y: 592, width: TREE_FRAME_SIZE, height: TREE_FRAME_SIZE, scaleX: getTreeRenderScale(), scaleY: getTreeRenderScale(), depthBand: 13 });
+        staticNode("treeDayVisual", { x: 1103, y: 592, width: TREE_FRAME_SIZE, height: TREE_FRAME_SIZE, backgroundPath: TREE_DAY_SHEET, backgroundPosition: `-${TREE_FRAME_SIZE}px 0px`, visualRole: "day", scaleX: getTreeRenderScale(), scaleY: getTreeRenderScale(), depthBand: 13 });
+        staticNode("treeDayFadeVisual", { x: 1103, y: 592, width: TREE_FRAME_SIZE, height: TREE_FRAME_SIZE, backgroundPath: TREE_DAY_SHEET, backgroundPosition: `-${TREE_FRAME_SIZE}px 0px`, visualRole: "day", opacity: 0, scaleX: getTreeRenderScale(), scaleY: getTreeRenderScale(), depthBand: 13.01 });
+        staticNode("treeNightVisual", { x: 1103, y: 592, width: TREE_FRAME_SIZE, height: TREE_FRAME_SIZE, backgroundPath: TREE_DAY_SHEET, backgroundPosition: `-${TREE_FRAME_SIZE}px 0px`, visualRole: "night", scaleX: getTreeRenderScale(), scaleY: getTreeRenderScale(), depthBand: 13.02 });
+        staticNode("treeHitArea", { x: 1103, y: 592, width: 256, height: 512, scaleX: getTreeRenderScale(), scaleY: getTreeRenderScale(), depthBand: 8 });
+
+        const layerBands = {
+          cloudShadows: 1, rainSpotLayer: 0.5, entitiesBehindShed: 10,
+          entitiesBehindTree: 12, entities: 14, entitiesFrontStructures: 16,
+          clouds: 21, birds: 20, supplyBoxShadowLayer: 1, supplyBoxLayer: 19,
+          treePartShadowLayer: 9, treePartLayer: 17, zombiePartShadowLayer: 9,
+          zombiePartLayer: 18, particleLayer: 18
+        };
+        for (const [id, band] of Object.entries(layerBands)) layers.set(id, new FieldLayer(id, band));
+
+        let viewScale = 1;
+        let viewPanX = 0;
+        let viewPanY = 0;
+        let entryScale = document.body.classList.contains("is-start-screen")
+          ? getRootNumber("--start-screen-world-scale", 0.55)
+          : 1;
+        let entryOffsetX = document.body.classList.contains("is-start-screen")
+          ? getRootNumber("--start-screen-world-offset-x", 0)
+          : 0;
+        let entryOffsetY = document.body.classList.contains("is-start-screen")
+          ? getRootNumber("--start-screen-world-offset-y", 0)
+          : 0;
+        let viewTween = null;
+
+        function getEffectiveViewScale() { return Math.max(0.001, viewScale * entryScale); }
+        function getEffectiveViewOffset() { return { x: viewPanX + entryOffsetX, y: viewPanY + entryOffsetY }; }
+        function syncCamera() {
+          const z = getEffectiveViewScale();
+          const offset = getEffectiveViewOffset();
+
+          // The restored DOM sky layer uses the same world transform as the Phaser camera,
+          // including start-screen zoom, entry offsets, and user panning.
+          if (atmosphereWorld) {
+            atmosphereWorld.style.left = `calc(50% + ${offset.x}px)`;
+            atmosphereWorld.style.top = `calc(50% + ${offset.y}px)`;
+            atmosphereWorld.style.transform = `translate(-50%, -50%) scale(${z})`;
+          }
+
+          if (!scene) return;
+          const camera = scene.cameras.main;
+          camera.setZoom(z);
+          camera.centerOn(WORLD_SIZE / 2 - offset.x / z, WORLD_SIZE / 2 - offset.y / z);
+        }
+        function setView(scale, panX, panY) {
+          viewScale = Math.max(0.001, Number(scale) || 1);
+          viewPanX = Number(panX) || 0;
+          viewPanY = Number(panY) || 0;
+          syncCamera();
+        }
+        function animateEntryToGameplay() {
+          const duration = getRootNumber("--start-screen-world-zoom-duration", 1000);
+          const startScale = entryScale;
+          const startX = entryOffsetX;
+          const startY = entryOffsetY;
+          const started = performance.now();
+          viewTween = { started, duration, startScale, startX, startY };
+        }
+        function updateViewTween(now) {
+          if (!viewTween) return;
+          const p = Math.max(0, Math.min(1, (now - viewTween.started) / Math.max(1, viewTween.duration)));
+          const eased = 1 - Math.pow(1 - p, 3);
+          entryScale = viewTween.startScale + (1 - viewTween.startScale) * eased;
+          entryOffsetX = viewTween.startX * (1 - eased);
+          entryOffsetY = viewTween.startY * (1 - eased);
+          if (p >= 1) viewTween = null;
+          syncCamera();
+        }
+
+        function updateTone() {
+          const mix = getSceneNightMix();
+          for (const node of nodes) {
+            node.syncAlpha();
+            node.applyNightVisualFilter();
+            if (node.special === "cloudShadow" && node.singleImage) {
+              node.singleImage.setTint(0x303a72);
+              node.singleImage.setBlendMode(Phaser.BlendModes.MULTIPLY);
+            }
+          }
+          return mix;
+        }
+
+        function buildBackgrounds() {
+          Promise.all([loadNaturalImage(DAY_BACKGROUND_IMAGE), loadNaturalImage(NIGHT_BACKGROUND_IMAGE)]).then(([day, night]) => {
+            if (!scene || !day || !night) return;
+            const backgroundSize = WORLD_SIZE * 1.85;
+            const dayTileSize = getRootNumber("--field-pattern-day-size", 384);
+            const nightTileSize = getRootNumber("--field-pattern-night-size", 384);
+            // Explicit background stack: day pattern < rainy spots < night pattern < cloud/shadow layers.
+            // At full night the night pattern therefore completely covers the bright rainy-spot sheet.
+            const dayTile = scene.add.tileSprite(WORLD_SIZE / 2, WORLD_SIZE / 2, backgroundSize, backgroundSize, day.key).setDepth(0);
+            // FieldNode depth bands are multiplied by 100000. Rain spots use band 0.5,
+            // so the night pattern must use the same depth scale to sit above them.
+            const nightTile = scene.add.tileSprite(WORLD_SIZE / 2, WORLD_SIZE / 2, backgroundSize, backgroundSize, night.key).setDepth(0.75 * 100000);
+            dayTile.setTileScale(dayTileSize / day.naturalWidth, dayTileSize / day.naturalHeight);
+            nightTile.setTileScale(nightTileSize / night.naturalWidth, nightTileSize / night.naturalHeight);
+            fieldTone.lowLayer?.add([dayTile, nightTile]);
+            scene.events.on("update", () => {
+              const mix = getSceneNightMix();
+              dayTile.alpha = 1;
+              nightTile.alpha = mix;
+            });
+          });
+        }
+
+        function createScreenRainDrop() {
+          const lengthPx = RAIN_DROP_STYLE.lengthMinPx +
+            Math.random() * (RAIN_DROP_STYLE.lengthMaxPx - RAIN_DROP_STYLE.lengthMinPx);
+          const lengthRange = Math.max(1, RAIN_DROP_STYLE.lengthMaxPx - RAIN_DROP_STYLE.lengthMinPx);
+          const sizeProgress = Math.max(0, Math.min(1, (lengthPx - RAIN_DROP_STYLE.lengthMinPx) / lengthRange));
+          return {
+            leftRatio: (-0.18 + Math.random() * 1.18),
+            thicknessPx: RAIN_DROP_STYLE.thicknessMinPx +
+              Math.random() * (RAIN_DROP_STYLE.thicknessMaxPx - RAIN_DROP_STYLE.thicknessMinPx),
+            lengthPx,
+            sizeProgress,
+            fallSpeedPxPerSecond: RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND.min +
+              Math.random() * (RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND.max - RAIN_DROP_FALL_SPEED_RANGE_PX_PER_SECOND.min),
+            horizontalTravelRatio: RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE.min +
+              Math.random() * (RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE.max - RAIN_DROP_HORIZONTAL_TRAVEL_RATIO_RANGE.min),
+            delayProgress: Math.random(),
+            baseOpacity: RAIN_DROP_STYLE.opacityMin +
+              Math.random() * (RAIN_DROP_STYLE.opacityMax - RAIN_DROP_STYLE.opacityMin),
+            angleDeg: RAIN_DROP_ANGLE_RANGE_DEG.min +
+              Math.random() * (RAIN_DROP_ANGLE_RANGE_DEG.max - RAIN_DROP_ANGLE_RANGE_DEG.min)
+          };
+        }
+
+        function setRainDropCount(count) {
+          const target = Math.max(0, Math.round(Number(count) || 0));
+          while (screenRain.drops.length < target) screenRain.drops.push(createScreenRainDrop());
+          if (screenRain.drops.length > target) screenRain.drops.length = target;
+        }
+
+        function drawToneLayer(graphics, rect, tone, opacity = 1) {
+          const strength = Math.max(0, Math.min(1, Number(opacity) || 0));
+          if (strength <= 0 || !tone) return;
+          const brightness = Number.isFinite(Number(tone.brightness)) ? Number(tone.brightness) : 1;
+          if (brightness < 1) {
+            graphics.fillStyle(0x000000, Math.min(1, (1 - brightness) * strength));
+            graphics.fillRect(rect.x, rect.y, rect.width, rect.height);
+          }
+          // Do not emulate brightness > 1 with a white alpha wash. CSS brightness() scales
+          // existing pixels, while a white overlay lifts blacks and makes rainy nights look foggy.
+          // The remaining rain color-balance/tint layers preserve the intended night coloration.
+          try {
+            const balance = parseCssOverlayColor(getRainColorBalanceOverlay(tone.colorBalance));
+            if (balance.alpha > 0) {
+              graphics.fillStyle(balance.color, balance.alpha * strength);
+              graphics.fillRect(rect.x, rect.y, rect.width, rect.height);
+            }
+          } catch (_) {}
+          const tint = parseCssOverlayColor(tone.tint);
+          if (tint.alpha > 0) {
+            graphics.fillStyle(tint.color, tint.alpha * strength);
+            graphics.fillRect(rect.x, rect.y, rect.width, rect.height);
+          }
+        }
+
+        function updateFieldToneOverlays() {
+          // Day / Sunset / Night grading is intentionally DOM/CSS-owned again.
+          // Keep this compatibility hook as a no-op for the existing update loop.
+        }
+
+        function updateScreenRain(now) {
+          if (!scene) return;
+          if (!screenRain.graphics) {
+            screenRain.graphics = scene.add.graphics().setDepth(25 * 100000);
+            fieldTone.atmosphereLayer?.add(screenRain.graphics);
+          }
+          const graphics = screenRain.graphics;
+          graphics.clear();
+          if (!document.body.classList.contains("is-rainy") || screenRain.drops.length === 0) {
+            graphics.visible = false;
+            return;
+          }
+          graphics.visible = true;
+
+          const viewportWidth = Math.max(1, window.innerWidth);
+          const viewportHeight = Math.max(1, window.innerHeight);
+          const startTranslateYPx = viewportHeight * RAIN_DROP_LAYOUT.startYViewportRatio;
+          const layerTopPx = viewportHeight * RAIN_DROP_LAYOUT.layerTopViewportRatio;
+          const startTopPx = layerTopPx + startTranslateYPx;
+          const camera = scene.cameras.main;
+          const zoom = Math.max(0.001, camera.zoom || 1);
+          const nightMix = getSceneNightMix();
+          const color = 0xe1eef8;
+
+          for (const drop of screenRain.drops) {
+            const landingYRatio = RAIN_DROP_LAYOUT.landingYMinViewportRatio +
+              (RAIN_DROP_LAYOUT.landingYMaxViewportRatio - RAIN_DROP_LAYOUT.landingYMinViewportRatio) *
+              drop.sizeProgress;
+            const landingPointYPx = viewportHeight * landingYRatio;
+            const endTranslateYPx = Math.max(
+              startTranslateYPx + 1,
+              landingPointYPx - layerTopPx - drop.lengthPx
+            );
+            const verticalTravelDistancePx = Math.max(1, endTranslateYPx - startTranslateYPx);
+            const durationMs = verticalTravelDistancePx / Math.max(1, drop.fallSpeedPxPerSecond) * 1000;
+            const progress = ((now / Math.max(1, durationMs)) + drop.delayProgress) % 1;
+            const topPx = startTopPx + verticalTravelDistancePx * progress;
+            const xPx = viewportWidth * drop.leftRatio +
+              verticalTravelDistancePx * drop.horizontalTravelRatio * progress;
+            const angle = Phaser.Math.DegToRad(drop.angleDeg);
+            const dx = Math.sin(angle) * drop.lengthPx;
+            const dy = Math.cos(angle) * drop.lengthPx;
+            const midX = xPx + dx * 0.55;
+            const midY = topPx + dy * 0.55;
+            const endX = xPx + dx;
+            const endY = topPx + dy;
+            const alphaMultiplier =
+              RAIN_DROP_STYLE.dayAlpha * (1 - nightMix) +
+              RAIN_DROP_STYLE.nightAlpha * nightMix;
+            const alpha = Math.max(0, Math.min(1, drop.baseOpacity * alphaMultiplier));
+            const worldX = camera.scrollX + xPx / zoom;
+            const worldY = camera.scrollY + topPx / zoom;
+            const worldMidX = camera.scrollX + midX / zoom;
+            const worldMidY = camera.scrollY + midY / zoom;
+            const worldEndX = camera.scrollX + endX / zoom;
+            const worldEndY = camera.scrollY + endY / zoom;
+            const lineWidth = Math.max(0.35, drop.thicknessPx / zoom);
+            graphics.lineStyle(lineWidth, color, alpha * 0.35);
+            graphics.lineBetween(worldX, worldY, worldMidX, worldMidY);
+            graphics.lineStyle(lineWidth, color, alpha);
+            graphics.lineBetween(worldMidX, worldMidY, worldEndX, worldEndY);
+          }
+        }
+
+        function refreshRainViewport() {
+          // Geometry is derived from the current viewport every Phaser frame.
+        }
+
+        function attachAll() {
+          for (const node of named.values()) { node.attachScene(); node.syncAll(); if (node.backgroundPath) node.applyTexture(); }
+          for (const layer of layers.values()) for (const node of layer.children) { node.attachScene(); node.syncAll(); }
+        }
+
+        function isPointerBlockedByDomUi(pointer) {
+          const x = Number(pointer?.x);
+          const y = Number(pointer?.y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+
+          // Phaser canvas is full-screen underneath the DOM UI. Phaser can still receive
+          // a pointer through its global input manager even when a DOM button visually owns
+          // that screen position, so always respect the browser's actual topmost hit target.
+          const topElement = document.elementFromPoint(x, y);
+          if (!topElement) return false;
+          const canvas = game?.canvas || mount?.querySelector("canvas");
+          if (topElement === canvas || topElement === mount || mount?.contains(topElement)) {
+            return false;
+          }
+          return true;
+        }
+
+        function toPointerEvent(pointer) {
+          return {
+            button: Number.isFinite(pointer?.button) ? pointer.button : 0,
+            pointerId: pointer?.id ?? 0,
+            clientX: pointer?.x ?? 0,
+            clientY: pointer?.y ?? 0,
+            cancelable: true,
+            preventDefault() { pointer?.event?.preventDefault?.(); },
+            stopPropagation() {},
+            stopImmediatePropagation() {}
+          };
+        }
+
+        function bindBackgroundDrag(handlers = {}) {
+          readyPromise.then(() => {
+            if (!scene) return;
+            if (typeof handlers.down === "function") {
+              scene.input.on("pointerdown", (pointer) => {
+                if (isPointerBlockedByDomUi(pointer)) return;
+                handlers.down(toPointerEvent(pointer));
+              });
+            }
+            if (typeof handlers.move === "function") {
+              scene.input.on("pointermove", (pointer) => handlers.move(toPointerEvent(pointer)));
+            }
+            if (typeof handlers.up === "function") {
+              scene.input.on("pointerup", (pointer) => handlers.up(toPointerEvent(pointer)));
+              scene.input.on("pointerupoutside", (pointer) => handlers.up(toPointerEvent(pointer)));
+            }
+          });
+        }
+
+        try {
+          game = new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: mount,
+            transparent: true,
+            backgroundColor: "rgba(0,0,0,0)",
+            scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.NO_CENTER },
+            render: { antialias: true, pixelArt: false, roundPixels: false },
+            input: { activePointers: 3 },
+            scene: {
+              create() {
+                scene = this;
+                this.input.topOnly = true;
+
+                // The field remains Phaser-owned, but scene grading and sky color are
+                // restored to the original DOM/CSS/SVG filter path.
+                fieldTone.lowLayer = this.add.layer().setDepth(0);
+                fieldTone.sceneGraphics = null;
+                fieldTone.atmosphereLayer = this.add.layer().setDepth(2);
+                fieldTone.rainGraphics = null;
+                fieldTone.colorMatrixFx = null;
+
+                Promise.all(Array.from(STATIC_ASSETS, loadNaturalImage)).then(() => {
+                  buildBackgrounds();
+                  attachAll();
+                  syncCamera();
+                  readyResolve();
+                }).catch((error) => {
+                  console.error("Phaser field preload failed", error);
+                  attachAll();
+                  syncCamera();
+                  readyResolve();
+                });
+              },
+              update(time) {
+                updateViewTween(time);
+                updateTone();
+                updateFieldToneOverlays(performance.now());
+              }
+            }
+          });
+        } catch (error) {
+          console.error("Phaser field initialization failed", error);
+          readyReject(error);
+        }
+
+        const bodyObserver = new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.attributeName !== "class") continue;
+            const isStart = document.body.classList.contains("is-start-screen");
+            if (!isStart && entryScale !== 1 && !viewTween) animateEntryToGameplay();
+            named.get("explorationReturnHouseHitArea")?.syncInteractive();
+          }
+        });
+        bodyObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+
+        return {
+          ready: () => readyPromise,
+          createNode: (options = {}) => new FieldNode(options),
+          layer: (id) => layers.get(id),
+          named: (id) => named.get(id),
+          setView,
+          bindBackgroundDrag,
+          setRainDropCount,
+          refreshRainViewport,
+          getSceneNightMix,
+          getEffectiveViewScale,
+          getEffectiveViewOffset,
+          get scene() { return scene; },
+          get game() { return game; }
+        };
+      }
+
+      const phaserField = createPhaserFieldBridge();
       const viewport = document.getElementById("viewport");
       const world = document.getElementById("world");
-      const cloudShadowsLayer = document.getElementById("cloudShadows");
-      const rainSpotLayer = document.getElementById("rainSpotLayer");
-      const entitiesBehindShed = document.getElementById("entitiesBehindShed");
-      const entitiesBehindTree = document.getElementById("entitiesBehindTree");
-      const entities = document.getElementById("entities");
-      const entitiesFrontStructures = document.getElementById("entitiesFrontStructures");
+      const cloudShadowsLayer = phaserField.layer("cloudShadows");
+      const rainSpotLayer = phaserField.layer("rainSpotLayer");
+      const entitiesBehindShed = phaserField.layer("entitiesBehindShed");
+      const entitiesBehindTree = phaserField.layer("entitiesBehindTree");
+      const entities = phaserField.layer("entities");
+      const entitiesFrontStructures = phaserField.layer("entitiesFrontStructures");
       const cloudsLayer = document.getElementById("clouds");
       const birdsLayer = document.getElementById("birds");
-      const supplyBoxShadowLayer = document.getElementById("supplyBoxShadowLayer");
-      const supplyBoxLayer = document.getElementById("supplyBoxLayer");
+      const supplyBoxShadowLayer = phaserField.layer("supplyBoxShadowLayer");
+      const supplyBoxLayer = phaserField.layer("supplyBoxLayer");
       const foodCountElement = document.getElementById("foodCount");
       const woodCountElement = document.getElementById("woodCount");
       const stoneCountElement = document.getElementById("stoneCount");
@@ -7194,29 +8876,39 @@ You can leave the game and come back anytime.</div>
       const startNewGameConfirm = document.getElementById("startNewGameConfirm");
       const cancelNewGameButton = document.getElementById("cancelNewGameButton");
       const confirmNewGameButton = document.getElementById("confirmNewGameButton");
-      const houseObject = document.getElementById("houseObject");
-      const houseLightObject = document.getElementById("houseLightObject");
-      const wallsObject = document.getElementById("wallsObject");
-      const roofObject = document.getElementById("roofObject");
-      const gardenObject = document.getElementById("gardenObject");
-      const shedObject = document.getElementById("shedObject");
-      const fenceObject = document.getElementById("fenceObject");
-      const carObject = document.getElementById("carObject");
-      const mailboxObject = document.getElementById("mailboxObject");
-      const axeStump = document.getElementById("axeStump");
-      const axePickupHitArea = document.getElementById("axePickupHitArea");
-      const tree = document.getElementById("tree");
-      const treeDayVisual = document.getElementById("treeDayVisual");
-      const treeDayFadeVisual = document.getElementById("treeDayFadeVisual");
-      const treeNightVisual = document.getElementById("treeNightVisual");
-      const treePartShadowLayer = document.getElementById(
-        "treePartShadowLayer"
-      );
-      const treePartLayer = document.getElementById("treePartLayer");
-      const zombiePartShadowLayer = document.getElementById("zombiePartShadowLayer");
-      const zombiePartLayer = document.getElementById("zombiePartLayer");
-      const particleLayer = document.getElementById("particleLayer");
-      const treeHitArea = document.getElementById("treeHitArea");
+      const houseObject = phaserField.named("houseObject");
+      const explorationReturnHouseHitArea = phaserField.named("explorationReturnHouseHitArea");
+      const houseLightObject = phaserField.named("houseLightObject");
+      const wallsObject = phaserField.named("wallsObject");
+      const roofObject = phaserField.named("roofObject");
+      const gardenObject = phaserField.named("gardenObject");
+      const shedObject = phaserField.named("shedObject");
+      const fenceObject = phaserField.named("fenceObject");
+      const carObject = phaserField.named("carObject");
+      const mailboxObject = phaserField.named("mailboxObject");
+      const axeStump = phaserField.named("axeStump");
+      const axePickupHitArea = phaserField.named("axePickupHitArea");
+      const tree = phaserField.named("tree");
+      const treeDayVisual = phaserField.named("treeDayVisual");
+      const treeDayFadeVisual = phaserField.named("treeDayFadeVisual");
+      const treeNightVisual = phaserField.named("treeNightVisual");
+      const treePartShadowLayer = phaserField.layer("treePartShadowLayer");
+      const treePartLayer = phaserField.layer("treePartLayer");
+      const zombiePartShadowLayer = phaserField.layer("zombiePartShadowLayer");
+      const zombiePartLayer = phaserField.layer("zombiePartLayer");
+      const particleLayer = phaserField.layer("particleLayer");
+      const treeHitArea = phaserField.named("treeHitArea");
+
+      // Former CSS pointer/hit-area defaults are now Phaser input flags.
+      axePickupHitArea.style.pointerEvents = "auto";
+      treeHitArea.style.pointerEvents = "auto";
+      shedObject.style.pointerEvents = "auto";
+      carObject.style.pointerEvents = "auto";
+      houseLightObject.hidden = true;
+      wallsObject.hidden = true;
+      roofObject.hidden = true;
+      gardenObject.hidden = true;
+      fenceObject.hidden = true;
       const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
@@ -7372,7 +9064,7 @@ You can leave the game and come back anytime.</div>
       const DOUBLE_TAP_BLOCK_MS = 550;
       const DOUBLE_TAP_MAX_DISTANCE_PX = 110;
       const POINTERDOWN_TOUCH_TARGET_SELECTOR =
-        "#versionTestButton, .world-interactive, .zombie, .deer-hitbox";
+        "#versionTestButton, #phaserField, #phaserField canvas";
       let lastTapStartedAt = -Infinity;
       let lastTapX = 0;
       let lastTapY = 0;
@@ -8362,7 +10054,7 @@ You can leave the game and come back anytime.</div>
           if (!bestCandidate) continue;
 
           const frameIndex = Math.floor(random() * 4);
-          const spotElement = document.createElement("div");
+          const spotElement = phaserField.createNode();
           spotElement.className = "rain-spot";
           spotElement.style.left = `${bestCandidate.x.toFixed(2)}px`;
           spotElement.style.top = `${bestCandidate.y.toFixed(2)}px`;
@@ -9029,6 +10721,7 @@ You can leave the game and come back anytime.</div>
         if (!mailboxObject) return;
         // 울타리 설치 여부와 관계없이 우편함은 계속 표시합니다.
         mailboxObject.classList.remove("is-hidden-visual");
+        mailboxObject.hidden = false;
       }
 
       function getAvailableMailboxTodoListId() {
@@ -13248,12 +14941,15 @@ You can leave the game and come back anytime.</div>
       function resetHouseExplorationLight() {
         if (!houseLightObject) return;
         houseLightObject.classList.remove("is-on");
+        houseLightObject.hidden = true;
       }
 
       function turnOnHouseExplorationLight() {
         if (!houseLightObject) return;
         const wasOn = houseLightObject.classList.contains("is-on");
         houseLightObject.classList.add("is-on");
+        houseLightObject.hidden = false;
+        houseLightObject.style.opacity = "1";
         if (!wasOn) {
           playSound(INVENTORY_SET_SOUND);
         }
@@ -13263,6 +14959,7 @@ You can leave the game and come back anytime.</div>
         if (!houseLightObject) return;
         const wasOn = houseLightObject.classList.contains("is-on");
         houseLightObject.classList.remove("is-on");
+        houseLightObject.hidden = true;
         if (wasOn) {
           playSound(INVENTORY_SET_SOUND);
         }
@@ -15043,7 +16740,6 @@ You can leave the game and come back anytime.</div>
         document.body.classList.add("is-weather-test-instant");
         applyWeatherState();
         // 한 프레임 동안 transition을 끈 상태를 유지해 비/맑음 시각이 즉시 바뀌게 합니다.
-        void rainLayer?.offsetWidth;
         requestAnimationFrame(() => {
           document.body.classList.remove("is-weather-test-instant");
         });
@@ -16874,9 +18570,7 @@ You can leave the game and come back anytime.</div>
       }
 
       function applyWorldTransform() {
-        world.style.setProperty("--world-pan-x", `${panX}px`);
-        world.style.setProperty("--world-pan-y", `${panY}px`);
-        world.style.setProperty("--world-runtime-scale", String(worldScale));
+        phaserField.setView(worldScale, panX, panY);
       }
 
       function updatePanBounds() {
@@ -16974,23 +18668,15 @@ You can leave the game and come back anytime.</div>
         if (event.button !== undefined && event.button !== 0) return;
         if (maxPanX <= 0 && maxPanY <= 0) return;
 
-        event.preventDefault();
+        event.preventDefault?.();
         dragState.active = true;
         dragState.moved = false;
         dragState.pointerId = event.pointerId;
-        dragState.captureTarget =
-          event.target instanceof Element ? event.target : viewport;
+        dragState.captureTarget = null;
         dragState.startX = event.clientX;
         dragState.startY = event.clientY;
         dragState.startPanX = panX;
         dragState.startPanY = panY;
-
-        try {
-          dragState.captureTarget.setPointerCapture(event.pointerId);
-        } catch (_) {
-          dragState.captureTarget = viewport;
-          viewport.setPointerCapture(event.pointerId);
-        }
       }
 
       function moveBackgroundDrag(event) {
@@ -17036,18 +18722,6 @@ You can leave the game and come back anytime.</div>
         }
 
         const didMove = dragState.moved;
-        const captureTarget = dragState.captureTarget;
-        if (
-          captureTarget &&
-          typeof captureTarget.hasPointerCapture === "function" &&
-          captureTarget.hasPointerCapture(event.pointerId)
-        ) {
-          try {
-            captureTarget.releasePointerCapture(event.pointerId);
-          } catch (_) {
-            // 포인터 해제가 이미 끝난 경우에도 드래그 상태는 정상 정리합니다.
-          }
-        }
 
         dragState.active = false;
         dragState.moved = false;
@@ -17075,7 +18749,7 @@ You can leave the game and come back anytime.</div>
           return false;
         }
 
-        if (!(element instanceof Element)) return true;
+        if (!element || typeof element.getBoundingClientRect !== "function") return true;
 
         const rect = element.getBoundingClientRect();
         return (
@@ -17688,7 +19362,9 @@ You can leave the game and come back anytime.</div>
         const variant = Math.floor(
           Math.random() * CLOUD_VARIANT_COUNT
         );
-        const element = document.createElement("div");
+        const element = isShadow
+          ? phaserField.createNode()
+          : document.createElement("div");
         element.className = isShadow
           ? "cloud-visual cloud-shadow"
           : "cloud-visual cloud-sprite";
@@ -19488,7 +21164,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       function spawnGravityParticle(x, y, color, options = {}) {
         if (!particleLayer) return;
 
-        const particle = document.createElement("div");
+        const particle = phaserField.createNode();
         particle.className = "gravity-particle";
         particle.style.left = `${x + randomRange(-(options.jitterX ?? 0), options.jitterX ?? 0)}px`;
         particle.style.top = `${y + randomRange(-(options.jitterY ?? 0), options.jitterY ?? 0)}px`;
@@ -19683,14 +21359,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       function syncTreePartLightMix(imageElement) {
         if (!imageElement || !treeNightVisual) return;
 
-        const computedNightOpacity = Number.parseFloat(
-          window.getComputedStyle(treeNightVisual).opacity
-        );
-        const nightOpacity = clamp(
-          Number.isFinite(computedNightOpacity) ? computedNightOpacity : 0,
-          0,
-          1
-        );
+        const nightOpacity = clamp(phaserField.getSceneNightMix(), 0, 1);
 
         imageElement.style.setProperty(
           "--tree-part-night-opacity",
@@ -19707,22 +21376,22 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         // 이동용 부모 → 회전용 부모 → 이미지의 3단 구조입니다.
         // 이동과 회전을 같은 요소에서 처리하지 않아 회전축이 바닥으로 끌려가지 않습니다.
-        const shadow = document.createElement("div");
+        const shadow = phaserField.createNode();
         shadow.className = "tree-falling-part-shadow";
         shadow.setAttribute("aria-hidden", "true");
         shadow.style.width = `${TREE_PART_SHADOW_WIDTH}px`;
         shadow.style.height = `${TREE_PART_SHADOW_HEIGHT}px`;
 
-        const part = document.createElement("div");
+        const part = phaserField.createNode();
         part.className = "tree-falling-part";
         part.setAttribute("aria-hidden", "true");
 
-        const rotator = document.createElement("div");
+        const rotator = phaserField.createNode();
         rotator.className = "tree-falling-part-rotator";
         rotator.style.transformOrigin =
           `${TREE_PART_ROTATION_PIVOT_X}px ${TREE_PART_ROTATION_PIVOT_Y}px`;
 
-        const image = document.createElement("div");
+        const image = phaserField.createNode();
         image.className = "tree-falling-part-image";
         image.style.setProperty("--tree-part-image", `url("${TREE_PART_IMAGE}")`);
         syncTreePartLightMix(image);
@@ -22056,7 +23725,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           )
         };
 
-        const element = document.createElement("div");
+        const element = phaserField.createNode();
         element.className = "dog is-appearing";
         if (options.startFromNightTransition === true) {
           element.classList.add("is-starting-from-night");
@@ -22066,17 +23735,17 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         }
         element.setAttribute("aria-label", "Dog");
 
-        const dayVisual = document.createElement("div");
+        const dayVisual = phaserField.createNode();
         dayVisual.className = "dog-visual-layer dog-visual-day";
 
-        const nightVisual = document.createElement("div");
+        const nightVisual = phaserField.createNode();
         nightVisual.className = "dog-visual-layer dog-visual-night";
 
-        const sprite = document.createElement("div");
+        const sprite = phaserField.createNode();
         sprite.className = "dog-sprite";
         sprite.style.backgroundImage = `url("${DOG_SHEET}")`;
 
-        const nightSprite = document.createElement("div");
+        const nightSprite = phaserField.createNode();
         nightSprite.className = "dog-sprite";
         nightSprite.style.backgroundImage = `url("${DOG_SHEET}")`;
 
@@ -22245,9 +23914,10 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       function removeCat(activeCat = cat) {
         if (!activeCat) return;
-        if (activeCat.element?.parentElement) {
-          activeCat.element.parentElement.removeChild(activeCat.element);
-        }
+        // FieldNode.removeChild() is also used for depth-layer reparenting and
+        // intentionally keeps the Phaser Game Object alive. A real cat removal
+        // must destroy it so a test-mode restart cannot leave a frozen cat behind.
+        activeCat.element?.remove?.();
         if (cat === activeCat) {
           cat = null;
         }
@@ -22435,7 +24105,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
               y: (startPosition.y + targetPosition.y) / 2
             }
           : startPosition;
-        const element = document.createElement("div");
+        const element = phaserField.createNode();
         element.className = "cat";
         element.setAttribute("aria-hidden", "true");
         element.style.width = `${CAT_SIZE}px`;
@@ -22443,21 +24113,21 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         element.style.opacity = shouldSkipFadeIn ? "1" : "0";
         element.style.transition = `opacity ${CAT_FADE_DURATION_MS}ms ease`;
 
-        const dayVisual = document.createElement("div");
+        const dayVisual = phaserField.createNode();
         dayVisual.className = "cat-visual-layer cat-visual-day";
 
-        const nightVisual = document.createElement("div");
+        const nightVisual = phaserField.createNode();
         nightVisual.className = "cat-visual-layer cat-visual-night";
 
         const catBackgroundSize =
           `${CAT_SIZE * CAT_SHEET_COLUMNS}px ${CAT_SIZE * CAT_SHEET_ROWS}px`;
 
-        const sprite = document.createElement("div");
+        const sprite = phaserField.createNode();
         sprite.className = "cat-sprite";
         sprite.style.backgroundImage = `url("${CAT_SHEET}")`;
         sprite.style.backgroundSize = catBackgroundSize;
 
-        const nightSprite = document.createElement("div");
+        const nightSprite = phaserField.createNode();
         nightSprite.className = "cat-sprite";
         nightSprite.style.backgroundImage = `url("${CAT_SHEET}")`;
         nightSprite.style.backgroundSize = catBackgroundSize;
@@ -22661,7 +24331,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function isClientPointInsideElement(clientX, clientY, element) {
-        if (!(element instanceof Element)) return false;
+        if (!element || typeof element.getBoundingClientRect !== "function") return false;
         const rect = element.getBoundingClientRect();
         return (
           clientX >= rect.left &&
@@ -22696,7 +24366,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function getDogAtClientPoint(clientX, clientY) {
-        if (!dog || !(dog.element instanceof Element)) return null;
+        if (!dog || !dog.element || typeof dog.element.getBoundingClientRect !== "function") return null;
         return isClientPointInsideElement(clientX, clientY, dog.element)
           ? dog
           : null;
@@ -22833,31 +24503,31 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         const now = performance.now();
 
-        const element = document.createElement("div");
+        const element = phaserField.createNode();
         element.className = "deer";
         element.setAttribute("role", "button");
         element.setAttribute("aria-label", "Deer");
         element.style.opacity = "0";
 
-        const dayVisual = document.createElement("div");
+        const dayVisual = phaserField.createNode();
         dayVisual.className = "deer-visual-layer deer-visual-day";
 
-        const nightVisual = document.createElement("div");
+        const nightVisual = phaserField.createNode();
         nightVisual.className = "deer-visual-layer deer-visual-night";
 
-        const sprite = document.createElement("div");
+        const sprite = phaserField.createNode();
         sprite.className = "deer-sprite";
 
-        const overlay = document.createElement("div");
+        const overlay = phaserField.createNode();
         overlay.className = "deer-sprite-overlay";
 
-        const nightSprite = document.createElement("div");
+        const nightSprite = phaserField.createNode();
         nightSprite.className = "deer-sprite";
 
-        const nightOverlay = document.createElement("div");
+        const nightOverlay = phaserField.createNode();
         nightOverlay.className = "deer-sprite-overlay";
 
-        const hitbox = document.createElement("div");
+        const hitbox = phaserField.createNode();
         hitbox.className = "deer-hitbox";
         hitbox.setAttribute("role", "button");
         hitbox.setAttribute("tabindex", "0");
@@ -23429,32 +25099,32 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           ? { x: 0, y: 0 }
           : randomDirection();
 
-        const element = document.createElement("div");
+        const element = phaserField.createNode();
         element.className = "zombie";
         element.setAttribute("role", "button");
         element.setAttribute("aria-label", "Zombie");
         element.style.opacity = "0";
 
-        const dayVisual = document.createElement("div");
+        const dayVisual = phaserField.createNode();
         dayVisual.className = "zombie-visual-layer zombie-visual-day";
 
-        const nightVisual = document.createElement("div");
+        const nightVisual = phaserField.createNode();
         nightVisual.className = "zombie-visual-layer zombie-visual-night";
 
-        const sprite = document.createElement("div");
+        const sprite = phaserField.createNode();
         sprite.className = "zombie-sprite";
         sprite.style.backgroundImage =
           `url("${BIRTH_DEATH_SHEET}")`;
 
-        const overlay = document.createElement("div");
+        const overlay = phaserField.createNode();
         overlay.className = "zombie-sprite-overlay";
 
-        const nightSprite = document.createElement("div");
+        const nightSprite = phaserField.createNode();
         nightSprite.className = "zombie-sprite";
         nightSprite.style.backgroundImage =
           `url("${BIRTH_DEATH_SHEET}")`;
 
-        const nightOverlay = document.createElement("div");
+        const nightOverlay = phaserField.createNode();
         nightOverlay.className = "zombie-sprite-overlay";
 
         dayVisual.appendChild(sprite);
@@ -23630,7 +25300,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       function renderSupplyBox(activeSupplyBox) {
         if (!activeSupplyBox) return;
 
-        if (activeSupplyBox.hitArea instanceof Element) {
+        if (activeSupplyBox.hitArea && typeof activeSupplyBox.hitArea.getBoundingClientRect === "function") {
           // 탐험 중에도 풍선 상자의 호버/탭 판정 영역은 유지합니다.
           // 실제 상호작용은 탐험 중 공통 입력 처리에서 막고 안내 토스트만 표시합니다.
           const canReceivePointer =
@@ -23800,16 +25470,16 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const endX = pathRight;
         const flyingY = landingPosition.y - SUPPLY_BOX_FLYING_OFFSET_Y;
 
-        const element = document.createElement("div");
+        const element = phaserField.createNode();
         element.setAttribute("role", "button");
         element.setAttribute("aria-label", "Supply box");
         element.className = "supply-box";
 
-        const hitArea = document.createElement("div");
+        const hitArea = phaserField.createNode();
         hitArea.className = "supply-box-hit-area";
         element.appendChild(hitArea);
 
-        const shadowElement = document.createElement("div");
+        const shadowElement = phaserField.createNode();
         shadowElement.className = "supply-box-shadow";
 
         const activeSupplyBox = {
@@ -23869,7 +25539,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (supplyBox.state !== "flying" && supplyBox.state !== "landed") {
           return null;
         }
-        if (!(supplyBox.hitArea instanceof Element)) return null;
+        if (!supplyBox.hitArea || typeof supplyBox.hitArea.getBoundingClientRect !== "function") return null;
         if (!isClientPointInsideElement(clientX, clientY, supplyBox.hitArea)) {
           return null;
         }
@@ -24248,17 +25918,17 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const totalRotation = rotationDirection * randomBetween(420, 900);
         const sharedFallSoundState = options.sharedFallSoundState || { played: false };
 
-        const shadow = document.createElement("div");
+        const shadow = phaserField.createNode();
         shadow.className = "zombie-falling-part-shadow";
         shadow.style.width = `${ZOMBIE_PART_SHADOW_WIDTH}px`;
         shadow.style.height = `${ZOMBIE_PART_SHADOW_HEIGHT}px`;
 
-        const part = document.createElement("div");
+        const part = phaserField.createNode();
         part.className = "zombie-falling-part";
         part.style.left = `${startX}px`;
         part.style.top = `${startY}px`;
 
-        const image = document.createElement("div");
+        const image = phaserField.createNode();
         image.className = "zombie-falling-part-image";
         image.style.backgroundImage = `url("${ZOMBIE_PARTS_SHEET}")`;
         image.style.backgroundPosition = getZombiePartFramePosition(frameIndex);
@@ -25583,7 +27253,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           event.preventDefault();
         }
 
-        if (isExploring || document.body.classList.contains("is-night")) {
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return;
+        }
+        if (document.body.classList.contains("is-night")) {
           return;
         }
 
@@ -26637,31 +28311,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       const EXPLORING_FIELD_INTERACTIVE_SELECTOR =
         ".world-interactive, .zombie, .deer-hitbox, .dog, .supply-box-hit-area";
 
-      document.addEventListener("pointerup", (event) => {
-        if (!isExploring) return;
-        if (!(event.target instanceof Element)) return;
-
-        const fieldTarget = event.target.closest(
-          EXPLORING_FIELD_INTERACTIVE_SELECTOR
-        );
-        if (!fieldTarget) return;
-
-        // 탐험 중 필드 오브젝트에서 시작한 탭도 viewport의 배경 드래그가 함께 시작될 수 있습니다.
-        // capture 단계에서 토스트를 띄우며 전파를 끊기 전에 드래그 종료를 직접 처리해
-        // pointerup 이후에도 드래그 상태가 남는 문제를 방지합니다.
-        const isMatchingBackgroundDrag =
-          dragState.active && event.pointerId === dragState.pointerId;
-        const didPan = isMatchingBackgroundDrag && dragState.moved;
-        if (isMatchingBackgroundDrag) {
-          endBackgroundDrag(event);
-        }
-
-        // 실제 화면 팬으로 판정된 입력은 오브젝트 탭으로 처리하지 않습니다.
-        if (didPan || !shouldActivateFieldObject(event, fieldTarget)) return;
-
-        clearFieldEntityPressState(event.pointerId);
-        showExploringBusyToast(event);
-      }, true);
+      // Phaser field objects handle their own pointer input. The DOM capture selector
+      // is intentionally not used because the former field hit-area elements no longer exist.
 
       for (const [noteId, item] of noteInventoryItems) {
         const bookmark = item.querySelector(".inventory-note-bookmark");
@@ -26734,28 +28385,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       // 탐험이 100% 완료된 밤에는 집 중앙 256×256 영역을 눌렀을 때만 다음 낮으로 넘어갑니다.
       // 집 위에 다른 필드 요소가 겹쳐 있어도 화면 좌표로 중앙 터치 영역을 판정합니다.
-      document.addEventListener("pointerdown", (event) => {
+      explorationReturnHouseHitArea.addEventListener("pointerdown", (event) => {
         if (
           !isExplorationCompletePending ||
-          isExplorationReturnHouseLocked ||
-          !houseObject
+          isExplorationReturnHouseLocked
         ) return;
-
-        const houseRect = houseObject.getBoundingClientRect();
-        const houseStyle = getComputedStyle(houseObject);
-        const houseCssWidth = parseFloat(houseStyle.width) || 490;
-        const houseCssHeight = parseFloat(houseStyle.height) || 490;
-        const hitWidth = 256 * (houseRect.width / houseCssWidth);
-        const hitHeight = 256 * (houseRect.height / houseCssHeight);
-        const hitCenterX = houseRect.left + houseRect.width / 2;
-        const hitCenterY = houseRect.top + houseRect.height / 2;
-        const isInsideHouse =
-          event.clientX >= hitCenterX - hitWidth / 2 &&
-          event.clientX <= hitCenterX + hitWidth / 2 &&
-          event.clientY >= hitCenterY - hitHeight / 2 &&
-          event.clientY <= hitCenterY + hitHeight / 2;
-
-        if (!isInsideHouse) return;
 
         // 첫 입력에서 즉시 잠가 연타가 다시 귀환 처리를 실행하지 못하게 합니다.
         isExplorationReturnHouseLocked = true;
@@ -26790,7 +28424,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           explorationReturnTransitionTimerId = null;
           finishExploration();
         }, EXPLORATION_RETURN_TRANSITION_DELAY_MS);
-      }, true);
+      });
 
       document.addEventListener("click", (event) => {
         if (performance.now() >= suppressExplorationCompletionClickUntil) return;
@@ -26872,10 +28506,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         });
       }
 
-      viewport.addEventListener("pointerdown", startBackgroundDrag);
-      viewport.addEventListener("pointermove", moveBackgroundDrag);
-      viewport.addEventListener("pointerup", endBackgroundDrag);
-      viewport.addEventListener("pointercancel", endBackgroundDrag);
+      phaserField.bindBackgroundDrag({
+        down: startBackgroundDrag,
+        move: moveBackgroundDrag,
+        up: endBackgroundDrag
+      });
 
       window.addEventListener("resize", () => {
         updateWorldScale();
@@ -26951,6 +28586,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       });
 
       async function initializeGame() {
+        await phaserField.ready();
         startScreenShownAt = Date.now();
         const shouldAutoStartNewGame = consumeNewGameAutoStartFlag();
         const shouldResumeGameplay =
