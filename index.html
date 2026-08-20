@@ -4939,50 +4939,52 @@
       display: none !important;
     }
 
-    /* Phaser가 준비된 뒤에는 DOM 쪽의 그림만 숨기고 hit area / 상태 DOM은 유지합니다. */
-    body.phaser-field-ready #houseObject::before,
-    body.phaser-field-ready #houseObject::after,
-    body.phaser-field-ready #mailboxObject::before,
-    body.phaser-field-ready #mailboxObject::after,
-    body.phaser-field-ready #shedObject::before,
-    body.phaser-field-ready #shedObject::after,
-    body.phaser-field-ready #fenceObject::before,
-    body.phaser-field-ready #fenceObject::after,
-    body.phaser-field-ready #wallsObject::before,
-    body.phaser-field-ready #wallsObject::after,
-    body.phaser-field-ready #roofObject::before,
-    body.phaser-field-ready #roofObject::after,
-    body.phaser-field-ready #gardenObject::before,
-    body.phaser-field-ready #gardenObject::after,
-    body.phaser-field-ready #carObject::before,
-    body.phaser-field-ready #carObject::after,
-    body.phaser-field-ready #axeStump::before,
-    body.phaser-field-ready #axeStump::after,
-    body.phaser-field-ready .supply-box::before,
-    body.phaser-field-ready .supply-box::after,
-    body.phaser-field-ready .supply-box-shadow::before,
-    body.phaser-field-ready .supply-box-shadow::after {
+    /* Phaser가 준비된 뒤에도 개별 오브젝트가 실제로 Phaser에 정상 생성된 경우에만
+       해당 DOM 그림을 숨깁니다. 프레임 생성 실패 시 DOM 비주얼을 유지해 갑자기
+       페이드아웃되어 사라지는 현상을 방지합니다. */
+    body.phaser-field-ready #houseObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #houseObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #mailboxObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #mailboxObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #shedObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #shedObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #fenceObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #fenceObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #wallsObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #wallsObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #roofObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #roofObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #gardenObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #gardenObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #carObject[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #carObject[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready #axeStump[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready #axeStump[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready .supply-box[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready .supply-box[data-phaser-mirrored="true"]::after,
+    body.phaser-field-ready .supply-box-shadow[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready .supply-box-shadow[data-phaser-mirrored="true"]::after {
       opacity: 0 !important;
     }
 
-    body.phaser-field-ready #houseLightObject {
+    body.phaser-field-ready #houseLightObject[data-phaser-mirrored="true"] {
       opacity: 0 !important;
     }
 
-    body.phaser-field-ready #treeDayVisual,
-    body.phaser-field-ready #treeDayFadeVisual,
-    body.phaser-field-ready #treeNightVisual,
-    body.phaser-field-ready .zombie-visual-layer,
-    body.phaser-field-ready .deer-visual-layer,
-    body.phaser-field-ready .dog-visual-layer,
-    body.phaser-field-ready .cat-visual-layer {
+    body.phaser-field-ready #tree[data-phaser-mirrored="true"] #treeDayVisual,
+    body.phaser-field-ready #tree[data-phaser-mirrored="true"] #treeDayFadeVisual,
+    body.phaser-field-ready #tree[data-phaser-mirrored="true"] #treeNightVisual,
+    body.phaser-field-ready .zombie[data-phaser-mirrored="true"] .zombie-visual-layer,
+    body.phaser-field-ready .deer[data-phaser-mirrored="true"] .deer-visual-layer,
+    body.phaser-field-ready .dog[data-phaser-mirrored="true"] .dog-visual-layer,
+    body.phaser-field-ready .cat[data-phaser-mirrored="true"] .cat-visual-layer {
       opacity: 0 !important;
     }
 
-    body.phaser-field-ready .zombie::before,
-    body.phaser-field-ready .deer::before,
-    body.phaser-field-ready .dog::before,
-    body.phaser-field-ready .cat::before {
+    body.phaser-field-ready .zombie[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready .deer[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready .dog[data-phaser-mirrored="true"]::before,
+    body.phaser-field-ready .cat[data-phaser-mirrored="true"]::before {
       opacity: 0 !important;
     }
 
@@ -4995,7 +4997,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.208"
+  data-game-version="0.204"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5317,7 +5319,7 @@
   </script>
   <script src="notes/notes.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/phaser@4.2.1/dist/phaser.min.js"></script>
-  <script src="game.js?v=0.204-phaser-spritefix1"></script>
+  <script src="game.js?v=0.204-phaser-spritefix2"></script>
   <div id="viewport">
     <div id="world">
       <div id="phaserFieldLayer" aria-hidden="true"></div>

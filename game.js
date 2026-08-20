@@ -191,6 +191,73 @@
     };
   }
 
+  function getCssGridFrame(scene, textureKey, style, hostWidth, hostHeight) {
+    const texture = scene?.textures?.get?.(textureKey);
+    if (!texture || !(hostWidth > 0) || !(hostHeight > 0)) return null;
+
+    const baseFrame = texture.get();
+    const textureWidth = Number(texture.source?.[0]?.width) || Number(baseFrame?.width) || 0;
+    const textureHeight = Number(texture.source?.[0]?.height) || Number(baseFrame?.height) || 0;
+    if (!(textureWidth > 0) || !(textureHeight > 0)) return null;
+
+    const backgroundSize = parseBackgroundSize(
+      style.backgroundSize,
+      hostWidth,
+      hostHeight,
+      textureWidth,
+      textureHeight
+    );
+    const backgroundPosition = parseBackgroundPosition(
+      style.backgroundPosition,
+      hostWidth,
+      hostHeight,
+      backgroundSize.width,
+      backgroundSize.height
+    );
+
+    const columnsFloat = backgroundSize.width / hostWidth;
+    const rowsFloat = backgroundSize.height / hostHeight;
+    const columns = Math.max(1, Math.round(columnsFloat));
+    const rows = Math.max(1, Math.round(rowsFloat));
+    const isGrid =
+      Math.abs(columnsFloat - columns) < 0.02 &&
+      Math.abs(rowsFloat - rows) < 0.02;
+    if (!isGrid) return null;
+
+    const column = Math.max(0, Math.min(columns - 1, Math.round(-backgroundPosition.x / hostWidth)));
+    const row = Math.max(0, Math.min(rows - 1, Math.round(-backgroundPosition.y / hostHeight)));
+
+    // Convert the CSS grid cell to the actual source texture. This avoids
+    // fractional CSS frame sizes (for example the 512px / 6 deer sheet) and
+    // always gives Phaser a source-pixel-aligned frame.
+    const sourceCellWidth = textureWidth / columns;
+    const sourceCellHeight = textureHeight / rows;
+    const x0 = Math.round(column * sourceCellWidth);
+    const y0 = Math.round(row * sourceCellHeight);
+    const x1 = Math.round((column + 1) * sourceCellWidth);
+    const y1 = Math.round((row + 1) * sourceCellHeight);
+
+    return {
+      x: x0,
+      y: y0,
+      width: Math.max(1, x1 - x0),
+      height: Math.max(1, y1 - y0),
+      columns,
+      rows,
+      column,
+      row
+    };
+  }
+
+  function setPhaserMirrored(element, mirrored) {
+    if (!element) return;
+    if (mirrored) {
+      element.setAttribute("data-phaser-mirrored", "true");
+    } else {
+      element.removeAttribute("data-phaser-mirrored");
+    }
+  }
+
   function parseTranslate(transform) {
     const text = String(transform || "");
     const translate = text.match(/translate3d\(\s*(-?\d+(?:\.\d+)?)px\s*,\s*(-?\d+(?:\.\d+)?)px/i)
@@ -392,8 +459,9 @@
       roundedFrameToken(frameHeight)
     ].join("_");
 
-    if (!texture.frames?.[frameName]) {
-      texture.add(frameName, 0, frameX, frameY, frameWidth, frameHeight);
+    if (!texture.has(frameName)) {
+      const added = texture.add(frameName, 0, frameX, frameY, frameWidth, frameHeight);
+      if (!added && !texture.has(frameName)) return null;
     }
     return frameName;
   }
@@ -488,6 +556,7 @@
         const element = document.getElementById(definition.id);
         if (!element || !element.isConnected) {
           sprite.setVisible(false);
+          setPhaserMirrored(element, false);
           continue;
         }
 
@@ -500,12 +569,14 @@
         const shouldShow = !element.hidden && computed.display !== "none" && computed.visibility !== "hidden";
         if (!shouldShow) {
           sprite.setVisible(false);
+          setPhaserMirrored(element, false);
           continue;
         }
 
         const visualRect = getStaticWorldRect(element);
         if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
           sprite.setVisible(false);
+          setPhaserMirrored(element, false);
           continue;
         }
 
@@ -519,6 +590,7 @@
           const sourceElement = document.getElementById(definition.sourceElementId);
           if (!sourceElement) {
             sprite.setVisible(false);
+            setPhaserMirrored(element, false);
             continue;
           }
           sourceStyle = getComputedStyle(sourceElement);
@@ -530,11 +602,12 @@
         const key = pathToKey.get(backgroundUrl) || definition.key;
         if (!this.textures.exists(key)) {
           sprite.setVisible(false);
+          setPhaserMirrored(element, false);
           continue;
         }
 
         sprite.setTexture(key);
-        this.applyBackgroundCrop(
+        const frameReady = this.applyBackgroundCrop(
           sprite,
           sourceStyle,
           cropHostWidth,
@@ -542,12 +615,18 @@
           displayWidth,
           displayHeight
         );
+        if (!frameReady) {
+          sprite.setVisible(false);
+          setPhaserMirrored(element, false);
+          continue;
+        }
 
         sprite.setPosition(visualRect.left, visualRect.top);
         sprite.setDepth(definition.depth);
         sprite.setAlpha(1);
         sprite.setTint(mixColor(0xffffff, FIELD_RENDER_CONFIG.structureNightTint, nightMix));
         sprite.setVisible(true);
+        setPhaserMirrored(element, true);
       }
     }
 
@@ -555,6 +634,7 @@
       const isOn = element.classList.contains("is-on") && !element.hidden;
       if (!isOn) {
         sprite.setVisible(false);
+        setPhaserMirrored(element, false);
         return;
       }
       const style = getComputedStyle(element);
@@ -567,6 +647,7 @@
       const visualRect = getStaticWorldRect(element);
       if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
         sprite.setVisible(false);
+        setPhaserMirrored(element, false);
         return;
       }
       sprite.setTexture(key);
@@ -575,9 +656,30 @@
       sprite.setCrop();
       sprite.clearTint();
       sprite.setVisible(true);
+      setPhaserMirrored(element, true);
     }
 
     applyBackgroundCrop(sprite, style, hostWidth, hostHeight, displayWidth, displayHeight) {
+      const textureKey = sprite.texture?.key;
+      const gridFrame = textureKey
+        ? getCssGridFrame(this, textureKey, style, hostWidth, hostHeight)
+        : null;
+      if (gridFrame) {
+        if (!applyTextureFrame(
+          this,
+          sprite,
+          textureKey,
+          gridFrame.x,
+          gridFrame.y,
+          gridFrame.width,
+          gridFrame.height
+        )) {
+          return false;
+        }
+        sprite.setDisplaySize(displayWidth, displayHeight);
+        return true;
+      }
+
       const texture = sprite.texture?.source?.[0];
       const textureWidth = Number(texture?.width) || Number(sprite.width) || hostWidth;
       const textureHeight = Number(texture?.height) || Number(sprite.height) || hostHeight;
@@ -619,6 +721,7 @@
         sprite.setCrop();
       }
       sprite.setDisplaySize(displayWidth, displayHeight);
+      return true;
     }
 
     syncEntities(nightMix) {
@@ -695,6 +798,7 @@
         mirror.base.setVisible(false);
         mirror.overlay.setVisible(false);
         mirror.shadow.setVisible(false);
+        setPhaserMirrored(element, false);
         return;
       }
       const x = visualRect.centerX;
@@ -734,6 +838,7 @@
         mirror.base.setVisible(false);
         mirror.overlay.setVisible(false);
         mirror.shadow.setVisible(false);
+        setPhaserMirrored(element, false);
         return;
       }
 
@@ -768,6 +873,10 @@
       const isVisible = baseSpriteReady && rootAlpha > 0.0001 && !element.hidden;
       mirror.base.setVisible(isVisible);
       if (!isVisible) mirror.overlay.setVisible(false);
+      // Mark the DOM visual as replaceable only after Phaser has a valid frame.
+      // Alpha 0 can be an intentional birth / death fade and should not bring
+      // the DOM artwork back on top of the Phaser object.
+      setPhaserMirrored(element, baseSpriteReady && !element.hidden);
     }
 
     syncEntityShadow(element, mirror, x, y, width, height, depth, rootAlpha) {
@@ -841,33 +950,46 @@
       );
       if (!(backgroundSize.width > 0) || !(backgroundSize.height > 0)) return false;
 
-      const backgroundPosition = parseBackgroundPosition(
-        style.backgroundPosition,
+      const gridFrame = getCssGridFrame(
+        this,
+        key,
+        style,
         hostWidth,
-        hostHeight,
-        backgroundSize.width,
-        backgroundSize.height
+        hostHeight
       );
 
-      // CSS background coordinates refer to the scaled background. Convert the
-      // visible DOM rectangle back to source-image pixels before creating a
-      // Phaser Texture Frame.
-      const ratioX = textureWidth / backgroundSize.width;
-      const ratioY = textureHeight / backgroundSize.height;
-      let frameX = -backgroundPosition.x * ratioX;
-      let frameY = -backgroundPosition.y * ratioY;
-      let frameWidth = hostWidth * ratioX;
-      let frameHeight = hostHeight * ratioY;
+      let frameX;
+      let frameY;
+      let frameWidth;
+      let frameHeight;
 
-      // Floating-point background math can produce values such as -0.0000001.
-      // Clamp only after the CSS-to-source conversion so frame selection itself
-      // remains faithful to the DOM version.
-      if (Math.abs(frameX) < 0.0001) frameX = 0;
-      if (Math.abs(frameY) < 0.0001) frameY = 0;
-      frameX = Math.max(0, Math.min(textureWidth, frameX));
-      frameY = Math.max(0, Math.min(textureHeight, frameY));
-      frameWidth = Math.max(0, Math.min(textureWidth - frameX, frameWidth));
-      frameHeight = Math.max(0, Math.min(textureHeight - frameY, frameHeight));
+      if (gridFrame) {
+        frameX = gridFrame.x;
+        frameY = gridFrame.y;
+        frameWidth = gridFrame.width;
+        frameHeight = gridFrame.height;
+      } else {
+        const backgroundPosition = parseBackgroundPosition(
+          style.backgroundPosition,
+          hostWidth,
+          hostHeight,
+          backgroundSize.width,
+          backgroundSize.height
+        );
+        const ratioX = textureWidth / backgroundSize.width;
+        const ratioY = textureHeight / backgroundSize.height;
+        frameX = -backgroundPosition.x * ratioX;
+        frameY = -backgroundPosition.y * ratioY;
+        frameWidth = hostWidth * ratioX;
+        frameHeight = hostHeight * ratioY;
+
+        if (Math.abs(frameX) < 0.0001) frameX = 0;
+        if (Math.abs(frameY) < 0.0001) frameY = 0;
+        frameX = Math.max(0, Math.min(textureWidth, frameX));
+        frameY = Math.max(0, Math.min(textureHeight, frameY));
+        frameWidth = Math.max(0, Math.min(textureWidth - frameX, frameWidth));
+        frameHeight = Math.max(0, Math.min(textureHeight - frameY, frameHeight));
+      }
 
       if (!(frameWidth > 0.01) || !(frameHeight > 0.01)) {
         sprite.setVisible(false);
@@ -948,6 +1070,7 @@
       const key = pathToKey.get(imagePath) || "supplyBox";
       if (!this.textures.exists(key) || width <= 0 || height <= 0) {
         sprite.setVisible(false);
+        setPhaserMirrored(element, false);
         return;
       }
       sprite.setTexture(key);
@@ -956,7 +1079,12 @@
         backgroundSize: element.style.getPropertyValue("--supply-box-background-size") || "100% 100%",
         backgroundPosition: element.style.getPropertyValue("--supply-box-background-position") || "0px 0px"
       };
-      this.applyBackgroundCrop(sprite, fakeStyle, width, height, width, height);
+      const frameReady = this.applyBackgroundCrop(sprite, fakeStyle, width, height, width, height);
+      if (!frameReady) {
+        sprite.setVisible(false);
+        setPhaserMirrored(element, false);
+        return;
+      }
       sprite.setPosition(x, y);
 
       const parentId = element.parentElement?.id;
@@ -968,6 +1096,7 @@
       sprite.setAlpha(alpha);
       sprite.setTint(mixColor(0xffffff, FIELD_RENDER_CONFIG.structureNightTint, nightMix));
       sprite.setVisible(alpha > 0.0001);
+      setPhaserMirrored(element, true);
     }
   }
 
