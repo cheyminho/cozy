@@ -4700,6 +4700,13 @@
     }
 
     /* RGB Color Balance는 Safari 호환성을 위해 별도 반투명 컬러 레이어로 근사합니다. */
+    /* 완전히 중립인 Day 상태에서는 시각 결과는 동일하게 유지하면서
+       전체 화면 backdrop-filter 합성 레이어만 비활성화합니다. */
+    #sceneColorTone.is-neutral-day {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
     #sceneColorTone::before {
       content: "";
       position: absolute;
@@ -4970,7 +4977,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.208"
+  data-game-version="0.209"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7746,10 +7753,10 @@ You can leave the game and come back anytime.</div>
 
           getShadowSpec() {
             if (this.special === "entityZombie") {
-              return { x: 23, y: 31, width: 70, height: 16, blur: 2, skewDeg: -28, scaleY: 0.4, alpha: 0.30 };
+              return { x: 23, y: 31, width: 70, height: 16, blur: 2, skewDeg: -28, scaleY: 0.4, alpha: 0.20 };
             }
             if (this.special === "entityDeer") {
-              return { x: 11.8333, y: 21.6667, width: 73.3333, height: 12, blur: 2, skewDeg: -28, scaleY: 0.42, alpha: 0.30 };
+              return { x: 11.8333, y: 21.6667, width: 73.3333, height: 12, blur: 2, skewDeg: -28, scaleY: 0.42, alpha: 0.20 };
             }
             if (this.special === "entityDog") {
               return {
@@ -7760,7 +7767,7 @@ You can leave the game and come back anytime.</div>
                 blur: 2,
                 skewDeg: -28,
                 scaleY: 0.42,
-                alpha: 0.30
+                alpha: 0.20
               };
             }
             if (this.special === "entityCat") {
@@ -7772,7 +7779,7 @@ You can leave the game and come back anytime.</div>
                 blur: 2,
                 skewDeg: -28,
                 scaleY: 0.42,
-                alpha: 0.30
+                alpha: 0.20
               };
             }
             if (this.special === "ellipseShadow") {
@@ -8216,6 +8223,30 @@ You can leave the game and come back anytime.</div>
             this.translateX = tx; this.translateY = ty; this.scaleX = sx; this.scaleY = sy; this.rotationDeg = rot;
           }
 
+          setRuntimeEntityTransform(x, y, sortY, targetLayer = null) {
+            const nextX = Number(x);
+            const nextY = Number(y);
+            const nextSortY = Math.round(Number(sortY) || 0);
+            this.baseX = Number.isFinite(nextX) ? nextX : this.baseX;
+            this.baseY = Number.isFinite(nextY) ? nextY : this.baseY;
+            this.sortY = nextSortY;
+
+            // 기존 코드가 style 값을 읽어도 같은 상태를 보도록 캐시만 갱신하고,
+            // Proxy setter는 거치지 않아 left/top/zIndex별 중복 sync를 피합니다.
+            if (this.style?.values) {
+              this.style.values.left = `${this.baseX}px`;
+              this.style.values.top = `${this.baseY}px`;
+              this.style.values.zIndex = String(nextSortY);
+            }
+
+            if (targetLayer && this.parentElement !== targetLayer) {
+              // depth 영역을 실제로 넘을 때만 기존 reparent/syncAll 경로를 사용합니다.
+              targetLayer.appendChild(this);
+              return;
+            }
+            this.syncPosition();
+          }
+
           syncPosition() {
             if (!this.go) return;
             let localOriginOffsetX = 0;
@@ -8525,12 +8556,31 @@ You can leave the game and come back anytime.</div>
         }
 
         let lastAppliedToneMix = Number.NaN;
+        let dayBackgroundTile = null;
+        let nightBackgroundTile = null;
+        let lastSeenSceneNightMixRevision = -1;
+        let wasNightMixTransitionActive = false;
+
+        function isNightMixTransitionActive(now = performance.now()) {
+          try {
+            const state = sceneNightMixTransitionState;
+            const durationMs = Math.max(0, Number(state?.durationMs) || 0);
+            if (durationMs <= 0) return false;
+            if (Math.abs(clamp01(state?.to ?? 0) - clamp01(state?.from ?? 0)) < 0.0001) return false;
+            return now < state.startedAt + durationMs;
+          } catch (_) {
+            return false;
+          }
+        }
+
         function updateTone(force = false) {
           const mix = getSceneNightMix();
           if (!force && Number.isFinite(lastAppliedToneMix) && Math.abs(mix - lastAppliedToneMix) < 0.0005) {
             return mix;
           }
           lastAppliedToneMix = mix;
+          if (dayBackgroundTile) dayBackgroundTile.alpha = 1;
+          if (nightBackgroundTile) nightBackgroundTile.alpha = mix;
           for (const node of nodes) {
             node.syncAlpha();
             // Night ColorMatrix is static for a given texture and is already applied
@@ -8557,11 +8607,9 @@ You can leave the game and come back anytime.</div>
             dayTile.setTileScale(dayTileSize / day.naturalWidth, dayTileSize / day.naturalHeight);
             nightTile.setTileScale(nightTileSize / night.naturalWidth, nightTileSize / night.naturalHeight);
             fieldTone.lowLayer?.add([dayTile, nightTile]);
-            scene.events.on("update", () => {
-              const mix = getSceneNightMix();
-              dayTile.alpha = 1;
-              nightTile.alpha = mix;
-            });
+            dayBackgroundTile = dayTile;
+            nightBackgroundTile = nightTile;
+            updateTone(true);
           });
         }
 
@@ -8812,9 +8860,24 @@ You can leave the game and come back anytime.</div>
                 });
               },
               update(time) {
+                const frameNow = performance.now();
+
+                // 기존 DOM 시대의 별도 requestAnimationFrame 루프를 Phaser 프레임에 통합합니다.
+                // 이동 계산과 실제 Phaser 렌더가 같은 프레임 단계에서 수행됩니다.
+                if (hasGameInitialized) {
+                  gameLoop(frameNow);
+                }
+
                 updateViewTween(time);
-                updateTone();
-                updateFieldToneOverlays(performance.now());
+
+                const revisionChanged =
+                  lastSeenSceneNightMixRevision !== sceneNightMixRevision;
+                const toneTransitionActive = isNightMixTransitionActive(frameNow);
+                if (revisionChanged || toneTransitionActive || wasNightMixTransitionActive) {
+                  updateTone(revisionChanged);
+                  lastSeenSceneNightMixRevision = sceneNightMixRevision;
+                }
+                wasNightMixTransitionActive = toneTransitionActive;
               }
             }
           });
@@ -9716,6 +9779,8 @@ You can leave the game and come back anytime.</div>
       let versionTestLastClickAt = -Infinity;
       let sceneColorTestOverride = loadSceneColorTestOverride();
       let sceneColorTransitionResetFrameId = null;
+      let sceneNeutralFilterTimerId = null;
+      let sceneNightMixRevision = 0;
       // 진행 중인 장면 Night Mix 전환 상태를 추적합니다.
       // 컬러 전환 도중 새로 생성되는 좀비/사슴도 현재 중간 밝기에서 시작하도록 사용합니다.
       let sceneNightMixTransitionState = {
@@ -16482,6 +16547,7 @@ You can leave the game and come back anytime.</div>
       function beginSceneNightMixTransition(targetNightMix, durationMs) {
         const now = performance.now();
         const currentNightMix = getCurrentSceneNightMixVisual(now);
+        sceneNightMixRevision += 1;
         sceneNightMixTransitionState = {
           from: currentNightMix,
           to: clamp01(targetNightMix),
@@ -16544,6 +16610,22 @@ You can leave the game and come back anytime.</div>
         });
       }
 
+      function isNeutralSceneColorTone(effective) {
+        const near = (value, target = 1) =>
+          Math.abs((Number(value) || 0) - target) < 0.0001;
+        const balance = effective?.colorBalance || {};
+        const tint = parseCssColor(effective?.tint || "rgba(0, 0, 0, 0)");
+        return (
+          near(effective?.brightness) &&
+          near(effective?.saturation) &&
+          near(effective?.contrast) &&
+          near(balance.red) &&
+          near(balance.green) &&
+          near(balance.blue) &&
+          clamp01(tint.a) < 0.0001
+        );
+      }
+
       function applySceneColorVisual(tone, options = {}) {
         const durationMs = options.instant === true
           ? 0
@@ -16553,6 +16635,19 @@ You can leave the game and come back anytime.</div>
         setSceneColorTransitionDuration(durationMs);
 
         const effective = getEffectiveToneSettings(tone);
+        const sceneToneElement = document.getElementById("sceneColorTone");
+        const isNeutralDayTone = isNeutralSceneColorTone(effective);
+        if (sceneNeutralFilterTimerId !== null) {
+          clearTimeout(sceneNeutralFilterTimerId);
+          sceneNeutralFilterTimerId = null;
+        }
+        // Sunset/Night 전환을 시작할 때는 먼저 neutral 최적화만 해제합니다.
+        // 이 순간의 CSS 변수는 아직 Day 중립값이라 화면 변화는 없습니다.
+        if (!isNeutralDayTone && sceneToneElement?.classList.contains("is-neutral-day")) {
+          sceneToneElement.classList.remove("is-neutral-day");
+          void sceneToneElement.offsetWidth;
+        }
+
         const normalizedNightMix = clamp01(tone?.nightMix ?? 0);
         beginSceneNightMixTransition(normalizedNightMix, durationMs);
         const rootStyle = document.documentElement.style;
@@ -16577,6 +16672,19 @@ You can leave the game and come back anytime.</div>
           "--scene-rain-night-opacity",
           String(normalizedNightMix * RAIN_NIGHT_TONE.opacity)
         );
+
+        // Day로 돌아오는 전환은 기존 CSS 필터로 끝까지 그대로 보여준 뒤,
+        // 완전히 중립값에 도달한 후에만 backdrop-filter 자체를 끕니다.
+        if (isNeutralDayTone && sceneToneElement) {
+          if (options.instant === true || durationMs <= 0 || sceneToneElement.classList.contains("is-neutral-day")) {
+            sceneToneElement.classList.add("is-neutral-day");
+          } else {
+            sceneNeutralFilterTimerId = window.setTimeout(() => {
+              sceneNeutralFilterTimerId = null;
+              sceneToneElement.classList.add("is-neutral-day");
+            }, durationMs + 24);
+          }
+        }
 
         if (options.instant === true) {
           restoreDefaultSceneColorTransitionNextFrame();
@@ -22133,11 +22241,9 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           : "behind";
       }
 
-      function updateEntityTreeDepth(
-        element,
+      function getEntityTargetDepthLayer(
         worldX,
         worldGroundY,
-        sortY,
         metrics = getEntityDepthMetrics()
       ) {
         const treeDepthRelation = getEntityTreeDepthRelation(
@@ -22146,16 +22252,24 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           metrics
         );
 
-        let targetLayer;
-        if (worldGroundY < metrics.shedCenterY) {
-          targetLayer = entitiesBehindShed;
-        } else if (treeDepthRelation === "behind") {
-          targetLayer = entitiesBehindTree;
-        } else if (worldGroundY < metrics.carCenterY) {
-          targetLayer = entities;
-        } else {
-          targetLayer = entitiesFrontStructures;
-        }
+        if (worldGroundY < metrics.shedCenterY) return entitiesBehindShed;
+        if (treeDepthRelation === "behind") return entitiesBehindTree;
+        if (worldGroundY < metrics.carCenterY) return entities;
+        return entitiesFrontStructures;
+      }
+
+      function updateEntityTreeDepth(
+        element,
+        worldX,
+        worldGroundY,
+        sortY,
+        metrics = getEntityDepthMetrics()
+      ) {
+        const targetLayer = getEntityTargetDepthLayer(
+          worldX,
+          worldGroundY,
+          metrics
+        );
 
         if (element.parentElement !== targetLayer) {
           targetLayer.appendChild(element);
@@ -22182,20 +22296,30 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           return;
         }
 
-        if (entity.renderedPositionX !== x) {
-          element.style.left = `${x}px`;
-        }
-        if (entity.renderedPositionY !== y) {
-          element.style.top = `${y}px`;
-        }
-
-        updateEntityTreeDepth(
-          element,
+        const targetLayer = getEntityTargetDepthLayer(
           x,
           worldGroundY,
-          sortY,
           metrics
         );
+
+        if (typeof element.setRuntimeEntityTransform === "function") {
+          // Phaser 필드 엔티티는 한 프레임에 좌표와 depth를 한 번에 반영합니다.
+          element.setRuntimeEntityTransform(x, y, sortY, targetLayer);
+        } else {
+          if (entity.renderedPositionX !== x) {
+            element.style.left = `${x}px`;
+          }
+          if (entity.renderedPositionY !== y) {
+            element.style.top = `${y}px`;
+          }
+          updateEntityTreeDepth(
+            element,
+            x,
+            worldGroundY,
+            sortY,
+            metrics
+          );
+        }
 
         entity.renderedPositionX = x;
         entity.renderedPositionY = y;
@@ -27052,8 +27176,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         updateCloudGroup("sky", deltaMs, now);
         updateCloudGroup("shadow", deltaMs, now);
         updateBirds(now);
-
-        requestAnimationFrame(gameLoop);
       }
 
       function getCurrentZombieSpawnIntervalMs() {
@@ -27857,7 +27979,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         );
 
         lastFrameTime = performance.now();
-        requestAnimationFrame(gameLoop);
 
         if (skipStartTransition) {
           document.body.classList.remove(
