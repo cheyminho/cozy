@@ -4970,7 +4970,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.205"
+  data-game-version="0.206"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -8208,11 +8208,12 @@ You can leave the game and come back anytime.</div>
             const handlers = this.listeners.get(type);
             if (!handlers || handlers.size === 0) return;
             if (isPointerBlockedByDomUi(pointer)) return;
+            const { clientX, clientY } = getPointerClientPosition(pointer);
             const event = {
               button: pointer.button,
               pointerId: pointer.id,
-              clientX: pointer.x,
-              clientY: pointer.y,
+              clientX: Number.isFinite(clientX) ? clientX : pointer.x,
+              clientY: Number.isFinite(clientY) ? clientY : pointer.y,
               currentTarget: this,
               target: this,
               cancelable: true,
@@ -8554,29 +8555,58 @@ You can leave the game and come back anytime.</div>
           for (const layer of layers.values()) for (const node of layer.children) { node.attachScene(); node.syncAll(); }
         }
 
-        function isPointerBlockedByDomUi(pointer) {
-          const x = Number(pointer?.x);
-          const y = Number(pointer?.y);
-          if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+        function getPointerClientPosition(pointer) {
+          const nativeEvent = pointer?.event;
+          const nativeTouch =
+            nativeEvent?.changedTouches?.[0] || nativeEvent?.touches?.[0] || null;
+          const clientX = Number(
+            nativeEvent?.clientX ?? nativeTouch?.clientX ?? pointer?.x
+          );
+          const clientY = Number(
+            nativeEvent?.clientY ?? nativeTouch?.clientY ?? pointer?.y
+          );
+          return { clientX, clientY };
+        }
 
-          // Phaser canvas is full-screen underneath the DOM UI. Phaser can still receive
-          // a pointer through its global input manager even when a DOM button visually owns
-          // that screen position, so always respect the browser's actual topmost hit target.
-          const topElement = document.elementFromPoint(x, y);
+        function isPointerBlockedByDomUi(pointer) {
+          const { clientX, clientY } = getPointerClientPosition(pointer);
+          if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+
+          // elementFromPoint()는 브라우저 client 좌표를 요구합니다. Phaser pointer.x/y는
+          // 모바일의 canvas scale / visual viewport 조건에서 client 좌표와 달라질 수 있습니다.
+          const topElement = document.elementFromPoint(clientX, clientY);
           if (!topElement) return false;
+
           const canvas = game?.canvas || mount?.querySelector("canvas");
           if (topElement === canvas || topElement === mount || mount?.contains(topElement)) {
             return false;
           }
+
+          // 필드 위에 있지만 입력을 소유하지 않는 구조용 DOM이 최상위 hit target으로
+          // 반환되는 모바일 브라우저가 있습니다. 이 경우 필드 터치를 막지 않습니다.
+          const passiveFieldSurfaces = new Set([
+            document.documentElement,
+            document.body,
+            document.getElementById("viewport"),
+            document.getElementById("world"),
+            document.getElementById("sceneColorTone"),
+            document.getElementById("atmosphereWorld"),
+            document.getElementById("rainDayTone"),
+            document.getElementById("rainNightTone")
+          ]);
+          if (passiveFieldSurfaces.has(topElement)) return false;
+
+          // 그 외 실제 DOM UI가 화면 위를 차지하고 있으면 Phaser 입력을 차단합니다.
           return true;
         }
 
         function toPointerEvent(pointer) {
+          const { clientX, clientY } = getPointerClientPosition(pointer);
           return {
             button: Number.isFinite(pointer?.button) ? pointer.button : 0,
             pointerId: pointer?.id ?? 0,
-            clientX: pointer?.x ?? 0,
-            clientY: pointer?.y ?? 0,
+            clientX: Number.isFinite(clientX) ? clientX : 0,
+            clientY: Number.isFinite(clientY) ? clientY : 0,
             cancelable: true,
             preventDefault() { pointer?.event?.preventDefault?.(); },
             stopPropagation() {},
@@ -9064,7 +9094,7 @@ You can leave the game and come back anytime.</div>
       const DOUBLE_TAP_BLOCK_MS = 550;
       const DOUBLE_TAP_MAX_DISTANCE_PX = 110;
       const POINTERDOWN_TOUCH_TARGET_SELECTOR =
-        "#versionTestButton, #phaserField, #phaserField canvas";
+        "#versionTestButton";
       let lastTapStartedAt = -Infinity;
       let lastTapX = 0;
       let lastTapY = 0;
@@ -9090,6 +9120,14 @@ You can leave the game and come back anytime.</div>
 
           const touch = changedTouches[0];
           if (!touch) return;
+
+          // Phaser 필드는 canvas의 touch-action:none과 viewport 설정으로
+          // 브라우저 제스처를 차단합니다. 여기서 touchstart를 preventDefault()하면
+          // 특히 iOS Safari에서 Phaser Pointer Events가 취소될 수 있으므로 건드리지 않습니다.
+          if (event.target instanceof Element && event.target.closest("#phaserField")) {
+            lastTapStartedAt = -Infinity;
+            return;
+          }
 
           // 실제 버튼·링크·입력 요소는 기본 탭 흐름을 유지합니다.
           // 이 경로에서 preventDefault()를 호출하면 :active는 보여도
