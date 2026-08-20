@@ -205,26 +205,124 @@
     return { x: 0, y: 0 };
   }
 
-  function getWorldLayoutMetrics() {
+  // Phaser shares the same 2048x2048 coordinate space as #world.
+  // Never derive world coordinates from getBoundingClientRect(): that value
+  // already contains the start-screen zoom, world pan and browser transforms.
+  // Reading those screen-space values and converting them back caused the
+  // Phaser field to drift and shrink depending on the serving environment.
+  function getOffsetWithinWorld(element) {
     const world = document.getElementById("world");
-    if (!world) return null;
-    const rect = world.getBoundingClientRect();
-    const scaleX = rect.width / WORLD_SIZE;
-    const scaleY = rect.height / WORLD_SIZE;
-    if (!(scaleX > 0) || !(scaleY > 0)) return null;
-    return { rect, scaleX, scaleY };
+    if (!element || !world) return null;
+
+    let left = 0;
+    let top = 0;
+    let node = element;
+    while (node && node !== world) {
+      left += Number(node.offsetLeft) || 0;
+      top += Number(node.offsetTop) || 0;
+      node = node.offsetParent;
+    }
+    if (node !== world) return null;
+    return { left, top };
   }
 
-  function getElementWorldRect(element, metrics = getWorldLayoutMetrics()) {
-    if (!element || !metrics) return null;
-    const rect = element.getBoundingClientRect();
+  function readTransformComponents(element) {
+    const result = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1 };
+    if (!element) return result;
+
+    const transform = getComputedStyle(element).transform;
+    if (!transform || transform === "none") return result;
+
+    try {
+      const MatrixCtor = window.DOMMatrixReadOnly || window.DOMMatrix || window.WebKitCSSMatrix;
+      if (MatrixCtor) {
+        const matrix = new MatrixCtor(transform);
+        result.translateX = Number(matrix.m41 ?? matrix.e) || 0;
+        result.translateY = Number(matrix.m42 ?? matrix.f) || 0;
+        result.scaleX = Math.hypot(Number(matrix.m11 ?? matrix.a) || 0, Number(matrix.m12 ?? matrix.b) || 0) || 1;
+        result.scaleY = Math.hypot(Number(matrix.m21 ?? matrix.c) || 0, Number(matrix.m22 ?? matrix.d) || 0) || 1;
+        return result;
+      }
+    } catch (_) {
+      // Fall through to the lightweight matrix parser below.
+    }
+
+    const matrix3d = String(transform).match(/^matrix3d\((.+)\)$/i);
+    if (matrix3d) {
+      const values = matrix3d[1].split(",").map((value) => Number(value.trim()) || 0);
+      if (values.length === 16) {
+        result.scaleX = Math.hypot(values[0], values[1]) || 1;
+        result.scaleY = Math.hypot(values[4], values[5]) || 1;
+        result.translateX = values[12] || 0;
+        result.translateY = values[13] || 0;
+      }
+      return result;
+    }
+
+    const matrix = String(transform).match(/^matrix\((.+)\)$/i);
+    if (matrix) {
+      const values = matrix[1].split(",").map((value) => Number(value.trim()) || 0);
+      if (values.length === 6) {
+        result.scaleX = Math.hypot(values[0], values[1]) || 1;
+        result.scaleY = Math.hypot(values[2], values[3]) || 1;
+        result.translateX = values[4] || 0;
+        result.translateY = values[5] || 0;
+      }
+    }
+    return result;
+  }
+
+  function getStaticWorldRect(element) {
+    const offset = getOffsetWithinWorld(element);
+    if (!offset) return null;
+    const transform = readTransformComponents(element);
+    const width = (Number(element.offsetWidth) || 0) * transform.scaleX;
+    const height = (Number(element.offsetHeight) || 0) * transform.scaleY;
+    const left = offset.left + transform.translateX;
+    const top = offset.top + transform.translateY;
     return {
-      left: (rect.left - metrics.rect.left) / metrics.scaleX,
-      top: (rect.top - metrics.rect.top) / metrics.scaleY,
-      width: rect.width / metrics.scaleX,
-      height: rect.height / metrics.scaleY,
-      centerX: (rect.left - metrics.rect.left + rect.width / 2) / metrics.scaleX,
-      centerY: (rect.top - metrics.rect.top + rect.height / 2) / metrics.scaleY
+      left,
+      top,
+      width,
+      height,
+      centerX: left + width / 2,
+      centerY: top + height / 2
+    };
+  }
+
+  function getEntityWorldRect(element) {
+    if (!element) return null;
+    const width = Number(element.offsetWidth) || numberFromPx(getComputedStyle(element).width, 0);
+    const height = Number(element.offsetHeight) || numberFromPx(getComputedStyle(element).height, 0);
+
+    // Entity left/top are intentionally their center coordinates. The DOM uses
+    // translate(-50%, -50%) only as a visual positioning trick; Phaser should
+    // not read that transform back into the coordinates.
+    const centerX = numberFromPx(element.style.left, Number(element.offsetLeft) || 0);
+    const centerY = numberFromPx(element.style.top, Number(element.offsetTop) || 0);
+    return {
+      left: centerX - width / 2,
+      top: centerY - height / 2,
+      width,
+      height,
+      centerX,
+      centerY
+    };
+  }
+
+  function getTopLeftWorldRect(element) {
+    if (!element) return null;
+    const offset = getOffsetWithinWorld(element);
+    if (!offset) return null;
+    const width = Number(element.offsetWidth) || numberFromPx(getComputedStyle(element).width, 0);
+    const height = Number(element.offsetHeight) || numberFromPx(getComputedStyle(element).height, 0);
+    return {
+      left: offset.left,
+      top: offset.top,
+      width,
+      height,
+      centerX: offset.left + width / 2,
+      centerY: offset.top + height / 2
     };
   }
 
@@ -259,6 +357,53 @@
     const inline = element.style.opacity;
     if (inline === "") return defaultValue;
     return clamp01(parseFloat(inline));
+  }
+
+  function roundedFrameToken(value) {
+    const number = Math.round((Number(value) || 0) * 1000) / 1000;
+    return String(number).replace(/-/g, "m").replace(/\./g, "p");
+  }
+
+  function ensureTextureFrame(scene, textureKey, x, y, width, height) {
+    const texture = scene?.textures?.get?.(textureKey);
+    if (!texture) return null;
+    const baseFrame = texture.get();
+    const sourceWidth = Number(baseFrame?.width) || Number(texture.source?.[0]?.width) || 0;
+    const sourceHeight = Number(baseFrame?.height) || Number(texture.source?.[0]?.height) || 0;
+    if (!(sourceWidth > 0) || !(sourceHeight > 0)) return null;
+
+    const frameX = Math.max(0, Math.min(sourceWidth, Number(x) || 0));
+    const frameY = Math.max(0, Math.min(sourceHeight, Number(y) || 0));
+    const frameWidth = Math.max(0.0001, Math.min(sourceWidth - frameX, Number(width) || sourceWidth));
+    const frameHeight = Math.max(0.0001, Math.min(sourceHeight - frameY, Number(height) || sourceHeight));
+
+    const isBaseFrame =
+      Math.abs(frameX) < 0.0001 &&
+      Math.abs(frameY) < 0.0001 &&
+      Math.abs(frameWidth - sourceWidth) < 0.0001 &&
+      Math.abs(frameHeight - sourceHeight) < 0.0001;
+    if (isBaseFrame) return baseFrame.name;
+
+    const frameName = [
+      "cozzy",
+      roundedFrameToken(frameX),
+      roundedFrameToken(frameY),
+      roundedFrameToken(frameWidth),
+      roundedFrameToken(frameHeight)
+    ].join("_");
+
+    if (!texture.frames?.[frameName]) {
+      texture.add(frameName, 0, frameX, frameY, frameWidth, frameHeight);
+    }
+    return frameName;
+  }
+
+  function applyTextureFrame(scene, sprite, textureKey, x, y, width, height) {
+    const frameName = ensureTextureFrame(scene, textureKey, x, y, width, height);
+    if (frameName == null) return false;
+    sprite.setCrop();
+    sprite.setTexture(textureKey, frameName);
+    return true;
   }
 
   class CozzyFieldScene extends Phaser.Scene {
@@ -358,8 +503,7 @@
           continue;
         }
 
-        const worldMetrics = getWorldLayoutMetrics();
-        const visualRect = getElementWorldRect(element, worldMetrics);
+        const visualRect = getStaticWorldRect(element);
         if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
           sprite.setVisible(false);
           continue;
@@ -420,7 +564,7 @@
         sprite.setVisible(false);
         return;
       }
-      const visualRect = getElementWorldRect(element);
+      const visualRect = getStaticWorldRect(element);
       if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
         sprite.setVisible(false);
         return;
@@ -463,7 +607,14 @@
         Number.isFinite(cropWidth) && cropWidth > 0 &&
         Number.isFinite(cropHeight) && cropHeight > 0
       ) {
-        sprite.setCrop(cropX, cropY, cropWidth, cropHeight);
+        // Use a real Phaser Texture Frame instead of setCrop(). Crop only clips
+        // a Game Object and deliberately does NOT change its intrinsic size.
+        // Using setDisplaySize after setCrop therefore scaled the full source
+        // texture and made 2x2 / sprite-sheet frames appear too small and offset.
+        const key = sprite.texture?.key;
+        if (key) {
+          applyTextureFrame(this, sprite, key, cropX, cropY, cropWidth, cropHeight);
+        }
       } else {
         sprite.setCrop();
       }
@@ -531,7 +682,7 @@
     }
 
     updateEntityMirror(element, mirror, nightMix) {
-      const visualRect = getElementWorldRect(element);
+      const visualRect = getEntityWorldRect(element);
       if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
         mirror.base.setVisible(false);
         mirror.overlay.setVisible(false);
@@ -679,8 +830,9 @@
       }
 
       if (!key || !this.textures.exists(key)) return false;
-      sprite.setTexture(key);
-      sprite.setCrop(cropX, cropY, cropWidth, cropHeight);
+      if (!applyTextureFrame(this, sprite, key, cropX, cropY, cropWidth, cropHeight)) {
+        return false;
+      }
       sprite.setDisplaySize(width, height);
       sprite.setFlipX(String(domSprite.style.transform || "").includes("scaleX(-1)"));
       return true;
@@ -726,7 +878,7 @@
     }
 
     updateSupplySprite(element, sprite, isShadow, nightMix) {
-      const visualRect = getElementWorldRect(element);
+      const visualRect = getTopLeftWorldRect(element);
       if (!visualRect || visualRect.width <= 0 || visualRect.height <= 0) {
         sprite.setVisible(false);
         return;
@@ -1007,6 +1159,51 @@
     window.visualViewport?.addEventListener("resize", resizeWeather, { passive: true });
     window.cozzyPhaserWeatherGame = weatherGame;
   }
+
+
+  function collectPhaserLayoutDebug() {
+    const scene = window.cozzyPhaserGame?.scene?.getScene?.("CozzyField");
+    const rows = [];
+    const ids = ["houseObject", "tree", "carObject", "shedObject"];
+    for (const id of ids) {
+      const element = document.getElementById(id);
+      const mirror = scene?.staticSprites?.get?.(id)?.sprite;
+      const dom = element ? getStaticWorldRect(element) : null;
+      rows.push({
+        id,
+        domX: dom?.left ?? null,
+        domY: dom?.top ?? null,
+        domW: dom?.width ?? null,
+        domH: dom?.height ?? null,
+        phaserX: mirror?.x ?? null,
+        phaserY: mirror?.y ?? null,
+        phaserW: mirror?.displayWidth ?? null,
+        phaserH: mirror?.displayHeight ?? null
+      });
+    }
+    const firstEntity = document.querySelector(".zombie, .deer, .dog, .cat");
+    if (firstEntity && scene?.entityMirrors?.has?.(firstEntity)) {
+      const dom = getEntityWorldRect(firstEntity);
+      const mirror = scene.entityMirrors.get(firstEntity)?.base;
+      rows.push({
+        id: firstEntity.classList.contains("zombie") ? "firstZombie" :
+          firstEntity.classList.contains("deer") ? "firstDeer" :
+          firstEntity.classList.contains("dog") ? "dog" : "cat",
+        domX: dom?.centerX ?? null,
+        domY: dom?.centerY ?? null,
+        domW: dom?.width ?? null,
+        domH: dom?.height ?? null,
+        phaserX: mirror?.x ?? null,
+        phaserY: mirror?.y ?? null,
+        phaserW: mirror?.displayWidth ?? null,
+        phaserH: mirror?.displayHeight ?? null
+      });
+    }
+    console.table(rows);
+    return rows;
+  }
+
+  window.cozzyPhaserDebugLayout = collectPhaserLayoutDebug;
 
   function bootPhaserField() {
     if (!window.Phaser || document.getElementById("cozzyPhaserCanvas")) return;
