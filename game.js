@@ -660,9 +660,17 @@
       const type = this.getEntityType(element);
       if (!type) return null;
       const fallbackKey = type === "zombie" ? "zombieBirthDeath" : type;
-      const base = this.add.image(0, 0, fallbackKey).setOrigin(0.5, 0.5);
-      const overlay = this.add.image(0, 0, fallbackKey).setOrigin(0.5, 0.5).setVisible(false);
-      const shadow = this.add.ellipse(0, 0, 48, 8, 0x000000, 0.18).setOrigin(0.5, 0.5);
+      // Keep both images hidden until a valid frame has been resolved. Otherwise
+      // Phaser can briefly render the entire sprite sheet before the first sync.
+      const base = this.add.image(0, 0, fallbackKey)
+        .setOrigin(0.5, 0.5)
+        .setVisible(false);
+      const overlay = this.add.image(0, 0, fallbackKey)
+        .setOrigin(0.5, 0.5)
+        .setVisible(false);
+      const shadow = this.add.ellipse(0, 0, 48, 8, 0x000000, 0.18)
+        .setOrigin(0.5, 0.5)
+        .setVisible(false);
       const fallbackWidth = type === "zombie" ? 64 : type === "deer" ? 512 / 6 : 64;
       const fallbackHeight = type === "zombie" ? 128 : type === "deer" ? 512 / 6 : 64;
       return {
@@ -700,7 +708,6 @@
 
       mirror.base.setPosition(x, y).setDepth(depth + 0.002);
       mirror.overlay.setPosition(x, y).setDepth(depth + 0.003);
-      this.syncEntityShadow(element, mirror, x, y, width, height, depth, rootAlpha);
 
       let spriteElement = null;
       let overlayElement = null;
@@ -716,7 +723,21 @@
         spriteElement = element.querySelector(".cat-visual-day .cat-sprite");
       }
 
-      this.syncEntitySprite(mirror.base, spriteElement, mirror.type, width, height);
+      const baseSpriteReady = this.syncEntitySprite(
+        mirror.base,
+        spriteElement,
+        mirror.type,
+        width,
+        height
+      );
+      if (!baseSpriteReady) {
+        mirror.base.setVisible(false);
+        mirror.overlay.setVisible(false);
+        mirror.shadow.setVisible(false);
+        return;
+      }
+
+      this.syncEntityShadow(element, mirror, x, y, width, height, depth, rootAlpha);
       const baseAlpha = getDomChildAlpha(spriteElement, 1);
       mirror.base.setAlpha(rootAlpha * baseAlpha);
 
@@ -744,7 +765,7 @@
       mirror.base.setTint(tint);
       mirror.overlay.setTint(tint);
 
-      const isVisible = rootAlpha > 0.0001 && !element.hidden;
+      const isVisible = baseSpriteReady && rootAlpha > 0.0001 && !element.hidden;
       mirror.base.setVisible(isVisible);
       if (!isVisible) mirror.overlay.setVisible(false);
     }
@@ -787,52 +808,84 @@
 
     syncEntitySprite(sprite, domSprite, type, width, height) {
       if (!domSprite) return false;
-      let key = "";
-      let cropX = 0;
-      let cropY = 0;
-      let cropWidth = width;
-      let cropHeight = height;
-      const position = String(domSprite.style.backgroundPosition || "0px 0px").trim();
 
-      if (type === "zombie") {
-        const path = extractBackgroundUrl(domSprite.style.backgroundImage);
-        key = pathToKey.get(path) || "zombieBirthDeath";
-        const parts = position.split(/\s+/);
-        cropX = Math.max(0, -numberFromPx(parts[0], 0));
-        cropY = Math.max(0, -numberFromPx(parts[1], 0));
-        cropWidth = 64;
-        cropHeight = 128;
-      } else if (type === "deer") {
-        key = "deer";
-        const parts = position.split(/\s+/);
-        cropX = Math.max(0, -numberFromPx(parts[0], 0));
-        cropY = Math.max(0, -numberFromPx(parts[1], 0));
-        cropWidth = 512 / 6;
-        cropHeight = 512 / 6;
-      } else if (type === "dog") {
-        key = "dog";
-        const parts = position.split(/\s+/);
-        const xPercent = numberFromPx(parts[0], 0);
-        const yPercent = numberFromPx(parts[1], 0);
-        const column = Math.round((xPercent / 100) * 15);
-        const row = Math.round((yPercent / 100) * 15);
-        cropX = column * 64;
-        cropY = row * 64;
-        cropWidth = 64;
-        cropHeight = 64;
-      } else if (type === "cat") {
-        key = "cat";
-        const parts = position.split(/\s+/);
-        cropX = Math.max(0, -numberFromPx(parts[0], 0));
-        cropY = Math.max(0, -numberFromPx(parts[1], 0));
-        cropWidth = 64;
-        cropHeight = 64;
-      }
-
+      // Mirror the DOM sprite exactly as CSS renders it. The DOM animation code
+      // expresses frames through background-size / background-position, and those
+      // values are in DISPLAY pixels, not necessarily source-texture pixels.
+      // Converting them through the real texture size keeps scaled sheets such as
+      // the 76px cat (64px source frames) and percentage-positioned dog accurate.
+      const style = getComputedStyle(domSprite);
+      const backgroundUrl = extractBackgroundUrl(style.backgroundImage);
+      const key = pathToKey.get(backgroundUrl) || (
+        type === "zombie" ? "zombieBirthDeath" : type
+      );
       if (!key || !this.textures.exists(key)) return false;
-      if (!applyTextureFrame(this, sprite, key, cropX, cropY, cropWidth, cropHeight)) {
+
+      const texture = this.textures.get(key);
+      const source = texture?.source?.[0];
+      const baseFrame = texture?.get?.();
+      const textureWidth = Number(source?.width) || Number(baseFrame?.width) || 0;
+      const textureHeight = Number(source?.height) || Number(baseFrame?.height) || 0;
+      if (!(textureWidth > 0) || !(textureHeight > 0)) return false;
+
+      const hostWidth = Number(domSprite.offsetWidth) || width;
+      const hostHeight = Number(domSprite.offsetHeight) || height;
+      if (!(hostWidth > 0) || !(hostHeight > 0)) return false;
+
+      const backgroundSize = parseBackgroundSize(
+        style.backgroundSize,
+        hostWidth,
+        hostHeight,
+        textureWidth,
+        textureHeight
+      );
+      if (!(backgroundSize.width > 0) || !(backgroundSize.height > 0)) return false;
+
+      const backgroundPosition = parseBackgroundPosition(
+        style.backgroundPosition,
+        hostWidth,
+        hostHeight,
+        backgroundSize.width,
+        backgroundSize.height
+      );
+
+      // CSS background coordinates refer to the scaled background. Convert the
+      // visible DOM rectangle back to source-image pixels before creating a
+      // Phaser Texture Frame.
+      const ratioX = textureWidth / backgroundSize.width;
+      const ratioY = textureHeight / backgroundSize.height;
+      let frameX = -backgroundPosition.x * ratioX;
+      let frameY = -backgroundPosition.y * ratioY;
+      let frameWidth = hostWidth * ratioX;
+      let frameHeight = hostHeight * ratioY;
+
+      // Floating-point background math can produce values such as -0.0000001.
+      // Clamp only after the CSS-to-source conversion so frame selection itself
+      // remains faithful to the DOM version.
+      if (Math.abs(frameX) < 0.0001) frameX = 0;
+      if (Math.abs(frameY) < 0.0001) frameY = 0;
+      frameX = Math.max(0, Math.min(textureWidth, frameX));
+      frameY = Math.max(0, Math.min(textureHeight, frameY));
+      frameWidth = Math.max(0, Math.min(textureWidth - frameX, frameWidth));
+      frameHeight = Math.max(0, Math.min(textureHeight - frameY, frameHeight));
+
+      if (!(frameWidth > 0.01) || !(frameHeight > 0.01)) {
+        sprite.setVisible(false);
         return false;
       }
+
+      if (!applyTextureFrame(
+        this,
+        sprite,
+        key,
+        frameX,
+        frameY,
+        frameWidth,
+        frameHeight
+      )) {
+        return false;
+      }
+
       sprite.setDisplaySize(width, height);
       sprite.setFlipX(String(domSprite.style.transform || "").includes("scaleX(-1)"));
       return true;
