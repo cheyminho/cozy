@@ -4970,7 +4970,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.207"
+  data-game-version="0.208"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7372,6 +7372,52 @@ You can leave the game and come back anytime.</div>
           return texture.get(frameName);
         }
 
+        // Cloud shadow frames are baked to the final dark-blue RGB while preserving
+        // the source alpha. This avoids white RGB fringes from semi-transparent
+        // antialiased edge pixels when the normal white cloud sheet is multiplied.
+        const cloudShadowBakedTextures = new Map();
+
+        function getBakedCloudShadowTexture(info, frame) {
+          if (!scene || !info?.image) return null;
+          const columns = Math.max(1, frame?.columns || 1);
+          const rows = Math.max(1, frame?.rows || 1);
+          const col = Math.max(0, Math.min(columns - 1, frame?.col || 0));
+          const row = Math.max(0, Math.min(rows - 1, frame?.row || 0));
+          const cacheKey = `${info.key}:${columns}x${rows}:${col},${row}`;
+          if (cloudShadowBakedTextures.has(cacheKey)) {
+            return cloudShadowBakedTextures.get(cacheKey);
+          }
+
+          const x0 = Math.round((info.naturalWidth * col) / columns);
+          const y0 = Math.round((info.naturalHeight * row) / rows);
+          const x1 = Math.round((info.naturalWidth * (col + 1)) / columns);
+          const y1 = Math.round((info.naturalHeight * (row + 1)) / rows);
+          const width = Math.max(1, x1 - x0);
+          const height = Math.max(1, y1 - y0);
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d");
+          if (!context) return null;
+
+          context.clearRect(0, 0, width, height);
+          context.drawImage(info.image, x0, y0, width, height, 0, 0, width, height);
+          // Replace RGB for every non-zero-alpha pixel, including soft edge pixels.
+          // source-in preserves the original alpha exactly.
+          context.globalCompositeOperation = "source-in";
+          context.fillStyle = "#303a72";
+          context.fillRect(0, 0, width, height);
+          context.globalCompositeOperation = "source-over";
+
+          const textureKey = `field:cloud-shadow-baked:${columns}x${rows}:${col},${row}`;
+          if (!scene.textures.exists(textureKey)) {
+            scene.textures.addCanvas(textureKey, canvas);
+          }
+          const result = { key: textureKey, width, height };
+          cloudShadowBakedTextures.set(cacheKey, result);
+          return result;
+        }
+
         const blurredShadowTextures = new Map();
 
         function getBlurredShadowTexture(spec) {
@@ -7533,6 +7579,7 @@ You can leave the game and come back anytime.</div>
             this.singleImage = null;
             this.hitRect = null;
             this.shadowGraphic = null;
+            this._shadowSignature = "";
             nodes.add(this);
             if (this.dualTone) dualToneNodes.add(this);
             if (options.className) this.className = options.className;
@@ -7682,10 +7729,13 @@ You can leave the game and come back anytime.</div>
           }
 
           setSize(width, height) {
-            const w = parsePx(width, this.width);
-            const h = parsePx(height, this.height);
-            if (w > 0) this.width = w;
-            if (h > 0) this.height = h;
+            const parsedW = parsePx(width, this.width);
+            const parsedH = parsePx(height, this.height);
+            const nextW = parsedW > 0 ? parsedW : this.width;
+            const nextH = parsedH > 0 ? parsedH : this.height;
+            if (Math.abs(nextW - this.width) < 0.0001 && Math.abs(nextH - this.height) < 0.0001) return;
+            this.width = nextW;
+            this.height = nextH;
             for (const child of this.children) {
               if (child.width <= 0 || child.height <= 0 || child.classList.contains("deer-hitbox") || child.classList.contains("supply-box-hit-area")) {
                 child.inheritSize(this.width, this.height);
@@ -7696,10 +7746,10 @@ You can leave the game and come back anytime.</div>
 
           getShadowSpec() {
             if (this.special === "entityZombie") {
-              return { x: 23, y: 31, width: 70, height: 16, blur: 5, skewDeg: -28, scaleY: 0.4, alpha: 0.25 };
+              return { x: 23, y: 31, width: 70, height: 16, blur: 2, skewDeg: -28, scaleY: 0.4, alpha: 0.30 };
             }
             if (this.special === "entityDeer") {
-              return { x: 11.8333, y: 21.6667, width: 73.3333, height: 12, blur: 5, skewDeg: -28, scaleY: 0.42, alpha: 0.25 };
+              return { x: 11.8333, y: 21.6667, width: 73.3333, height: 12, blur: 2, skewDeg: -28, scaleY: 0.42, alpha: 0.30 };
             }
             if (this.special === "entityDog") {
               return {
@@ -7707,10 +7757,10 @@ You can leave the game and come back anytime.</div>
                 y: this.height * 0.25,
                 width: this.width * 0.9,
                 height: this.height * 0.2,
-                blur: 5,
+                blur: 2,
                 skewDeg: -28,
                 scaleY: 0.42,
-                alpha: 0.25
+                alpha: 0.30
               };
             }
             if (this.special === "entityCat") {
@@ -7719,10 +7769,10 @@ You can leave the game and come back anytime.</div>
                 y: this.height * 0.15,
                 width: this.width * 0.75,
                 height: this.height * 0.2,
-                blur: 5,
+                blur: 2,
                 skewDeg: -28,
                 scaleY: 0.42,
-                alpha: 0.25
+                alpha: 0.30
               };
             }
             if (this.special === "ellipseShadow") {
@@ -7746,25 +7796,34 @@ You can leave the game and come back anytime.</div>
             if (!scene || !this.go) return;
             const spec = this.getShadowSpec();
             if (!spec) return;
+            const signature = [
+              spec.x, spec.y, spec.width, spec.height,
+              spec.blur, spec.skewDeg, spec.scaleY, spec.alpha
+            ].join("|");
+
+            // Most entity shadows never change after creation. Avoid rebuilding a
+            // Phaser Image (and its texture lookup/container insertion) when only
+            // the entity position is changing every frame.
+            if (this.shadowGraphic && this._shadowSignature === signature) return;
+
             const texture = getBlurredShadowTexture(spec);
             if (!texture) return;
 
-            if (this.shadowGraphic) {
-              this.go.remove(this.shadowGraphic, true);
-              this.shadowGraphic = null;
+            if (!this.shadowGraphic) {
+              // Entity shadow specs are already expressed in the entity's centered
+              // local coordinates (the old DOM ::before position converted from
+              // top-left into translate(-50%, -50%) space). Do not subtract half
+              // the entity size again here.
+              this.shadowGraphic = scene.add.image(spec.x, spec.y, texture.key)
+                .setOrigin(0.5)
+                .setAlpha(spec.alpha);
+              this.go.addAt(this.shadowGraphic, 0);
+            } else {
+              this.shadowGraphic.setTexture(texture.key);
+              this.shadowGraphic.setPosition(spec.x, spec.y);
+              this.shadowGraphic.setAlpha(spec.alpha);
             }
-            // Entity shadow specs are already expressed in the entity's centered
-            // local coordinates (the old DOM ::before position converted from
-            // top-left into translate(-50%, -50%) space). Do not subtract half
-            // the entity size again here.
-            this.shadowGraphic = scene.add.image(
-              spec.x,
-              spec.y,
-              texture.key
-            )
-              .setOrigin(0.5)
-              .setAlpha(spec.alpha);
-            this.go.addAt(this.shadowGraphic, 0);
+            this._shadowSignature = signature;
           }
 
           ensureSpecialGraphics() {
@@ -7849,15 +7908,30 @@ You can leave the game and come back anytime.</div>
               ensureGridTextureFrame(info, frame);
             if (!textureFrame) return;
             const images = this.dualTone ? [this.dayImage, this.nightImage] : [this.singleImage];
+            const bakedCloudShadow = this.special === "cloudShadow"
+              ? getBakedCloudShadowTexture(info, frame)
+              : null;
             for (const image of images) {
               if (!image) continue;
-              // setFrame makes the cropped cell the Game Object's actual source frame.
-              // setDisplaySize therefore scales one cell, not the full sprite sheet.
-              image.setTexture(info.key, textureFrame.name);
-              image.setDisplaySize(
-                Math.max(0.01, this.width || textureFrame.realWidth || textureFrame.width),
-                Math.max(0.01, this.height || textureFrame.realHeight || textureFrame.height)
-              );
+              if (bakedCloudShadow) {
+                image.setTexture(bakedCloudShadow.key);
+                image.setDisplaySize(
+                  Math.max(0.01, this.width || bakedCloudShadow.width),
+                  Math.max(0.01, this.height || bakedCloudShadow.height)
+                );
+                image.__cozzyCloudShadowBaked = true;
+              } else {
+                // setFrame makes the cropped cell the Game Object's actual source frame.
+                // setDisplaySize therefore scales one cell, not the full sprite sheet.
+                image.setTexture(info.key, textureFrame.name);
+                image.setDisplaySize(
+                  Math.max(0.01, this.width || textureFrame.realWidth || textureFrame.width),
+                  Math.max(0.01, this.height || textureFrame.realHeight || textureFrame.height)
+                );
+              }
+            }
+            if (this.special === "cloudShadow") {
+              applyCloudShadowStyle(this);
             }
             this.applyNightVisualFilter();
           }
@@ -8016,51 +8090,101 @@ You can leave the game and come back anytime.</div>
 
           applyStyleProperty(name, value) {
             switch (name) {
-              case "left": this.baseX = parsePx(value, this.baseX); break;
-              case "top": this.baseY = parsePx(value, this.baseY); break;
-              case "width": this.setSize(parsePx(value, this.width), this.height); break;
-              case "height": this.setSize(this.width, parsePx(value, this.height)); break;
-              case "opacity": this.setOpacityValue(value, true); break;
+              case "left":
+                this.baseX = parsePx(value, this.baseX);
+                this.syncPosition();
+                return;
+              case "top":
+                this.baseY = parsePx(value, this.baseY);
+                this.syncPosition();
+                return;
+              case "width":
+                this.setSize(parsePx(value, this.width), this.height);
+                return;
+              case "height":
+                this.setSize(this.width, parsePx(value, this.height));
+                return;
+              case "opacity":
+                this.setOpacityValue(value, true);
+                return;
               case "transition": {
                 const match = /opacity\s+([\d.]+)(ms|s)/i.exec(value);
                 if (match) this.opacityTransitionMs = Number(match[1]) * (match[2].toLowerCase() === "s" ? 1000 : 1);
-                break;
+                return;
               }
-              case "visibility": this.visible = value !== "hidden"; break;
-              case "pointerEvents": this.pointerEnabled = value !== "none"; this.syncInteractive(); break;
-              case "zIndex": this.sortY = parsePx(value, this.sortY); break;
-              case "backgroundImage": this.setBackgroundImage(value); break;
-              case "backgroundPosition": this.setBackgroundPosition(value); break;
-              case "transform": this.applyTransform(value); break;
-              case "transformOrigin": this.applyTransformOrigin(value); break;
+              case "visibility":
+                this.visible = value !== "hidden";
+                this.syncVisibility();
+                return;
+              case "pointerEvents":
+                this.pointerEnabled = value !== "none";
+                this.syncInteractive();
+                return;
+              case "zIndex":
+                this.sortY = parsePx(value, this.sortY);
+                if (this.go) this.go.setDepth(this.depthBand * 100000 + this.sortY);
+                return;
+              case "backgroundImage":
+                this.setBackgroundImage(value);
+                return;
+              case "backgroundPosition":
+                this.setBackgroundPosition(value);
+                return;
+              case "transform":
+                this.applyTransform(value);
+                this.syncPosition();
+                return;
+              case "transformOrigin":
+                this.applyTransformOrigin(value);
+                this.syncPosition();
+                return;
               case "webkitMaskPosition":
-              case "maskPosition": this.setBackgroundPosition(value); break;
+              case "maskPosition":
+                this.setBackgroundPosition(value);
+                return;
               case "backgroundColor":
                 if (this.special === "bird" && this.singleImage) this.singleImage.setTint(hexToNumber(value));
-                break;
-              case "--cloud-position": this.setBackgroundPosition(value); break;
-              case "--rain-spot-size": this.setSize(parsePx(value, this.width), parsePx(value, this.height)); break;
-              case "--rain-spot-frame-position": this.setBackgroundPosition(value); break;
-              case "--particle-size": this.setSize(parsePx(value, 1), parsePx(value, 1)); break;
+                return;
+              case "--cloud-position":
+                this.setBackgroundPosition(value);
+                return;
+              case "--rain-spot-size":
+                this.setSize(parsePx(value, this.width), parsePx(value, this.height));
+                return;
+              case "--rain-spot-frame-position":
+                this.setBackgroundPosition(value);
+                return;
+              case "--particle-size":
+                this.setSize(parsePx(value, 1), parsePx(value, 1));
+                return;
               case "--particle-color":
                 if (this.shadowGraphic?.setFillStyle) this.shadowGraphic.setFillStyle(hexToNumber(value), 1);
-                break;
-              case "--supply-box-image": this.setBackgroundImage(value); break;
-              case "--supply-box-background-position": this.setBackgroundPosition(value); break;
-              case "--stump-image": this.setBackgroundImage(value); break;
-              case "--car-image": this.setBackgroundImage(value); break;
+                return;
+              case "--supply-box-image":
+                this.setBackgroundImage(value);
+                return;
+              case "--supply-box-background-position":
+                this.setBackgroundPosition(value);
+                return;
+              case "--stump-image":
+              case "--car-image":
+                this.setBackgroundImage(value);
+                return;
               case "--shed-frame-position":
               case "--fence-frame-position":
               case "--walls-frame-position":
               case "--roof-frame-position":
               case "--garden-frame-position":
-              case "--car-frame-position": this.setBackgroundPosition(value); break;
-              case "--tree-part-image": this.setBackgroundImage(value); break;
-              default: break;
+              case "--car-frame-position":
+                this.setBackgroundPosition(value);
+                return;
+              case "--tree-part-image":
+                this.setBackgroundImage(value);
+                return;
+              default:
+                return;
             }
-            this.syncAll();
           }
-
           applyTransformOrigin(value) {
             const parts = String(value || "").trim().split(/\s+/);
             const parseAxis = (token, size) => {
@@ -8160,7 +8284,8 @@ You can leave the game and come back anytime.</div>
               this.hitRect.setSize(Math.max(0.01, this.width), Math.max(0.01, this.height));
               this.hitRect.setPosition(this.geometry === "center" ? 0 : this.width / 2, this.geometry === "center" ? 0 : this.height / 2);
             }
-            if (this.backgroundPath) this.applyTexture();
+            // Texture/frame changes are handled by setBackgroundImage()/setBackgroundPosition().
+            // A size-only change only needs setDisplaySize above.
           }
           syncVisibility() {
             if (!this.go) return;
@@ -8387,14 +8512,31 @@ You can leave the game and come back anytime.</div>
           syncCamera();
         }
 
-        function updateTone() {
+        function applyCloudShadowStyle(node) {
+          if (!node || node.special !== "cloudShadow" || !node.singleImage) return;
+          const image = node.singleImage;
+          // Baked cloud-shadow frames already contain the final dark RGB all the
+          // way through their soft alpha edge, so do not tint them again. Keep
+          // multiply only for the same ground-compositing behavior as the DOM layer.
+          if (image.__cozzyCloudShadowBaked) image.clearTint();
+          else image.setTintFill(0x303a72);
+          image.setBlendMode(Phaser.BlendModes.MULTIPLY);
+          image.__cozzyCloudShadowStyled = true;
+        }
+
+        let lastAppliedToneMix = Number.NaN;
+        function updateTone(force = false) {
           const mix = getSceneNightMix();
+          if (!force && Number.isFinite(lastAppliedToneMix) && Math.abs(mix - lastAppliedToneMix) < 0.0005) {
+            return mix;
+          }
+          lastAppliedToneMix = mix;
           for (const node of nodes) {
             node.syncAlpha();
-            node.applyNightVisualFilter();
-            if (node.special === "cloudShadow" && node.singleImage) {
-              node.singleImage.setTint(0x303a72);
-              node.singleImage.setBlendMode(Phaser.BlendModes.MULTIPLY);
+            // Night ColorMatrix is static for a given texture and is already applied
+            // by applyTexture(). Do not re-check/rebuild it every animation frame.
+            if (node.special === "cloudShadow" && node.singleImage && !node.singleImage.__cozzyCloudShadowStyled) {
+              applyCloudShadowStyle(node);
             }
           }
           return mix;
@@ -8658,11 +8800,13 @@ You can leave the game and come back anytime.</div>
                 Promise.all(Array.from(STATIC_ASSETS, loadNaturalImage)).then(() => {
                   buildBackgrounds();
                   attachAll();
+                  updateTone(true);
                   syncCamera();
                   readyResolve();
                 }).catch((error) => {
                   console.error("Phaser field preload failed", error);
                   attachAll();
+                  updateTone(true);
                   syncCamera();
                   readyResolve();
                 });
