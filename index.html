@@ -734,7 +734,7 @@
       /* Todo는 부모의 white-space: pre-wrap 때문에 HTML 줄바꿈 공백이
          약 0.4em 높이의 추가 세로 공간으로 보입니다.
          JS로 연속 생성되는 Loot에는 그 공백 노드가 없으므로 같은 4px만 쓰면 더 붙어 보입니다. */
-      margin-top: calc(9px + 0.4em);
+      margin-top: calc(10px + 0.4em);
     }
 
 
@@ -4783,7 +4783,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.202"
+  data-game-version="0.203"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -17096,15 +17096,23 @@ You can leave the game and come back anytime.</div>
 
         cloud.element.style.left = `${renderX}px`;
         cloud.element.style.top = `${renderY}px`;
-        cloud.element.style.transform =
-          `translate(-50%, -50%) scale(${cloud.scale})`;
+
+        // scale은 구름 생성 후 바뀌지 않으므로 같은 transform DOM 쓰기를 반복하지 않습니다.
+        const transform = `translate(-50%, -50%) scale(${cloud.scale})`;
+        if (cloud.renderedTransform !== transform) {
+          cloud.renderedTransform = transform;
+          cloud.element.style.transform = transform;
+        }
       }
 
       function applyCloudOpacity(cloud, opacityFactor) {
         cloud.opacityFactor = clamp(opacityFactor, 0, 1);
-        cloud.element.style.opacity = String(
-          cloud.baseOpacity * cloud.opacityFactor
-        );
+        const opacity = String(cloud.baseOpacity * cloud.opacityFactor);
+
+        // 실제 표시값이 같으면 style 쓰기를 생략합니다.
+        if (cloud.renderedOpacity === opacity) return;
+        cloud.renderedOpacity = opacity;
+        cloud.element.style.opacity = opacity;
       }
 
       function updateCloudOpacity(cloud, now) {
@@ -17437,6 +17445,11 @@ You can leave the game and come back anytime.</div>
       function setBirdFrame(bird, frameIndex) {
         const normalizedFrame =
           frameIndex % BIRD_FRAME_COUNT;
+
+        // 같은 애니메이션 프레임이 유지되는 동안 mask-position을 다시 쓰지 않습니다.
+        if (bird.renderedFrameIndex === normalizedFrame) return;
+        bird.renderedFrameIndex = normalizedFrame;
+
         const col =
           normalizedFrame % BIRD_SHEET_COLUMNS;
         const row = Math.floor(
@@ -17755,7 +17768,9 @@ You can leave the game and come back anytime.</div>
 
           bird.element.style.left = `${x}px`;
           bird.element.style.top = `${y}px`;
-          bird.element.style.opacity = "1";
+          if (bird.element.style.opacity !== "1") {
+            bird.element.style.opacity = "1";
+          }
           setBirdFrame(bird, frameIndex);
 
           if (progress >= 1) {
@@ -19742,6 +19757,26 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         return Number.isFinite(value) && value > 0 ? value : 1;
       }
 
+      // 엔티티 depth 판정에 필요한 고정 DOM 측정값은 매 프레임 읽지 않고 캐싱합니다.
+      let entityDepthMetrics = null;
+      let entityDepthMetricsRevision = 0;
+
+      function refreshEntityDepthMetrics() {
+        entityDepthMetrics = {
+          treeScale: getTreeRenderScale(),
+          treeLeft: tree.offsetLeft,
+          treeTop: tree.offsetTop,
+          shedCenterY: shedObject.offsetTop + shedObject.offsetHeight / 2,
+          carCenterY: carObject.offsetTop + carObject.offsetHeight / 2
+        };
+        entityDepthMetricsRevision += 1;
+        return entityDepthMetrics;
+      }
+
+      function getEntityDepthMetrics() {
+        return entityDepthMetrics || refreshEntityDepthMetrics();
+      }
+
       function isPointInsideDepthZone(pointX, pointY, zone) {
         return (
           pointX >= zone.left &&
@@ -19751,10 +19786,13 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         );
       }
 
-      function getEntityTreeDepthRelation(worldX, worldGroundY) {
-        const treeScale = getTreeRenderScale();
-        const localX = (worldX - tree.offsetLeft) / treeScale;
-        const localY = (worldGroundY - tree.offsetTop) / treeScale;
+      function getEntityTreeDepthRelation(
+        worldX,
+        worldGroundY,
+        metrics = getEntityDepthMetrics()
+      ) {
+        const localX = (worldX - metrics.treeLeft) / metrics.treeScale;
+        const localY = (worldGroundY - metrics.treeTop) / metrics.treeScale;
 
         const isInsideTreeBounds = (
           localX >= 0 &&
@@ -19773,20 +19811,25 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           : "behind";
       }
 
-      function updateEntityTreeDepth(element, worldX, worldGroundY, sortY) {
-        const shedCenterY = shedObject.offsetTop + shedObject.offsetHeight / 2;
-        const carCenterY = carObject.offsetTop + carObject.offsetHeight / 2;
+      function updateEntityTreeDepth(
+        element,
+        worldX,
+        worldGroundY,
+        sortY,
+        metrics = getEntityDepthMetrics()
+      ) {
         const treeDepthRelation = getEntityTreeDepthRelation(
           worldX,
-          worldGroundY
+          worldGroundY,
+          metrics
         );
 
         let targetLayer;
-        if (worldGroundY < shedCenterY) {
+        if (worldGroundY < metrics.shedCenterY) {
           targetLayer = entitiesBehindShed;
         } else if (treeDepthRelation === "behind") {
           targetLayer = entitiesBehindTree;
-        } else if (worldGroundY < carCenterY) {
+        } else if (worldGroundY < metrics.carCenterY) {
           targetLayer = entities;
         } else {
           targetLayer = entitiesFrontStructures;
@@ -19797,15 +19840,53 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         }
 
         // 같은 레이어 안에서는 기존처럼 아래쪽 엔티티가 앞에 표시됩니다.
-        element.style.zIndex = String(Math.round(sortY));
+        const zIndex = String(Math.round(sortY));
+        if (element.style.zIndex !== zIndex) {
+          element.style.zIndex = zIndex;
+        }
+      }
+
+      function renderEntityPosition(entity, element, x, y, worldGroundY, sortY) {
+        const metrics = getEntityDepthMetrics();
+        const revision = entityDepthMetricsRevision;
+
+        // 좌표와 depth 기준이 모두 같으면 동일한 left/top/depth 갱신을 생략합니다.
+        if (
+          entity.renderedPositionX === x &&
+          entity.renderedPositionY === y &&
+          entity.renderedGroundY === worldGroundY &&
+          entity.renderedDepthMetricsRevision === revision
+        ) {
+          return;
+        }
+
+        if (entity.renderedPositionX !== x) {
+          element.style.left = `${x}px`;
+        }
+        if (entity.renderedPositionY !== y) {
+          element.style.top = `${y}px`;
+        }
+
+        updateEntityTreeDepth(
+          element,
+          x,
+          worldGroundY,
+          sortY,
+          metrics
+        );
+
+        entity.renderedPositionX = x;
+        entity.renderedPositionY = y;
+        entity.renderedGroundY = worldGroundY;
+        entity.renderedDepthMetricsRevision = revision;
       }
 
       function renderZombie(zombie) {
-        zombie.element.style.left = `${zombie.x}px`;
-        zombie.element.style.top = `${zombie.y}px`;
-        updateEntityTreeDepth(
+        renderEntityPosition(
+          zombie,
           zombie.element,
           zombie.x,
+          zombie.y,
           zombie.y + ZOMBIE_DEPTH_POINT_OFFSET_Y,
           zombie.y
         );
@@ -19928,11 +20009,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function renderDeer(deer) {
-        deer.element.style.left = `${deer.x}px`;
-        deer.element.style.top = `${deer.y}px`;
-        updateEntityTreeDepth(
+        renderEntityPosition(
+          deer,
           deer.element,
           deer.x,
+          deer.y,
           deer.y + DEER_DEPTH_POINT_OFFSET_Y,
           deer.y
         );
@@ -20457,11 +20538,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function renderDog(activeDog) {
-        activeDog.element.style.left = `${activeDog.x}px`;
-        activeDog.element.style.top = `${activeDog.y}px`;
-        updateEntityTreeDepth(
+        renderEntityPosition(
+          activeDog,
           activeDog.element,
           activeDog.x,
+          activeDog.y,
           activeDog.y + activeDog.size * 0.34,
           activeDog.y
         );
@@ -21706,11 +21787,11 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function renderCat(activeCat) {
-        activeCat.element.style.left = `${activeCat.x}px`;
-        activeCat.element.style.top = `${activeCat.y}px`;
-        updateEntityTreeDepth(
+        renderEntityPosition(
+          activeCat,
           activeCat.element,
           activeCat.x,
+          activeCat.y,
           activeCat.y + CAT_DEPTH_POINT_OFFSET_Y,
           activeCat.y
         );
@@ -26280,6 +26361,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       window.addEventListener("resize", () => {
         updateWorldScale();
+        refreshEntityDepthMetrics();
         keepFreeRoamDogInsideMovementZone(dog);
         syncRainDropCount();
         updateRainDropViewportMotion();
