@@ -44,5 +44,21 @@ I cross-bred a silverback gorilla with a praying mantis, then gave it AK-47s for
 Page 2:
 It escaped.`,
     author: "Justin"
+  }),
+
+  Object.freeze({
+    id: "note_008",
+    text: `Murphy’s law doesn’t mean that something bad will happen. It means that whatever can happen, will happen.`,
+    author: "Cooper"
+  }),
+
+  Object.freeze({
+    id: "note_009",
+    text: `Brand: “Cooper, what are you doing?”
+Cooper: “Docking.”
+Brand: “It’s not possible.”
+Cooper: “No. It’s necessary.”`,
+    author: "Interstellar",
+    authorItalic: true
   })
 ]);
