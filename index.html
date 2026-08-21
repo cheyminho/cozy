@@ -3382,8 +3382,8 @@
     }
 
     /*
-      현재 적용 중인 설계도는 네모 외곽선 끝까지 닿는 X로 표시합니다.
-      X도 네모와 같은 비율로 확대·축소되어 호버와 클릭 반응을 함께합니다.
+      현재 적용 중인 설계도는 네모 안에 체크마크로 표시합니다.
+      체크마크도 네모와 같은 비율로 확대·축소되어 호버와 클릭 반응을 함께합니다.
     */
     .repair-grid-item.is-applied::after {
       content: "";
@@ -3391,47 +3391,24 @@
       left: 50%;
       top: 50%;
       z-index: 1;
-      width: 20px;
-      height: 20px;
-      border-radius: 3px;
-      background:
-        linear-gradient(
-          45deg,
-          transparent calc(50% - 0.3px),
-          rgba(255, 255, 255, 1) calc(50% - 0.3px),
-          rgba(255, 255, 255, 1) calc(50% + 0.3px),
-          transparent calc(50% + 0.3px)
-        ),
-        linear-gradient(
-          -45deg,
-          transparent calc(50% - 0.3px),
-          rgba(255, 255, 255, 1) calc(50% - 0.3px),
-          rgba(255, 255, 255, 1) calc(50% + 0.3px),
-          transparent calc(50% + 0.3px)
-        );
-      transform: translate(-50%, -50%) scale(1);
+      width: 5px;
+      height: 10px;
+      border-right: 1.6px solid rgba(255, 255, 255, 1);
+      border-bottom: 1.6px solid rgba(255, 255, 255, 1);
+      border-radius: 0 0 1px 0;
+      transform: translate(-58%, -66%) rotate(45deg) scale(1);
+      transform-origin: center center;
       transition: transform 90ms ease-out;
       pointer-events: none;
     }
 
     .repair-grid-item.is-applied.is-selected::after {
-      width: 22px;
-      height: 22px;
-      background:
-        linear-gradient(
-          45deg,
-          transparent calc(50% - 0.4px),
-          rgba(24, 24, 24, 1) calc(50% - 0.4px),
-          rgba(24, 24, 24, 1) calc(50% + 0.4px),
-          transparent calc(50% + 0.4px)
-        ),
-        linear-gradient(
-          -45deg,
-          transparent calc(50% - 0.4px),
-          rgba(24, 24, 24, 1) calc(50% - 0.4px),
-          rgba(24, 24, 24, 1) calc(50% + 0.4px),
-          transparent calc(50% + 0.4px)
-        );
+      width: 5px;
+      height: 10px;
+      border-right-width: 1.8px;
+      border-bottom-width: 1.8px;
+      border-right-color: rgba(24, 24, 24, 1);
+      border-bottom-color: rgba(24, 24, 24, 1);
     }
 
     /* House > Type에서 적용 중인 네모는 기존 20px 테두리 바깥 3px 간격에 외곽선을 한 번 더 표시합니다. */
@@ -3450,9 +3427,12 @@
     }
 
     .repair-grid-item:active::before,
-    .repair-grid-item:active::after,
     .repair-grid-item:active .repair-grid-item-applied-outline {
       transform: translate(-50%, -50%) scale(0.82);
+    }
+
+    .repair-grid-item:active::after {
+      transform: translate(-58%, -66%) rotate(45deg) scale(0.82);
     }
 
     .repair-grid-item:focus-visible::before {
@@ -3461,34 +3441,21 @@
 
     @media (hover: hover) and (pointer: fine) {
       .repair-grid-item:hover::before,
-      .repair-grid-item:hover::after,
       .repair-grid-item:hover .repair-grid-item-applied-outline {
         transform: translate(-50%, -50%) scale(1.38);
       }
 
-      /* 선택된 검은색 X는 호버 중에만 흰색 X와 같은 0.6px 굵기로 표시합니다. */
-      .repair-grid-item.is-applied.is-selected:hover::after {
-        background:
-          linear-gradient(
-            45deg,
-            transparent calc(50% - 0.3px),
-            rgba(24, 24, 24, 1) calc(50% - 0.3px),
-            rgba(24, 24, 24, 1) calc(50% + 0.3px),
-            transparent calc(50% + 0.3px)
-          ),
-          linear-gradient(
-            -45deg,
-            transparent calc(50% - 0.3px),
-            rgba(24, 24, 24, 1) calc(50% - 0.3px),
-            rgba(24, 24, 24, 1) calc(50% + 0.3px),
-            transparent calc(50% + 0.3px)
-          );
+      .repair-grid-item:hover::after {
+        transform: translate(-58%, -66%) rotate(45deg) scale(1.38);
       }
 
       .repair-grid-item:active::before,
-      .repair-grid-item:active::after,
       .repair-grid-item:active .repair-grid-item-applied-outline {
         transform: translate(-50%, -50%) scale(0.82);
+      }
+
+      .repair-grid-item:active::after {
+        transform: translate(-58%, -62%) rotate(45deg) scale(0.82);
       }
     }
 
@@ -4977,7 +4944,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.211"
+  data-game-version="0.212"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6750,8 +6717,12 @@ You can leave the game and come back anytime.</div>
       };
       const TIMBER_ROOF_BLUEPRINT_ID = "timberRoof";
       const CHARCOAL_ROOF_BLUEPRINT_ID = "charcoalRoof";
+      const THATCHED_ROOF_BLUEPRINT_ID = "thatchedRoof";
+      const RED_TILE_ROOF_BLUEPRINT_ID = "redTileRoof";
       const TIMBER_WALLS_BLUEPRINT_ID = "timberWalls";
       const MINT_WALLS_BLUEPRINT_ID = "mintWalls";
+      const EARTHEN_WALLS_BLUEPRINT_ID = "earthenWalls";
+      const STONE_WALLS_BLUEPRINT_ID = "stoneWalls";
       const BUILDING_BLUEPRINT_DEFINITIONS = {
         [TIMBER_ROOF_BLUEPRINT_ID]: {
           sectionKey: "roof",
@@ -6767,6 +6738,20 @@ You can leave the game and come back anytime.</div>
           builtDescription: "Dark wood with a quiet look.",
           framePosition: "right top"
         },
+        [THATCHED_ROOF_BLUEPRINT_ID]: {
+          sectionKey: "roof",
+          name: "Thatched Roof",
+          materials: { wood: 15 },
+          builtDescription: "A rustic roof woven from dried grass.",
+          framePosition: "left bottom"
+        },
+        [RED_TILE_ROOF_BLUEPRINT_ID]: {
+          sectionKey: "roof",
+          name: "Red Tile Roof",
+          materials: { wood: 10, stone: 15, yellowPaint: 1, redPaint: 2 },
+          builtDescription: "Red clay tiles with an old-world charm.",
+          framePosition: "right bottom"
+        },
         [TIMBER_WALLS_BLUEPRINT_ID]: {
           sectionKey: "walls",
           name: "Timber Walls",
@@ -6780,6 +6765,20 @@ You can leave the game and come back anytime.</div>
           materials: { wood: 15, whitePaint: 1, greenPaint: 2 },
           builtDescription: "A fresh touch of mint and white.",
           framePosition: "right top"
+        },
+        [EARTHEN_WALLS_BLUEPRINT_ID]: {
+          sectionKey: "walls",
+          name: "Earthen Walls",
+          materials: { wood: 20, whitePaint: 2 },
+          builtDescription: "Timber beams with warm earthen walls.",
+          framePosition: "left bottom"
+        },
+        [STONE_WALLS_BLUEPRINT_ID]: {
+          sectionKey: "walls",
+          name: "Stone Walls",
+          materials: { wood: 15, stone: 20, whitePaint: 1, blackPaint: 1 },
+          builtDescription: "Timber beams set into sturdy stone.",
+          framePosition: "right bottom"
         }
       };
       /*
@@ -6801,8 +6800,12 @@ You can leave the game and come back anytime.</div>
         { destinations: ["forest"], category: "outdoor", blueprintId: WHITE_FENCE_BLUEPRINT_ID },
         { destinations: ["village"], category: "buildings", blueprintId: TIMBER_ROOF_BLUEPRINT_ID },
         { destinations: ["village"], category: "buildings", blueprintId: CHARCOAL_ROOF_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: THATCHED_ROOF_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: RED_TILE_ROOF_BLUEPRINT_ID },
         { destinations: ["village"], category: "buildings", blueprintId: TIMBER_WALLS_BLUEPRINT_ID },
         { destinations: ["village"], category: "buildings", blueprintId: MINT_WALLS_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: EARTHEN_WALLS_BLUEPRINT_ID },
+        { destinations: ["village"], category: "buildings", blueprintId: STONE_WALLS_BLUEPRINT_ID },
         { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_WHITE_BLUEPRINT_ID },
         { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_BLACK_BLUEPRINT_ID },
         { destinations: ["city"], category: "repair", blueprintId: CAR_PAINT_BLUE_BLUEPRINT_ID },
