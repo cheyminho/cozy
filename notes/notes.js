@@ -8,7 +8,8 @@ window.NOTE_DATA = Object.freeze([
   Object.freeze({
     id: "note_002",
     text: `There is nothing either good or bad but thinking makes it so.`,
-    author: "William Shakespeare"
+    author: "Hamlet",
+	title: true
   }),
 
   Object.freeze({
@@ -55,10 +56,37 @@ It escaped.`,
   Object.freeze({
     id: "note_009",
     text: `Brand: “Cooper, what are you doing?”
+
 Cooper: “Docking.”
+
 Brand: “It’s not possible.”
+
 Cooper: “No. It’s necessary.”`,
     author: "Interstellar",
-    authorItalic: true
+    title: true
+  }),
+
+  Object.freeze({
+    id: "note_010",
+    text: `1. Make something that satisfies you, the developer, first.
+
+2. Growth and player feedback cannot be ignored.
+
+3. Find the strengths before trying to eliminate the weaknesses.
+
+4. A rough but playable build is worth more than countless documents.
+
+5. Fun is both the goal and the bottom line.
+
+6. There is no fixed formula for beauty.
+
+7. When there’s nowhere else to go, increase the density.
+
+8. Start by aiming for the best; finish by becoming the best.
+
+9. Only when it’s difficult does it become worthwhile.
+
+10. Ideas are cheap. Putting them into action is what has value.`,
+    author: "Feng Ji,",
   })
 ]);
