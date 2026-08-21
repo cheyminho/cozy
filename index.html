@@ -5093,7 +5093,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.213"
+  data-game-version="0.214"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -22370,7 +22370,12 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           event.preventDefault();
         }
 
-        if (isExploring || document.body.classList.contains("is-night")) {
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return;
+        }
+
+        if (document.body.classList.contains("is-night")) {
           return;
         }
 
@@ -25144,7 +25149,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         if (entityType === "supplyBox") {
           if (supplyBox && supplyBox.id === entityId) {
-            return activateSupplyBox(supplyBox);
+            return activateSupplyBox(supplyBox, event);
           }
           return false;
         }
@@ -26228,7 +26233,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function getSupplyBoxAtClientPoint(clientX, clientY) {
-        if (isExploring || !supplyBox) return null;
+        if (!supplyBox) return null;
         if (supplyBox.state !== "flying" && supplyBox.state !== "landed") {
           return null;
         }
@@ -26421,8 +26426,12 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         return true;
       }
 
-      function activateSupplyBox(activeSupplyBox) {
-        if (isExploring || !activeSupplyBox) return false;
+      function activateSupplyBox(activeSupplyBox, event = null) {
+        if (!activeSupplyBox) return false;
+        if (isExploring) {
+          showExploringBusyToast(event);
+          return true;
+        }
         if (activeSupplyBox.state === "flying") {
           return tryShootSupplyBox(activeSupplyBox);
         }
