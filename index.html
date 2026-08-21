@@ -224,6 +224,26 @@
       --cloud-brightness: 1;
       --cloud-saturation: 1;
       --cloud-contrast: 1;
+
+      /*
+        노트 하단 author / title 폰트 설정
+        - notes.js에서 title: true면 title 설정을 사용합니다.
+        - title 기본값은 false입니다.
+      */
+      --note-reader-font-size: clamp(18px, 2.3vw, 22px);
+      /* 세로 공간이 부족할 때 자동 축소할 수 있는 최소 크기입니다. */
+      --note-reader-min-font-size: 8px;
+      --note-author-font-weight: 400;
+      --note-author-font-style: normal;
+      --note-title-font-size: calc(var(--note-reader-font-size) - 2px);
+      --note-title-font-weight: 300;
+      --note-title-font-style: italic;
+
+      /* 밤 반딧불 기본 설정 */
+      --firefly-color: #d9ff6b;
+      --firefly-size: 3px;
+      --firefly-glow-size: 14px;
+      --firefly-layer-opacity: 0.9;
     }
 
     * {
@@ -2867,7 +2887,9 @@
       -ms-overflow-style: none;
       color: #fff;
       font-family: "Kalam", cursive;
-      font-size: clamp(18px, 2.3vw, 22px);
+      /* 기본은 --note-reader-font-size이며, 낮은 화면에서는 JS가 이 값만 자동 축소합니다. */
+      --note-reader-current-font-size: var(--note-reader-font-size);
+      font-size: var(--note-reader-current-font-size);
       font-style: normal;
       font-weight: 300;
       line-height: 1.45;
@@ -2887,10 +2909,51 @@
       overflow-wrap: break-word;
     }
 
+    /*
+      1. / 2. 형태의 번호 목록 노트는 줄이 자동으로 넘어갈 때
+      두 번째 줄부터 본문 시작 위치에 맞춰 hanging indent를 적용합니다.
+    */
+    #noteReaderText.is-numbered-note {
+      white-space: normal;
+    }
+
+    .note-reader-numbered-line {
+      display: grid;
+      grid-template-columns: 2.2em minmax(0, 1fr);
+      column-gap: 0.12em;
+      align-items: start;
+    }
+
+    .note-reader-numbered-index {
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    .note-reader-numbered-body,
+    .note-reader-plain-line {
+      min-width: 0;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+
+    .note-reader-blank-line {
+      height: 1.45em;
+    }
+
     #noteReaderAuthor {
       margin-top: 1.45em;
       text-align: right;
       white-space: pre-wrap;
+      font-size: var(--note-reader-current-font-size);
+      font-weight: var(--note-author-font-weight);
+      font-style: var(--note-author-font-style);
+    }
+
+    /* notes.js에서 title: true인 경우 작품명/제목용 별도 스타일을 사용합니다. */
+    #noteReaderAuthor.is-title {
+      font-size: max(6px, calc(var(--note-reader-current-font-size) - 2px));
+      font-weight: var(--note-title-font-weight);
+      font-style: var(--note-title-font-style);
     }
 
     #repairMenu {
@@ -4924,6 +4987,92 @@
       pointer-events: none;
     }
 
+    /*
+      밤 필드 반딧불. #atmosphereWorld 안에 있어 화면 드래그/줌을 필드와 함께 따라갑니다.
+      실제 밤 또는 Night 컬러 테스트일 때만 활성화하며, 낮에는 애니메이션도 멈춥니다.
+    */
+    #fireflyLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 22;
+      overflow: visible;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      filter: saturate(1.25) brightness(1.12);
+      transition: opacity 900ms ease, visibility 0s linear 900ms;
+    }
+
+    #fireflyLayer.is-active {
+      opacity: var(--firefly-layer-opacity);
+      visibility: visible;
+      transition-delay: 0s;
+    }
+
+    body.is-start-screen #fireflyLayer,
+    body.is-rainy #fireflyLayer {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .firefly {
+      position: absolute;
+      left: var(--firefly-left);
+      top: var(--firefly-top);
+      width: 1px;
+      height: 1px;
+      animation: firefly-drift var(--firefly-drift-duration) ease-in-out infinite alternate;
+      animation-delay: var(--firefly-drift-delay);
+      animation-play-state: paused;
+      will-change: transform;
+      pointer-events: none;
+    }
+
+    #fireflyLayer.is-active .firefly {
+      animation-play-state: running;
+    }
+
+    .firefly::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: var(--firefly-dot-size, var(--firefly-size));
+      height: var(--firefly-dot-size, var(--firefly-size));
+      border-radius: 50%;
+      background: var(--firefly-color);
+      opacity: 0;
+      box-shadow:
+        0 0 calc(var(--firefly-glow-size) * 0.55) rgba(217, 255, 107, 0.95),
+        0 0 calc(var(--firefly-glow-size) * 1.15) rgba(217, 255, 107, 0.72),
+        0 0 calc(var(--firefly-glow-size) * 1.8) rgba(172, 255, 64, 0.46);
+      transform: translate(-50%, -50%) scale(0.45);
+      animation: firefly-blink var(--firefly-blink-duration) ease-in-out infinite;
+      animation-delay: var(--firefly-blink-delay);
+      animation-play-state: paused;
+      will-change: opacity, transform;
+    }
+
+    #fireflyLayer.is-active .firefly::before {
+      animation-play-state: running;
+    }
+
+    @keyframes firefly-drift {
+      0% { transform: translate3d(0, 0, 0); }
+      35% { transform: translate3d(var(--firefly-drift-x1), var(--firefly-drift-y1), 0); }
+      70% { transform: translate3d(var(--firefly-drift-x2), var(--firefly-drift-y2), 0); }
+      100% { transform: translate3d(var(--firefly-drift-x3), var(--firefly-drift-y3), 0); }
+    }
+
+    @keyframes firefly-blink {
+      0%, 18%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
+      34% { opacity: 0.18; }
+      47% { opacity: var(--firefly-peak-opacity, 0.95); transform: translate(-50%, -50%) scale(1); }
+      61% { opacity: 0.28; }
+      76% { opacity: 0; transform: translate(-50%, -50%) scale(0.55); }
+    }
+
     /* Rain tone overlays intentionally remain DOM-based so brightness/saturation/contrast
        match the pre-Phaser field exactly instead of being approximated with colored quads. */
     #viewport > #rainDayTone,
@@ -4944,7 +5093,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.212"
+  data-game-version="0.213"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5273,6 +5422,7 @@
       <div id="atmosphereWorld" aria-hidden="true">
         <div id="birds"></div>
         <div id="clouds"></div>
+        <div id="fireflyLayer"></div>
       </div>
     </div>
     <!-- 비 컬러톤과 빗줄기는 첨부한 기존 DOM 방식 그대로 유지합니다. -->
@@ -5637,6 +5787,8 @@ You can leave the game and come back anytime.</div>
       "use strict";
 
       const WORLD_SIZE = 2048;
+      const FIREFLY_COUNT = 26;
+      const FIREFLY_FIELD_MARGIN = 90;
 
       /*
         개체 비어 있음 판정은 현재 화면이 아니라 2048×2048 전체 필드를 기준으로 합니다.
@@ -8021,9 +8173,9 @@ You can leave the game and come back anytime.</div>
 
             // CSS filter saturate(s) matrix from the Filter Effects specification.
             const saturationMatrix = [
-              0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0,
-              0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0,
-              0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0,
+              0.214 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0,
+              0.214 - 0.214 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0,
+              0.214 - 0.214 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0,
               0, 0, 0, 1, 0,
               0, 0, 0, 0, 1
             ];
@@ -9101,6 +9253,7 @@ You can leave the game and come back anytime.</div>
       const versionTestButton = document.getElementById("versionTestButton");
       const versionNumber = document.getElementById("versionNumber");
       const sceneColorTestControls = document.getElementById("sceneColorTestControls");
+      const fireflyLayer = document.getElementById("fireflyLayer");
       const sceneColorTestButtons = Array.from(
         document.querySelectorAll(".scene-color-test-button")
       );
@@ -15034,19 +15187,132 @@ You can leave the game and come back anytime.</div>
         return true;
       }
 
+      function fitNoteReaderToViewport() {
+        if (!noteReaderContent || !noteReaderOverlay?.classList.contains("is-open")) return;
+
+        // 먼저 원래 설정 크기로 되돌린 뒤, 실제 세로 공간이 넘칠 때만 축소합니다.
+        noteReaderContent.style.removeProperty("--note-reader-current-font-size");
+        noteReaderContent.scrollTop = 0;
+
+        const overlayStyle = getComputedStyle(noteReaderOverlay);
+        const contentStyle = getComputedStyle(noteReaderContent);
+        const paddingTop = Number.parseFloat(overlayStyle.paddingTop) || 0;
+        const paddingBottom = Number.parseFloat(overlayStyle.paddingBottom) || 0;
+        const overlayAvailableHeight = Math.max(1, noteReaderOverlay.clientHeight - paddingTop - paddingBottom);
+        const cssMaxHeight = Number.parseFloat(contentStyle.maxHeight);
+        const availableHeight = Number.isFinite(cssMaxHeight)
+          ? Math.min(overlayAvailableHeight, cssMaxHeight)
+          : overlayAvailableHeight;
+
+        const defaultFontSize = Number.parseFloat(contentStyle.fontSize) || 18;
+        const minFontSize = Math.min(
+          defaultFontSize,
+          Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-reader-min-font-size")) || 8
+        );
+
+        if (noteReaderContent.scrollHeight <= availableHeight + 1) return;
+
+        // 폰트가 작아지면 줄바꿈 수도 줄어들기 때문에 이분 탐색으로 가장 큰 맞춤 크기를 찾습니다.
+        let low = minFontSize;
+        let high = defaultFontSize;
+        let best = minFontSize;
+
+        noteReaderContent.style.setProperty("--note-reader-current-font-size", `${minFontSize}px`);
+        if (noteReaderContent.scrollHeight > availableHeight + 1) {
+          // 극단적으로 긴 노트는 최소 크기에서만 기존 스크롤을 fallback으로 남깁니다.
+          return;
+        }
+
+        for (let i = 0; i < 12; i += 1) {
+          const mid = (low + high) / 2;
+          noteReaderContent.style.setProperty("--note-reader-current-font-size", `${mid}px`);
+          if (noteReaderContent.scrollHeight <= availableHeight + 1) {
+            best = mid;
+            low = mid;
+          } else {
+            high = mid;
+          }
+        }
+
+        noteReaderContent.style.setProperty("--note-reader-current-font-size", `${Math.max(minFontSize, best - 0.1).toFixed(2)}px`);
+        noteReaderContent.scrollTop = 0;
+      }
+
+      function scheduleNoteReaderFit() {
+        requestAnimationFrame(() => {
+          if (!activeNoteReaderId) return;
+          fitNoteReaderToViewport();
+        });
+      }
+
+      function renderNoteReaderText(noteText) {
+        if (!noteReaderText) return;
+
+        const text = String(noteText || "");
+        const lines = text.split("\n");
+        const numberedPattern = /^(\s*)(\d+\.)\s+(.*)$/;
+        const hasNumberedLine = lines.some((line) => numberedPattern.test(line));
+
+        noteReaderText.replaceChildren();
+        noteReaderText.classList.toggle("is-numbered-note", hasNumberedLine);
+
+        if (!hasNumberedLine) {
+          noteReaderText.textContent = text;
+          return;
+        }
+
+        for (const line of lines) {
+          const numberedMatch = line.match(numberedPattern);
+          if (numberedMatch) {
+            const row = document.createElement("div");
+            row.className = "note-reader-numbered-line";
+
+            const index = document.createElement("span");
+            index.className = "note-reader-numbered-index";
+            index.textContent = `${numberedMatch[1]}${numberedMatch[2]}`;
+
+            const body = document.createElement("span");
+            body.className = "note-reader-numbered-body";
+            body.textContent = numberedMatch[3];
+
+            row.append(index, body);
+            noteReaderText.append(row);
+            continue;
+          }
+
+          if (line.length === 0) {
+            const blank = document.createElement("div");
+            blank.className = "note-reader-blank-line";
+            noteReaderText.append(blank);
+            continue;
+          }
+
+          const plainLine = document.createElement("div");
+          plainLine.className = "note-reader-plain-line";
+          plainLine.textContent = line;
+          noteReaderText.append(plainLine);
+        }
+      }
+
       function openNoteReader(noteId) {
         if (!isInventoryOpen || !acquiredNoteIds.has(noteId)) return false;
         const note = getNoteDefinition(noteId);
         if (!note || !noteReaderOverlay || !noteReaderText || !noteReaderAuthor) return false;
 
         activeNoteReaderId = noteId;
-        noteReaderText.textContent = String(note.text || "");
+        renderNoteReaderText(note.text);
         noteReaderAuthor.textContent = String(note.author || "");
-        noteReaderAuthor.style.fontStyle = note.authorItalic === true ? "italic" : "normal";
+        noteReaderAuthor.classList.toggle("is-title", note.title === true);
         inventoryMenu.classList.add("is-note-reader-hidden");
         noteReaderOverlay.classList.add("is-open");
         noteReaderOverlay.setAttribute("aria-hidden", "false");
         if (noteReaderContent) noteReaderContent.scrollTop = 0;
+        scheduleNoteReaderFit();
+        if (document.fonts?.ready) {
+          document.fonts.ready.then(() => {
+            if (activeNoteReaderId === noteId) scheduleNoteReaderFit();
+          });
+        }
         playSound(NOTE_PAPER_SOUND);
         return true;
       }
@@ -15105,6 +15371,10 @@ You can leave the game and come back anytime.</div>
         if (event.pointerId !== noteReaderPointerId) return;
         noteReaderPointerId = null;
         noteReaderPointerMoved = false;
+      });
+
+      window.addEventListener("resize", () => {
+        if (activeNoteReaderId) scheduleNoteReaderFit();
       });
 
       function openInventory() {
@@ -16238,6 +16508,7 @@ You can leave the game and come back anytime.</div>
         const wasRainy = document.body.classList.contains("is-rainy");
         document.body.classList.toggle("is-rainy", shouldRain);
         syncRainSpots(shouldRain);
+        syncFireflyVisibility();
         updateWeatherLabel();
 
         if (options.previewOnly !== true) {
@@ -17006,6 +17277,7 @@ You can leave the game and come back anytime.</div>
       function clearSceneColorTestSessionState() {
         clearSceneColorTestOverride();
         syncHouseExplorationLightForSceneColorTest();
+        syncFireflyVisibility();
         FORCE_RAIN_FOR_TEST = null;
         setWeatherTestButtonsVisible(false);
         saveSceneColorTestControlsEnabled(false);
@@ -17062,6 +17334,45 @@ You can leave the game and come back anytime.</div>
         updateWeatherTestButtonState();
       }
 
+      function createFireflies() {
+        if (!fireflyLayer || fireflyLayer.childElementCount > 0) return;
+
+        const randomRange = (min, max) => min + Math.random() * (max - min);
+        const fieldLeft = GAME_ZONE.left + FIREFLY_FIELD_MARGIN;
+        const fieldTop = GAME_ZONE.top + FIREFLY_FIELD_MARGIN;
+        const fieldRight = GAME_ZONE.right - FIREFLY_FIELD_MARGIN;
+        const fieldBottom = GAME_ZONE.bottom - FIREFLY_FIELD_MARGIN;
+
+        for (let index = 0; index < FIREFLY_COUNT; index += 1) {
+          const firefly = document.createElement("span");
+          firefly.className = "firefly";
+          firefly.style.setProperty("--firefly-left", `${randomRange(fieldLeft, fieldRight).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-top", `${randomRange(fieldTop, fieldBottom).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-dot-size", `${randomRange(2.0, 3.6).toFixed(2)}px`);
+          firefly.style.setProperty("--firefly-peak-opacity", randomRange(0.55, 1).toFixed(2));
+          firefly.style.setProperty("--firefly-drift-x1", `${randomRange(-18, 18).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-drift-y1", `${randomRange(-16, 12).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-drift-x2", `${randomRange(-28, 28).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-drift-y2", `${randomRange(-24, 16).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-drift-x3", `${randomRange(-22, 22).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-drift-y3", `${randomRange(-30, 10).toFixed(1)}px`);
+          firefly.style.setProperty("--firefly-drift-duration", `${randomRange(6.5, 12).toFixed(2)}s`);
+          firefly.style.setProperty("--firefly-drift-delay", `${randomRange(-8, 0).toFixed(2)}s`);
+          firefly.style.setProperty("--firefly-blink-duration", `${randomRange(2.8, 6.2).toFixed(2)}s`);
+          firefly.style.setProperty("--firefly-blink-delay", `${randomRange(-6, 0).toFixed(2)}s`);
+          fireflyLayer.append(firefly);
+        }
+      }
+
+      function syncFireflyVisibility() {
+        if (!fireflyLayer) return;
+        const isNightVisual = sceneColorTestOverride !== null
+          ? sceneColorTestOverride === "night"
+          : document.body.classList.contains("is-night");
+        const shouldShow = isNightVisual && !document.body.classList.contains("is-rainy");
+        fireflyLayer.classList.toggle("is-active", shouldShow);
+      }
+
       function showSceneColorTestControls() {
         if (!TEST_MODE || !sceneColorTestControls) return;
         sceneColorTestControls.hidden = false;
@@ -17085,6 +17396,7 @@ You can leave the game and come back anytime.</div>
           updateSceneColorTestButtonState();
           applyExplorationSceneColor({ instant: true, ignoreTestOverride: true });
           syncHouseExplorationLightForSceneColorTest();
+          syncFireflyVisibility();
           return;
         }
 
@@ -17093,6 +17405,7 @@ You can leave the game and come back anytime.</div>
         updateSceneColorTestButtonState();
         applySceneColorPreset(toneName, { instant: true });
         syncHouseExplorationLightForSceneColorTest();
+        syncFireflyVisibility();
       }
 
       function setNightMode(enabled) {
@@ -17103,6 +17416,7 @@ You can leave the game and come back anytime.</div>
         }
 
         document.body.classList.toggle("is-night", enabled);
+        syncFireflyVisibility();
         updateTreeInteractivity();
         updateStructureInteractivity();
         transitionCloudShadowOpacity(enabled);
@@ -18600,8 +18914,27 @@ You can leave the game and come back anytime.</div>
         );
       }
 
+      function getAllCurrentNoteIdsForTest() {
+        /*
+          테스트 지급 시에는 시작 시 캐시만 믿지 않고 현재 notes.js 원본 목록을 다시 확인합니다.
+          notes.js에 노트를 추가한 뒤 새로고침하면 새 항목도 별도 HTML 수정 없이 테스트 지급에 포함됩니다.
+        */
+        const sourceNotes = Array.isArray(window.NOTE_DATA) ? window.NOTE_DATA : [];
+        const noteIds = [];
+        const seen = new Set();
+        for (const note of sourceNotes) {
+          const normalizedNoteId = normalizeNoteId(note?.id);
+          if (!normalizedNoteId || seen.has(normalizedNoteId)) continue;
+          seen.add(normalizedNoteId);
+          noteIds.push(normalizedNoteId);
+        }
+        return noteIds;
+      }
+
       function hasAllObtainableItemsForTest() {
-        const hasAllNotes = NOTE_IDS.every((noteId) => acquiredNoteIds.has(noteId));
+        const hasAllNotes = getAllCurrentNoteIdsForTest().every(
+          (noteId) => acquiredNoteIds.has(noteId)
+        );
         return hasAllNotes &&
           hasAxe &&
           hasHandgun &&
@@ -18690,7 +19023,8 @@ You can leave the game and come back anytime.</div>
         markNewIfMissing("map", hasMap);
         hasMap = true;
 
-        for (const noteId of NOTE_IDS) {
+        // 자원 테스트 지급 때마다 notes.js의 현재 모든 노트를 확인해 빠짐없이 획득 처리합니다.
+        for (const noteId of getAllCurrentNoteIdsForTest()) {
           markNewIfMissing(noteId, acquiredNoteIds.has(noteId));
           acquiredNoteIds.add(noteId);
         }
@@ -28200,9 +28534,25 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           return true;
         }
 
+        // 페이지 표시가 실제로 보일 때는 리스트 하단부터 페이지 표시 하단까지를
+        // 리스트 가로폭 안에서 하나의 메뉴 조작 영역으로 취급합니다.
+        // 따라서 리스트와 페이지 표시 사이의 빈 공간 및 페이지 표시 좌우 빈 영역을 눌러도 닫히지 않습니다.
+        const listRect = inventoryListArea?.getBoundingClientRect();
+        if (inventoryPagination && !inventoryPagination.hidden && listRect) {
+          const paginationRect = inventoryPagination.getBoundingClientRect();
+          if (
+            paginationRect.height > 0 &&
+            event.clientX >= listRect.left &&
+            event.clientX <= listRect.right &&
+            event.clientY >= listRect.bottom &&
+            event.clientY <= paginationRect.bottom
+          ) {
+            return true;
+          }
+        }
+
         // 탭과 리스트 사이의 시각적 간격은 레이아웃을 그대로 두고 메뉴 조작 영역으로 취급합니다.
         const categoriesRect = inventoryCategoriesElement?.getBoundingClientRect();
-        const listRect = inventoryListArea?.getBoundingClientRect();
         if (categoriesRect && listRect) {
           const gapLeft = Math.min(categoriesRect.left, listRect.left);
           const gapRight = Math.max(categoriesRect.right, listRect.right);
@@ -28271,9 +28621,33 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           return true;
         }
 
+        // 하단 액션 버튼과 같은 높이에서는 버튼 좌우 빈 영역도 repairContent 가로폭 안에서 닫히지 않게 합니다.
+        const contentRect = repairContent?.getBoundingClientRect();
+        const actionRect = repairActionButton?.getBoundingClientRect();
+        if (contentRect && actionRect && actionRect.height > 0) {
+          if (
+            event.clientX >= contentRect.left &&
+            event.clientX <= contentRect.right &&
+            event.clientY >= actionRect.top &&
+            event.clientY <= actionRect.bottom
+          ) {
+            return true;
+          }
+
+          // 수리 컨텐츠 하단부터 액션 버튼 상단 사이의 빈 여백도
+          // repairContent 가로폭 안에서는 메뉴 조작 영역으로 취급합니다.
+          if (
+            event.clientX >= contentRect.left &&
+            event.clientX <= contentRect.right &&
+            event.clientY >= contentRect.bottom &&
+            event.clientY <= actionRect.top
+          ) {
+            return true;
+          }
+        }
+
         // 탭과 하위 수리 콘텐츠 사이의 간격도 메뉴 내부 조작 영역으로 유지합니다.
         const categoriesRect = repairCategoriesElement?.getBoundingClientRect();
-        const contentRect = repairContent?.getBoundingClientRect();
         if (categoriesRect && contentRect) {
           const gapLeft = Math.min(categoriesRect.left, contentRect.left);
           const gapRight = Math.max(categoriesRect.right, contentRect.right);
@@ -28739,19 +29113,19 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         });
       }
 
-      // 탐험이 100% 완료된 밤에는 집 중앙 256×256 영역을 눌렀을 때만 다음 낮으로 넘어갑니다.
+      // 탐험이 100% 완료된 밤에는 집 중앙 256×256 영역에서 입력을 뗐을 때만 다음 낮으로 넘어갑니다.
       // 집 위에 다른 필드 요소가 겹쳐 있어도 화면 좌표로 중앙 터치 영역을 판정합니다.
-      explorationReturnHouseHitArea.addEventListener("pointerdown", (event) => {
+      explorationReturnHouseHitArea.addEventListener("pointerup", (event) => {
         if (
           !isExplorationCompletePending ||
           isExplorationReturnHouseLocked
         ) return;
 
-        // 첫 입력에서 즉시 잠가 연타가 다시 귀환 처리를 실행하지 못하게 합니다.
+        // release 입력에서 즉시 잠가 연타가 다시 귀환 처리를 실행하지 못하게 합니다.
         isExplorationReturnHouseLocked = true;
         document.body.classList.remove("is-exploration-complete");
 
-        // 집을 누른 순간에는 조명을 즉시 끄고 스위치 효과음만 바로 재생합니다.
+        // 집에서 입력을 뗀 순간에는 조명을 즉시 끄고 스위치 효과음만 바로 재생합니다.
         // Complete / 100% 정보는 실제 밤→낮 전환 전 1초 대기 동안 제자리에서 페이드아웃합니다.
         // 실제 밤→낮 전환과 나머지 UI 복귀는 1초 뒤 시작합니다.
         turnOffHouseExplorationLight();
@@ -28834,6 +29208,9 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
 
+      createFireflies();
+      syncFireflyVisibility();
+
       versionNumber.textContent = GAME_VERSION;
       versionTestButton.classList.toggle("is-test-active", TEST_MODE);
       versionTestButton.tabIndex = TEST_MODE ? 0 : -1;
@@ -28849,6 +29226,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (sceneColorTestOverride !== null) {
           applySceneColorPreset(sceneColorTestOverride, { instant: true });
           syncHouseExplorationLightForSceneColorTest();
+          syncFireflyVisibility();
         }
       }
       versionTestButton.addEventListener("pointerdown", handleVersionLabelTestAction);
