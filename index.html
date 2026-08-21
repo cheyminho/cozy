@@ -5093,7 +5093,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.214"
+  data-game-version="0.215"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -18626,12 +18626,12 @@ You can leave the game and come back anytime.</div>
           // 3번 베어 고갈된 뒤 첫 탐험 완료: 부분 회복
           treeGrowthState = TREE_GROWTH_REGROWING;
           treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
-        } else if (treeGrowthState === TREE_GROWTH_REGROWING) {
-          // 두 번째 탐험 완료: 부분 회복 상태에서 하루 더 머뭅니다.
-          treeGrowthState = TREE_GROWTH_REGROWING_HOLD;
-          treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
-        } else if (treeGrowthState === TREE_GROWTH_REGROWING_HOLD) {
-          // 고갈 후 세 번째 탐험 완료: 완전 회복 + 투두 완료
+        } else if (
+          treeGrowthState === TREE_GROWTH_REGROWING ||
+          treeGrowthState === TREE_GROWTH_REGROWING_HOLD
+        ) {
+          // 두 번째 탐험 완료: 완전 회복 + 투두 완료
+          // REGROWING_HOLD는 이전 버전 저장 데이터 호환용으로 함께 처리합니다.
           treeGrowthState = TREE_GROWTH_READY;
           treeChopCount = 0;
           setTodoProgress(2, "item2", true);
