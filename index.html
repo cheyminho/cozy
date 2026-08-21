@@ -2600,7 +2600,7 @@
       text-align: right;
       white-space: nowrap;
       opacity: 0;
-      transform: translateX(6px);
+      transform: translateX(20px);
       pointer-events: none;
       transition:
         opacity 140ms ease-out,
@@ -2843,7 +2843,7 @@
         max(24px, env(safe-area-inset-right))
         max(100px, env(safe-area-inset-bottom))
         max(24px, env(safe-area-inset-left));
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.65);
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
@@ -4977,7 +4977,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.210"
+  data-game-version="0.211"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -15039,6 +15039,7 @@ You can leave the game and come back anytime.</div>
         activeNoteReaderId = noteId;
         noteReaderText.textContent = String(note.text || "");
         noteReaderAuthor.textContent = String(note.author || "");
+        noteReaderAuthor.style.fontStyle = note.authorItalic === true ? "italic" : "normal";
         inventoryMenu.classList.add("is-note-reader-hidden");
         noteReaderOverlay.classList.add("is-open");
         noteReaderOverlay.setAttribute("aria-hidden", "false");
