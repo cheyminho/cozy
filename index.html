@@ -5104,7 +5104,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.216"
+  data-game-version="0.217"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5215,7 +5215,7 @@
     */
     const NIGHT_FIELD_OBJECT_TONE = Object.freeze({
       structures: Object.freeze({
-        brightness: 0.4,
+        brightness: 0.38,
         saturation: 0.55,
         contrast: 1,
         colorBalance: Object.freeze({ red: 0.4, green: 0.9, blue: 2.5 })
@@ -5293,18 +5293,18 @@
       }),
       sunset: Object.freeze({
         brightness: 1.2,
-        saturation: 0.4,
-        contrast: 1.3,
-        colorBalance: Object.freeze({ red: 1, green: 0.75, blue: 0.55 }),
+        saturation: 0.35,
+        contrast: 1.2,
+        colorBalance: Object.freeze({ red: 1.1, green: 0.72, blue: 0.4 }),
         tint: "rgba(255, 249, 225, 0.12)",
         opacity: 1
       }),
       night: Object.freeze({
-        brightness: 0.6,
-        saturation: 0.55,
-        contrast: 1.7,
-        colorBalance: Object.freeze({ red: 0.65, green: 0.9, blue: 1.9 }),
-        tint: "rgba(0, 70, 125, 0.16)",
+        brightness: 0.65,
+        saturation: 0.6,
+        contrast: 1.6,
+        colorBalance: Object.freeze({ red: 0.7, green: 0.9, blue: 1.4 }),
+        tint: "rgba(0, 70, 125, 0.15)",
         opacity: 1
       })
     });
@@ -20240,7 +20240,13 @@ You can leave the game and come back anytime.</div>
 
       function applyCloudOpacity(cloud, opacityFactor) {
         cloud.opacityFactor = clamp(opacityFactor, 0, 1);
-        const opacity = String(cloud.baseOpacity * cloud.opacityFactor);
+        // 실제 구름은 Phaser 레이어에서 렌더링되므로 DOM #clouds의 display:none만으로는 숨겨지지 않습니다.
+        // 비가 오는 동안 sky 구름만 투명하게 하고, cloud shadow는 기존 표시를 그대로 유지합니다.
+        const hideSkyCloudForRain =
+          cloud.kind === "sky" && document.body.classList.contains("is-rainy");
+        const opacity = String(
+          cloud.baseOpacity * cloud.opacityFactor * (hideSkyCloudForRain ? 0 : 1)
+        );
 
         // 실제 표시값이 같으면 style 쓰기를 생략합니다.
         if (cloud.renderedOpacity === opacity) return;
