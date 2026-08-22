@@ -5104,7 +5104,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.217"
+  data-game-version="0.218"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -15173,6 +15173,22 @@ You can leave the game and come back anytime.</div>
           "aria-hidden",
           isAnyMenuOpen ? "false" : "true"
         );
+
+        /*
+          DOM 메뉴가 Phaser 캔버스 위에서 포인터 입력을 가져간 뒤 닫히면,
+          특히 모바일 Safari에서 Phaser Pointer가 down 상태로 남을 수 있습니다.
+          수리 메뉴에서 지붕/벽처럼 여러 항목을 연속 적용한 뒤 필드 드래그가
+          멈추는 현상을 막기 위해 모든 메뉴가 완전히 닫히는 순간 입력 상태를 초기화합니다.
+        */
+        if (!isAnyMenuOpen) {
+          dragState.active = false;
+          dragState.moved = false;
+          dragState.pointerId = null;
+          dragState.captureTarget = null;
+          viewport.classList.remove("is-panning");
+          clearFieldEntityPressState();
+          phaserField.scene?.input?.resetPointers?.();
+        }
       }
 
       function closeExplorationMenu(syncBackdrop = true) {
