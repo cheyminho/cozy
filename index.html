@@ -5073,16 +5073,27 @@
       76% { opacity: 0; transform: translate(-50%, -50%) scale(0.55); }
     }
 
-    /* Rain tone overlays intentionally remain DOM-based so brightness/saturation/contrast
-       match the pre-Phaser field exactly instead of being approximated with colored quads. */
+    /* =========================================================
+       Phaser 컬러 시스템
+       - 전체 화면 backdrop-filter는 모바일에서 합성 비용이 커서 사용하지 않습니다.
+       - Day / Sunset / Night, Rain, Night field-object 톤은 Phaser ColorMatrix에서 처리합니다.
+       - 아래 DOM 요소는 저장 호환용으로 남겨두되 실제 렌더에서는 비활성화합니다.
+       ========================================================= */
+    #sceneColorTone,
     #viewport > #rainDayTone,
     #viewport > #rainNightTone {
-      position: absolute !important;
-      inset: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      z-index: 24 !important;
-      pointer-events: none !important;
+      display: none !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      filter: none !important;
+    }
+
+    .cloud-sprite::before {
+      filter: none !important;
+    }
+
+    .bird {
+      transition: none !important;
     }
   </style>
 </head>
@@ -5093,7 +5104,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.215"
+  data-game-version="0.216"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5194,6 +5205,29 @@
       - Night의 baseLayer: 201 버전의 기존 밤 구조물/엔티티 기본 필터
         (기본 Night 화면을 예전과 동일하게 유지하기 위한 값)
     */
+    /*
+      =========================================================
+      밤 필드 오브젝트 컬러 수정 위치
+      =========================================================
+      - structures: 집/창고/울타리/차/나무/상자 등
+      - entities: 좀비/사슴/개/고양이 등
+      - Day/Night 이중 이미지를 만들지 않고 한 장의 스프라이트에 Phaser ColorMatrix를 적용합니다.
+    */
+    const NIGHT_FIELD_OBJECT_TONE = Object.freeze({
+      structures: Object.freeze({
+        brightness: 0.4,
+        saturation: 0.55,
+        contrast: 1,
+        colorBalance: Object.freeze({ red: 0.4, green: 0.9, blue: 2.5 })
+      }),
+      entities: Object.freeze({
+        brightness: 0.42,
+        saturation: 0.7,
+        contrast: 1,
+        colorBalance: Object.freeze({ red: 0.4, green: 0.9, blue: 2.5 })
+      })
+    });
+
     const SCENE_COLOR_TONES = Object.freeze({
       day: Object.freeze({
         swatch: "#68d2fa",
@@ -5228,14 +5262,14 @@
         opacity: 1,
         nightMix: 1,
         birdColor: "#7198bd",
-        // 201에서 사용하던 구조물/엔티티 밤 기본 필터.
+        // 이전 코드 호환용입니다. 실제 조정은 NIGHT_FIELD_OBJECT_TONE을 사용합니다.
         baseLayer: Object.freeze({
-          brightness: 0.4,
-          saturation: 0.55,
-          contrast: 1,
-          colorBalance: Object.freeze({ red: 0.4, green: 0.9, blue: 2.5 }),
-          entityBrightness: 0.42,
-          entitySaturation: 0.7
+          brightness: NIGHT_FIELD_OBJECT_TONE.structures.brightness,
+          saturation: NIGHT_FIELD_OBJECT_TONE.structures.saturation,
+          contrast: NIGHT_FIELD_OBJECT_TONE.structures.contrast,
+          colorBalance: NIGHT_FIELD_OBJECT_TONE.structures.colorBalance,
+          entityBrightness: NIGHT_FIELD_OBJECT_TONE.entities.brightness,
+          entitySaturation: NIGHT_FIELD_OBJECT_TONE.entities.saturation
         })
       })
     });
@@ -7172,11 +7206,39 @@ You can leave the game and come back anytime.</div>
          - Sprite frames use the decoded image naturalWidth/naturalHeight and the
            existing logical row/column definitions below. No source pixel size is guessed.
          ========================================================= */
+      /*
+        Phaser 컬러 런타임 타깃.
+        CSS custom property를 매 프레임 읽지 않고 JavaScript 값 자체를 Phaser가 보간합니다.
+      */
+      let phaserSceneToneRevision = 0;
+      let phaserSceneToneTarget = {
+        brightness: SCENE_COLOR_TONES.day.brightness,
+        saturation: SCENE_COLOR_TONES.day.saturation,
+        contrast: SCENE_COLOR_TONES.day.contrast,
+        colorBalance: { ...SCENE_COLOR_TONES.day.colorBalance },
+        tint: SCENE_COLOR_TONES.day.tint,
+        opacity: SCENE_COLOR_TONES.day.opacity,
+        durationMs: 0
+      };
+      let phaserCloudToneRevision = 0;
+      let phaserCloudToneTarget = {
+        brightness: CLOUD_COLOR_TONES.day.brightness,
+        saturation: CLOUD_COLOR_TONES.day.saturation,
+        contrast: CLOUD_COLOR_TONES.day.contrast,
+        colorBalance: { ...CLOUD_COLOR_TONES.day.colorBalance },
+        tint: CLOUD_COLOR_TONES.day.tint,
+        opacity: CLOUD_COLOR_TONES.day.opacity
+      };
+      let phaserBirdColorTarget = SCENE_COLOR_TONES.day.birdColor;
+
       function createPhaserFieldBridge() {
         const mount = document.getElementById("phaserField");
         const atmosphereWorld = document.getElementById("atmosphereWorld");
         const nodes = new Set();
         const dualToneNodes = new Set();
+        const objectToneNodes = new Set();
+        const cloudToneNodes = new Set();
+        const birdToneNodes = new Set();
         const named = new Map();
         const layers = new Map();
         const assetPromises = new Map();
@@ -7187,10 +7249,20 @@ You can leave the game and come back anytime.</div>
           rainGraphics: null,
           lowLayer: null,
           atmosphereLayer: null,
+          fxLayer: null,
+          fieldCamera: null,
+          atmosphereCamera: null,
+          fxCamera: null,
           colorMatrixFx: null,
+          atmosphereColorMatrixFx: null,
           transition: null,
           currentTone: null,
-          lastTargetKey: ""
+          lastTargetRevision: -1,
+          cloudRevision: -1,
+          lastBirdSceneRevision: -1,
+          rainStrength: 0,
+          rainTransition: null,
+          lastRainTarget: null
         };
         let scene = null;
         let game = null;
@@ -7321,29 +7393,22 @@ You can leave the game and come back anytime.</div>
           });
         };
 
-        function readSceneToneTarget() {
-          const rootStyle = getComputedStyle(document.documentElement);
+        function normalizeToneTarget(rawTone, durationMs = 0) {
+          const raw = rawTone || {};
+          const balance = raw.colorBalance || { red: 1, green: 1, blue: 1 };
           return {
-            brightness: parsePx(rootStyle.getPropertyValue("--scene-brightness"), 1),
-            saturation: parsePx(rootStyle.getPropertyValue("--scene-saturation"), 1),
-            contrast: parsePx(rootStyle.getPropertyValue("--scene-contrast"), 1),
-            balance: parseCssOverlayColor(rootStyle.getPropertyValue("--scene-color-balance-overlay")),
-            tint: parseCssOverlayColor(rootStyle.getPropertyValue("--scene-tint")),
-            durationMs: Math.max(0, parsePx(rootStyle.getPropertyValue("--scene-color-transition-duration"), 0))
+            brightness: Number.isFinite(Number(raw.brightness)) ? Number(raw.brightness) : 1,
+            saturation: Number.isFinite(Number(raw.saturation)) ? Number(raw.saturation) : 1,
+            contrast: Number.isFinite(Number(raw.contrast)) ? Number(raw.contrast) : 1,
+            colorBalance: {
+              red: Number.isFinite(Number(balance.red)) ? Number(balance.red) : 1,
+              green: Number.isFinite(Number(balance.green)) ? Number(balance.green) : 1,
+              blue: Number.isFinite(Number(balance.blue)) ? Number(balance.blue) : 1
+            },
+            tint: parseCssOverlayColor(raw.tint || "rgba(0, 0, 0, 0)"),
+            opacity: clamp01(raw.opacity ?? 1),
+            durationMs: Math.max(0, Number(durationMs ?? raw.durationMs) || 0)
           };
-        }
-
-        function toneKey(tone) {
-          return [
-            tone.brightness.toFixed(5),
-            tone.saturation.toFixed(5),
-            tone.contrast.toFixed(5),
-            tone.balance.color,
-            tone.balance.alpha.toFixed(5),
-            tone.tint.color,
-            tone.tint.alpha.toFixed(5),
-            Math.round(tone.durationMs)
-          ].join("|");
         }
 
         function interpolateSceneTone(from, to, progress) {
@@ -7352,23 +7417,31 @@ You can leave the game and come back anytime.</div>
             brightness: lerpNumber(from.brightness, to.brightness, t),
             saturation: lerpNumber(from.saturation, to.saturation, t),
             contrast: lerpNumber(from.contrast, to.contrast, t),
-            balance: lerpPackedColor(from.balance, to.balance, t),
+            colorBalance: {
+              red: lerpNumber(from.colorBalance.red, to.colorBalance.red, t),
+              green: lerpNumber(from.colorBalance.green, to.colorBalance.green, t),
+              blue: lerpNumber(from.colorBalance.blue, to.colorBalance.blue, t)
+            },
             tint: lerpPackedColor(from.tint, to.tint, t),
+            opacity: lerpNumber(from.opacity, to.opacity, t),
             durationMs: to.durationMs
           };
         }
 
         function sampleSceneTone(now = performance.now()) {
-          const target = readSceneToneTarget();
-          const key = toneKey(target);
+          const target = normalizeToneTarget(
+            phaserSceneToneTarget,
+            phaserSceneToneTarget.durationMs
+          );
+
           if (!fieldTone.currentTone) {
             fieldTone.currentTone = target;
-            fieldTone.lastTargetKey = key;
+            fieldTone.lastTargetRevision = phaserSceneToneRevision;
             fieldTone.transition = null;
             return target;
           }
 
-          if (key !== fieldTone.lastTargetKey) {
+          if (fieldTone.lastTargetRevision !== phaserSceneToneRevision) {
             let from = fieldTone.currentTone;
             const previous = fieldTone.transition;
             if (previous) {
@@ -7377,7 +7450,7 @@ You can leave the game and come back anytime.</div>
                 : clamp01((now - previous.startedAt) / previous.durationMs);
               from = interpolateSceneTone(previous.from, previous.to, p);
             }
-            fieldTone.lastTargetKey = key;
+            fieldTone.lastTargetRevision = phaserSceneToneRevision;
             fieldTone.transition = {
               from,
               to: target,
@@ -7397,6 +7470,289 @@ You can leave the game and come back anytime.</div>
           fieldTone.currentTone = interpolateSceneTone(transition.from, transition.to, progress);
           if (progress >= 1) fieldTone.transition = null;
           return fieldTone.currentTone;
+        }
+
+        const identity5 = () => [
+          1, 0, 0, 0, 0,
+          0, 1, 0, 0, 0,
+          0, 0, 1, 0, 0,
+          0, 0, 0, 1, 0,
+          0, 0, 0, 0, 1
+        ];
+
+        const multiply5 = (left, right) => {
+          const out = new Array(25).fill(0);
+          for (let row = 0; row < 5; row += 1) {
+            for (let col = 0; col < 5; col += 1) {
+              let sum = 0;
+              for (let k = 0; k < 5; k += 1) {
+                sum += left[row * 5 + k] * right[k * 5 + col];
+              }
+              out[row * 5 + col] = sum;
+            }
+          }
+          return out;
+        };
+
+        function toPhaserColorMatrix(matrix5) {
+          const out = [];
+          for (let row = 0; row < 4; row += 1) {
+            out.push(
+              matrix5[row * 5],
+              matrix5[row * 5 + 1],
+              matrix5[row * 5 + 2],
+              matrix5[row * 5 + 3],
+              matrix5[row * 5 + 4] * 255
+            );
+          }
+          return out;
+        }
+
+        function getBalanceOverlayPacked(colorBalance) {
+          const red = Math.max(0, Number(colorBalance?.red) || 1);
+          const green = Math.max(0, Number(colorBalance?.green) || 1);
+          const blue = Math.max(0, Number(colorBalance?.blue) || 1);
+          const minimum = Math.min(red, green, blue);
+          const maximum = Math.max(red, green, blue);
+          const spread = maximum - minimum;
+          if (spread < 0.001) return { color: 0x000000, alpha: 0 };
+          const toChannel = (value) => Math.round(clamp01((value - minimum) / spread) * 255);
+          return {
+            color: (toChannel(red) << 16) | (toChannel(green) << 8) | toChannel(blue),
+            alpha: Math.max(0, Math.min(0.3, spread * 0.35))
+          };
+        }
+
+        function overlayMatrix(packed, alphaMultiplier = 1) {
+          const rgba = unpackColor(packed || { color: 0, alpha: 0 });
+          const a = clamp01(rgba.a * alphaMultiplier);
+          const keep = 1 - a;
+          const matrix = identity5();
+          matrix[0] = keep;
+          matrix[6] = keep;
+          matrix[12] = keep;
+          matrix[4] = (rgba.r / 255) * a;
+          matrix[9] = (rgba.g / 255) * a;
+          matrix[14] = (rgba.b / 255) * a;
+          return matrix;
+        }
+
+        function buildCssLikeToneMatrix(tone, externalStrength = 1) {
+          const strength = clamp01((tone?.opacity ?? 1) * externalStrength);
+          const towardNeutral = (value) => {
+            const n = Number(value);
+            return 1 + ((Number.isFinite(n) ? n : 1) - 1) * strength;
+          };
+          const balance = tone?.colorBalance || { red: 1, green: 1, blue: 1 };
+          const effectiveBalance = {
+            red: towardNeutral(balance.red),
+            green: towardNeutral(balance.green),
+            blue: towardNeutral(balance.blue)
+          };
+          const b = towardNeutral(tone?.brightness);
+          const sat = towardNeutral(tone?.saturation);
+          const c = towardNeutral(tone?.contrast);
+
+          const brightnessMatrix = identity5();
+          brightnessMatrix[0] = b;
+          brightnessMatrix[6] = b;
+          brightnessMatrix[12] = b;
+
+          const saturationMatrix = [
+            0.214 + 0.787 * sat, 0.715 - 0.715 * sat, 0.072 - 0.072 * sat, 0, 0,
+            0.214 - 0.214 * sat, 0.715 + 0.285 * sat, 0.072 - 0.072 * sat, 0, 0,
+            0.214 - 0.214 * sat, 0.715 - 0.715 * sat, 0.072 + 0.928 * sat, 0, 0,
+            0, 0, 0, 1, 0,
+            0, 0, 0, 0, 1
+          ];
+
+          const contrastMatrix = identity5();
+          const contrastOffset = 0.5 * (1 - c);
+          contrastMatrix[0] = c;
+          contrastMatrix[6] = c;
+          contrastMatrix[12] = c;
+          contrastMatrix[4] = contrastOffset;
+          contrastMatrix[9] = contrastOffset;
+          contrastMatrix[14] = contrastOffset;
+
+          let combined = brightnessMatrix;
+          combined = multiply5(saturationMatrix, combined);
+          combined = multiply5(contrastMatrix, combined);
+
+          const tintPacked = tone?.tint?.color !== undefined
+            ? tone.tint
+            : parseCssOverlayColor(tone?.tint || "rgba(0,0,0,0)");
+          combined = multiply5(overlayMatrix(tintPacked, strength), combined);
+          combined = multiply5(overlayMatrix(getBalanceOverlayPacked(effectiveBalance), 1), combined);
+          return combined;
+        }
+
+        function buildNightObjectMatrix(tone, mix) {
+          const t = clamp01(mix);
+          const towardNeutral = (value) => {
+            const n = Number(value);
+            return 1 + ((Number.isFinite(n) ? n : 1) - 1) * t;
+          };
+          const balance = tone?.colorBalance || { red: 1, green: 1, blue: 1 };
+          const br = towardNeutral(balance.red);
+          const bg = towardNeutral(balance.green);
+          const bb = towardNeutral(balance.blue);
+          const b = towardNeutral(tone?.brightness);
+          const sat = towardNeutral(tone?.saturation);
+          const c = towardNeutral(tone?.contrast);
+
+          const balanceMatrix = identity5();
+          balanceMatrix[0] = br;
+          balanceMatrix[6] = bg;
+          balanceMatrix[12] = bb;
+
+          const brightnessMatrix = identity5();
+          brightnessMatrix[0] = b;
+          brightnessMatrix[6] = b;
+          brightnessMatrix[12] = b;
+
+          const saturationMatrix = [
+            0.214 + 0.787 * sat, 0.715 - 0.715 * sat, 0.072 - 0.072 * sat, 0, 0,
+            0.214 - 0.214 * sat, 0.715 + 0.285 * sat, 0.072 - 0.072 * sat, 0, 0,
+            0.214 - 0.214 * sat, 0.715 - 0.715 * sat, 0.072 + 0.928 * sat, 0, 0,
+            0, 0, 0, 1, 0,
+            0, 0, 0, 0, 1
+          ];
+          const contrastMatrix = identity5();
+          const contrastOffset = 0.5 * (1 - c);
+          contrastMatrix[0] = c;
+          contrastMatrix[6] = c;
+          contrastMatrix[12] = c;
+          contrastMatrix[4] = contrastOffset;
+          contrastMatrix[9] = contrastOffset;
+          contrastMatrix[14] = contrastOffset;
+
+          let combined = balanceMatrix;
+          combined = multiply5(brightnessMatrix, combined);
+          combined = multiply5(saturationMatrix, combined);
+          combined = multiply5(contrastMatrix, combined);
+          return combined;
+        }
+
+        function buildCloudToneMatrix(rawTone) {
+          const tone = normalizeToneTarget(rawTone || {}, 0);
+          const strength = clamp01(tone.opacity);
+          const towardNeutral = (value) => 1 + ((Number(value) || 1) - 1) * strength;
+          const balance = tone.colorBalance || { red: 1, green: 1, blue: 1 };
+          const balanceMatrix = identity5();
+          balanceMatrix[0] = towardNeutral(balance.red);
+          balanceMatrix[6] = towardNeutral(balance.green);
+          balanceMatrix[12] = towardNeutral(balance.blue);
+
+          const b = towardNeutral(tone.brightness);
+          const sat = towardNeutral(tone.saturation);
+          const c = towardNeutral(tone.contrast);
+          const brightnessMatrix = identity5();
+          brightnessMatrix[0] = b;
+          brightnessMatrix[6] = b;
+          brightnessMatrix[12] = b;
+          const saturationMatrix = [
+            0.214 + 0.787 * sat, 0.715 - 0.715 * sat, 0.072 - 0.072 * sat, 0, 0,
+            0.214 - 0.214 * sat, 0.715 + 0.285 * sat, 0.072 - 0.072 * sat, 0, 0,
+            0.214 - 0.214 * sat, 0.715 - 0.715 * sat, 0.072 + 0.928 * sat, 0, 0,
+            0, 0, 0, 1, 0,
+            0, 0, 0, 0, 1
+          ];
+          const contrastMatrix = identity5();
+          const contrastOffset = 0.5 * (1 - c);
+          contrastMatrix[0] = c;
+          contrastMatrix[6] = c;
+          contrastMatrix[12] = c;
+          contrastMatrix[4] = contrastOffset;
+          contrastMatrix[9] = contrastOffset;
+          contrastMatrix[14] = contrastOffset;
+
+          let combined = balanceMatrix;
+          combined = multiply5(overlayMatrix(tone.tint, strength), combined);
+          combined = multiply5(brightnessMatrix, combined);
+          combined = multiply5(saturationMatrix, combined);
+          combined = multiply5(contrastMatrix, combined);
+          return combined;
+        }
+
+        function isMatrixNearIdentity(matrix5) {
+          const identity = identity5();
+          for (let i = 0; i < 25; i += 1) {
+            if (Math.abs(matrix5[i] - identity[i]) > 0.0005) return false;
+          }
+          return true;
+        }
+
+        function setColorMatrixFx(owner, propertyName, matrix5) {
+          if (!owner) return false;
+          const manager = owner.postFX;
+          if (!manager?.addColorMatrix) return false;
+          let fx = fieldTone[propertyName];
+          if (!fx) {
+            try {
+              fx = manager.addColorMatrix();
+              fieldTone[propertyName] = fx;
+            } catch (_) {
+              return false;
+            }
+          }
+          const signature = matrix5.map((v) => Number(v).toFixed(4)).join(",");
+          if (fx.__cozzySignature !== signature) {
+            fx.__cozzySignature = signature;
+            fx.set(toPhaserColorMatrix(matrix5));
+          }
+          fx.active = !isMatrixNearIdentity(matrix5);
+          return true;
+        }
+
+        function getInterpolatedRainTone(nightMix) {
+          const t = clamp01(nightMix);
+          const mix = (a, b) => lerpNumber(Number(a) || 0, Number(b) || 0, t);
+          const day = RAIN_DAY_TONE;
+          const night = RAIN_NIGHT_TONE;
+          return {
+            brightness: mix(day.brightness, night.brightness),
+            saturation: mix(day.saturation, night.saturation),
+            contrast: mix(day.contrast, night.contrast),
+            colorBalance: {
+              red: mix(day.colorBalance.red, night.colorBalance.red),
+              green: mix(day.colorBalance.green, night.colorBalance.green),
+              blue: mix(day.colorBalance.blue, night.colorBalance.blue)
+            },
+            tint: lerpPackedColor(parseCssOverlayColor(day.tint), parseCssOverlayColor(night.tint), t),
+            opacity: mix(day.opacity, night.opacity)
+          };
+        }
+
+        function sampleRainStrength(now = performance.now()) {
+          const target = document.body.classList.contains("is-rainy") ? 1 : 0;
+          if (fieldTone.lastRainTarget === null) {
+            fieldTone.lastRainTarget = target;
+            fieldTone.rainStrength = target;
+            return target;
+          }
+          if (target !== fieldTone.lastRainTarget) {
+            const instant =
+              document.body.classList.contains("is-initializing-weather") ||
+              document.body.classList.contains("is-weather-test-instant");
+            fieldTone.rainTransition = {
+              from: fieldTone.rainStrength,
+              to: target,
+              startedAt: now,
+              durationMs: instant ? 0 : 3000
+            };
+            fieldTone.lastRainTarget = target;
+          }
+          const transition = fieldTone.rainTransition;
+          if (!transition || transition.durationMs <= 0) {
+            fieldTone.rainStrength = target;
+            fieldTone.rainTransition = null;
+            return fieldTone.rainStrength;
+          }
+          const p = clamp01((now - transition.startedAt) / transition.durationMs);
+          fieldTone.rainStrength = lerpNumber(transition.from, transition.to, p);
+          if (p >= 1) fieldTone.rainTransition = null;
+          return fieldTone.rainStrength;
         }
 
         function placeRootGameObject(node) {
@@ -7735,6 +8091,7 @@ You can leave the game and come back anytime.</div>
             this.dualTone = options.dualTone === true;
             this.visualRole = options.visualRole || "";
             this.special = options.special || "";
+            this.renderSuppressed = false;
             this.go = null;
             this.dayImage = null;
             this.nightImage = null;
@@ -7743,7 +8100,13 @@ You can leave the game and come back anytime.</div>
             this.shadowGraphic = null;
             this._shadowSignature = "";
             nodes.add(this);
-            if (this.dualTone) dualToneNodes.add(this);
+            if (this.dualTone) {
+              dualToneNodes.add(this);
+              objectToneNodes.add(this);
+            }
+            if (this.visualRole === "day") objectToneNodes.add(this);
+            if (this.special === "cloud") cloudToneNodes.add(this);
+            if (this.special === "bird") birdToneNodes.add(this);
             if (options.className) this.className = options.className;
             if (scene) this.attachScene();
           }
@@ -7806,6 +8169,9 @@ You can leave the game and come back anytime.</div>
             this.go = null;
             nodes.delete(this);
             dualToneNodes.delete(this);
+            objectToneNodes.delete(this);
+            cloudToneNodes.delete(this);
+            birdToneNodes.delete(this);
           }
 
           inheritSize(width, height) {
@@ -7883,6 +8249,12 @@ You can leave the game and come back anytime.</div>
               this.pointerEnabled = !c.contains("is-traveling") &&
                 (this.listeners.has("pointerdown") || this.listeners.has("pointerup"));
             }
+
+            if (this.dualTone || this.visualRole === "day" || this.special === "sprite") {
+              objectToneNodes.add(this);
+            }
+            if (this.special === "cloud") cloudToneNodes.add(this);
+            if (this.special === "bird") birdToneNodes.add(this);
 
             if (scene) this.attachScene();
             this.ensureSpecialGraphics();
@@ -8015,9 +8387,9 @@ You can leave the game and come back anytime.</div>
             ].includes(this.special)) {
               // Created below by ensureSpecialGraphics(), after size/class state is known.
             } else if (this.dualTone) {
-              this.dayImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
-              this.nightImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
-              this.go.add([this.dayImage, this.nightImage]);
+              // Phaser 단일 렌더: 구조물은 Day/Night 이미지를 두 장 만들지 않습니다.
+              this.singleImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.go.add(this.singleImage);
             } else if (this.backgroundPath || this.special === "sprite" || this.special === "cloud" || this.special === "cloudShadow" || this.special === "bird") {
               this.singleImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
               this.go.add(this.singleImage);
@@ -8033,10 +8405,9 @@ You can leave the game and come back anytime.</div>
 
           ensureImageObjects() {
             if (!scene || !this.go) return;
-            if (this.dualTone && (!this.dayImage || !this.nightImage)) {
-              this.dayImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
-              this.nightImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
-              this.go.add([this.dayImage, this.nightImage]);
+            if (this.dualTone && !this.singleImage) {
+              this.singleImage = scene.add.image(0, 0, "__DEFAULT").setOrigin(this.geometry === "center" ? 0.5 : 0);
+              this.go.add(this.singleImage);
             } else if (!this.dualTone && !this.singleImage && ![
               "particle", "ellipseShadow", "entityZombie", "entityDeer", "entityDog", "entityCat"
             ].includes(this.special)) {
@@ -8069,7 +8440,7 @@ You can leave the game and come back anytime.</div>
               ensureSupplyBoxCompositeFrame(info, this) ||
               ensureGridTextureFrame(info, frame);
             if (!textureFrame) return;
-            const images = this.dualTone ? [this.dayImage, this.nightImage] : [this.singleImage];
+            const images = [this.singleImage];
             const bakedCloudShadow = this.special === "cloudShadow"
               ? getBakedCloudShadowTexture(info, frame)
               : null;
@@ -8096,137 +8467,77 @@ You can leave the game and come back anytime.</div>
               applyCloudShadowStyle(this);
             }
             this.applyNightVisualFilter();
+            this.applyCloudToneFilter();
+            if (this.special === "bird" && this.singleImage) {
+              this.singleImage.setTintFill(hexToNumber(phaserBirdColorTarget));
+            }
           }
 
-          applyNightVisualFilter() {
-            if (!scene) return;
+          applyNightVisualFilter(mix = getSceneNightMix()) {
+            if (!scene || !this.singleImage) return;
 
-            let inheritedNightRole = this.visualRole === "night";
+            let inheritedRole = this.visualRole;
             let ancestor = this.parentElement;
-            while (!inheritedNightRole && ancestor instanceof FieldNode) {
-              inheritedNightRole = ancestor.visualRole === "night";
+            while (!inheritedRole && ancestor instanceof FieldNode) {
+              inheritedRole = ancestor.visualRole;
               ancestor = ancestor.parentElement;
             }
 
-            const target = this.dualTone
-              ? this.nightImage
-              : (inheritedNightRole ? this.singleImage : null);
-            if (!target) return;
+            // Night 전용 논리 노드는 저장/애니메이션 코드 호환용으로만 유지하고 렌더하지 않습니다.
+            if (inheritedRole === "night") return;
 
-            // The original DOM version does NOT use a flat tint for night sprites.
-            // It applies nightCoolBalance first, followed by CSS brightness(),
-            // saturate() and contrast(). Rebuild the same affine color matrix here
-            // so Phaser-rendered field objects match the pre-Phaser night color.
-            const base = SCENE_COLOR_TONES?.night?.baseLayer || {};
-            const balance = base.colorBalance || { red: 0.4, green: 0.9, blue: 2.5 };
-            const isEntity = this.special === "sprite";
-            const brightness = Number(
-              isEntity ? base.entityBrightness : base.brightness
-            );
-            const saturation = Number(
-              isEntity ? base.entitySaturation : base.saturation
-            );
-            const contrast = Number(base.contrast);
+            const isEntitySprite = this.special === "sprite";
+            const isFieldObject = this.dualTone || inheritedRole === "day" || isEntitySprite;
+            if (!isFieldObject) return;
 
-            const b = Number.isFinite(brightness) ? brightness : (isEntity ? 0.42 : 0.4);
-            const s = Number.isFinite(saturation) ? saturation : (isEntity ? 0.7 : 0.55);
-            const c = Number.isFinite(contrast) ? contrast : 1;
-            const br = Number.isFinite(Number(balance.red)) ? Number(balance.red) : 0.4;
-            const bg = Number.isFinite(Number(balance.green)) ? Number(balance.green) : 0.9;
-            const bb = Number.isFinite(Number(balance.blue)) ? Number(balance.blue) : 2.5;
-            const signature = `${isEntity ? "entity" : "base"}|${b}|${s}|${c}|${br}|${bg}|${bb}`;
-
+            const tone = isEntitySprite
+              ? NIGHT_FIELD_OBJECT_TONE.entities
+              : NIGHT_FIELD_OBJECT_TONE.structures;
+            const matrix5 = buildNightObjectMatrix(tone, mix);
+            const target = this.singleImage;
+            const signature = `${isEntitySprite ? "entity" : "structure"}|${matrix5.map((v) => Number(v).toFixed(4)).join(",")}`;
             if (target.__cozzyNightFilterSignature === signature) return;
             target.__cozzyNightFilterSignature = signature;
             target.clearTint?.();
 
-            const identity5 = () => [
-              1, 0, 0, 0, 0,
-              0, 1, 0, 0, 0,
-              0, 0, 1, 0, 0,
-              0, 0, 0, 1, 0,
-              0, 0, 0, 0, 1
-            ];
-            const multiply5 = (left, right) => {
-              const out = new Array(25).fill(0);
-              for (let row = 0; row < 5; row += 1) {
-                for (let col = 0; col < 5; col += 1) {
-                  let sum = 0;
-                  for (let k = 0; k < 5; k += 1) {
-                    sum += left[row * 5 + k] * right[k * 5 + col];
-                  }
-                  out[row * 5 + col] = sum;
-                }
-              }
-              return out;
-            };
-
-            const balanceMatrix = identity5();
-            balanceMatrix[0] = br;
-            balanceMatrix[6] = bg;
-            balanceMatrix[12] = bb;
-
-            const brightnessMatrix = identity5();
-            brightnessMatrix[0] = b;
-            brightnessMatrix[6] = b;
-            brightnessMatrix[12] = b;
-
-            // CSS filter saturate(s) matrix from the Filter Effects specification.
-            const saturationMatrix = [
-              0.214 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0,
-              0.214 - 0.214 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0,
-              0.214 - 0.214 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0,
-              0, 0, 0, 1, 0,
-              0, 0, 0, 0, 1
-            ];
-
-            const contrastMatrix = identity5();
-            const contrastOffset = 0.5 * (1 - c);
-            contrastMatrix[0] = c;
-            contrastMatrix[6] = c;
-            contrastMatrix[12] = c;
-            contrastMatrix[4] = contrastOffset;
-            contrastMatrix[9] = contrastOffset;
-            contrastMatrix[14] = contrastOffset;
-
-            // CSS order: url(#nightCoolBalance) -> brightness -> saturate -> contrast.
-            let combined = balanceMatrix;
-            combined = multiply5(brightnessMatrix, combined);
-            combined = multiply5(saturationMatrix, combined);
-            combined = multiply5(contrastMatrix, combined);
-
-            const phaserMatrix = [];
-            for (let row = 0; row < 4; row += 1) {
-              phaserMatrix.push(
-                combined[row * 5],
-                combined[row * 5 + 1],
-                combined[row * 5 + 2],
-                combined[row * 5 + 3],
-                combined[row * 5 + 4] * 255
-              );
-            }
-
             try {
-              // ColorMatrix FX is WebGL-backed in Phaser 3.90. If available,
-              // this reproduces the original SVG/CSS night filter far more closely
-              // than the previous setTint approximation.
               if (target.preFX?.addColorMatrix) {
                 if (!target.__cozzyNightColorMatrixFx) {
                   target.__cozzyNightColorMatrixFx = target.preFX.addColorMatrix();
                 }
-                target.__cozzyNightColorMatrixFx.set(phaserMatrix);
-                target.__cozzyNightColorMatrixFx.active = true;
+                target.__cozzyNightColorMatrixFx.set(toPhaserColorMatrix(matrix5));
+                target.__cozzyNightColorMatrixFx.active = !isMatrixNearIdentity(matrix5);
                 return;
               }
-            } catch (_) {
-              // Canvas or unsupported FX path: fall through to a conservative tint.
-            }
+            } catch (_) {}
 
-            // Fallback only. The normal WebGL path above is the intended rendering.
-            const fallbackR = Math.max(0, Math.min(255, Math.round(255 * b * br)));
-            const fallbackG = Math.max(0, Math.min(255, Math.round(255 * b * bg)));
-            const fallbackB = Math.max(0, Math.min(255, Math.round(255 * b * bb)));
-            target.setTint((fallbackR << 16) | (fallbackG << 8) | fallbackB);
+            // Canvas fallback: 정확한 채도/대비는 지원하지 않지만 최소한의 밤 색조를 유지합니다.
+            const balance = tone.colorBalance || { red: 1, green: 1, blue: 1 };
+            const t = clamp01(mix);
+            const b = 1 + ((Number(tone.brightness) || 1) - 1) * t;
+            const r = Math.max(0, Math.min(255, Math.round(255 * b * (1 + ((Number(balance.red) || 1) - 1) * t))));
+            const g = Math.max(0, Math.min(255, Math.round(255 * b * (1 + ((Number(balance.green) || 1) - 1) * t))));
+            const bl = Math.max(0, Math.min(255, Math.round(255 * b * (1 + ((Number(balance.blue) || 1) - 1) * t))));
+            target.setTint((r << 16) | (g << 8) | bl);
+          }
+
+          applyCloudToneFilter() {
+            if (this.special !== "cloud" || !this.singleImage) return;
+            const matrix5 = buildCloudToneMatrix(phaserCloudToneTarget);
+            const target = this.singleImage;
+            const signature = matrix5.map((v) => Number(v).toFixed(4)).join(",");
+            if (target.__cozzyCloudToneSignature === signature) return;
+            target.__cozzyCloudToneSignature = signature;
+            target.clearTint?.();
+            try {
+              if (target.preFX?.addColorMatrix) {
+                if (!target.__cozzyCloudColorMatrixFx) {
+                  target.__cozzyCloudColorMatrixFx = target.preFX.addColorMatrix();
+                }
+                target.__cozzyCloudColorMatrixFx.set(toPhaserColorMatrix(matrix5));
+                target.__cozzyCloudColorMatrixFx.active = !isMatrixNearIdentity(matrix5);
+              }
+            } catch (_) {}
           }
 
           setOpacityValue(value, animate = true) {
@@ -8305,7 +8616,7 @@ You can leave the game and come back anytime.</div>
                 this.setBackgroundPosition(value);
                 return;
               case "backgroundColor":
-                if (this.special === "bird" && this.singleImage) this.singleImage.setTint(hexToNumber(value));
+                if (this.special === "bird" && this.singleImage) this.singleImage.setTintFill(hexToNumber(value));
                 return;
               case "--cloud-position":
                 this.setBackgroundPosition(value);
@@ -8475,20 +8786,19 @@ You can leave the game and come back anytime.</div>
           }
           syncVisibility() {
             if (!this.go) return;
-            this.go.visible = !this._hidden && this.visible;
-            if (this._hidden || !this.visible) this.hitRect?.disableInteractive(); else this.syncInteractive();
+            let inheritedNightRole = this.visualRole === "night";
+            let ancestor = this.parentElement;
+            while (!inheritedNightRole && ancestor instanceof FieldNode) {
+              inheritedNightRole = ancestor.visualRole === "night";
+              ancestor = ancestor.parentElement;
+            }
+            this.renderSuppressed = inheritedNightRole;
+            this.go.visible = !this.renderSuppressed && !this._hidden && this.visible;
+            if (this.renderSuppressed || this._hidden || !this.visible) this.hitRect?.disableInteractive(); else this.syncInteractive();
           }
           syncAlpha() {
             if (!this.go) return;
-            const mix = getSceneNightMix();
-            let alpha = this.opacity;
-            if (this.visualRole === "day") alpha *= (1 - mix);
-            if (this.visualRole === "night") alpha *= mix;
-            this.go.alpha = alpha;
-            if (this.dualTone) {
-              if (this.dayImage) this.dayImage.alpha = 1 - mix;
-              if (this.nightImage) this.nightImage.alpha = mix;
-            }
+            this.go.alpha = this.renderSuppressed ? 0 : this.opacity;
           }
           syncInteractive() {
             if (!scene || !this.go) return;
@@ -8660,8 +8970,7 @@ You can leave the game and come back anytime.</div>
           const z = getEffectiveViewScale();
           const offset = getEffectiveViewOffset();
 
-          // The restored DOM sky layer uses the same world transform as the Phaser camera,
-          // including start-screen zoom, entry offsets, and user panning.
+          // 반딧불 등 남아 있는 DOM atmosphere 요소도 동일한 월드 이동을 유지합니다.
           if (atmosphereWorld) {
             atmosphereWorld.style.left = `calc(50% + ${offset.x}px)`;
             atmosphereWorld.style.top = `calc(50% + ${offset.y}px)`;
@@ -8669,9 +8978,14 @@ You can leave the game and come back anytime.</div>
           }
 
           if (!scene) return;
-          const camera = scene.cameras.main;
-          camera.setZoom(z);
-          camera.centerOn(WORLD_SIZE / 2 - offset.x / z, WORLD_SIZE / 2 - offset.y / z);
+          const width = Math.max(1, scene.scale.width || window.innerWidth);
+          const height = Math.max(1, scene.scale.height || window.innerHeight);
+          for (const camera of [fieldTone.fieldCamera, fieldTone.atmosphereCamera, fieldTone.fxCamera]) {
+            if (!camera) continue;
+            camera.setViewport(0, 0, width, height);
+            camera.setZoom(z);
+            camera.centerOn(WORLD_SIZE / 2 - offset.x / z, WORLD_SIZE / 2 - offset.y / z);
+          }
         }
         function setView(scale, panX, panY) {
           viewScale = Math.max(0.001, Number(scale) || 1);
@@ -8714,6 +9028,8 @@ You can leave the game and come back anytime.</div>
         let dayBackgroundTile = null;
         let nightBackgroundTile = null;
         let lastSeenSceneNightMixRevision = -1;
+        let lastSeenPhaserSceneToneRevision = -1;
+        let lastSeenPhaserCloudToneRevision = -1;
         let wasNightMixTransitionActive = false;
 
         function isNightMixTransitionActive(now = performance.now()) {
@@ -8729,17 +9045,66 @@ You can leave the game and come back anytime.</div>
         }
 
         function updateTone(force = false) {
+          const now = performance.now();
           const mix = getSceneNightMix();
-          if (!force && Number.isFinite(lastAppliedToneMix) && Math.abs(mix - lastAppliedToneMix) < 0.0005) {
-            return mix;
-          }
+          const sceneTone = sampleSceneTone(now);
+          const rainStrength = sampleRainStrength(now);
+          const rainTone = getInterpolatedRainTone(mix);
+
+          // Field: Day/Sunset/Night grade + Rain grade를 카메라에서 한 번만 처리합니다.
+          const sceneMatrix = buildCssLikeToneMatrix(sceneTone, 1);
+          const rainMatrix = buildCssLikeToneMatrix(rainTone, rainStrength);
+          const fieldMatrix = multiply5(rainMatrix, sceneMatrix);
+          setColorMatrixFx(fieldTone.fieldCamera, "colorMatrixFx", fieldMatrix);
+
+          // Sky atmosphere: 자체 Cloud/Bird 색을 유지하고 Rain grade만 공통 적용합니다.
+          setColorMatrixFx(
+            fieldTone.atmosphereCamera,
+            "atmosphereColorMatrixFx",
+            rainMatrix
+          );
+
+          const nightMixChanged =
+            force ||
+            !Number.isFinite(lastAppliedToneMix) ||
+            Math.abs(mix - lastAppliedToneMix) >= 0.0005;
           lastAppliedToneMix = mix;
-          if (dayBackgroundTile) dayBackgroundTile.alpha = 1;
-          if (nightBackgroundTile) nightBackgroundTile.alpha = mix;
+
+          if (dayBackgroundTile) {
+            dayBackgroundTile.alpha = 1;
+            dayBackgroundTile.visible = mix < 0.9995;
+          }
+          if (nightBackgroundTile) {
+            nightBackgroundTile.alpha = mix;
+            nightBackgroundTile.visible = mix > 0.0005;
+          }
+
+          const cloudToneChanged =
+            force || fieldTone.cloudRevision !== phaserCloudToneRevision;
+          if (cloudToneChanged) fieldTone.cloudRevision = phaserCloudToneRevision;
+          const birdToneChanged =
+            force || fieldTone.lastBirdSceneRevision !== phaserSceneToneRevision;
+          if (birdToneChanged) fieldTone.lastBirdSceneRevision = phaserSceneToneRevision;
+
+          if (nightMixChanged) {
+            for (const node of objectToneNodes) {
+              node.syncAlpha();
+              node.applyNightVisualFilter?.(mix);
+            }
+          }
+
+          if (cloudToneChanged) {
+            for (const node of cloudToneNodes) node.applyCloudToneFilter?.();
+          }
+
+          if (birdToneChanged) {
+            const tint = hexToNumber(phaserBirdColorTarget);
+            for (const node of birdToneNodes) {
+              if (node.singleImage) node.singleImage.setTintFill(tint);
+            }
+          }
+
           for (const node of nodes) {
-            node.syncAlpha();
-            // Night ColorMatrix is static for a given texture and is already applied
-            // by applyTexture(). Do not re-check/rebuild it every animation frame.
             if (node.special === "cloudShadow" && node.singleImage && !node.singleImage.__cozzyCloudShadowStyled) {
               applyCloudShadowStyle(node);
             }
@@ -8831,7 +9196,7 @@ You can leave the game and come back anytime.</div>
           if (!scene) return;
           if (!screenRain.graphics) {
             screenRain.graphics = scene.add.graphics().setDepth(25 * 100000);
-            fieldTone.atmosphereLayer?.add(screenRain.graphics);
+            fieldTone.fxLayer?.add(screenRain.graphics);
           }
           const graphics = screenRain.graphics;
           graphics.clear();
@@ -8992,13 +9357,24 @@ You can leave the game and come back anytime.</div>
                 scene = this;
                 this.input.topOnly = true;
 
-                // The field remains Phaser-owned, but scene grading and sky color are
-                // restored to the original DOM/CSS/SVG filter path.
+                // Phaser 컬러 시스템: field / atmosphere / weather FX를 카메라로 분리합니다.
+                // fieldCamera에는 Day/Sunset/Night + Rain, atmosphereCamera에는 Rain만 적용합니다.
+                // 빗줄기 FX는 색보정 뒤에 그려지도록 별도 카메라를 사용합니다.
                 fieldTone.lowLayer = this.add.layer().setDepth(0);
                 fieldTone.sceneGraphics = null;
                 fieldTone.atmosphereLayer = this.add.layer().setDepth(2);
+                fieldTone.fxLayer = this.add.layer().setDepth(3);
                 fieldTone.rainGraphics = null;
                 fieldTone.colorMatrixFx = null;
+                fieldTone.atmosphereColorMatrixFx = null;
+
+                fieldTone.fieldCamera = this.cameras.main;
+                fieldTone.atmosphereCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height, false, "atmosphereCamera");
+                fieldTone.fxCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height, false, "weatherFxCamera");
+
+                fieldTone.fieldCamera.ignore([fieldTone.atmosphereLayer, fieldTone.fxLayer]);
+                fieldTone.atmosphereCamera.ignore([fieldTone.lowLayer, fieldTone.fxLayer]);
+                fieldTone.fxCamera.ignore([fieldTone.lowLayer, fieldTone.atmosphereLayer]);
 
                 Promise.all(Array.from(STATIC_ASSETS, loadNaturalImage)).then(() => {
                   buildBackgrounds();
@@ -9027,10 +9403,31 @@ You can leave the game and come back anytime.</div>
 
                 const revisionChanged =
                   lastSeenSceneNightMixRevision !== sceneNightMixRevision;
+                const sceneToneRevisionChanged =
+                  lastSeenPhaserSceneToneRevision !== phaserSceneToneRevision;
+                const cloudToneRevisionChanged =
+                  lastSeenPhaserCloudToneRevision !== phaserCloudToneRevision;
                 const toneTransitionActive = isNightMixTransitionActive(frameNow);
-                if (revisionChanged || toneTransitionActive || wasNightMixTransitionActive) {
-                  updateTone(revisionChanged);
+                const sceneToneTransitionActive = Boolean(fieldTone.transition);
+                const rainTargetNow = document.body.classList.contains("is-rainy") ? 1 : 0;
+                const rainNeedsUpdate =
+                  fieldTone.lastRainTarget === null ||
+                  rainTargetNow !== fieldTone.lastRainTarget ||
+                  Boolean(fieldTone.rainTransition);
+
+                if (
+                  revisionChanged ||
+                  sceneToneRevisionChanged ||
+                  cloudToneRevisionChanged ||
+                  toneTransitionActive ||
+                  sceneToneTransitionActive ||
+                  rainNeedsUpdate ||
+                  wasNightMixTransitionActive
+                ) {
+                  updateTone(revisionChanged || sceneToneRevisionChanged);
                   lastSeenSceneNightMixRevision = sceneNightMixRevision;
+                  lastSeenPhaserSceneToneRevision = phaserSceneToneRevision;
+                  lastSeenPhaserCloudToneRevision = phaserCloudToneRevision;
                 }
                 wasNightMixTransitionActive = toneTransitionActive;
               }
@@ -9077,8 +9474,8 @@ You can leave the game and come back anytime.</div>
       const entitiesBehindTree = phaserField.layer("entitiesBehindTree");
       const entities = phaserField.layer("entities");
       const entitiesFrontStructures = phaserField.layer("entitiesFrontStructures");
-      const cloudsLayer = document.getElementById("clouds");
-      const birdsLayer = document.getElementById("birds");
+      const cloudsLayer = phaserField.layer("clouds");
+      const birdsLayer = phaserField.layer("birds");
       const supplyBoxShadowLayer = phaserField.layer("supplyBoxShadowLayer");
       const supplyBoxLayer = phaserField.layer("supplyBoxLayer");
       const foodCountElement = document.getElementById("foodCount");
@@ -16853,57 +17250,9 @@ You can leave the game and come back anytime.</div>
       }
 
       function syncNewEntityToSceneColorTransition(dayVisual, nightVisual) {
-        if (!(dayVisual instanceof HTMLElement) || !(nightVisual instanceof HTMLElement)) {
-          return;
-        }
-
-        const state = sceneNightMixTransitionState;
-        const now = performance.now();
-        const elapsedMs = Math.max(0, now - state.startedAt);
-        const remainingMs = Math.max(0, state.durationMs - elapsedMs);
-        if (remainingMs <= 16) return;
-
-        const currentNightMix = getCurrentSceneNightMixVisual(now);
-        const targetNightMix = clamp01(state.to);
-        const currentDayMix = 1 - currentNightMix;
-        const targetDayMix = 1 - targetNightMix;
-
-        // 새 요소는 이전 computed opacity가 없어 전환 중에도 목표값으로 바로 그려질 수 있습니다.
-        // 첫 프레임을 현재 장면의 중간값으로 고정한 뒤 남은 시간만큼 같은 목표값으로 이어 갑니다.
-        dayVisual.style.setProperty("opacity", String(currentDayMix), "important");
-        nightVisual.style.setProperty("opacity", String(currentNightMix), "important");
-        dayVisual.style.setProperty("transition-duration", "0ms", "important");
-        nightVisual.style.setProperty("transition-duration", "0ms", "important");
-
-        requestAnimationFrame(() => {
-          if (!dayVisual.isConnected || !nightVisual.isConnected) return;
-
-          const nextNow = performance.now();
-          const nextRemainingMs = Math.max(0, state.durationMs - (nextNow - state.startedAt));
-          if (nextRemainingMs <= 0) {
-            dayVisual.style.removeProperty("opacity");
-            nightVisual.style.removeProperty("opacity");
-            dayVisual.style.removeProperty("transition-duration");
-            nightVisual.style.removeProperty("transition-duration");
-            return;
-          }
-
-          // 0ms 초기값을 실제 스타일로 확정한 후, 배경과 같은 남은 시간으로 전환합니다.
-          void dayVisual.offsetWidth;
-          const remainingCss = `${Math.max(0, Math.round(nextRemainingMs))}ms`;
-          dayVisual.style.setProperty("transition-duration", remainingCss, "important");
-          nightVisual.style.setProperty("transition-duration", remainingCss, "important");
-          dayVisual.style.setProperty("opacity", String(targetDayMix), "important");
-          nightVisual.style.setProperty("opacity", String(targetNightMix), "important");
-
-          window.setTimeout(() => {
-            if (!dayVisual.isConnected || !nightVisual.isConnected) return;
-            dayVisual.style.removeProperty("opacity");
-            nightVisual.style.removeProperty("opacity");
-            dayVisual.style.removeProperty("transition-duration");
-            nightVisual.style.removeProperty("transition-duration");
-          }, nextRemainingMs + 50);
-        });
+        // Phaser 단일 렌더에서는 Night 전용 visual을 그리지 않습니다.
+        // 새 엔티티도 현재 ColorMatrix 값을 즉시 공유하므로 별도 Day/Night opacity 동기화가 필요 없습니다.
+        return;
       }
 
       function isNeutralSceneColorTone(effective) {
@@ -16931,35 +17280,26 @@ You can leave the game and come back anytime.</div>
         setSceneColorTransitionDuration(durationMs);
 
         const effective = getEffectiveToneSettings(tone);
-        const sceneToneElement = document.getElementById("sceneColorTone");
-        const isNeutralDayTone = isNeutralSceneColorTone(effective);
-        if (sceneNeutralFilterTimerId !== null) {
-          clearTimeout(sceneNeutralFilterTimerId);
-          sceneNeutralFilterTimerId = null;
-        }
-        // Sunset/Night 전환을 시작할 때는 먼저 neutral 최적화만 해제합니다.
-        // 이 순간의 CSS 변수는 아직 Day 중립값이라 화면 변화는 없습니다.
-        if (!isNeutralDayTone && sceneToneElement?.classList.contains("is-neutral-day")) {
-          sceneToneElement.classList.remove("is-neutral-day");
-          void sceneToneElement.offsetWidth;
-        }
-
         const normalizedNightMix = clamp01(tone?.nightMix ?? 0);
         beginSceneNightMixTransition(normalizedNightMix, durationMs);
+
+        // Phaser가 CSS backdrop-filter 대신 이 값을 직접 보간합니다.
+        phaserSceneToneTarget = {
+          brightness: effective.brightness,
+          saturation: effective.saturation,
+          contrast: effective.contrast,
+          colorBalance: { ...effective.colorBalance },
+          tint: effective.tint,
+          opacity: 1,
+          durationMs
+        };
+        phaserBirdColorTarget = tone?.birdColor || SCENE_COLOR_TONES.day.birdColor;
+        phaserSceneToneRevision += 1;
+
+        // 아래 CSS 변수는 반딧불/테스트 UI 등 Phaser 밖에 남아 있는 보조 연출 호환용입니다.
         const rootStyle = document.documentElement.style;
         rootStyle.setProperty("--scene-night-mix", String(normalizedNightMix));
-        rootStyle.setProperty("--scene-brightness", String(effective.brightness));
-        rootStyle.setProperty("--scene-saturation", String(effective.saturation));
-        rootStyle.setProperty("--scene-contrast", String(effective.contrast));
-        rootStyle.setProperty(
-          "--scene-color-balance-overlay",
-          getRainColorBalanceOverlay(effective.colorBalance)
-        );
-        rootStyle.setProperty("--scene-tint", effective.tint);
-        rootStyle.setProperty(
-          "--scene-bird-color",
-          tone?.birdColor || SCENE_COLOR_TONES.day.birdColor
-        );
+        rootStyle.setProperty("--scene-bird-color", phaserBirdColorTarget);
         rootStyle.setProperty(
           "--scene-rain-day-opacity",
           String((1 - normalizedNightMix) * RAIN_DAY_TONE.opacity)
@@ -16968,19 +17308,6 @@ You can leave the game and come back anytime.</div>
           "--scene-rain-night-opacity",
           String(normalizedNightMix * RAIN_NIGHT_TONE.opacity)
         );
-
-        // Day로 돌아오는 전환은 기존 CSS 필터로 끝까지 그대로 보여준 뒤,
-        // 완전히 중립값에 도달한 후에만 backdrop-filter 자체를 끕니다.
-        if (isNeutralDayTone && sceneToneElement) {
-          if (options.instant === true || durationMs <= 0 || sceneToneElement.classList.contains("is-neutral-day")) {
-            sceneToneElement.classList.add("is-neutral-day");
-          } else {
-            sceneNeutralFilterTimerId = window.setTimeout(() => {
-              sceneNeutralFilterTimerId = null;
-              sceneToneElement.classList.add("is-neutral-day");
-            }, durationMs + 24);
-          }
-        }
 
         if (options.instant === true) {
           restoreDefaultSceneColorTransitionNextFrame();
@@ -17011,11 +17338,25 @@ You can leave the game and come back anytime.</div>
       }
 
       function setCloudColorVisual(tone) {
+        phaserCloudToneTarget = {
+          brightness: Number(tone?.brightness) || 1,
+          saturation: Number(tone?.saturation) || 1,
+          contrast: Number(tone?.contrast) || 1,
+          colorBalance: {
+            red: Number(tone?.colorBalance?.red) || 1,
+            green: Number(tone?.colorBalance?.green) || 1,
+            blue: Number(tone?.colorBalance?.blue) || 1
+          },
+          tint: tone?.tint || "rgba(0, 0, 0, 0)",
+          opacity: Number.isFinite(Number(tone?.opacity)) ? Number(tone.opacity) : 1
+        };
+        phaserCloudToneRevision += 1;
+
+        // 기존 SVG/CSS 경로는 비활성화되어 있지만 개발 중 값 확인 호환을 위해 변수는 유지합니다.
         const rootStyle = document.documentElement.style;
-        rootStyle.setProperty("--cloud-brightness", String(tone.brightness));
-        rootStyle.setProperty("--cloud-saturation", String(tone.saturation));
-        rootStyle.setProperty("--cloud-contrast", String(tone.contrast));
-        setCloudSvgToneVisual(tone);
+        rootStyle.setProperty("--cloud-brightness", String(phaserCloudToneTarget.brightness));
+        rootStyle.setProperty("--cloud-saturation", String(phaserCloudToneTarget.saturation));
+        rootStyle.setProperty("--cloud-contrast", String(phaserCloudToneTarget.contrast));
       }
 
       function interpolateEffectiveCloudTone(fromTone, toTone, progress) {
@@ -20039,9 +20380,7 @@ You can leave the game and come back anytime.</div>
         const variant = Math.floor(
           Math.random() * CLOUD_VARIANT_COUNT
         );
-        const element = isShadow
-          ? phaserField.createNode()
-          : document.createElement("div");
+        const element = phaserField.createNode();
         element.className = isShadow
           ? "cloud-visual cloud-shadow"
           : "cloud-visual cloud-sprite";
@@ -20483,8 +20822,9 @@ You can leave the game and come back anytime.</div>
         }
 
         for (let index = 0; index < count; index += 1) {
-          const element = document.createElement("div");
+          const element = phaserField.createNode();
           element.className = "bird";
+          element.style.backgroundColor = phaserBirdColorTarget;
           birdsLayer.appendChild(element);
 
           const slot = flockSlots[index];
@@ -24436,21 +24776,14 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const dayVisual = phaserField.createNode();
         dayVisual.className = "dog-visual-layer dog-visual-day";
 
-        const nightVisual = phaserField.createNode();
-        nightVisual.className = "dog-visual-layer dog-visual-night";
-
         const sprite = phaserField.createNode();
         sprite.className = "dog-sprite";
         sprite.style.backgroundImage = `url("${DOG_SHEET}")`;
 
-        const nightSprite = phaserField.createNode();
-        nightSprite.className = "dog-sprite";
-        nightSprite.style.backgroundImage = `url("${DOG_SHEET}")`;
-
+        // 단일 렌더: nightSprite는 같은 Phaser 스프라이트를 참조합니다.
+        const nightSprite = sprite;
         dayVisual.appendChild(sprite);
-        nightVisual.appendChild(nightSprite);
         element.appendChild(dayVisual);
-        element.appendChild(nightVisual);
         entities.appendChild(element);
 
         const now = performance.now();
@@ -24814,9 +25147,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const dayVisual = phaserField.createNode();
         dayVisual.className = "cat-visual-layer cat-visual-day";
 
-        const nightVisual = phaserField.createNode();
-        nightVisual.className = "cat-visual-layer cat-visual-night";
-
         const catBackgroundSize =
           `${CAT_SIZE * CAT_SHEET_COLUMNS}px ${CAT_SIZE * CAT_SHEET_ROWS}px`;
 
@@ -24825,15 +25155,9 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         sprite.style.backgroundImage = `url("${CAT_SHEET}")`;
         sprite.style.backgroundSize = catBackgroundSize;
 
-        const nightSprite = phaserField.createNode();
-        nightSprite.className = "cat-sprite";
-        nightSprite.style.backgroundImage = `url("${CAT_SHEET}")`;
-        nightSprite.style.backgroundSize = catBackgroundSize;
-
+        const nightSprite = sprite;
         dayVisual.appendChild(sprite);
-        nightVisual.appendChild(nightSprite);
         element.appendChild(dayVisual);
-        element.appendChild(nightVisual);
         entities.appendChild(element);
 
         cat = {
@@ -25210,20 +25534,14 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const dayVisual = phaserField.createNode();
         dayVisual.className = "deer-visual-layer deer-visual-day";
 
-        const nightVisual = phaserField.createNode();
-        nightVisual.className = "deer-visual-layer deer-visual-night";
-
         const sprite = phaserField.createNode();
         sprite.className = "deer-sprite";
 
         const overlay = phaserField.createNode();
         overlay.className = "deer-sprite-overlay";
 
-        const nightSprite = phaserField.createNode();
-        nightSprite.className = "deer-sprite";
-
-        const nightOverlay = phaserField.createNode();
-        nightOverlay.className = "deer-sprite-overlay";
+        const nightSprite = sprite;
+        const nightOverlay = overlay;
 
         const hitbox = phaserField.createNode();
         hitbox.className = "deer-hitbox";
@@ -25233,12 +25551,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         dayVisual.appendChild(sprite);
         dayVisual.appendChild(overlay);
-        nightVisual.appendChild(nightSprite);
-        nightVisual.appendChild(nightOverlay);
         element.appendChild(dayVisual);
-        element.appendChild(nightVisual);
         element.appendChild(hitbox);
-        syncNewEntityToSceneColorTransition(dayVisual, nightVisual);
         entities.appendChild(element);
 
         const skipBirth = options.skipBirth === true;
@@ -25806,9 +26120,6 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const dayVisual = phaserField.createNode();
         dayVisual.className = "zombie-visual-layer zombie-visual-day";
 
-        const nightVisual = phaserField.createNode();
-        nightVisual.className = "zombie-visual-layer zombie-visual-night";
-
         const sprite = phaserField.createNode();
         sprite.className = "zombie-sprite";
         sprite.style.backgroundImage =
@@ -25817,21 +26128,12 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const overlay = phaserField.createNode();
         overlay.className = "zombie-sprite-overlay";
 
-        const nightSprite = phaserField.createNode();
-        nightSprite.className = "zombie-sprite";
-        nightSprite.style.backgroundImage =
-          `url("${BIRTH_DEATH_SHEET}")`;
-
-        const nightOverlay = phaserField.createNode();
-        nightOverlay.className = "zombie-sprite-overlay";
+        const nightSprite = sprite;
+        const nightOverlay = overlay;
 
         dayVisual.appendChild(sprite);
         dayVisual.appendChild(overlay);
-        nightVisual.appendChild(nightSprite);
-        nightVisual.appendChild(nightOverlay);
         element.appendChild(dayVisual);
-        element.appendChild(nightVisual);
-        syncNewEntityToSceneColorTransition(dayVisual, nightVisual);
         entities.appendChild(element);
 
         const skipBirth = options.skipBirth === true;
