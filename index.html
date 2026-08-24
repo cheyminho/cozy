@@ -674,7 +674,9 @@
     }
 
     .todo-reward-line + .todo-reward-line {
-      margin-top: 4px;
+      /* Reward 항목은 JS로 연속 생성되어 Todo의 HTML 줄바꿈 공백이 없으므로
+         화면상 Todo 미션 항목과 같은 간격이 되도록 보정합니다. */
+      margin-top: calc(10px + 0.4em);
     }
 
     .todo-item + .todo-item {
@@ -5301,7 +5303,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.223"
+  data-game-version="0.224"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5898,7 +5900,7 @@ You can leave the game and come back anytime.</div>
   <div id="reportOverlay" aria-hidden="true">
     <div id="reportMenu" role="dialog" aria-modal="true" aria-label="Report">
       <div id="reportMessage">Use 10 kills to request a supply crate.
-Firearm and ammo required.</div>
+You'll need a firearm and ammo to collect it.</div>
       <div id="reportActions">
         <button id="reportRequestButton" class="report-action-button" type="button" disabled>Request</button>
       </div>
@@ -10677,7 +10679,7 @@ Firearm and ammo required.</div>
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
       const TODO_MAX_LIST_ID = 8;
-      const TODO_SCHEMA_VERSION = 5;
+      const TODO_SCHEMA_VERSION = 6;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -11681,10 +11683,7 @@ Firearm and ammo required.</div>
         repairCategoryNewByCategory[category] = true;
         hasRepairButtonNew = true;
         updateRepairNewBadgeState();
-        if (getUnlockedBlueprintCount() >= 3) {
-          setTodoProgress(3, "item1", true);
-        }
-        return true;
+         return true;
       }
 
       function configureRepairItem(category, index, data) {
@@ -12201,7 +12200,7 @@ Firearm and ammo required.</div>
           complete("item1", repairAppliedItemBySection.outdoor.fence >= 0);
           complete("item3", isShedRepaired());
         } else if (listId === 3) {
-          complete("item1", getUnlockedBlueprintCount() >= 3);
+          // item1은 Report 화면에서 보급품 Request가 실제로 성공했을 때만 완료합니다.
           complete("item2", dogCompletedStage >= 3);
         } else if (listId === 4) {
           complete("item2", fuelCount >= 10);
@@ -13040,7 +13039,7 @@ Firearm and ammo required.</div>
             "repair the shed"
           ],
           3: [
-            "collect 3 blueprints",
+            "report 10 zombie kills",
             "befriend the dog",
             "explore the forest"
           ],
@@ -14934,6 +14933,15 @@ Firearm and ammo required.</div>
               todoProgress[6].item1 = false;
               // 7차 item3은 화단 제작 상태를 repairState 로드 후 다시 소급 계산합니다.
               todoProgress[7].item3 = false;
+            }
+
+            if (storedTodoSchemaVersion < 6 && currentTodoListId <= 3) {
+              // 3차 item1이 설계도 수집에서 보급품 요청으로 변경되어 이전 완료값을 이어받지 않습니다.
+              todoProgress[3].item1 = false;
+              if (currentTodoListId === 3) {
+                todoCompletedListId = 0;
+                todoCompletedDay = 0;
+              }
             }
 
             // 기존 6차 세 번째 항목의 저장 완료값은 폐기하고 DAY 28 기준으로 다시 계산합니다.
@@ -22596,6 +22604,9 @@ Firearm and ammo required.</div>
           0,
           zombieKillResource - SUPPLY_REQUEST_KILL_COST
         );
+        if (currentTodoListId === 3) {
+          setTodoProgress(3, "item1", true);
+        }
         playSound(REPORT_REQUEST_SOUND);
         updateResourceHud();
         closeReport();
