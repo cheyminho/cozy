@@ -654,7 +654,7 @@
     }
 
     .todo-item,
-    .todo-reward-item {
+    .todo-reward-line {
       position: relative;
       display: block;
       width: max-content;
@@ -666,7 +666,15 @@
     }
 
     .todo-reward-item {
+      display: contents;
+    }
+
+    .todo-reward-line {
       text-transform: lowercase;
+    }
+
+    .todo-reward-line + .todo-reward-line {
+      margin-top: 4px;
     }
 
     .todo-item + .todo-item {
@@ -5185,7 +5193,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.219"
+  data-game-version="0.220"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7127,8 +7135,12 @@ You can leave the game and come back anytime.</div>
       const CLOUD_SHEET_ROWS = 2;
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
-      // Phaser의 개별 구름 프레임 가장자리에서 선형 샘플링/FX가 잘려 보이지 않도록 주는 투명 여백입니다.
+      // Phaser의 개별 구름 프레임 가장자리에서 선형 샘플링이 잘려 보이지 않도록 주는 투명 여백입니다.
       const CLOUD_TEXTURE_PADDING = 4;
+      // Phaser PreFX는 GameObject 크기의 별도 framebuffer에서 처리됩니다.
+      // 큰 구름이 좌하단→우상단으로 이동할 때 ColorMatrix FX 버퍼의 왼쪽 경계가
+      // 실루엣을 자르지 않도록 FX 전용 여백을 넉넉하게 둡니다.
+      const CLOUD_PREFX_PADDING = 32;
 
       /*
         좀비/사슴 생성 시 실제 구름(skyClouds) 아래를 가급적 피하는 범위입니다.
@@ -8680,6 +8692,14 @@ You can leave the game and come back anytime.</div>
             if (this.special !== "cloud" || !this.singleImage) return;
             const matrix5 = buildCloudToneMatrix(phaserCloudToneTarget);
             const target = this.singleImage;
+
+            // PreFX는 texture-sized framebuffer를 사용하므로 큰 구름이 화면 가장자리에서
+            // 이동할 때 프레임 경계가 보이지 않도록 Phaser 자체 FX padding도 지정합니다.
+            // 이전의 padded texture는 소스 프레임 샘플링 보호용이고, 이 값은 FX 버퍼 보호용입니다.
+            try {
+              target.preFX?.setPadding?.(CLOUD_PREFX_PADDING);
+            } catch (_) {}
+
             const signature = matrix5.map((v) => Number(v).toFixed(4)).join(",");
             if (target.__cozzyCloudToneSignature === signature) return;
             target.__cozzyCloudToneSignature = signature;
@@ -11346,7 +11366,10 @@ You can leave the game and come back anytime.</div>
       }
 
       function getRepairCategoryHasNewItems(category) {
-        return repairCategoryNewByCategory[category] === true;
+        if (repairCategoryNewByCategory[category] !== true) return false;
+        return (repairItemsByCategory[category] || []).some(
+          (item) => item?.unlocked && item.isNew
+        );
       }
 
       // 가방·수리·탐험 버튼 NEW가 모두 같은 방식으로 생성 애니메이션을 재생합니다.
@@ -12857,22 +12880,22 @@ You can leave the game and come back anytime.</div>
         }, 500);
       }
 
-      function getTodoRewardText(listId) {
-        if (listId === 1) return "Wooden Fence";
-        if (listId === 2) return "Compass";
-        if (listId === 3) return "Rifle + Rifle Ammo x10";
-        if (listId === 4) return "Map";
+      function getTodoRewardTexts(listId) {
+        if (listId === 1) return ["Wooden Fence"];
+        if (listId === 2) return ["Compass"];
+        if (listId === 3) return ["Rifle", "Rifle Ammo x10"];
+        if (listId === 4) return ["Map"];
 
         if (listId === 5) {
           const hasTimberRoof =
             getBuildingBlueprintItem(TIMBER_ROOF_BLUEPRINT_ID)?.unlocked === true;
-          return hasTimberRoof ? "Wood x10" : "Timber Roof";
+          return [hasTimberRoof ? "Wood x10" : "Timber Roof"];
         }
 
         if (listId === 6) {
           const hasTimberWalls =
             getBuildingBlueprintItem(TIMBER_WALLS_BLUEPRINT_ID)?.unlocked === true;
-          return hasTimberWalls ? "Wood x15" : "Timber Walls";
+          return [hasTimberWalls ? "Wood x15" : "Timber Walls"];
         }
 
         if (listId === 7) {
@@ -12883,15 +12906,15 @@ You can leave the game and come back anytime.</div>
             (blueprintId) => getRepairBlueprintItem(blueprintId)?.unlocked !== true
           );
           if (missingNonWhiteBlueprintIds.length > 0) {
-            return "Car Paint Blueprint";
+            return ["Car Paint Blueprint"];
           }
           if (getRepairBlueprintItem(CAR_PAINT_WHITE_BLUEPRINT_ID)?.unlocked !== true) {
-            return CAR_PAINT_BLUEPRINT_DEFINITIONS[CAR_PAINT_WHITE_BLUEPRINT_ID]?.name || "Car Paint: White";
+            return [CAR_PAINT_BLUEPRINT_DEFINITIONS[CAR_PAINT_WHITE_BLUEPRINT_ID]?.name || "Car Paint: White"];
           }
-          return "All Paint x1";
+          return ["All Paint x1"];
         }
 
-        return "";
+        return [];
       }
 
       function updateTodoListUI() {
@@ -12962,11 +12985,18 @@ You can leave the game and come back anytime.</div>
           element.classList.toggle("is-complete", Boolean(text) && progress[key] === true);
         });
 
-        const rewardText = getTodoRewardText(currentTodoListId);
-        if (todoRewardTitle) todoRewardTitle.hidden = !rewardText;
+        const rewardTexts = getTodoRewardTexts(currentTodoListId);
+        const hasRewards = rewardTexts.length > 0;
+        if (todoRewardTitle) todoRewardTitle.hidden = !hasRewards;
         if (todoRewardItem) {
-          todoRewardItem.hidden = !rewardText;
-          todoRewardItem.textContent = rewardText;
+          todoRewardItem.hidden = !hasRewards;
+          todoRewardItem.replaceChildren();
+          for (const rewardText of rewardTexts) {
+            const rewardLine = document.createElement("span");
+            rewardLine.className = "todo-reward-line";
+            rewardLine.textContent = rewardText;
+            todoRewardItem.appendChild(rewardLine);
+          }
         }
 
       }
@@ -13597,6 +13627,20 @@ You can leave the game and come back anytime.</div>
         return true;
       }
 
+      function syncRepairCategoryNewStatesToItems() {
+        let didChange = false;
+        for (const category of REPAIR_CATEGORY_ORDER) {
+          if (!repairCategoryNewByCategory[category]) continue;
+          const hasRemainingNewItem = (repairItemsByCategory[category] || []).some(
+            (item) => item?.unlocked && item.isNew
+          );
+          if (hasRemainingNewItem) continue;
+          repairCategoryNewByCategory[category] = false;
+          didChange = true;
+        }
+        return didChange;
+      }
+
       function commitMobileViewedRepairNewStates() {
         if (!isMobileDeferredNewMode() || mobileViewedRepairNewItemKeys.size === 0) {
           return false;
@@ -13613,6 +13657,9 @@ You can leave the game and come back anytime.</div>
           });
         }
         mobileViewedRepairNewItemKeys.clear();
+        if (syncRepairCategoryNewStatesToItems()) {
+          didChange = true;
+        }
         return didChange;
       }
 
@@ -15920,6 +15967,24 @@ You can leave the game and come back anytime.</div>
         return didChange;
       }
 
+      // 모바일에서는 이번 방문에서 확인한 아이템 NEW를 다음 Bag 진입 직전에 실제 상태에서도 제거합니다.
+      // 아이템 NEW 자체가 사라지므로 해당 아이템을 포함하던 카테고리 탭 NEW도 함께 사라집니다.
+      function commitMobileViewedInventoryNewStates() {
+        if (!isMobileDeferredNewMode() || viewedInventoryNewItemTypes.size === 0) {
+          return false;
+        }
+
+        let didChange = false;
+        for (const itemType of [...viewedInventoryNewItemTypes]) {
+          if (newInventoryItemTypes.delete(itemType)) {
+            didChange = true;
+          }
+          mobileHiddenInventoryNewItemTypes.delete(itemType);
+        }
+        viewedInventoryNewItemTypes.clear();
+        return didChange;
+      }
+
       function updateInventoryPageDots() {
         inventoryPagination.replaceChildren();
         inventoryPagination.hidden = inventoryPageCount <= 1;
@@ -16280,14 +16345,9 @@ You can leave the game and come back anytime.</div>
       function openInventory() {
         if (isInventoryOpen) return;
 
+        // 이전 모바일 방문에서 실제로 보았던 하위 아이템 NEW를 이번 진입 전에 확정 제거합니다.
+        const didCommitViewedInventoryNew = commitMobileViewedInventoryNewStates();
         mobileHiddenInventoryNewItemTypes.clear();
-        if (isMobileDeferredNewMode()) {
-          for (const itemType of viewedInventoryNewItemTypes) {
-            if (newInventoryItemTypes.has(itemType)) {
-              mobileHiddenInventoryNewItemTypes.add(itemType);
-            }
-          }
-        }
         applyInventoryItemNewTagState();
 
         closeExplorationMenu(false);
@@ -16314,6 +16374,9 @@ You can leave the game and come back anytime.</div>
         const firstItem = getFirstVisibleInventoryItem();
         if (firstItem && shouldAutoFocusMenuEntry()) {
           window.setTimeout(() => firstItem.focus(), 0);
+        }
+        if (didCommitViewedInventoryNew) {
+          saveResourceState();
         }
       }
 
