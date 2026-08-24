@@ -161,9 +161,9 @@
       --start-screen-button-weight: 350;
       --start-screen-fade-duration: 500ms;
       --game-ui-entry-duration: 1000ms;
-      --start-screen-top-blur: 5px;
+      --start-screen-top-blur: 3px;
       --start-screen-top-blur-area: 350px;
-      --start-screen-bottom-blur: 5px;
+      --start-screen-bottom-blur: 3px;
       --start-screen-bottom-blur-area: 350px;
 
       /*
@@ -5193,7 +5193,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.220"
+  data-game-version="0.221"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7135,12 +7135,8 @@ You can leave the game and come back anytime.</div>
       const CLOUD_SHEET_ROWS = 2;
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
-      // Phaser의 개별 구름 프레임 가장자리에서 선형 샘플링이 잘려 보이지 않도록 주는 투명 여백입니다.
+      // Phaser의 개별 구름 프레임 가장자리에서 선형 샘플링/FX가 잘려 보이지 않도록 주는 투명 여백입니다.
       const CLOUD_TEXTURE_PADDING = 4;
-      // Phaser PreFX는 GameObject 크기의 별도 framebuffer에서 처리됩니다.
-      // 큰 구름이 좌하단→우상단으로 이동할 때 ColorMatrix FX 버퍼의 왼쪽 경계가
-      // 실루엣을 자르지 않도록 FX 전용 여백을 넉넉하게 둡니다.
-      const CLOUD_PREFX_PADDING = 32;
 
       /*
         좀비/사슴 생성 시 실제 구름(skyClouds) 아래를 가급적 피하는 범위입니다.
@@ -7160,7 +7156,7 @@ You can leave the game and come back anytime.</div>
       const CLOUD_UPPER_MIN_SCALE = 0.5;
       const CLOUD_UPPER_MAX_SCALE = 1;
       const CLOUD_LOWER_MIN_SCALE = 1;
-      const CLOUD_LOWER_MAX_SCALE = 1.5;
+      const CLOUD_LOWER_MAX_SCALE = 1.4;
       const CLOUD_START_OFFSET_X_SCREEN_PX = 0;
       const CLOUD_START_OFFSET_Y_SCREEN_PX = 0;
 
@@ -8692,14 +8688,6 @@ You can leave the game and come back anytime.</div>
             if (this.special !== "cloud" || !this.singleImage) return;
             const matrix5 = buildCloudToneMatrix(phaserCloudToneTarget);
             const target = this.singleImage;
-
-            // PreFX는 texture-sized framebuffer를 사용하므로 큰 구름이 화면 가장자리에서
-            // 이동할 때 프레임 경계가 보이지 않도록 Phaser 자체 FX padding도 지정합니다.
-            // 이전의 padded texture는 소스 프레임 샘플링 보호용이고, 이 값은 FX 버퍼 보호용입니다.
-            try {
-              target.preFX?.setPadding?.(CLOUD_PREFX_PADDING);
-            } catch (_) {}
-
             const signature = matrix5.map((v) => Number(v).toFixed(4)).join(",");
             if (target.__cozzyCloudToneSignature === signature) return;
             target.__cozzyCloudToneSignature = signature;
