@@ -142,6 +142,8 @@
         - button-size / button-weight: 시작화면 버튼 폰트 설정
         - fade-duration: 시작화면 페이드아웃 시간
         - ui-entry-duration: 게임 UI가 화면 밖에서 들어오는 시간
+        - top/bottom-blur: 상/하단 끝의 최대 블러 강도
+        - top/bottom-blur-area: 상/하단 끝에서 중앙 방향으로 블러가 사라지는 영역 높이
       */
       --start-screen-title-top: 70px;
       --start-screen-title-size: 70px;
@@ -159,6 +161,10 @@
       --start-screen-button-weight: 350;
       --start-screen-fade-duration: 500ms;
       --game-ui-entry-duration: 1000ms;
+      --start-screen-top-blur: 5px;
+      --start-screen-top-blur-area: 350px;
+      --start-screen-bottom-blur: 5px;
+      --start-screen-bottom-blur-area: 350px;
 
       /*
         프로필 말풍선 토스트 수정 위치
@@ -630,7 +636,8 @@
       to { opacity: 0; }
     }
 
-    #todoListTitle {
+    #todoListTitle,
+    #todoRewardTitle {
       font-size: 18px;
       display: block;
       margin-bottom: 5px;
@@ -641,7 +648,13 @@
       text-transform: lowercase;
     }
 
-    .todo-item {
+    /* Todo 아래 완료 보상 표시. 제목/아이템은 각각 Todo 제목/미션과 같은 스타일을 사용합니다. */
+    #todoRewardTitle {
+      margin-top: 18px;
+    }
+
+    .todo-item,
+    .todo-reward-item {
       position: relative;
       display: block;
       width: max-content;
@@ -650,6 +663,10 @@
       padding-left: 0;
       text-align: right;
       line-height: 0.4;
+    }
+
+    .todo-reward-item {
+      text-transform: lowercase;
     }
 
     .todo-item + .todo-item {
@@ -1835,6 +1852,47 @@
       display: none;
     }
 
+    /*
+      시작화면 상/하단 블러
+      - 강도: :root의 --start-screen-top-blur / --start-screen-bottom-blur
+      - 영역: :root의 --start-screen-top-blur-area / --start-screen-bottom-blur-area
+      각 화면 끝에서 가장 강하고 중앙 방향으로 gradient mask가 0까지 사라집니다.
+    */
+    #startScreen::before,
+    #startScreen::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: rgba(17, 17, 17, 0.001);
+    }
+
+    #startScreen::before {
+      top: 0;
+      height: var(--start-screen-top-blur-area);
+      -webkit-backdrop-filter: blur(var(--start-screen-top-blur));
+      backdrop-filter: blur(var(--start-screen-top-blur));
+      -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 4%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 0%, #000 4%, transparent 100%);
+    }
+
+    #startScreen::after {
+      bottom: 0;
+      height: var(--start-screen-bottom-blur-area);
+      -webkit-backdrop-filter: blur(var(--start-screen-bottom-blur));
+      backdrop-filter: blur(var(--start-screen-bottom-blur));
+      -webkit-mask-image: linear-gradient(to top, #000 0%, #000 4%, transparent 100%);
+      mask-image: linear-gradient(to top, #000 0%, #000 4%, transparent 100%);
+    }
+
+    #startScreenHeader,
+    #startScreenMenu,
+    #startScreenCredit {
+      z-index: 2;
+    }
+
     #startScreen.is-leaving {
       opacity: 0;
       visibility: hidden;
@@ -2488,6 +2546,29 @@
 
     #weaponSwitchButton[data-weapon="chainsaw"] {
       background-position: 100% 100%;
+    }
+
+    /* 장비 중인 총기의 남은 탄약을 무기 버튼 바로 아래 중앙에 표시합니다. */
+    #weaponAmmoCount {
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 0px);
+      min-width: 24px;
+      transform: translateX(-50%);
+      color: #fff;
+      font-family: "Montserrat", Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 450;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-align: center;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.22);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    #weaponAmmoCount[hidden] {
+      display: none;
     }
 
     .option-control-button:active {
@@ -5104,7 +5185,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.218"
+  data-game-version="0.219"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5470,7 +5551,7 @@
   <div id="optionControls" aria-label="Game options">
         <button id="weatherTestToggleButton" class="option-control-button weather-test-toggle-button" type="button" aria-label="Set test weather to rainy" aria-pressed="false" hidden></button>
 		<button id="soundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
-	    <button id="weaponSwitchButton" class="option-control-button" type="button" data-weapon="fist" aria-label="Switch weapon"></button>
+	    <button id="weaponSwitchButton" class="option-control-button" type="button" data-weapon="fist" aria-label="Switch weapon"><span id="weaponAmmoCount" hidden></span></button>
   </div>
 
   <div id="hud">
@@ -5484,6 +5565,8 @@
       <span class="todo-item" data-todo-key="item1">clear the zombies</span>
       <span class="todo-item" data-todo-key="item2">hunt a deer for food</span>
       <span class="todo-item" data-todo-key="item3">explore the village</span>
+      <span id="todoRewardTitle">reward :</span>
+      <span id="todoRewardItem" class="todo-reward-item"></span>
     </div>
     <div id="lootListOverlay" hidden>
       <span id="lootListTitle">searching village...</span>
@@ -5985,13 +6068,12 @@ You can leave the game and come back anytime.</div>
         0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1
       ]);
       const DOG_STORY_FRAME_INTERVAL_MS = 100;
-      // 개 친밀도는 5단계이며, 1·4단계 완료 후에는 2일 뒤, 2·3단계 완료 후에는 1일 뒤 다음 단계가 열립니다.
-      const DOG_AFFECTION_SCHEMA_VERSION = 2;
+      // 개 친밀도는 4단계이며, 1단계 완료 후 2일, 2단계 완료 후 1일, 3단계 완료 후 2일 뒤 최종 Free Roam이 열립니다.
+      const DOG_AFFECTION_SCHEMA_VERSION = 3;
       const DOG_STAGE_ADVANCE_DELAY_DAYS = Object.freeze({
         1: 2,
         2: 1,
-        3: 1,
-        4: 2
+        3: 2
       });
 
       /*
@@ -6095,7 +6177,7 @@ You can leave the game and come back anytime.</div>
       const STORAGE_MAX_FOOD_COUNT = UPGRADED_MAX_FOOD_COUNT;
       const STORAGE_MAX_WOOD_COUNT = UPGRADED_MAX_WOOD_COUNT;
       const STORAGE_MAX_STONE_COUNT = UPGRADED_MAX_STONE_COUNT;
-      const MAX_INVENTORY_QUANTITY = 99;
+      const MAX_INVENTORY_QUANTITY = 999;
       const INVENTORY_ITEMS_PER_PAGE = 5;
       const INVENTORY_DOT_PAGE_LIMIT = 5;
       const NOTE_DATA = Object.freeze(
@@ -6699,7 +6781,7 @@ You can leave the game and come back anytime.</div>
       const TREE_PART_SHADOW_OFFSET_Y = -10;
       const TREE_PART_SHADOW_WIDTH = 70;
       const TREE_PART_SHADOW_HEIGHT = 20;
-      const TREE_PART_SHADOW_OPACITY = 0.15;
+      const TREE_PART_SHADOW_OPACITY = 0.3;
 
       // 좀비 파츠 전용 연출값입니다. 시작 위치와 비행·바운스·그림자는 여기서 조정합니다.
       const ZOMBIE_PART_SIZE = 32;
@@ -6723,7 +6805,7 @@ You can leave the game and come back anytime.</div>
       const ZOMBIE_PART_SHADOW_HEIGHT = 9;
       const ZOMBIE_PART_SHADOW_OFFSET_X = 11;
       const ZOMBIE_PART_SHADOW_OFFSET_Y = 15;
-      const ZOMBIE_PART_SHADOW_OPACITY = 0.16;
+      const ZOMBIE_PART_SHADOW_OPACITY = 0.3;
 
       const TREE_MAX_CHOPS_PER_GROWTH = 3;
       const TREE_GROWTH_READY = "ready";
@@ -7045,6 +7127,8 @@ You can leave the game and come back anytime.</div>
       const CLOUD_SHEET_ROWS = 2;
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
+      // Phaser의 개별 구름 프레임 가장자리에서 선형 샘플링/FX가 잘려 보이지 않도록 주는 투명 여백입니다.
+      const CLOUD_TEXTURE_PADDING = 4;
 
       /*
         좀비/사슴 생성 시 실제 구름(skyClouds) 아래를 가급적 피하는 범위입니다.
@@ -7890,6 +7974,54 @@ You can leave the game and come back anytime.</div>
           return texture.get(frameName);
         }
 
+        // 구름은 스프라이트 셀을 그대로 Phaser frame으로 쓰면 큰 구름이 셀 경계에 닿을 때
+        // 선형 샘플링/PreFX 경계가 딱 잘린 것처럼 보일 수 있습니다.
+        // 셀 내용은 같은 크기로 유지하고 바깥에 투명 padding만 추가한 독립 texture를 사용합니다.
+        const paddedCloudTextures = new Map();
+
+        function getPaddedCloudTexture(info, frame) {
+          if (!scene || !info?.image) return null;
+          const columns = Math.max(1, frame?.columns || 1);
+          const rows = Math.max(1, frame?.rows || 1);
+          const col = Math.max(0, Math.min(columns - 1, frame?.col || 0));
+          const row = Math.max(0, Math.min(rows - 1, frame?.row || 0));
+          const padding = CLOUD_TEXTURE_PADDING;
+          const cacheKey = `${info.key}:${columns}x${rows}:${col},${row}:p${padding}`;
+          if (paddedCloudTextures.has(cacheKey)) return paddedCloudTextures.get(cacheKey);
+
+          const x0 = Math.round((info.naturalWidth * col) / columns);
+          const y0 = Math.round((info.naturalHeight * row) / rows);
+          const x1 = Math.round((info.naturalWidth * (col + 1)) / columns);
+          const y1 = Math.round((info.naturalHeight * (row + 1)) / rows);
+          const contentWidth = Math.max(1, x1 - x0);
+          const contentHeight = Math.max(1, y1 - y0);
+          const canvas = document.createElement("canvas");
+          canvas.width = contentWidth + padding * 2;
+          canvas.height = contentHeight + padding * 2;
+          const context = canvas.getContext("2d");
+          if (!context) return null;
+
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(
+            info.image,
+            x0, y0, contentWidth, contentHeight,
+            padding, padding, contentWidth, contentHeight
+          );
+
+          const textureKey = `field:cloud-padded:${columns}x${rows}:${col},${row}:p${padding}`;
+          if (!scene.textures.exists(textureKey)) scene.textures.addCanvas(textureKey, canvas);
+          const result = {
+            key: textureKey,
+            width: canvas.width,
+            height: canvas.height,
+            contentWidth,
+            contentHeight,
+            padding
+          };
+          paddedCloudTextures.set(cacheKey, result);
+          return result;
+        }
+
         // Cloud shadow frames are baked to the final dark-blue RGB while preserving
         // the source alpha. This avoids white RGB fringes from semi-transparent
         // antialiased edge pixels when the normal white cloud sheet is multiplied.
@@ -7912,26 +8044,37 @@ You can leave the game and come back anytime.</div>
           const y1 = Math.round((info.naturalHeight * (row + 1)) / rows);
           const width = Math.max(1, x1 - x0);
           const height = Math.max(1, y1 - y0);
+          const padding = CLOUD_TEXTURE_PADDING;
           const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = width + padding * 2;
+          canvas.height = height + padding * 2;
           const context = canvas.getContext("2d");
           if (!context) return null;
 
-          context.clearRect(0, 0, width, height);
-          context.drawImage(info.image, x0, y0, width, height, 0, 0, width, height);
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(
+            info.image, x0, y0, width, height,
+            padding, padding, width, height
+          );
           // Replace RGB for every non-zero-alpha pixel, including soft edge pixels.
           // source-in preserves the original alpha exactly.
           context.globalCompositeOperation = "source-in";
           context.fillStyle = "#303a72";
-          context.fillRect(0, 0, width, height);
+          context.fillRect(0, 0, canvas.width, canvas.height);
           context.globalCompositeOperation = "source-over";
 
           const textureKey = `field:cloud-shadow-baked:${columns}x${rows}:${col},${row}`;
           if (!scene.textures.exists(textureKey)) {
             scene.textures.addCanvas(textureKey, canvas);
           }
-          const result = { key: textureKey, width, height };
+          const result = {
+            key: textureKey,
+            width: canvas.width,
+            height: canvas.height,
+            contentWidth: width,
+            contentHeight: height,
+            padding
+          };
           cloudShadowBakedTextures.set(cacheKey, result);
           return result;
         }
@@ -8219,7 +8362,10 @@ You can leave the game and come back anytime.</div>
             } else if (c.contains("zombie-falling-part")) {
               this.geometry = "topLeft"; this.setSize(ZOMBIE_PART_SIZE, ZOMBIE_PART_SIZE); this.depthBand = 18;
             } else if (c.contains("zombie-falling-part-image")) {
-              this.geometry = "topLeft"; this.setSize(ZOMBIE_PART_SIZE, ZOMBIE_PART_SIZE); this.setBackgroundImage(`url("${ZOMBIE_PARTS_SHEET}")`);
+              // DOM의 32×32 박스는 좌상단에 놓이지만 회전축은 중앙입니다.
+              // Phaser에서는 Image 자체를 center-origin으로 만들고 컨테이너를 16,16에 두어
+              // CSS transform-origin:center center와 같은 피벗을 재현합니다.
+              this.geometry = "center"; this.setSize(ZOMBIE_PART_SIZE, ZOMBIE_PART_SIZE); this.setBackgroundImage(`url("${ZOMBIE_PARTS_SHEET}")`);
             } else if (c.contains("supply-box-shadow")) {
               this.geometry = "topLeft"; this.dualTone = true; dualToneNodes.add(this); this.depthBand = 1;
             } else if (c.contains("supply-box")) {
@@ -8444,15 +8590,24 @@ You can leave the game and come back anytime.</div>
             const bakedCloudShadow = this.special === "cloudShadow"
               ? getBakedCloudShadowTexture(info, frame)
               : null;
+            const paddedCloud = this.special === "cloud"
+              ? getPaddedCloudTexture(info, frame)
+              : null;
             for (const image of images) {
               if (!image) continue;
               if (bakedCloudShadow) {
                 image.setTexture(bakedCloudShadow.key);
                 image.setDisplaySize(
-                  Math.max(0.01, this.width || bakedCloudShadow.width),
-                  Math.max(0.01, this.height || bakedCloudShadow.height)
+                  Math.max(0.01, (this.width || bakedCloudShadow.contentWidth) + bakedCloudShadow.padding * 2),
+                  Math.max(0.01, (this.height || bakedCloudShadow.contentHeight) + bakedCloudShadow.padding * 2)
                 );
                 image.__cozzyCloudShadowBaked = true;
+              } else if (paddedCloud) {
+                image.setTexture(paddedCloud.key);
+                image.setDisplaySize(
+                  Math.max(0.01, (this.width || paddedCloud.contentWidth) + paddedCloud.padding * 2),
+                  Math.max(0.01, (this.height || paddedCloud.contentHeight) + paddedCloud.padding * 2)
+                );
               } else {
                 // setFrame makes the cropped cell the Game Object's actual source frame.
                 // setDisplaySize therefore scales one cell, not the full sprite sheet.
@@ -9483,6 +9638,7 @@ You can leave the game and come back anytime.</div>
       const stoneCountElement = document.getElementById("stoneCount");
       const toastLayer = document.getElementById("toastLayer");
       const weaponSwitchButton = document.getElementById("weaponSwitchButton");
+      const weaponAmmoCount = document.getElementById("weaponAmmoCount");
       const soundToggleButton = document.getElementById("soundToggleButton");
       const exploringSoundToggleButton = document.getElementById("exploringSoundToggleButton");
       const menuBackdrop = document.getElementById("menuBackdrop");
@@ -9703,6 +9859,8 @@ You can leave the game and come back anytime.</div>
       const inventoryButton = document.getElementById("inventoryButton");
       const exploreButton = document.getElementById("exploreButton");
       const todoListOverlay = document.getElementById("todoListOverlay");
+      const todoRewardTitle = document.getElementById("todoRewardTitle");
+      const todoRewardItem = document.getElementById("todoRewardItem");
       const lootListOverlay = document.getElementById("lootListOverlay");
       const lootListTitle = document.getElementById("lootListTitle");
       const lootListItems = document.getElementById("lootListItems");
@@ -10086,6 +10244,9 @@ You can leave the game and come back anytime.</div>
       const newInventoryItemTypes = new Set();
       // NEW 태그는 유지하되, 해당 페이지를 한 번 표시하면 페이지 표시만 원래 색으로 돌립니다.
       const viewedInventoryNewItemTypes = new Set();
+      // 모바일에서는 한 번 본 리스트 NEW를 현재 열림 동안 유지하고, 다음 가방 진입부터 시각적으로만 숨깁니다.
+      // 상단 Bag 버튼과 카테고리 탭의 기존 NEW 판정은 newInventoryItemTypes를 그대로 사용합니다.
+      const mobileHiddenInventoryNewItemTypes = new Set();
       const acquiredNoteIds = new Set();
       const bookmarkedNoteIds = new Set();
       let activeNoteReaderId = "";
@@ -10311,7 +10472,7 @@ You can leave the game and come back anytime.</div>
       let dogTreeEscapeDay = 0;
       // 투두를 받기 전에 했던 개 상호작용도 이후 미션에서 인정하기 위한 기록입니다.
       let hasSeenDogBelly = false;
-      // 2~4단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
+      // 2~3단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
       let dogStayStage = 0;
       let dogStayDay = 0;
       let storedPopulationSnapshot = null;
@@ -10359,6 +10520,10 @@ You can leave the game and come back anytime.</div>
         forest: false,
         city: false
       };
+      // 모바일에서 이번 메뉴 진입 중 확인한 NEW를 저장해, 다음 메뉴 진입 때 제거합니다.
+      // 실제 NEW 상태는 현재 화면을 닫기 전까지 유지하므로 보이자마자 사라지지 않습니다.
+      const mobileViewedRepairNewItemKeys = new Set();
+      const mobileViewedExplorationDestinationNews = new Set();
       // 한 번 확인해 지운 목적지 NEW가 조건 갱신 때 다시 생기지 않도록 별도로 기록합니다.
       const explorationUnlockAnnouncementTriggered = {
         village: false,
@@ -10456,9 +10621,7 @@ You can leave the game and come back anytime.</div>
         for (const audio of sfxAudioRegistry) {
           audio.muted = shouldMuteSfx;
         }
-        for (const audio of bgmAudios) {
-          audio.muted = !isGameSoundOn;
-        }
+        syncBgmMasterMuteState();
         updateSoundToggleButtonState();
       }
 
@@ -10467,6 +10630,8 @@ You can leave the game and come back anytime.</div>
         syncGameSoundMuteState();
 
         if (isGameSoundOn) {
+          // 사운드 버튼은 사용자 입력에서 호출되므로 Safari AudioContext 재개도 함께 시도합니다.
+          resumeBgmAudioContext();
           if (hasMusicBox && isMusicOn && !bgmStarted) {
             startBgmPlayback();
           }
@@ -10536,6 +10701,156 @@ You can leave the game and come back anytime.</div>
         audio.volume = 0;
         audio.preload = "auto";
       }
+
+      /*
+        BGM 페이드는 HTMLAudioElement.volume 대신 Web Audio GainNode를 사용합니다.
+        iOS Safari는 media element의 JS volume 제어가 제한적이므로, GainNode가 준비된 뒤에는
+        각 media element 자체 volume은 1로 두고 트랙별 gain으로 실제 음량을 보간합니다.
+      */
+      let bgmAudioContext = null;
+      let bgmMasterGainNode = null;
+      const bgmSourceNodes = new Map();
+      const bgmGainNodes = new Map();
+      const bgmPrimedAudios = new Set();
+      const bgmPrimePendingAudios = new Set();
+
+      function ensureBgmWebAudioGraph() {
+        if (bgmAudioContext && bgmMasterGainNode && bgmGainNodes.size === bgmAudios.length) {
+          return true;
+        }
+
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return false;
+
+        try {
+          if (!bgmAudioContext) {
+            bgmAudioContext = new AudioContextClass();
+          }
+          if (!bgmMasterGainNode) {
+            bgmMasterGainNode = bgmAudioContext.createGain();
+            bgmMasterGainNode.gain.value = isGameSoundOn ? 1 : 0;
+            bgmMasterGainNode.connect(bgmAudioContext.destination);
+          }
+
+          for (const audio of bgmAudios) {
+            if (bgmGainNodes.has(audio)) continue;
+            const sourceNode = bgmAudioContext.createMediaElementSource(audio);
+            const gainNode = bgmAudioContext.createGain();
+            gainNode.gain.value = 0;
+            sourceNode.connect(gainNode);
+            gainNode.connect(bgmMasterGainNode);
+            bgmSourceNodes.set(audio, sourceNode);
+            bgmGainNodes.set(audio, gainNode);
+            // GainNode가 실제 음량을 담당하므로 media element 자체 볼륨은 고정합니다.
+            audio.volume = 1;
+            audio.muted = false;
+          }
+          return bgmGainNodes.size === bgmAudios.length;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      async function resumeBgmAudioContext() {
+        if (!ensureBgmWebAudioGraph()) return false;
+        if (bgmAudioContext.state === "running") return true;
+        try {
+          await bgmAudioContext.resume();
+          return bgmAudioContext.state === "running";
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function getBgmAudioLevel(audio) {
+        const gainNode = bgmGainNodes.get(audio);
+        return gainNode ? gainNode.gain.value : audio.volume;
+      }
+
+      function setBgmAudioLevel(audio, level) {
+        const normalizedLevel = clamp(Number(level) || 0, 0, 1);
+        const gainNode = bgmGainNodes.get(audio);
+        if (gainNode && bgmAudioContext) {
+          gainNode.gain.setValueAtTime(normalizedLevel, bgmAudioContext.currentTime);
+          return;
+        }
+        // Web Audio를 지원하지 않는 브라우저용 기존 방식 fallback입니다.
+        audio.volume = normalizedLevel;
+      }
+
+      function syncBgmMasterMuteState() {
+        if (bgmMasterGainNode && bgmAudioContext) {
+          bgmMasterGainNode.gain.setValueAtTime(
+            isGameSoundOn ? 1 : 0,
+            bgmAudioContext.currentTime
+          );
+          for (const audio of bgmAudios) {
+            audio.muted = false;
+          }
+          return;
+        }
+
+        for (const audio of bgmAudios) {
+          audio.muted = !isGameSoundOn;
+        }
+      }
+
+      function primeBgmWebAudioFromUserGesture() {
+        if (!ensureBgmWebAudioGraph()) return;
+        resumeBgmAudioContext();
+
+        // iOS Safari에서 이후 타이머/상태 변화로 다른 BGM을 재생할 수 있도록
+        // 첫 사용자 제스처 안에서 각 media element를 gain 0 상태로 한 번 활성화합니다.
+        for (const audio of bgmAudios) {
+          if (
+            audio === activeBgmAudio ||
+            bgmPrimedAudios.has(audio) ||
+            bgmPrimePendingAudios.has(audio)
+          ) {
+            continue;
+          }
+
+          setBgmAudioLevel(audio, 0);
+          bgmPrimePendingAudios.add(audio);
+          let playPromise = null;
+          try {
+            playPromise = audio.play();
+          } catch (_) {
+            bgmPrimePendingAudios.delete(audio);
+            continue;
+          }
+
+          Promise.resolve(playPromise).then(() => {
+            bgmPrimePendingAudios.delete(audio);
+            bgmPrimedAudios.add(audio);
+            const isImmediateStartTarget =
+              bgmStartScheduled &&
+              bgmStartTimerId === null &&
+              audio === getCurrentBgmAudio();
+            if (audio !== activeBgmAudio && !isImmediateStartTarget) {
+              audio.pause();
+              try {
+                audio.currentTime = 0;
+              } catch (_) {}
+            }
+          }).catch(() => {
+            bgmPrimePendingAudios.delete(audio);
+          });
+        }
+      }
+
+      if ("PointerEvent" in window) {
+        document.addEventListener("pointerdown", primeBgmWebAudioFromUserGesture, {
+          capture: true,
+          passive: true
+        });
+      } else {
+        document.addEventListener("touchstart", primeBgmWebAudioFromUserGesture, {
+          capture: true,
+          passive: true
+        });
+      }
+
       let activeBgmAudio = null;
       let bgmStartScheduled = false;
       let bgmStarted = false;
@@ -11170,6 +11485,7 @@ You can leave the game and come back anytime.</div>
           ) {
             explorationUnlockAnnouncementTriggered[destination] = true;
             explorationDestinationNewState[destination] = true;
+            mobileViewedExplorationDestinationNews.delete(destination);
             hasExploreButtonNew = true;
             didChange = true;
           }
@@ -11191,9 +11507,38 @@ You can leave the game and come back anytime.</div>
       function clearExplorationDestinationNewState(destination) {
         if (!explorationDestinationNewState[destination]) return false;
         explorationDestinationNewState[destination] = false;
+        mobileViewedExplorationDestinationNews.delete(destination);
         updateExplorationOptionNewBadgeState(destination, false);
         saveResourceState();
         return true;
+      }
+
+      function commitMobileViewedExplorationDestinationNews() {
+        if (!isMobileDeferredNewMode() || mobileViewedExplorationDestinationNews.size === 0) {
+          return false;
+        }
+        let didChange = false;
+        for (const destination of [...mobileViewedExplorationDestinationNews]) {
+          if (explorationDestinationNewState[destination] === true) {
+            explorationDestinationNewState[destination] = false;
+            didChange = true;
+          }
+        }
+        mobileViewedExplorationDestinationNews.clear();
+        if (didChange) applyExplorationNewBadgeState(false);
+        return didChange;
+      }
+
+      function stageExplorationDestinationNewsForNextMobileVisit() {
+        if (!isMobileDeferredNewMode() || !isExplorationMenuOpen) return false;
+        let didChange = false;
+        for (const destination of ["village", "forest", "city"]) {
+          if (explorationDestinationNewState[destination] !== true) continue;
+          if (mobileViewedExplorationDestinationNews.has(destination)) continue;
+          mobileViewedExplorationDestinationNews.add(destination);
+          didChange = true;
+        }
+        return didChange;
       }
 
       function markRepairBlueprintAsNew(category, index) {
@@ -11201,6 +11546,7 @@ You can leave the game and come back anytime.</div>
         if (!item || item.unlocked) return false;
         item.unlocked = true;
         item.isNew = true;
+        mobileViewedRepairNewItemKeys.delete(getRepairNewItemKey(category, index, item));
         repairCategoryNewByCategory[category] = true;
         hasRepairButtonNew = true;
         updateRepairNewBadgeState();
@@ -11725,7 +12071,7 @@ You can leave the game and come back anytime.</div>
           complete("item3", isShedRepaired());
         } else if (listId === 3) {
           complete("item1", getUnlockedBlueprintCount() >= 3);
-          complete("item2", dogCompletedStage >= 4);
+          complete("item2", dogCompletedStage >= 3);
         } else if (listId === 4) {
           complete("item2", fuelCount >= 10);
           complete("item3", isCarRepaired());
@@ -12511,6 +12857,43 @@ You can leave the game and come back anytime.</div>
         }, 500);
       }
 
+      function getTodoRewardText(listId) {
+        if (listId === 1) return "Wooden Fence";
+        if (listId === 2) return "Compass";
+        if (listId === 3) return "Rifle + Rifle Ammo x10";
+        if (listId === 4) return "Map";
+
+        if (listId === 5) {
+          const hasTimberRoof =
+            getBuildingBlueprintItem(TIMBER_ROOF_BLUEPRINT_ID)?.unlocked === true;
+          return hasTimberRoof ? "Wood x10" : "Timber Roof";
+        }
+
+        if (listId === 6) {
+          const hasTimberWalls =
+            getBuildingBlueprintItem(TIMBER_WALLS_BLUEPRINT_ID)?.unlocked === true;
+          return hasTimberWalls ? "Wood x15" : "Timber Walls";
+        }
+
+        if (listId === 7) {
+          const nonWhiteBlueprintIds = CAR_PAINT_BLUEPRINT_IDS.filter(
+            (blueprintId) => blueprintId !== CAR_PAINT_WHITE_BLUEPRINT_ID
+          );
+          const missingNonWhiteBlueprintIds = nonWhiteBlueprintIds.filter(
+            (blueprintId) => getRepairBlueprintItem(blueprintId)?.unlocked !== true
+          );
+          if (missingNonWhiteBlueprintIds.length > 0) {
+            return "Car Paint Blueprint";
+          }
+          if (getRepairBlueprintItem(CAR_PAINT_WHITE_BLUEPRINT_ID)?.unlocked !== true) {
+            return CAR_PAINT_BLUEPRINT_DEFINITIONS[CAR_PAINT_WHITE_BLUEPRINT_ID]?.name || "Car Paint: White";
+          }
+          return "All Paint x1";
+        }
+
+        return "";
+      }
+
       function updateTodoListUI() {
         if (!todoListOverlay) return;
 
@@ -12578,6 +12961,13 @@ You can leave the game and come back anytime.</div>
           element.textContent = text;
           element.classList.toggle("is-complete", Boolean(text) && progress[key] === true);
         });
+
+        const rewardText = getTodoRewardText(currentTodoListId);
+        if (todoRewardTitle) todoRewardTitle.hidden = !rewardText;
+        if (todoRewardItem) {
+          todoRewardItem.hidden = !rewardText;
+          todoRewardItem.textContent = rewardText;
+        }
 
       }
 
@@ -13192,11 +13582,52 @@ You can leave the game and come back anytime.</div>
         }
       }
 
+      function getRepairNewItemKey(category, index, item = null) {
+        const resolvedItem = item || repairItemsByCategory[category]?.[index];
+        if (!resolvedItem) return `${category}:index:${index}`;
+        if (resolvedItem.blueprintId) return `${category}:blueprint:${resolvedItem.blueprintId}`;
+        return `${category}:index:${index}:${String(resolvedItem.name || "")}`;
+      }
+
       function clearRepairItemNewState(category, index) {
         const item = repairItemsByCategory[category][index];
         if (!item || !item.isNew) return false;
         item.isNew = false;
+        mobileViewedRepairNewItemKeys.delete(getRepairNewItemKey(category, index, item));
         return true;
+      }
+
+      function commitMobileViewedRepairNewStates() {
+        if (!isMobileDeferredNewMode() || mobileViewedRepairNewItemKeys.size === 0) {
+          return false;
+        }
+
+        let didChange = false;
+        for (const category of REPAIR_CATEGORY_ORDER) {
+          const items = repairItemsByCategory[category] || [];
+          items.forEach((item, index) => {
+            if (!item?.isNew) return;
+            if (!mobileViewedRepairNewItemKeys.has(getRepairNewItemKey(category, index, item))) return;
+            item.isNew = false;
+            didChange = true;
+          });
+        }
+        mobileViewedRepairNewItemKeys.clear();
+        return didChange;
+      }
+
+      function stageVisibleRepairNewStatesForNextMobileVisit() {
+        if (!isMobileDeferredNewMode() || !isRepairOpen) return false;
+
+        let didChange = false;
+        for (const { item, index } of getRepairDisplayEntries(repairSelectedCategory)) {
+          if (!item?.unlocked || !item.isNew) continue;
+          const key = getRepairNewItemKey(repairSelectedCategory, index, item);
+          if (mobileViewedRepairNewItemKeys.has(key)) continue;
+          mobileViewedRepairNewItemKeys.add(key);
+          didChange = true;
+        }
+        return didChange;
       }
 
       const REPAIR_SELECTED_CATEGORY_SCALE = 1.55;
@@ -13740,10 +14171,11 @@ You can leave the game and come back anytime.</div>
         return firstEntry ? firstEntry.index : -1;
       }
 
-      function selectFirstAvailableRepairItem(category) {
+      function selectFirstAvailableRepairItem(category, options = {}) {
         const firstIndex = getFirstAvailableRepairItemIndex(category);
         repairSelectedItemByCategory[category] = firstIndex;
-        const didClearItemNew = firstIndex >= 0
+        const shouldClearItemNew = options.clearItemNew !== false;
+        const didClearItemNew = firstIndex >= 0 && shouldClearItemNew
           ? clearRepairItemNewState(category, firstIndex)
           : false;
         return { firstIndex, didClearItemNew };
@@ -13753,10 +14185,14 @@ You can leave the game and come back anytime.</div>
         if (!isRepairCategory(category)) return;
 
         repairSelectedCategory = category;
-        selectFirstAvailableRepairItem(category);
+        selectFirstAvailableRepairItem(category, {
+          clearItemNew: !isMobileDeferredNewMode()
+        });
+        // 카테고리 탭 NEW는 기존처럼 탭을 선택하는 즉시 해제합니다.
         clearRepairCategoryNewState(category);
         applyRepairState();
         updateRepairCategoryLayout();
+        stageVisibleRepairNewStatesForNextMobileVisit();
         saveResourceState();
       }
 
@@ -13967,28 +14403,39 @@ You can leave the game and come back anytime.</div>
             0,
             6
           );
-          const isLegacyDogAffectionSave =
-            storedDogAffectionSchemaVersion < DOG_AFFECTION_SCHEMA_VERSION;
+          const isPreFiveStageDogAffectionSave = storedDogAffectionSchemaVersion < 2;
+          const isFiveStageDogAffectionSave = storedDogAffectionSchemaVersion === 2;
 
-          // 이전 7단계 저장값을 새 5단계 구조로 1회 변환합니다.
-          // 기존 1·4단계는 제거하고 2→1, 3→2, 5→3, 6→4, 7→5 순서를 유지합니다.
-          const migrateLegacyDogCompletedStage = (stage) => {
-            if (stage >= 6) return 4;
-            if (stage >= 5) return 3;
+          // 저장 호환: 예전 7단계 및 직전 5단계 구조를 현재 4단계 구조로 변환합니다.
+          // 직전 5단계의 3단계(자유 이동→앉기)는 제거하고, 기존 4→새 3 / 기존 5→새 4 흐름으로 당깁니다.
+          const migratePreFiveStageDogCompletedStage = (stage) => {
+            if (stage >= 6) return 3;
             if (stage >= 3) return 2;
             if (stage >= 2) return 1;
             return 0;
           };
-          const migrateLegacyDogStayStage = (stage) => {
+          const migrateFiveStageDogCompletedStage = (stage) => {
+            if (stage >= 4) return 3;
+            if (stage >= 2) return 2;
+            if (stage >= 1) return 1;
+            return 0;
+          };
+          const migratePreFiveStageDogStayStage = (stage) => {
             if (stage === 3) return 2;
-            if (stage === 5) return 3;
-            if (stage === 6) return 4;
+            if (stage === 6) return 3;
+            return 0;
+          };
+          const migrateFiveStageDogStayStage = (stage) => {
+            if (stage === 2) return 2;
+            if (stage === 4) return 3;
             return 0;
           };
 
-          dogCompletedStage = isLegacyDogAffectionSave
-            ? migrateLegacyDogCompletedStage(storedDogCompletedStage)
-            : clamp(storedDogCompletedStage, 0, 4);
+          dogCompletedStage = isPreFiveStageDogAffectionSave
+            ? migratePreFiveStageDogCompletedStage(storedDogCompletedStage)
+            : (isFiveStageDogAffectionSave
+                ? migrateFiveStageDogCompletedStage(storedDogCompletedStage)
+                : clamp(storedDogCompletedStage, 0, 3));
 
           const storedDogNextStageDay = Math.round(
             Number(parsed.dogNextStageDay) || 0
@@ -14000,7 +14447,7 @@ You can leave the game and come back anytime.</div>
                 : Math.max(DOG_FIRST_APPEAR_DAY, dayCount + 1));
 
           // 예전 1→2 / 3→4의 긴 대기값은 최대 다음 DAY까지만 기다리도록 줄입니다.
-          if (isLegacyDogAffectionSave && dogCompletedStage > 0) {
+          if (isPreFiveStageDogAffectionSave && dogCompletedStage > 0) {
             dogNextStageDay = Math.min(dogNextStageDay, dayCount + 1);
           }
 
@@ -14009,10 +14456,12 @@ You can leave the game and come back anytime.</div>
             Math.round(Number(parsed.dogTreeEscapeDay) || 0)
           );
           hasSeenDogBelly =
-            parsed.hasSeenDogBelly === true || dogCompletedStage >= 4;
-          dogStayStage = isLegacyDogAffectionSave
-            ? migrateLegacyDogStayStage(storedDogStayStage)
-            : clamp(storedDogStayStage, 0, 4);
+            parsed.hasSeenDogBelly === true || dogCompletedStage >= 3;
+          dogStayStage = isPreFiveStageDogAffectionSave
+            ? migratePreFiveStageDogStayStage(storedDogStayStage)
+            : (isFiveStageDogAffectionSave
+                ? migrateFiveStageDogStayStage(storedDogStayStage)
+                : clamp(storedDogStayStage, 0, 3));
           dogStayDay = Math.max(
             0,
             Math.round(Number(parsed.dogStayDay) || 0)
@@ -14084,6 +14533,16 @@ You can leave the game and come back anytime.</div>
           isShotgunEquipped = storedEquippedWeapon === "shotgun" && hasShotgun;
           isRifleEquipped = storedEquippedWeapon === "rifle" && hasRifle;
           isChainsawEquipped = storedEquippedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
+          if (
+            hasAxe &&
+            !isAxeEquipped &&
+            !isHandgunEquipped &&
+            !isShotgunEquipped &&
+            !isRifleEquipped &&
+            !isChainsawEquipped
+          ) {
+            isAxeEquipped = true;
+          }
           hasMusicBox = parsed.hasMusicBox === true;
           isMusicOn = hasMusicBox && parsed.isMusicOn !== false;
           isGameSoundOn = parsed.isGameSoundOn !== false;
@@ -14153,6 +14612,26 @@ You can leave the game and come back anytime.</div>
             const resolvedItemType = normalizeNoteId(itemType) || itemType;
             if (newInventoryItemTypes.has(resolvedItemType)) {
               viewedInventoryNewItemTypes.add(resolvedItemType);
+            }
+          }
+
+          mobileViewedRepairNewItemKeys.clear();
+          const storedMobileViewedRepairNewItems = Array.isArray(parsed.mobileViewedRepairNewItems)
+            ? parsed.mobileViewedRepairNewItems
+            : [];
+          for (const key of storedMobileViewedRepairNewItems) {
+            if (typeof key === "string" && key) mobileViewedRepairNewItemKeys.add(key);
+          }
+
+          mobileViewedExplorationDestinationNews.clear();
+          const storedMobileViewedExplorationDestinationNews = Array.isArray(
+            parsed.mobileViewedExplorationDestinationNews
+          )
+            ? parsed.mobileViewedExplorationDestinationNews
+            : [];
+          for (const destination of storedMobileViewedExplorationDestinationNews) {
+            if (["village", "forest", "city"].includes(destination)) {
+              mobileViewedExplorationDestinationNews.add(destination);
             }
           }
           hasCompass = parsed.hasCompass === true;
@@ -14291,7 +14770,7 @@ You can leave the game and come back anytime.</div>
 
             if (storedTodoSchemaVersion < 4) {
               // 3차 item2는 이전 무기 미션 완료값을 버리고 현재 개 친밀도 기준으로 다시 계산합니다.
-              todoProgress[3].item2 = dogCompletedStage >= 4;
+              todoProgress[3].item2 = dogCompletedStage >= 3;
               // 6차 item1은 새 "play with the dog" 미션이므로 과거 화단 완료값을 이어받지 않습니다.
               todoProgress[6].item1 = false;
               // 7차 item3은 화단 제작 상태를 repairState 로드 후 다시 소급 계산합니다.
@@ -14383,6 +14862,7 @@ You can leave the game and come back anytime.</div>
             (parsed.explorationCompletePending === true || explorationEndsAt <= Date.now());
           if (explorationEndsAt > 0 && isChainsawEquipped) {
             isChainsawEquipped = false;
+            if (hasAxe) isAxeEquipped = true;
           }
 
           const savedAt = Number.isFinite(Number(parsed.savedAt))
@@ -14516,6 +14996,8 @@ You can leave the game and come back anytime.</div>
               bookmarkedNoteIds: Array.from(bookmarkedNoteIds),
               newInventoryItems: Array.from(newInventoryItemTypes),
               viewedInventoryNewItems: Array.from(viewedInventoryNewItemTypes),
+              mobileViewedRepairNewItems: Array.from(mobileViewedRepairNewItemKeys),
+              mobileViewedExplorationDestinationNews: Array.from(mobileViewedExplorationDestinationNews),
               hasCompass,
               carParts: carPartsCount,
               flowers: flowerCount,
@@ -15562,6 +16044,11 @@ You can leave the game and come back anytime.</div>
           window.matchMedia("(hover: hover) and (pointer: fine)").matches;
       }
 
+      function isMobileDeferredNewMode() {
+        if (!window.matchMedia) return false;
+        return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+      }
+
       function getNoteDefinition(noteId) {
         const normalizedNoteId = normalizeNoteId(noteId);
         return normalizedNoteId ? NOTE_BY_ID.get(normalizedNoteId) || null : null;
@@ -15793,6 +16280,16 @@ You can leave the game and come back anytime.</div>
       function openInventory() {
         if (isInventoryOpen) return;
 
+        mobileHiddenInventoryNewItemTypes.clear();
+        if (isMobileDeferredNewMode()) {
+          for (const itemType of viewedInventoryNewItemTypes) {
+            if (newInventoryItemTypes.has(itemType)) {
+              mobileHiddenInventoryNewItemTypes.add(itemType);
+            }
+          }
+        }
+        applyInventoryItemNewTagState();
+
         closeExplorationMenu(false);
         closeRepair(false);
         inventorySelectedCategory = normalizeInventoryCategory(inventorySelectedCategory);
@@ -15823,6 +16320,10 @@ You can leave the game and come back anytime.</div>
       function openExplorationMenu() {
         if (isExplorationMenuOpen) return;
 
+        // 모바일에서 이전 진입 때 한 번 보았던 목적지 NEW는 이번 진입 직전에 제거합니다.
+        const didCommitViewedDestinationNew =
+          commitMobileViewedExplorationDestinationNews();
+
         // 저장 복원·보상 획득·수리 완료 후에도 메뉴를 열 때 현재 조건을 다시 반영합니다.
         updateExplorationRequirements();
         closeInventory(false);
@@ -15833,6 +16334,11 @@ You can leave the game and come back anytime.</div>
         setHudActionMenuState(exploreButton, true);
         syncMenuBackdrop();
         updateTutorialGuide();
+        const didStageViewedDestinationNew =
+          stageExplorationDestinationNewsForNextMobileVisit();
+        if (didCommitViewedDestinationNew || didStageViewedDestinationNew) {
+          saveResourceState();
+        }
 
         const firstOption = explorationOptions[0];
         if (firstOption && shouldAutoFocusMenuEntry()) {
@@ -15842,12 +16348,19 @@ You can leave the game and come back anytime.</div>
 
       function openRepair() {
         if (isRepairOpen) return;
+        const isDeferredMobileNew = isMobileDeferredNewMode();
+        // 이전 모바일 확인에서 보였던 노란 NEW 네모는 이번 진입 직전에 제거합니다.
+        const didCommitViewedRepairNew = isDeferredMobileNew
+          ? commitMobileViewedRepairNewStates()
+          : false;
         hasRepairButtonNew = false;
         const didClearSelectedCategoryNew = clearRepairCategoryNewState(
           repairSelectedCategory
         );
         const { didClearItemNew: didClearSelectedItemNew } =
-          selectFirstAvailableRepairItem(repairSelectedCategory);
+          selectFirstAvailableRepairItem(repairSelectedCategory, {
+            clearItemNew: !isDeferredMobileNew
+          });
         updateRepairNewBadgeState();
 
         closeExplorationMenu(false);
@@ -15859,7 +16372,13 @@ You can leave the game and come back anytime.</div>
         syncMenuBackdrop();
         applyRepairState();
         updateRepairCategoryLayout();
-        if (didClearSelectedCategoryNew || didClearSelectedItemNew) {
+        const didStageViewedRepairNew = stageVisibleRepairNewStatesForNextMobileVisit();
+        if (
+          didCommitViewedRepairNew ||
+          didClearSelectedCategoryNew ||
+          didClearSelectedItemNew ||
+          didStageViewedRepairNew
+        ) {
           saveResourceState();
         }
 
@@ -16101,7 +16620,7 @@ You can leave the game and come back anytime.</div>
       function animateBgmVolumes(targetAudio, targetVolume, durationMs, transitionToken) {
         return new Promise((resolve) => {
           const startVolumes = new Map(
-            bgmAudios.map((audio) => [audio, audio.volume])
+            bgmAudios.map((audio) => [audio, getBgmAudioLevel(audio)])
           );
           const startedAt = performance.now();
 
@@ -16126,11 +16645,10 @@ You can leave the game and come back anytime.</div>
             for (const audio of bgmAudios) {
               const startVolume = startVolumes.get(audio) || 0;
               const finalVolume = audio === targetAudio ? targetVolume : 0;
-              audio.volume = clamp(
+              setBgmAudioLevel(
+                audio,
                 startVolume +
-                  (finalVolume - startVolume) * easedProgress,
-                0,
-                1
+                  (finalVolume - startVolume) * easedProgress
               );
             }
 
@@ -16157,11 +16675,12 @@ You can leave the game and come back anytime.</div>
       async function transitionBgmForCurrentState() {
         if (!isMusicOn || !bgmStarted) return;
 
+        await resumeBgmAudioContext();
         const incomingAudio = getCurrentBgmAudio();
         if (
           activeBgmAudio === incomingAudio &&
           !incomingAudio.paused &&
-          incomingAudio.volume >= 0.999
+          getBgmAudioLevel(incomingAudio) >= 0.999
         ) {
           return;
         }
@@ -19414,6 +19933,32 @@ You can leave the game and come back anytime.</div>
           stoneCount >= getMaxStoneCount();
       }
 
+      function spawnZombiesForResourceTest(count = 10) {
+        if (!TEST_MODE || isExploring) return 0;
+        const targetCount = Math.max(0, Math.round(Number(count) || 0));
+        let createdCount = 0;
+
+        for (let index = 0; index < targetCount; index += 1) {
+          if (!hasActivePopulationCapacity()) break;
+          const created = createZombie({
+            force: true,
+            ignoreKillRequirementForTest: true,
+            silent: true,
+            persist: false,
+            skipBirth: true,
+            preferVisible: true
+          });
+          if (!created) break;
+          createdCount += 1;
+        }
+
+        if (createdCount > 0 && pendingEmptyZombieSpawnTimerId !== null) {
+          clearTimeout(pendingEmptyZombieSpawnTimerId);
+          pendingEmptyZombieSpawnTimerId = null;
+        }
+        return createdCount;
+      }
+
       function fillResourcesForTest() {
         if (!TEST_MODE || isExploring) return;
 
@@ -19446,10 +19991,12 @@ You can leave the game and come back anytime.</div>
         syncGameSoundMuteState();
         applyInventoryNewBadgeState();
         applyRepairState();
+        updateTodoListUI();
 
         // 테스트 모드는 개의 친밀도 진행이나 등장 조건을 강제로 변경하지 않습니다.
         startCatDelivery();
         spawnOrReplaceSupplyBox({ resetTimer: true });
+        spawnZombiesForResourceTest(10);
         showSceneColorTestControls();
 
         commitResourceState();
@@ -21808,7 +22355,17 @@ You can leave the game and come back anytime.</div>
 
       function updateWeaponSwitchButtonState() {
         if (!weaponSwitchButton) return;
-        weaponSwitchButton.dataset.weapon = getEquippedWeapon() || "fist";
+        const equippedWeapon = getEquippedWeapon();
+        weaponSwitchButton.dataset.weapon = equippedWeapon || "fist";
+
+        if (!weaponAmmoCount) return;
+        let ammoText = "";
+        if (equippedWeapon === "handgun") ammoText = String(handgunAmmoCount);
+        if (equippedWeapon === "shotgun") ammoText = String(shotgunAmmoCount);
+        if (equippedWeapon === "rifle") ammoText = String(rifleAmmoCount);
+        if (equippedWeapon === "chainsaw") ammoText = `${Math.round(chainsawBatteryPercent)}%`;
+        weaponAmmoCount.textContent = ammoText;
+        weaponAmmoCount.hidden = ammoText === "";
       }
 
       function stopChainsawIdleSound() {
@@ -21858,10 +22415,21 @@ You can leave the game and come back anytime.</div>
       }
 
       function setEquippedWeapon(weapon = "", options = {}) {
-        const normalizedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"].includes(weapon)
+        const requestedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"].includes(weapon)
           ? weapon
           : "";
-isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
+        const canEquipRequested =
+          (requestedWeapon === "axe" && hasAxe) ||
+          (requestedWeapon === "handgun" && hasHandgun) ||
+          (requestedWeapon === "shotgun" && hasShotgun) ||
+          (requestedWeapon === "rifle" && hasRifle) ||
+          (requestedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0);
+        // Axe 획득 이후에는 빈 장비 상태를 허용하지 않습니다.
+        const normalizedWeapon = canEquipRequested
+          ? requestedWeapon
+          : (hasAxe ? "axe" : "");
+
+        isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         isHandgunEquipped = normalizedWeapon === "handgun" && hasHandgun;
         isShotgunEquipped = normalizedWeapon === "shotgun" && hasShotgun;
         isRifleEquipped = normalizedWeapon === "rifle" && hasRifle;
@@ -21886,8 +22454,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (hasShotgun) weapons.push("shotgun");
         if (hasRifle) weapons.push("rifle");
         if (hasChainsaw && chainsawBatteryPercent > 0) weapons.push("chainsaw");
-        // 마지막에는 맨손 상태를 포함해 한 종류의 무기만 있어도 교체할 수 있게 합니다.
-        weapons.push("");
+        // Axe 획득 전까지만 맨손 상태를 순환 목록에 포함합니다.
+        if (!hasAxe) weapons.push("");
         return weapons;
       }
 
@@ -21925,11 +22493,10 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       function handleChainsawBatteryDepleted() {
         chainsawBatteryPercent = 0;
-        isChainsawEquipped = false;
         stopChainsawBatteryDrain();
         stopChainsawIdleSound();
-        applyInventoryState();
-        saveResourceState();
+        // 배터리 소진으로 체인소가 해제되면 Axe 보유 시 자동으로 Axe로 돌아갑니다.
+        setEquippedWeapon("", { startChainsaw: false });
       }
 
       function startChainsawBatteryDrain() {
@@ -22066,16 +22633,21 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function applyInventoryItemNewTagState() {
+        const hidePreviouslyViewed = isMobileDeferredNewMode();
         for (const item of inventoryItems) {
           const badge = item.querySelector(".inventory-item-new-badge");
           if (!badge) continue;
-          badge.hidden = !newInventoryItemTypes.has(item.dataset.item || "");
+          const itemType = item.dataset.item || "";
+          badge.hidden =
+            !newInventoryItemTypes.has(itemType) ||
+            (hidePreviouslyViewed && mobileHiddenInventoryNewItemTypes.has(itemType));
         }
       }
 
       function markInventoryItemAsNew(itemType) {
         newInventoryItemTypes.add(itemType);
         viewedInventoryNewItemTypes.delete(itemType);
+        mobileHiddenInventoryNewItemTypes.delete(itemType);
         hasNewInventoryItem = true;
         applyInventoryItemNewTagState();
         applyInventoryNewBadgeState();
@@ -22093,7 +22665,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       function clearInventoryItemNewState(itemType) {
         const removedNewState = newInventoryItemTypes.delete(itemType);
         const removedViewedState = viewedInventoryNewItemTypes.delete(itemType);
-        if (!removedNewState && !removedViewedState) return;
+        const removedMobileHiddenState = mobileHiddenInventoryNewItemTypes.delete(itemType);
+        if (!removedNewState && !removedViewedState && !removedMobileHiddenState) return;
         applyInventoryItemNewTagState();
         updateInventoryPageDots();
         renderInventoryCategories();
@@ -22125,7 +22698,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         for (const audio of bgmAudios) {
           audio.pause();
-          audio.volume = 0;
+          setBgmAudioLevel(audio, 0);
           try {
             audio.currentTime = 0;
           } catch (_) {}
@@ -22146,11 +22719,13 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         }
 
         bgmStartScheduled = true;
+        await resumeBgmAudioContext();
+        syncBgmMasterMuteState();
         const incomingAudio = getCurrentBgmAudio();
 
         for (const audio of bgmAudios) {
           audio.pause();
-          audio.volume = audio === incomingAudio ? 1 : 0;
+          setBgmAudioLevel(audio, audio === incomingAudio ? 1 : 0);
           try {
             audio.currentTime = 0;
           } catch (_) {}
@@ -22158,6 +22733,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         try {
           await incomingAudio.play();
+          bgmPrimedAudios.add(incomingAudio);
           activeBgmAudio = incomingAudio;
           bgmStarted = true;
         } catch (_) {
@@ -22176,6 +22752,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         saveResourceState();
 
         if (isMusicOn) {
+          // Music On 입력도 AudioContext를 깨우는 사용자 제스처 경로로 활용합니다.
+          primeBgmWebAudioFromUserGesture();
           startBgmPlayback();
         } else {
           stopBgmPlayback();
@@ -23213,7 +23791,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         return normalizeDogAngle(toAngle - fromAngle);
       }
 
-      // 5단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
+      // 4단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
       // 이전 친밀도 단계는 기존 GAME_ZONE 범위를 그대로 유지합니다.
       function getDogMovementZone(activeDogOrStage = null) {
         const activeStage = Number(
@@ -23222,7 +23800,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
             : activeDogOrStage?.activeStage
         ) || 0;
 
-        return activeStage >= 5 ? getDraggableViewSpawnZone() : GAME_ZONE;
+        return activeStage >= 4 ? getDraggableViewSpawnZone() : GAME_ZONE;
       }
 
       // 해상도 변경으로 Free Roam 영역이 줄어 개가 새 경계 밖에 놓이면,
@@ -23299,7 +23877,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       function keepFreeRoamDogInsideMovementZone(activeDog) {
         if (
           !activeDog ||
-          activeDog.activeStage < 5 ||
+          activeDog.activeStage < 4 ||
           activeDog.state === "fastRun"
         ) {
           return false;
@@ -23762,13 +24340,13 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function getDogStoryBaseState(stage) {
-        if (stage === 4) return "storyLieWag";
+        if (stage === 3) return "storyLieWag";
         return "storyLieIdle";
       }
 
       // 1·2·4단계는 나무 아래에서 머무르는 친밀도 연출입니다.
       function dogStageUsesUnderTreeShade(stage) {
-        return stage === 1 || stage === 2 || stage === 4;
+        return stage === 1 || stage === 2 || stage === 3;
       }
 
       function setDogUnderTreeShade(activeDog, shouldShade) {
@@ -23796,7 +24374,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       function dogStageUsesOccasionalHeadLift(stage) {
-        return stage === 1 || stage === 2 || stage === 4;
+        return stage === 1 || stage === 2 || stage === 3;
       }
 
       function scheduleDogStoryHeadLift(
@@ -23899,7 +24477,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (activeDog.bellyReturnPersistent) {
           startDogSitIdle(activeDog, now, Infinity, {
             persistent: true,
-            returnMode: "stage4"
+            returnMode: "stage3"
           });
           return;
         }
@@ -23917,18 +24495,18 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (
           dogStayDay === dayCount &&
           dogStayStage >= 2 &&
-          dogStayStage <= 4
+          dogStayStage <= 3
         ) {
           return dogStayStage;
         }
 
-        const nextStage = Math.min(5, dogCompletedStage + 1);
+        const nextStage = Math.min(4, dogCompletedStage + 1);
         if (dayCount < dogNextStageDay) return 0;
         return nextStage;
       }
 
       function completeDogStage(stage, options = {}) {
-        if (stage < 1 || stage > 4 || dogCompletedStage >= stage) {
+        if (stage < 1 || stage > 3 || dogCompletedStage >= stage) {
           return false;
         }
 
@@ -23936,7 +24514,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         dogNextStageDay =
           dayCount + (DOG_STAGE_ADVANCE_DELAY_DAYS[stage] || 1);
 
-        if (stage >= 4) {
+        if (stage >= 3) {
           setTodoProgress(3, "item2", true);
         }
 
@@ -24208,31 +24786,13 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           return true;
         }
 
-        // 3단계: 기존 5단계. 자유 이동 중 누르면 앉으며 완료됩니다.
+        // 3단계: 한 번 누르면 계속 앉고, 다시 누르면 배를 보이며 친밀도 진행이 완료됩니다.
         if (stage === 3) {
-          if (activeDog.state === "sitIdle") {
-            refreshDogSitIdleDuration(activeDog, now);
-            return true;
-          }
-
-          if (activeDog.state === "run" || activeDog.state === "idle") {
-            completeDogStage(3, { stayVisible: true });
-            startDogSitDown(activeDog, now, {
-              persistent: false,
-              returnMode: "free"
-            });
-            showDogFrame(activeDog);
-          }
-          return true;
-        }
-
-        // 4단계: 기존 6단계. 한 번 누르면 계속 앉고, 다시 누르면 배를 보이며 완료됩니다.
-        if (stage === 4) {
           if (
             activeDog.state === "sitIdle" &&
-            activeDog.sitReturnMode === "stage4"
+            activeDog.sitReturnMode === "stage3"
           ) {
-            completeDogStage(4, { stayVisible: true });
+            completeDogStage(3, { stayVisible: true });
             startDogBellyDown(activeDog, now, {
               returnPersistent: true
             });
@@ -24246,16 +24806,16 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           ) {
             startDogSitIdle(activeDog, now, Infinity, {
               persistent: true,
-              returnMode: "stage4"
+              returnMode: "stage3"
             });
             showDogFrame(activeDog);
           }
           return true;
         }
 
-        // 5단계는 최종 Free Roam 상태입니다.
+        // 4단계는 최종 Free Roam 상태입니다.
         // 자유 이동 → 앉기 → 배보이기 → 앉기 → 자유 이동을 반복합니다.
-        if (stage === 5) {
+        if (stage === 4) {
           if (activeDog.state === "sitIdle") {
             startDogBellyDown(activeDog, now, {
               returnPersistent: false
@@ -24769,7 +25329,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
         const size = getDogRenderSize();
         const halfSize = size / 2;
-        const randomSpawnPosition = (activeStage === 3 || activeStage === 5)
+        const randomSpawnPosition = activeStage === 4
           ? getRandomDogPosition({ size, activeStage })
           : null;
         const position = randomSpawnPosition || {
@@ -24809,16 +25369,16 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         entities.appendChild(element);
 
         const now = performance.now();
-        const shouldRestoreCompletedStageFourSit =
-          activeStage === 4 &&
-          dogCompletedStage >= 4 &&
-          dogStayStage === 4 &&
+        const shouldRestoreCompletedStageThreeSit =
+          activeStage === 3 &&
+          dogCompletedStage >= 3 &&
+          dogStayStage === 3 &&
           dogStayDay === dayCount;
 
         let initialState = getDogStoryBaseState(activeStage);
-        if (activeStage === 3 || activeStage === 5) {
+        if (activeStage === 4) {
           initialState = Math.random() < 0.68 ? "idle" : "run";
-        } else if (shouldRestoreCompletedStageFourSit) {
+        } else if (shouldRestoreCompletedStageThreeSit) {
           initialState = "sitIdle";
         }
 
@@ -24856,9 +25416,9 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           renderKey: ""
         };
 
-        if (shouldRestoreCompletedStageFourSit) {
+        if (shouldRestoreCompletedStageThreeSit) {
           dog.sitPersistent = true;
-          dog.sitReturnMode = "stage4";
+          dog.sitReturnMode = "stage3";
           dog.stateUntil = Infinity;
         } else if (dog.state === "idle") {
           dog.angle =
@@ -25516,7 +26076,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
           const activated = activateDog(dog, performance.now());
           if (activated) {
             showToast(
-              dog.activeStage >= 3
+              dogCompletedStage >= 3
                 ? DOG_FRIENDLY_INTERACT_TOAST_MESSAGE
                 : DOG_EARLY_INTERACT_TOAST_MESSAGE
             );
@@ -26094,11 +26654,15 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
 
       function createZombie(options = {}) {
         // 처치 수와 살아 있는 좀비 수의 합이 최대값을 넘지 않게 합니다.
+        // 테스트 자원 지급 때만 현재 처치 요구량과 무관하게 추가 좀비를 생성할 수 있습니다.
         const force = options.force === true;
+        const ignoreKillRequirementForTest =
+          TEST_MODE && options.ignoreKillRequirementForTest === true;
         if (force) {
           if (
             !hasActivePopulationCapacity() ||
-            zombieCount + getLivingZombieCount() >= zombieKillRequirement
+            (!ignoreKillRequirementForTest &&
+              zombieCount + getLivingZombieCount() >= zombieKillRequirement)
           ) {
             return false;
           }
@@ -26958,6 +27522,9 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         image.className = "zombie-falling-part-image";
         image.style.backgroundImage = `url("${ZOMBIE_PARTS_SHEET}")`;
         image.style.backgroundPosition = getZombiePartFramePosition(frameIndex);
+        // DOM 시절 CSS의 transform-origin:center center를 Phaser 가상 노드에도 명시합니다.
+        // 미지정 시 좌상단을 축으로 회전해 샷건/라이플 파츠가 크게 도는 현상이 발생합니다.
+        image.style.transformOrigin = "center center";
         part.appendChild(image);
 
         const horizontalDistance = directionX * distance;
@@ -29037,6 +29604,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
       }
 
       repairGrid.addEventListener("mouseover", (event) => {
+        if (isMobileDeferredNewMode()) return;
         const target = event.target.closest(".repair-grid-item");
         if (!target || !repairGrid.contains(target)) return;
 
@@ -29250,7 +29818,8 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         if (itemType === "axe" && hasAxe) {
           const willEquip = getEquippedWeapon() !== "axe";
           playSound(willEquip ? GET_AXE_SOUND : INVENTORY_SET_SOUND, willEquip ? 0.7 : 1);
-          setEquippedWeapon(willEquip ? "axe" : "");
+          // Axe는 획득 후 최소 장비이므로 다시 눌러도 해제하지 않습니다.
+          setEquippedWeapon("axe");
           if (willEquip) showToast(AXE_SELECTED_TOAST_MESSAGE);
           return;
         }
@@ -29531,6 +30100,7 @@ isAxeEquipped = normalizedWeapon === "axe" && hasAxe;
         const destination = option.dataset.destination || "";
 
         option.addEventListener("mouseenter", () => {
+          if (isMobileDeferredNewMode()) return;
           clearExplorationDestinationNewState(destination);
         });
 
