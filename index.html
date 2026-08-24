@@ -2084,6 +2084,7 @@
     body.is-start-screen #hud,
     body.is-start-screen #todoListOverlay,
     body.is-start-screen #lootListOverlay,
+    body.is-start-screen #reportButton,
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton,
@@ -2133,6 +2134,7 @@
       translate: 140px 0;
     }
 
+    body.is-start-screen #reportButton,
     body.is-start-screen #repairButton,
     body.is-start-screen #inventoryButton,
     body.is-start-screen #exploreButton {
@@ -2160,6 +2162,7 @@
 
     body.is-entering-game #todoListOverlay,
     body.is-entering-game #lootListOverlay,
+    body.is-entering-game #reportButton,
     body.is-entering-game #repairButton,
     body.is-entering-game #inventoryButton,
     body.is-entering-game #exploreButton,
@@ -2174,6 +2177,7 @@
     }
 
     /* 탐험 출발 시 우측 액션 버튼은 화면 오른쪽으로 사라지고, 귀환 시 복귀합니다. */
+    body.is-exploring #reportButton,
     body.is-exploring #repairButton,
     body.is-exploring #inventoryButton,
     body.is-exploring #exploreButton {
@@ -2187,6 +2191,7 @@
       우측 버튼/좌측 옵션은 탐험 중과 같은 화면 밖 위치를 유지하고,
       DAY 정보는 1초 뒤 기존 게임 진입과 같은 우측 진입 모션을 다시 재생합니다.
     */
+    body.is-exploration-return-ui-delayed #reportButton,
     body.is-exploration-return-ui-delayed #repairButton,
     body.is-exploration-return-ui-delayed #inventoryButton,
     body.is-exploration-return-ui-delayed #exploreButton {
@@ -2312,7 +2317,8 @@
       position: fixed;
       top: max(15px, calc(env(safe-area-inset-top) + 8px));
       left: 50%;
-      z-index: 100;
+      /* 메뉴/블러 딤드 위, Notes 리더(400) 아래에 유지합니다. */
+      z-index: 160;
       display: flex;
       align-items: center;
       gap: 40px;
@@ -2334,7 +2340,7 @@
       gap: 5px;
     }
 
-    /* icon_resources.png(2×2): 1=Food, 2=Wood, 3=Stone */
+    /* icon_resources.png(2×2): 1=Food, 2=Wood, 3=Stone, 4=Zombie kills */
     .hud-resource-icon {
       width: 22px;
       height: 22px;
@@ -2357,8 +2363,13 @@
       background-position: left bottom;
     }
 
+    .hud-resource-icon.is-zombie-kill {
+      background-position: right bottom;
+    }
+
     @media (max-width: 560px) {
       #hud {
+        gap: 24px;
         font-size: 14px;
       }
 
@@ -2655,7 +2666,8 @@
 
     #exploreButton,
     #inventoryButton,
-    #repairButton {
+    #repairButton,
+    #reportButton {
       --collapsed-width: 56px;
       --expanded-width: 120px;
       position: fixed;
@@ -2692,12 +2704,20 @@
       flex: 0 0 32px;
       width: 32px;
       height: 32px;
-      object-fit: contain;
+      background-image: url("images/icon_menu.png");
+      background-repeat: no-repeat;
+      background-size: 200% 200%;
       opacity: 0.7;
       pointer-events: none;
       filter: brightness(0);
       transform: translateY(-2px);
     }
+
+    .hud-action-button__icon.is-repair { background-position: left top; }
+    .hud-action-button__icon.is-bag { background-position: right top; }
+    .hud-action-button__icon.is-explore { background-position: left bottom; }
+    .hud-action-button__icon.is-report { background-position: right bottom; }
+
 
     .hud-action-button__label {
       flex: 0 0 auto;
@@ -2719,13 +2739,15 @@
     @media (hover: hover) and (pointer: fine) {
       #exploreButton:hover,
       #inventoryButton:hover,
-      #repairButton:hover {
+      #repairButton:hover,
+      #reportButton:hover {
         width: var(--expanded-width);
       }
 
       #exploreButton:hover .hud-action-button__label,
       #inventoryButton:hover .hud-action-button__label,
-      #repairButton:hover .hud-action-button__label {
+      #repairButton:hover .hud-action-button__label,
+      #reportButton:hover .hud-action-button__label {
         opacity: 1;
         transform: translateX(0);
         transition-duration: 280ms, 280ms;
@@ -2735,13 +2757,15 @@
 
     #exploreButton:focus-visible,
     #inventoryButton:focus-visible,
-    #repairButton:focus-visible {
+    #repairButton:focus-visible,
+    #reportButton:focus-visible {
       width: var(--expanded-width);
     }
 
     #exploreButton:focus-visible .hud-action-button__label,
     #inventoryButton:focus-visible .hud-action-button__label,
-    #repairButton:focus-visible .hud-action-button__label {
+    #repairButton:focus-visible .hud-action-button__label,
+    #reportButton:focus-visible .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
       transition-duration: 280ms, 280ms;
@@ -2750,13 +2774,15 @@
 
     #exploreButton.is-menu-open.is-entry-expanded,
     #inventoryButton.is-menu-open.is-entry-expanded,
-    #repairButton.is-menu-open.is-entry-expanded {
+    #repairButton.is-menu-open.is-entry-expanded,
+    #reportButton.is-menu-open.is-entry-expanded {
       width: var(--expanded-width);
     }
 
     #exploreButton.is-menu-open.is-entry-expanded .hud-action-button__label,
     #inventoryButton.is-menu-open.is-entry-expanded .hud-action-button__label,
-    #repairButton.is-menu-open.is-entry-expanded .hud-action-button__label {
+    #repairButton.is-menu-open.is-entry-expanded .hud-action-button__label,
+    #reportButton.is-menu-open.is-entry-expanded .hud-action-button__label {
       opacity: 1;
       transform: translateX(0);
       transition-duration: 280ms, 280ms;
@@ -2765,13 +2791,15 @@
 
     #exploreButton.is-menu-open:not(.is-entry-expanded),
     #inventoryButton.is-menu-open:not(.is-entry-expanded),
-    #repairButton.is-menu-open:not(.is-entry-expanded) {
+    #repairButton.is-menu-open:not(.is-entry-expanded),
+    #reportButton.is-menu-open:not(.is-entry-expanded) {
       width: var(--collapsed-width);
     }
 
     #exploreButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
     #inventoryButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
-    #repairButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label {
+    #repairButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label,
+    #reportButton.is-menu-open:not(.is-entry-expanded) .hud-action-button__label {
       opacity: 0;
       transform: translateX(6px);
     }
@@ -2779,13 +2807,15 @@
     @media (hover: hover) and (pointer: fine) {
       #exploreButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
       #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
-      #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover {
+      #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover,
+      #reportButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover {
         width: var(--expanded-width);
       }
 
       #exploreButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
       #inventoryButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
-      #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label {
+      #repairButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label,
+      #reportButton.is-menu-open.is-hover-ready:not(.is-entry-expanded):hover .hud-action-button__label {
         opacity: 1;
         transform: translateX(0);
         transition-duration: 280ms, 280ms;
@@ -2850,20 +2880,27 @@
       overflow: visible;
     }
 
+    #reportButton {
+      bottom: max(238px, calc(env(safe-area-inset-bottom) + 230px));
+      overflow: visible;
+    }
+
     #exploreButton:active,
     #inventoryButton:active,
-    #repairButton:active {
+    #repairButton:active,
+    #reportButton:active {
       transform: scale(0.94);
     }
 
     #exploreButton:focus,
     #inventoryButton:focus,
-    #repairButton:focus {
+    #repairButton:focus,
+    #reportButton:focus {
       outline: none;
       box-shadow: none;
     }
 
-    /* 세 메뉴가 하나의 딤드·블러를 공유해 화면 전환 중 배경이 깜박이지 않습니다. */
+    /* 네 메뉴가 하나의 딤드·블러를 공유해 화면 전환 중 배경이 깜박이지 않습니다. */
     #menuBackdrop {
       position: fixed;
       inset: 0;
@@ -2887,7 +2924,8 @@
 
     #explorationOverlay,
     #inventoryOverlay,
-    #repairOverlay {
+    #repairOverlay,
+    #reportOverlay {
       position: fixed;
       inset: 0;
       z-index: 140;
@@ -2903,16 +2941,18 @@
 
     #explorationOverlay.is-open,
     #inventoryOverlay.is-open,
-    #repairOverlay.is-open {
+    #repairOverlay.is-open,
+    #reportOverlay.is-open {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
     }
 
-    /* 수리 / 가방 / 탐험 메뉴는 오버레이의 정중앙에 그대로 배치합니다. */
+    /* 수리 / 가방 / 탐험 / 리포트 메뉴는 오버레이의 정중앙에 그대로 배치합니다. */
     #explorationMenu,
     #inventoryMenu,
-    #repairMenu {
+    #repairMenu,
+    #reportMenu {
       transform: none;
     }
 
@@ -3676,7 +3716,7 @@
       margin-top: 38px;
       padding: 12px 20px;
       border: 1px solid currentColor;
-      border-radius: 8px;
+      border-radius: 999px;
       appearance: none;
       -webkit-appearance: none;
       outline: none;
@@ -3712,6 +3752,74 @@
 
     @media (hover: hover) and (pointer: fine) {
       #repairActionButton:hover:not(:disabled) {
+        font-weight: 500;
+        transform: scale(1.07);
+      }
+    }
+
+    #reportMenu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: min(88vw, 520px);
+      color: #fff;
+      text-align: center;
+    }
+
+    #reportMessage {
+      font-size: 16px;
+      font-weight: 350;
+      line-height: 1.5;
+      white-space: pre-line;
+    }
+
+    #reportActions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-top: 38px;
+    }
+
+    .report-action-button {
+      padding: 12px 20px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 22px;
+      font-weight: 350;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        transform 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        font-weight 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        opacity 120ms ease-out;
+    }
+
+    .report-action-button:disabled {
+      cursor: default;
+      opacity: 0.3;
+    }
+
+    .report-action-button:active:not(:disabled) {
+      transform: scale(0.94);
+      transition-duration: 70ms;
+    }
+
+    .report-action-button:focus-visible:not(:disabled) {
+      font-weight: 500;
+      transform: scale(1.07);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .report-action-button:hover:not(:disabled) {
         font-weight: 500;
         transform: scale(1.07);
       }
@@ -5193,7 +5301,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.221"
+  data-game-version="0.222"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5563,6 +5671,7 @@
   </div>
 
   <div id="hud">
+    <span class="hud-resource" aria-label="Zombie kills"><span class="hud-resource-icon is-zombie-kill" aria-hidden="true"></span><span id="zombieKillResourceCount">0</span></span>
     <span class="hud-resource" aria-label="Food"><span class="hud-resource-icon is-food" aria-hidden="true"></span><span><span id="foodCount">0</span>/3</span></span>
     <span class="hud-resource" aria-label="Wood"><span class="hud-resource-icon is-wood" aria-hidden="true"></span><span><span id="woodCount">0</span>/10</span></span>
     <span class="hud-resource" aria-label="Stone"><span class="hud-resource-icon is-stone" aria-hidden="true"></span><span><span id="stoneCount">0</span>/5</span></span>
@@ -5786,6 +5895,15 @@ You can leave the game and come back anytime.</div>
       <div id="noteReaderAuthor"></div>
     </div>
   </div>
+  <div id="reportOverlay" aria-hidden="true">
+    <div id="reportMenu" role="dialog" aria-modal="true" aria-label="Report">
+      <div id="reportMessage">Use 10 kills to request a supply crate.
+You'll need a firearm and ammo to collect it.</div>
+      <div id="reportActions">
+        <button id="reportRequestButton" class="report-action-button" type="button" disabled>Request</button>
+      </div>
+    </div>
+  </div>
   <div id="repairOverlay" aria-hidden="true">
     <div id="repairMenu" role="dialog" aria-modal="true" aria-label="Repair">
       <div id="repairCategories" role="tablist" aria-label="Repair categories">
@@ -5814,46 +5932,23 @@ You can leave the game and come back anytime.</div>
     </div>
   </div>
   <div id="hudActionButtons" aria-label="HUD actions">
-    <button
-      id="repairButton"
-      type="button"
-      aria-label="Repair"
-    >
+    <button id="reportButton" type="button" aria-label="Report">
+      <span class="hud-action-button__icon is-report" aria-hidden="true"></span>
+      <span class="hud-action-button__label">Report</span>
+    </button>
+    <button id="repairButton" type="button" aria-label="Repair">
       <span id="repairNewBadge" class="inventory-new-badge" hidden>NEW</span>
-      <img
-        class="hud-action-button__icon"
-        src="images/icon_repair.png"
-        alt=""
-        draggable="false"
-      />
+      <span class="hud-action-button__icon is-repair" aria-hidden="true"></span>
       <span class="hud-action-button__label">Repair</span>
     </button>
-    <button
-      id="inventoryButton"
-      type="button"
-      aria-label="Bag"
-    >
+    <button id="inventoryButton" type="button" aria-label="Bag">
       <span id="inventoryNewBadge" class="inventory-new-badge" hidden>NEW</span>
-      <img
-        class="hud-action-button__icon"
-        src="images/icon_inventory.png"
-        alt=""
-        draggable="false"
-      />
+      <span class="hud-action-button__icon is-bag" aria-hidden="true"></span>
       <span class="hud-action-button__label">Bag</span>
     </button>
-    <button
-      id="exploreButton"
-      type="button"
-      aria-label="Explore"
-    >
+    <button id="exploreButton" type="button" aria-label="Explore">
       <span id="exploreNewBadge" class="inventory-new-badge" hidden>NEW</span>
-      <img
-        class="hud-action-button__icon"
-        src="images/icon_explore.png"
-        alt=""
-        draggable="false"
-      />
+      <span class="hud-action-button__icon is-explore" aria-hidden="true"></span>
       <span class="hud-action-button__label">Explore</span>
     </button>
   </div>
@@ -6521,9 +6616,26 @@ You can leave the game and come back anytime.</div>
         max: 0.01
       });
 
-      // 총기 획득 시 함께 지급하는 탄약과 체인소우 획득 시 배터리 범위입니다.
-      const WEAPON_STARTER_AMMO_RANGE = Object.freeze({ min: 1, max: 5 });
+      // 총기 최초 획득 시 함께 지급하는 시작 탄약입니다.
+      // 총을 얻자마자 바로 실전에서 충분히 써볼 수 있도록 총기별 고정 수량을 사용합니다.
+      const WEAPON_STARTER_AMMO_RANGES = Object.freeze({
+        handgun: Object.freeze({ min: 10, max: 10 }),
+        shotgun: Object.freeze({ min: 5, max: 5 }),
+        rifle: Object.freeze({ min: 6, max: 6 })
+      });
       const CHAINSAW_STARTER_BATTERY_RANGE = Object.freeze({ min: 5, max: 10 });
+
+      // 실제 탐험에서는 기존 보상을 밀어내지 않는 별도 탄약 보너스를 약 55% 확률로 추가합니다.
+      // 모든 보유 총기 탄약이 0인 경우에는 Handgun Ammo 보정 확률을 높여 탄약 고갈을 완화합니다.
+      const EXPLORATION_AMMO_BONUS_CHANCE = 0.55;
+      const EXPLORATION_EMPTY_AMMO_HANDGUN_BONUS_CHANCE = 0.9;
+
+      // Supply Crate는 보유 총기 중 현재 탄약이 가장 적은 총을 우선해 탄약 한 종류를 보장합니다.
+      const SUPPLY_CRATE_AMMO_RANGES = Object.freeze({
+        handgunAmmo: Object.freeze({ min: 6, max: 12 }),
+        shotgunAmmo: Object.freeze({ min: 3, max: 6 }),
+        rifleAmmo: Object.freeze({ min: 4, max: 8 })
+      });
 
       // 테스트 모드 v 버튼으로 지급할 탄약 수량과 체인소우 배터리 잔량입니다.
       // 지급값과 다시 눌렀을 때의 초기화 판정이 이 값을 함께 사용합니다.
@@ -6597,7 +6709,7 @@ You can leave the game and come back anytime.</div>
       const SUPPLY_BOX_IMAGE = "images/supplybox.png";
       const SUPPLY_BOX_BROKEN_IMAGE = "images/supplybox_broken.png";
 
-      const SUPPLY_BOX_SPAWN_INTERVAL_MS = 3 * 60 * 1000;
+      const SUPPLY_REQUEST_KILL_COST = 10;
       const SUPPLY_BOX_SCALE = 0.7;
       const SUPPLY_BOX_SPEED_PX_PER_MS = 0.03;
       const SUPPLY_BOX_FLYING_WIDTH = 128 * SUPPLY_BOX_SCALE;
@@ -6656,6 +6768,7 @@ You can leave the game and come back anytime.</div>
         "sounds/sfx_exploringfootsteps.wav";
       const SUPPLY_BOX_DROP_SOUND = "sounds/sfx_supplybox_drop.wav";
       const SUPPLY_BOX_OPEN_SOUND = "sounds/sfx_supplybox_open.wav";
+      const REPORT_REQUEST_SOUND = "sounds/sfx_morse.wav";
 
       const CAR_TRAVEL_DURATION_MS = 5_000;
       const CAR_DRIVE_FRAME_INTERVAL_MS = 150;
@@ -9641,6 +9754,7 @@ You can leave the game and come back anytime.</div>
       const birdsLayer = phaserField.layer("birds");
       const supplyBoxShadowLayer = phaserField.layer("supplyBoxShadowLayer");
       const supplyBoxLayer = phaserField.layer("supplyBoxLayer");
+      const zombieKillResourceCountElement = document.getElementById("zombieKillResourceCount");
       const foodCountElement = document.getElementById("foodCount");
       const woodCountElement = document.getElementById("woodCount");
       const stoneCountElement = document.getElementById("stoneCount");
@@ -9650,6 +9764,9 @@ You can leave the game and come back anytime.</div>
       const soundToggleButton = document.getElementById("soundToggleButton");
       const exploringSoundToggleButton = document.getElementById("exploringSoundToggleButton");
       const menuBackdrop = document.getElementById("menuBackdrop");
+      const reportOverlay = document.getElementById("reportOverlay");
+      const reportMenu = document.getElementById("reportMenu");
+      const reportRequestButton = document.getElementById("reportRequestButton");
       const explorationOverlay = document.getElementById("explorationOverlay");
       const explorationMenu = document.getElementById("explorationMenu");
       const explorationOptions = Array.from(
@@ -9793,6 +9910,10 @@ You can leave the game and come back anytime.</div>
         "repairActionButton"
       );
       const repairNewBadge = document.getElementById("repairNewBadge");
+      const reportButton = document.getElementById("reportButton");
+      const repairButton = document.getElementById("repairButton");
+      const inventoryButton = document.getElementById("inventoryButton");
+      const exploreButton = document.getElementById("exploreButton");
       const exploreNewBadge = document.getElementById("exploreNewBadge");
       const exploringStatus = document.getElementById("exploringStatus");
       const exploringLabel = document.getElementById("exploringLabel");
@@ -9863,9 +9984,6 @@ You can leave the game and come back anytime.</div>
       roofObject.hidden = true;
       gardenObject.hidden = true;
       fenceObject.hidden = true;
-      const repairButton = document.getElementById("repairButton");
-      const inventoryButton = document.getElementById("inventoryButton");
-      const exploreButton = document.getElementById("exploreButton");
       const todoListOverlay = document.getElementById("todoListOverlay");
       const todoRewardTitle = document.getElementById("todoRewardTitle");
       const todoRewardItem = document.getElementById("todoRewardItem");
@@ -9885,6 +10003,7 @@ You can leave the game and come back anytime.</div>
         document.querySelectorAll("#todoListOverlay .todo-item")
       );
       const hudActionButtons = [
+        reportButton,
         repairButton,
         inventoryButton,
         exploreButton
@@ -10213,6 +10332,8 @@ You can leave the game and come back anytime.</div>
       }
 
       let zombieCount = 0;
+      // 탐험 조건용 zombieCount와 분리된, 소비 가능한 누적 처치 자원입니다.
+      let zombieKillResource = 0;
       let zombieKillRequirement = INITIAL_ZOMBIE_KILL_REQUIREMENT;
       let dayCount = 1;
       let rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
@@ -10384,6 +10505,7 @@ You can leave the game and come back anytime.</div>
       let isExplorationMenuOpen = false;
       let isInventoryOpen = false;
       let isRepairOpen = false;
+      let isReportOpen = false;
       let repairSelectedCategory = "outdoor";
       const repairSelectedItemByCategory = Object.fromEntries(
         REPAIR_CATEGORY_ORDER.map((category) => [category, -1])
@@ -10486,9 +10608,7 @@ You can leave the game and come back anytime.</div>
       let storedPopulationSnapshot = null;
       let lastZombieSpawnAt = Date.now();
       let lastDeerSpawnAt = Date.now();
-      let lastSupplyBoxSpawnAt = Date.now();
       let zombieSpawnTimerId = null;
-      let supplyBoxSpawnTimerId = null;
       let hasGameInitialized = false;
       let startScreenSceneAnimationFrameId = null;
       let startScreenSceneLastFrameTime = performance.now();
@@ -10590,7 +10710,7 @@ You can leave the game and come back anytime.</div>
       // 투두를 받기 전에 보급품 상자로 처치한 기록도 이후 미션에서 인정합니다.
       let hasKilledWithSupplyBox = false;
       let nextSupplyBoxId = 1;
-      let supplyBox = null;
+      const supplyBoxes = new Map();
       let skipFirstStartSequence = false;
       let hasFirstTutorialZombieSpawned = false;
       let ambientBirdTimer = null;
@@ -12001,7 +12121,7 @@ You can leave the game and come back anytime.</div>
           const previousRifleAmmoCount = rifleAmmoCount;
           rifleAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            rifleAmmoCount + 10
+            rifleAmmoCount + 6
           );
           hasRifleAmmo = rifleAmmoCount > 0;
           if (rifleAmmoCount > previousRifleAmmoCount) {
@@ -14508,6 +14628,10 @@ You can leave the game and come back anytime.</div>
             normalizeStoredCount(parsed.zombies, MAX_ZOMBIE_COUNT),
             zombieKillRequirement
           );
+          zombieKillResource = normalizeStoredCount(
+            parsed.zombieKillResource,
+            MAX_ZOMBIE_COUNT
+          );
           foodCount = normalizeStoredCount(parsed.food, STORAGE_MAX_FOOD_COUNT);
           // 테스트 모드에서 모든 설계도 제작 재료를 한 번에 지급하면
           // Wood가 일반 최대치를 넘을 수 있으므로 해당 저장값을 그대로 복원합니다.
@@ -14909,9 +15033,6 @@ You can leave the game and come back anytime.</div>
           lastDeerSpawnAt = Number.isFinite(Number(parsed.lastDeerSpawnAt))
             ? Math.max(0, Number(parsed.lastDeerSpawnAt))
             : savedAt;
-          lastSupplyBoxSpawnAt = Number.isFinite(Number(parsed.lastSupplyBoxSpawnAt))
-            ? Math.max(0, Number(parsed.lastSupplyBoxSpawnAt))
-            : savedAt;
           const storedActiveZombies = normalizeStoredCount(
             parsed.activeZombies,
             MAX_ACTIVE_ZOMBIES
@@ -14992,6 +15113,7 @@ You can leave the game and come back anytime.</div>
               dogStayStage,
               dogStayDay,
               zombies: zombieCount,
+              zombieKillResource,
               zombieKillRequirement,
               dayCount,
               rainChancePercent,
@@ -15075,7 +15197,6 @@ You can leave the game and come back anytime.</div>
               activeDeer: getLivingDeerCount(),
               lastZombieSpawnAt,
               lastDeerSpawnAt,
-              lastSupplyBoxSpawnAt,
               savedAt: Date.now()
             })
           );
@@ -15182,7 +15303,17 @@ You can leave the game and come back anytime.</div>
         delta.addEventListener("animationend", () => delta.remove(), { once: true });
       }
 
+      function updateReportRequestState() {
+        if (!reportRequestButton) return;
+        reportRequestButton.disabled = zombieKillResource < SUPPLY_REQUEST_KILL_COST;
+        reportRequestButton.setAttribute(
+          "aria-disabled",
+          reportRequestButton.disabled ? "true" : "false"
+        );
+      }
+
       function updateResourceHud() {
+        zombieKillResourceCountElement.textContent = String(zombieKillResource);
         foodCountElement.textContent = String(foodCount);
         woodCountElement.textContent = String(woodCount);
         stoneCountElement.textContent = String(stoneCount);
@@ -15201,6 +15332,7 @@ You can leave the game and come back anytime.</div>
         updateWeatherLabel();
         updateExplorationRequirements();
         updateRepairNewBadgeState();
+        updateReportRequestState();
       }
 
       function getDisplayedDayCount() {
@@ -15682,7 +15814,7 @@ You can leave the game and come back anytime.</div>
 
       function syncMenuBackdrop() {
         const isAnyMenuOpen =
-          isExplorationMenuOpen || isInventoryOpen || isRepairOpen;
+          isExplorationMenuOpen || isInventoryOpen || isRepairOpen || isReportOpen;
 
         menuBackdrop.classList.toggle("is-open", isAnyMenuOpen);
         document.body.classList.toggle("is-menu-open", isAnyMenuOpen);
@@ -15737,6 +15869,16 @@ You can leave the game and come back anytime.</div>
         repairOverlay.classList.remove("is-open");
         repairOverlay.setAttribute("aria-hidden", "true");
         setHudActionMenuState(repairButton, false);
+        if (syncBackdrop) syncMenuBackdrop();
+      }
+
+      function closeReport(syncBackdrop = true) {
+        if (!isReportOpen) return;
+
+        isReportOpen = false;
+        reportOverlay.classList.remove("is-open");
+        reportOverlay.setAttribute("aria-hidden", "true");
+        setHudActionMenuState(reportButton, false);
         if (syncBackdrop) syncMenuBackdrop();
       }
 
@@ -16340,6 +16482,7 @@ You can leave the game and come back anytime.</div>
 
         closeExplorationMenu(false);
         closeRepair(false);
+        closeReport(false);
         inventorySelectedCategory = normalizeInventoryCategory(inventorySelectedCategory);
         inventoryCurrentPage = 0;
         renderInventoryCategories();
@@ -16379,6 +16522,7 @@ You can leave the game and come back anytime.</div>
         updateExplorationRequirements();
         closeInventory(false);
         closeRepair(false);
+        closeReport(false);
         isExplorationMenuOpen = true;
         explorationOverlay.classList.add("is-open");
         explorationOverlay.setAttribute("aria-hidden", "false");
@@ -16416,6 +16560,7 @@ You can leave the game and come back anytime.</div>
 
         closeExplorationMenu(false);
         closeInventory(false);
+        closeReport(false);
         isRepairOpen = true;
         repairOverlay.classList.add("is-open");
         repairOverlay.setAttribute("aria-hidden", "false");
@@ -18396,7 +18541,7 @@ You can leave the game and come back anytime.</div>
         const requiredFood = getDestinationFoodRequirement(destination);
         foodCount = Math.max(0, foodCount - requiredFood);
         zombieCount = 0;
-        fadeOutLandedSupplyBoxForExploration();
+        removeAllSupplyBoxesForExploration();
         if (dog) {
           // 탐험 출발 시 친밀도 단계와 관계없이 빠른 달리기로 화면 밖으로 나갑니다.
           startDogFastRun(dog, {
@@ -18434,7 +18579,6 @@ You can leave the game and come back anytime.</div>
         scheduleExplorationReturnCue();
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
-        scheduleNextSupplyBoxSpawnTick();
         updateTutorialGuide();
 
         if (explorationTimerId !== null) {
@@ -18775,6 +18919,10 @@ You can leave the game and come back anytime.</div>
         return Math.min(rolled, getRemainingCapacityAfterPlan(plan, itemType));
       }
 
+      function getWeaponStarterAmmoRange(weaponType) {
+        return WEAPON_STARTER_AMMO_RANGES[weaponType] || { min: 1, max: 1 };
+      }
+
       function addWeaponBundleToPlan(plan, weaponType, ammoType) {
         const usedKeys = getPlanRewardTypeKeys(plan);
         if (usedKeys.has(`item:${weaponType}`) || getExplorationItemRemainingCapacity(weaponType) <= 0) {
@@ -18785,7 +18933,7 @@ You can leave the game and come back anytime.</div>
         if (ammoType && !usedKeys.has(`item:${ammoType}`)) {
           const starterRange = weaponType === "chainsaw"
             ? CHAINSAW_STARTER_BATTERY_RANGE
-            : WEAPON_STARTER_AMMO_RANGE;
+            : getWeaponStarterAmmoRange(weaponType);
           const quantity = rollPlannedExplorationItemQuantity(plan, ammoType, starterRange);
           if (quantity > 0) {
             addPlannedReward(plan, createPlannedItemReward(ammoType, quantity, { starterSupply: true }));
@@ -18912,6 +19060,74 @@ You can leave the game and come back anytime.</div>
         return plan;
       }
 
+      function getExplorationAmmoBonusCandidates(plan) {
+        const candidates = [];
+        const addCandidate = (itemType, owned) => {
+          if (!owned) return;
+          if (getRemainingCapacityAfterPlan(plan, itemType) <= 0) return;
+          candidates.push(itemType);
+        };
+
+        if (plan.destination === "village") {
+          addCandidate("handgunAmmo", hasHandgun);
+        } else if (plan.destination === "forest") {
+          addCandidate("handgunAmmo", hasHandgun);
+          addCandidate("shotgunAmmo", hasShotgun);
+        } else if (plan.destination === "city") {
+          addCandidate("handgunAmmo", hasHandgun);
+          addCandidate("shotgunAmmo", hasShotgun);
+          addCandidate("rifleAmmo", hasRifle);
+        }
+
+        return candidates;
+      }
+
+      function addExplorationAmmoBonusToPlan(plan) {
+        if (!plan) return false;
+
+        // DAY 5 핸드건 보장 자체가 충분한 시작 탄약을 포함하므로 같은 탐험에서 추가 보정하지 않습니다.
+        if ((plan.rewards || []).some((reward) => reward?.guaranteedDayFive === true)) {
+          return false;
+        }
+
+        // 일반 보상에서 이미 탄약을 찾았다면 추가 보너스를 겹치지 않아 기존 보상 밸런스를 유지합니다.
+        const hasPlannedAmmoReward = (plan.rewards || []).some(
+          (reward) =>
+            reward?.kind === "item" &&
+            ["handgunAmmo", "shotgunAmmo", "rifleAmmo"].includes(reward.itemType)
+        );
+        if (hasPlannedAmmoReward) return false;
+
+        const allOwnedGunAmmoEmpty =
+          hasHandgun &&
+          handgunAmmoCount <= 0 &&
+          (!hasShotgun || shotgunAmmoCount <= 0) &&
+          (!hasRifle || rifleAmmoCount <= 0);
+
+        if (
+          allOwnedGunAmmoEmpty &&
+          getRemainingCapacityAfterPlan(plan, "handgunAmmo") > 0 &&
+          Math.random() < EXPLORATION_EMPTY_AMMO_HANDGUN_BONUS_CHANCE
+        ) {
+          const quantity = rollPlannedExplorationItemQuantity(plan, "handgunAmmo");
+          return addPlannedReward(
+            plan,
+            createPlannedItemReward("handgunAmmo", quantity, { ammoBonus: true, emptyAmmoRelief: true })
+          );
+        }
+
+        if (Math.random() >= EXPLORATION_AMMO_BONUS_CHANCE) return false;
+
+        const candidates = getExplorationAmmoBonusCandidates(plan);
+        if (candidates.length === 0) return false;
+        const itemType = candidates[Math.floor(Math.random() * candidates.length)];
+        const quantity = rollPlannedExplorationItemQuantity(plan, itemType);
+        return addPlannedReward(
+          plan,
+          createPlannedItemReward(itemType, quantity, { ammoBonus: true })
+        );
+      }
+
       function createExplorationRewardPlan(destination, departureDay) {
         configureExplorationBlueprintDefinitions();
         const plan = {
@@ -18946,7 +19162,7 @@ You can leave the game and come back anytime.</div>
           // 기존 DAY 5 보장 규칙은 Forest에서도 유지합니다.
           if (plan.departureDay >= 5 && !hasHandgun) {
             addPlannedReward(plan, createPlannedItemReward("handgun", 1, { guaranteedDayFive: true }));
-            const ammoQuantity = Math.min(5, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
+            const ammoQuantity = Math.min(10, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
             if (ammoQuantity > 0) {
               addPlannedReward(plan, createPlannedItemReward("handgunAmmo", ammoQuantity, { guaranteedDayFive: true }));
             }
@@ -18972,16 +19188,17 @@ You can leave the game and come back anytime.</div>
               addPlannedReward(plan, createPlannedItemReward("flowers", flowerQuantity));
             }
           }
+          addExplorationAmmoBonusToPlan(plan);
           return finalizeExplorationRewardRevealSchedule(plan);
         }
 
         const countRange = EXPLORATION_REWARD_TYPE_COUNT_RANGES[destination] || { min: 1, max: 1 };
         let targetTypeCount = randomIntegerInclusive(countRange.min, countRange.max);
 
-        // DAY 5 이후 핸드건이 없다면 Handgun + Ammo 5를 확정 슬롯으로 넣습니다.
+        // DAY 5 이후 핸드건이 없다면 Handgun + Ammo 10을 확정 슬롯으로 넣습니다.
         if (plan.departureDay >= 5 && !hasHandgun) {
           addPlannedReward(plan, createPlannedItemReward("handgun", 1, { guaranteedDayFive: true }));
-          const ammoQuantity = Math.min(5, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
+          const ammoQuantity = Math.min(10, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
           if (ammoQuantity > 0) {
             addPlannedReward(plan, createPlannedItemReward("handgunAmmo", ammoQuantity, { guaranteedDayFive: true }));
           }
@@ -19010,6 +19227,7 @@ You can leave the game and come back anytime.</div>
         const hardMax = Math.max(countRange.min, countRange.max);
         targetTypeCount = Math.min(hardMax, Math.max(countRange.min, targetTypeCount));
         addRandomNormalExplorationRewards(plan, targetTypeCount);
+        addExplorationAmmoBonusToPlan(plan);
         return finalizeExplorationRewardRevealSchedule(plan);
       }
 
@@ -19196,14 +19414,14 @@ You can leave the game and come back anytime.</div>
 
       /*
         무기를 처음 획득했을 때 함께 지급하는 시작 탄약 / 배터리입니다.
-        총기: 1~5발, 체인소우: 5~10%
+        Handgun 10발 / Shotgun 5발 / Rifle 6발, 체인소우 5~10%
       */
       function grantStarterSupplyForWeapon(weaponType) {
         if (weaponType === "handgun") {
           const previous = handgunAmmoCount;
           handgunAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            handgunAmmoCount + rollStarterSupplyQuantity(WEAPON_STARTER_AMMO_RANGE)
+            handgunAmmoCount + rollStarterSupplyQuantity(getWeaponStarterAmmoRange("handgun"))
           );
           hasHandgunAmmo = handgunAmmoCount > 0;
           if (handgunAmmoCount > previous) markInventoryItemAsNew("handgunAmmo");
@@ -19214,7 +19432,7 @@ You can leave the game and come back anytime.</div>
           const previous = shotgunAmmoCount;
           shotgunAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            shotgunAmmoCount + rollStarterSupplyQuantity(WEAPON_STARTER_AMMO_RANGE)
+            shotgunAmmoCount + rollStarterSupplyQuantity(getWeaponStarterAmmoRange("shotgun"))
           );
           hasShotgunAmmo = shotgunAmmoCount > 0;
           if (shotgunAmmoCount > previous) markInventoryItemAsNew("shotgunAmmo");
@@ -19225,7 +19443,7 @@ You can leave the game and come back anytime.</div>
           const previous = rifleAmmoCount;
           rifleAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
-            rifleAmmoCount + rollStarterSupplyQuantity(WEAPON_STARTER_AMMO_RANGE)
+            rifleAmmoCount + rollStarterSupplyQuantity(getWeaponStarterAmmoRange("rifle"))
           );
           hasRifleAmmo = rifleAmmoCount > 0;
           if (rifleAmmoCount > previous) markInventoryItemAsNew("rifleAmmo");
@@ -19338,7 +19556,7 @@ You can leave the game and come back anytime.</div>
         hasHandgunAmmo = true;
         handgunAmmoCount = Math.min(
           MAX_INVENTORY_QUANTITY,
-          handgunAmmoCount + 5
+          handgunAmmoCount + 10
         );
 
         // 기존 공통 아이템 NEW 규칙을 그대로 적용합니다.
@@ -19431,7 +19649,7 @@ You can leave the game and come back anytime.</div>
 
         /*
           실제 탐험에서 DAY 5 이상에 출발했고 아직 핸드건이 없다면,
-          목적지와 관계없이 설계도/일반 아이템 대신 핸드건 + 탄약 5발을 지급합니다.
+          목적지와 관계없이 설계도/일반 아이템 대신 핸드건 + 탄약 10발을 지급합니다.
           서플라이 박스가 이 보상 함수를 재사용하더라도 해당 보장은 적용하지 않습니다.
         */
         if (
@@ -19496,7 +19714,6 @@ You can leave the game and come back anytime.</div>
         isExplorationCompletePending = false;
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
-        scheduleNextSupplyBoxSpawnTick();
         explorationDestination = "";
         explorationEndsAt = 0;
         explorationDepartureDay = 0;
@@ -20046,7 +20263,6 @@ You can leave the game and come back anytime.</div>
 
         // 테스트 모드는 개의 친밀도 진행이나 등장 조건을 강제로 변경하지 않습니다.
         startCatDelivery();
-        spawnOrReplaceSupplyBox({ resetTimer: true });
         spawnZombiesForResourceTest(10);
         showSceneColorTestControls();
 
@@ -22295,6 +22511,24 @@ You can leave the game and come back anytime.</div>
         }, TOAST_REPLACED_FADE_MS);
       }
 
+      function openReport() {
+        if (isReportOpen) return;
+
+        closeExplorationMenu(false);
+        closeInventory(false);
+        closeRepair(false);
+        isReportOpen = true;
+        updateReportRequestState();
+        reportOverlay.classList.add("is-open");
+        reportOverlay.setAttribute("aria-hidden", "false");
+        setHudActionMenuState(reportButton, true);
+        syncMenuBackdrop();
+
+        if (reportRequestButton && !reportRequestButton.disabled && shouldAutoFocusMenuEntry()) {
+          window.setTimeout(() => reportRequestButton.focus(), 0);
+        }
+      }
+
       function showToast(message) {
         const now = performance.now();
 
@@ -22338,6 +22572,37 @@ You can leave the game and come back anytime.</div>
           removeToast(toast);
         }, TOAST_DURATION_MS + 100);
       }
+
+      function handleReportButton(event) {
+        playSound(EXPLORE_BUTTON_SOUND);
+        if (isReportOpen) return;
+        openReport();
+      }
+
+      function handleReportRequest() {
+        if (zombieKillResource < SUPPLY_REQUEST_KILL_COST) {
+          updateReportRequestState();
+          return;
+        }
+
+        // 생성이 성공한 경우에만 처치 자원을 차감합니다.
+        const created = createSupplyBox();
+        if (!created) {
+          showToast("No clear drop zone.");
+          return;
+        }
+
+        zombieKillResource = Math.max(
+          0,
+          zombieKillResource - SUPPLY_REQUEST_KILL_COST
+        );
+        playSound(REPORT_REQUEST_SOUND);
+        updateResourceHud();
+        closeReport();
+        showToast("Supplies incoming.");
+        commitResourceState();
+      }
+
 
       function handleRepairButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
@@ -26105,8 +26370,9 @@ You can leave the game and come back anytime.</div>
         event.preventDefault();
 
         if (entityType === "supplyBox") {
-          if (supplyBox && supplyBox.id === entityId) {
-            return activateSupplyBox(supplyBox, event);
+          const activeSupplyBox = supplyBoxes.get(entityId);
+          if (activeSupplyBox) {
+            return activateSupplyBox(activeSupplyBox, event);
           }
           return false;
         }
@@ -27061,37 +27327,46 @@ You can leave the game and come back anytime.</div>
         activeSupplyBox.hitArea.style.pointerEvents = "none";
       }
 
-      function fadeOutLandedSupplyBoxForExploration() {
-        if (!supplyBox || supplyBox.state !== "landed") return;
+      function removeSupplyBox(activeSupplyBox) {
+        if (!activeSupplyBox) return;
+        if (
+          fieldEntityPressState.entityType === "supplyBox" &&
+          fieldEntityPressState.entityId === activeSupplyBox.id
+        ) {
+          clearFieldEntityPressState();
+        }
+        activeSupplyBox.element?.remove();
+        activeSupplyBox.shadowElement?.remove();
+        supplyBoxes.delete(activeSupplyBox.id);
+      }
 
-        const fadingSupplyBoxId = supplyBox.id;
-        supplyBox.state = "exploration-fading";
-        supplyBox.hitArea.style.pointerEvents = "none";
-        supplyBox.element.style.transition =
-          `opacity ${SUPPLY_BOX_EXPLORATION_FADE_MS}ms ease`;
-        supplyBox.shadowElement.style.transition =
-          `opacity ${SUPPLY_BOX_EXPLORATION_FADE_MS}ms ease`;
+      function removeAllSupplyBoxesForExploration() {
+        const activeBoxes = Array.from(supplyBoxes.values());
+        if (activeBoxes.length === 0) return;
+
+        for (const activeSupplyBox of activeBoxes) {
+          activeSupplyBox.state = "exploration-fading";
+          activeSupplyBox.hitArea.style.pointerEvents = "none";
+          activeSupplyBox.element.style.transition =
+            `opacity ${SUPPLY_BOX_EXPLORATION_FADE_MS}ms ease`;
+          activeSupplyBox.shadowElement.style.transition =
+            `opacity ${SUPPLY_BOX_EXPLORATION_FADE_MS}ms ease`;
+        }
 
         requestAnimationFrame(() => {
-          if (!supplyBox || supplyBox.id !== fadingSupplyBoxId) return;
-          supplyBox.element.style.opacity = "0";
-          supplyBox.shadowElement.style.opacity = "0";
+          for (const activeSupplyBox of activeBoxes) {
+            if (!supplyBoxes.has(activeSupplyBox.id)) continue;
+            activeSupplyBox.element.style.opacity = "0";
+            activeSupplyBox.shadowElement.style.opacity = "0";
+          }
         });
 
         window.setTimeout(() => {
-          if (!supplyBox || supplyBox.id !== fadingSupplyBoxId) return;
-          removeSupplyBox();
+          for (const activeSupplyBox of activeBoxes) {
+            if (!supplyBoxes.has(activeSupplyBox.id)) continue;
+            removeSupplyBox(activeSupplyBox);
+          }
         }, SUPPLY_BOX_EXPLORATION_FADE_MS);
-      }
-
-      function removeSupplyBox() {
-        if (!supplyBox) return;
-        if (fieldEntityPressState.entityType === "supplyBox") {
-          clearFieldEntityPressState();
-        }
-        supplyBox.element.remove();
-        supplyBox.shadowElement.remove();
-        supplyBox = null;
       }
 
       function createSupplyBox() {
@@ -27153,34 +27428,32 @@ You can leave the game and come back anytime.</div>
         element.addEventListener("pointerdown", startFieldEntityPress);
         element.addEventListener("pointerup", activatePressedFieldEntity);
 
-        supplyBox = activeSupplyBox;
+        supplyBoxes.set(activeSupplyBox.id, activeSupplyBox);
         renderSupplyBox(activeSupplyBox);
         return true;
       }
 
-      function spawnOrReplaceSupplyBox(options = {}) {
-        removeSupplyBox();
-        if (options.resetTimer === true) {
-          lastSupplyBoxSpawnAt = Date.now();
-        }
-        const created = createSupplyBox();
-        if (created && options.resetTimer === true) {
-          scheduleNextSupplyBoxSpawnTick();
-        }
-        saveResourceState();
-        return created;
-      }
-
       function getSupplyBoxAtClientPoint(clientX, clientY) {
-        if (!supplyBox) return null;
-        if (supplyBox.state !== "flying" && supplyBox.state !== "landed") {
-          return null;
+        // 가장 최근에 요청한 상자부터 검사해 겹쳤을 때 상단 상자를 우선합니다.
+        const activeBoxes = Array.from(supplyBoxes.values()).reverse();
+        for (const activeSupplyBox of activeBoxes) {
+          if (
+            activeSupplyBox.state !== "flying" &&
+            activeSupplyBox.state !== "landed"
+          ) {
+            continue;
+          }
+          if (
+            !activeSupplyBox.hitArea ||
+            typeof activeSupplyBox.hitArea.getBoundingClientRect !== "function"
+          ) {
+            continue;
+          }
+          if (isClientPointInsideElement(clientX, clientY, activeSupplyBox.hitArea)) {
+            return activeSupplyBox;
+          }
         }
-        if (!supplyBox.hitArea || typeof supplyBox.hitArea.getBoundingClientRect !== "function") return null;
-        if (!isClientPointInsideElement(clientX, clientY, supplyBox.hitArea)) {
-          return null;
-        }
-        return supplyBox;
+        return null;
       }
 
       function beginSupplyBoxFall(activeSupplyBox, now = performance.now()) {
@@ -27253,6 +27526,50 @@ You can leave the game and come back anytime.</div>
         return beginSupplyBoxFall(activeSupplyBox);
       }
 
+      function grantSupplyCrateAmmoReward() {
+        const candidates = [];
+        if (hasHandgun && handgunAmmoCount < MAX_INVENTORY_QUANTITY) {
+          candidates.push({ itemType: "handgunAmmo", count: handgunAmmoCount });
+        }
+        if (hasShotgun && shotgunAmmoCount < MAX_INVENTORY_QUANTITY) {
+          candidates.push({ itemType: "shotgunAmmo", count: shotgunAmmoCount });
+        }
+        if (hasRifle && rifleAmmoCount < MAX_INVENTORY_QUANTITY) {
+          candidates.push({ itemType: "rifleAmmo", count: rifleAmmoCount });
+        }
+        if (candidates.length === 0) return false;
+
+        const minimumCount = Math.min(...candidates.map((candidate) => candidate.count));
+        const lowestAmmoCandidates = candidates.filter((candidate) => candidate.count === minimumCount);
+        const selected = lowestAmmoCandidates[Math.floor(Math.random() * lowestAmmoCandidates.length)];
+        const range = SUPPLY_CRATE_AMMO_RANGES[selected.itemType];
+        const quantity = rollStarterSupplyQuantity(range);
+        let previous = 0;
+        let next = 0;
+
+        if (selected.itemType === "handgunAmmo") {
+          previous = handgunAmmoCount;
+          handgunAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, handgunAmmoCount + quantity);
+          hasHandgunAmmo = handgunAmmoCount > 0;
+          next = handgunAmmoCount;
+        } else if (selected.itemType === "shotgunAmmo") {
+          previous = shotgunAmmoCount;
+          shotgunAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, shotgunAmmoCount + quantity);
+          hasShotgunAmmo = shotgunAmmoCount > 0;
+          next = shotgunAmmoCount;
+        } else if (selected.itemType === "rifleAmmo") {
+          previous = rifleAmmoCount;
+          rifleAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, rifleAmmoCount + quantity);
+          hasRifleAmmo = rifleAmmoCount > 0;
+          next = rifleAmmoCount;
+        }
+
+        if (next <= previous) return false;
+        markInventoryItemAsNew(selected.itemType);
+        applyInventoryState();
+        return true;
+      }
+
       function breakSupplyBoxAndAward(activeSupplyBox, options = {}) {
         if (
           !activeSupplyBox ||
@@ -27266,6 +27583,7 @@ You can leave the game and come back anytime.</div>
           playSound(SUPPLY_BOX_OPEN_SOUND);
         }
         awardExplorationRewards("village", dayCount);
+        grantSupplyCrateAmmoReward();
         showToast("Lucky me.");
 
         activeSupplyBox.state = "broken";
@@ -27394,7 +27712,7 @@ You can leave the game and come back anytime.</div>
             ? activeSupplyBox.x >= activeSupplyBox.endX
             : activeSupplyBox.x <= activeSupplyBox.endX;
           if (passedEnd) {
-            removeSupplyBox();
+            removeSupplyBox(activeSupplyBox);
           }
           return;
         }
@@ -27468,7 +27786,7 @@ You can leave the game and come back anytime.</div>
           renderSupplyBox(activeSupplyBox);
 
           if (fadeProgress >= 1) {
-            removeSupplyBox();
+            removeSupplyBox(activeSupplyBox);
           }
           return;
         }
@@ -27481,38 +27799,6 @@ You can leave the game and come back anytime.</div>
           activeSupplyBox.shadowOpacity = 1;
           renderSupplyBox(activeSupplyBox);
         }
-      }
-
-      function scheduleNextSupplyBoxSpawnTick() {
-        if (supplyBoxSpawnTimerId !== null) {
-          clearTimeout(supplyBoxSpawnTimerId);
-          supplyBoxSpawnTimerId = null;
-        }
-
-        if (
-          populationTimersPausedForBackground ||
-          document.visibilityState === "hidden"
-        ) {
-          return;
-        }
-
-        const elapsed = Math.max(0, Date.now() - lastSupplyBoxSpawnAt);
-        const delay = Math.max(0, SUPPLY_BOX_SPAWN_INTERVAL_MS - elapsed);
-
-        supplyBoxSpawnTimerId = window.setTimeout(() => {
-          supplyBoxSpawnTimerId = null;
-
-          if (
-            populationTimersPausedForBackground ||
-            document.visibilityState === "hidden"
-          ) {
-            return;
-          }
-
-          lastSupplyBoxSpawnAt = Date.now();
-          spawnOrReplaceSupplyBox();
-          scheduleNextSupplyBoxSpawnTick();
-        }, delay);
       }
 
       function getZombiePartFramePosition(frameIndex) {
@@ -27697,6 +27983,7 @@ You can leave the game and come back anytime.</div>
           scheduleNextDeerSpawnTick();
         }
 
+        zombieKillResource = Math.min(MAX_ZOMBIE_COUNT, zombieKillResource + 1);
         const previousZombieCount = zombieCount;
         zombieCount = Math.min(zombieKillRequirement, zombieCount + 1);
         if (zombieCount >= zombieKillRequirement) {
@@ -28474,8 +28761,8 @@ You can leave the game and come back anytime.</div>
           updateCat(cat, deltaMs, now);
         }
 
-        if (supplyBox) {
-          updateSupplyBox(supplyBox, deltaMs, now);
+        for (const activeSupplyBox of Array.from(supplyBoxes.values())) {
+          updateSupplyBox(activeSupplyBox, deltaMs, now);
         }
 
         if (
@@ -28554,10 +28841,6 @@ You can leave the game and come back anytime.</div>
         if (deerSpawnTimerId !== null) {
           clearTimeout(deerSpawnTimerId);
           deerSpawnTimerId = null;
-        }
-        if (supplyBoxSpawnTimerId !== null) {
-          clearTimeout(supplyBoxSpawnTimerId);
-          supplyBoxSpawnTimerId = null;
         }
 
         if (
@@ -28685,7 +28968,6 @@ You can leave the game and come back anytime.</div>
             // 귀환 직후에는 기존 7초 생성 지연 규칙을 그대로 사용합니다.
             scheduleNextZombieSpawnTick();
             scheduleNextDeerSpawnTick();
-            scheduleNextSupplyBoxSpawnTick();
             scheduleEmptyFieldZombieSpawn();
             scheduleEmptyFieldDeerSpawn();
             saveResourceState();
@@ -28760,22 +29042,8 @@ You can leave the game and come back anytime.</div>
             clearTimeout(pendingEmptyDeerSpawnTimerId);
             pendingEmptyDeerSpawnTimerId = null;
           }
-
-          const elapsedSupplyTicks = Math.max(
-            0,
-            Math.floor((now - lastSupplyBoxSpawnAt) / SUPPLY_BOX_SPAWN_INTERVAL_MS)
-          );
-          if (elapsedSupplyTicks > 0) {
-            lastSupplyBoxSpawnAt = Math.min(
-              now,
-              lastSupplyBoxSpawnAt +
-                elapsedSupplyTicks * SUPPLY_BOX_SPAWN_INTERVAL_MS
-            );
-            spawnOrReplaceSupplyBox();
-          }
           scheduleNextZombieSpawnTick();
           scheduleNextDeerSpawnTick();
-          scheduleNextSupplyBoxSpawnTick();
           saveResourceState();
           return;
         }
@@ -28868,23 +29136,9 @@ You can leave the game and come back anytime.</div>
           pendingEmptyDeerSpawnTimerId = null;
         }
 
-        const elapsedSupplyTicks = Math.max(
-          0,
-          Math.floor((now - lastSupplyBoxSpawnAt) / SUPPLY_BOX_SPAWN_INTERVAL_MS)
-        );
-        if (elapsedSupplyTicks > 0) {
-          lastSupplyBoxSpawnAt = Math.min(
-            now,
-            lastSupplyBoxSpawnAt +
-              elapsedSupplyTicks * SUPPLY_BOX_SPAWN_INTERVAL_MS
-          );
-          spawnOrReplaceSupplyBox();
-        }
-
         // 정지되었던 기존 타이머를 현재 타임스탬프 기준으로 다시 예약합니다.
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
-        scheduleNextSupplyBoxSpawnTick();
         scheduleEmptyFieldZombieSpawn();
         scheduleEmptyFieldDeerSpawn();
         saveResourceState();
@@ -29198,7 +29452,6 @@ You can leave the game and come back anytime.</div>
 
         lastZombieSpawnAt += pausedForStartScreenMs;
         lastDeerSpawnAt += pausedForStartScreenMs;
-        lastSupplyBoxSpawnAt += pausedForStartScreenMs;
         if (storedPopulationSnapshot) {
           storedPopulationSnapshot.savedAt += pausedForStartScreenMs;
         }
@@ -29350,7 +29603,6 @@ You can leave the game and come back anytime.</div>
         scheduleNextAmbientBirdFlock();
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
-        scheduleNextSupplyBoxSpawnTick();
       }
 
       axePickupHitArea.addEventListener("pointerup", (event) => {
@@ -29418,6 +29670,7 @@ You can leave the game and come back anytime.</div>
         if (event.key !== "Enter" && event.key !== " ") return;
         handleFindZombieButton(event);
       });
+      bindReliableTap(reportButton, handleReportButton);
       bindReliableTap(repairButton, handleRepairButton);
       bindReliableTap(inventoryButton, handleInventoryButton);
       bindReliableTap(exploreButton, handleExploreButton);
@@ -29453,6 +29706,10 @@ You can leave the game and come back anytime.</div>
           consumeMenuDismissEvent(event);
         });
       }
+
+      bindOverlayDismiss(reportOverlay, closeReport);
+      reportMenu.addEventListener("pointerdown", (event) => event.stopPropagation());
+      bindReliableTap(reportRequestButton, handleReportRequest);
 
       bindOverlayDismiss(explorationOverlay, closeExplorationMenu);
 
