@@ -590,7 +590,7 @@
     #todoListOverlay {
       position: absolute;
       right: 26px;
-      top: 165px;
+      top: 155px;
       z-index: 30;
       color: #fff;
       font-family: "Kalam", cursive;
@@ -710,7 +710,7 @@
     #lootListOverlay {
       position: absolute;
       right: 26px;
-      top: 165px;
+      top: 155px;
       z-index: 30;
       color: #fff;
       font-family: "Kalam", cursive;
@@ -2666,6 +2666,27 @@
       display: contents;
     }
 
+    /* 모바일에서는 버전 라벨을 제외한 우하단 액션 버튼 4개를
+       화면 우하단을 기준으로 하나의 그룹처럼 90% 축소합니다. */
+    @media (max-width: 420px) {
+      #hudActionButtons {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        pointer-events: none;
+        transform: scale(0.9);
+        transform-origin: right bottom;
+      }
+
+      #reportButton,
+      #repairButton,
+      #inventoryButton,
+      #exploreButton {
+        pointer-events: auto;
+      }
+    }
+
     #exploreButton,
     #inventoryButton,
     #repairButton,
@@ -4244,7 +4265,7 @@
     #exploringStatus {
       position: fixed;
       right: max(22px, calc(env(safe-area-inset-right) + 16px));
-      top: max(70px, calc(env(safe-area-inset-top) + 6px));
+      top: max(60px, calc(env(safe-area-inset-top) - 4px));
       z-index: 120;
       display: block;
       color: #fff;
@@ -4386,7 +4407,7 @@
     #dayStatus {
       position: fixed;
       right: max(22px, calc(env(safe-area-inset-right) + 16px));
-      top: max(70px, calc(env(safe-area-inset-top) + 6px));
+      top: max(60px, calc(env(safe-area-inset-top) - 4px));
       z-index: 120;
       display: block;
       color: #fff;
@@ -5303,7 +5324,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.224"
+  data-game-version="0.225"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7250,9 +7271,6 @@ You'll need a firearm and ammo to collect it.</div>
       const CLOUD_SHEET_ROWS = 2;
       const CLOUD_VARIANT_COUNT = 4;
       const CLOUD_FRAME_SIZE = 512;
-      // Phaser의 개별 구름 프레임 가장자리에서 선형 샘플링/FX가 잘려 보이지 않도록 주는 투명 여백입니다.
-      const CLOUD_TEXTURE_PADDING = 4;
-
       /*
         좀비/사슴 생성 시 실제 구름(skyClouds) 아래를 가급적 피하는 범위입니다.
         PNG의 투명 가장자리를 고려해 구름 사각형 전체보다 조금 작게 판정합니다.
@@ -7271,7 +7289,7 @@ You'll need a firearm and ammo to collect it.</div>
       const CLOUD_UPPER_MIN_SCALE = 0.5;
       const CLOUD_UPPER_MAX_SCALE = 1;
       const CLOUD_LOWER_MIN_SCALE = 1;
-      const CLOUD_LOWER_MAX_SCALE = 1.4;
+      const CLOUD_LOWER_MAX_SCALE = 1.5;
       const CLOUD_START_OFFSET_X_SCREEN_PX = 0;
       const CLOUD_START_OFFSET_Y_SCREEN_PX = 0;
 
@@ -8097,54 +8115,6 @@ You'll need a firearm and ammo to collect it.</div>
           return texture.get(frameName);
         }
 
-        // 구름은 스프라이트 셀을 그대로 Phaser frame으로 쓰면 큰 구름이 셀 경계에 닿을 때
-        // 선형 샘플링/PreFX 경계가 딱 잘린 것처럼 보일 수 있습니다.
-        // 셀 내용은 같은 크기로 유지하고 바깥에 투명 padding만 추가한 독립 texture를 사용합니다.
-        const paddedCloudTextures = new Map();
-
-        function getPaddedCloudTexture(info, frame) {
-          if (!scene || !info?.image) return null;
-          const columns = Math.max(1, frame?.columns || 1);
-          const rows = Math.max(1, frame?.rows || 1);
-          const col = Math.max(0, Math.min(columns - 1, frame?.col || 0));
-          const row = Math.max(0, Math.min(rows - 1, frame?.row || 0));
-          const padding = CLOUD_TEXTURE_PADDING;
-          const cacheKey = `${info.key}:${columns}x${rows}:${col},${row}:p${padding}`;
-          if (paddedCloudTextures.has(cacheKey)) return paddedCloudTextures.get(cacheKey);
-
-          const x0 = Math.round((info.naturalWidth * col) / columns);
-          const y0 = Math.round((info.naturalHeight * row) / rows);
-          const x1 = Math.round((info.naturalWidth * (col + 1)) / columns);
-          const y1 = Math.round((info.naturalHeight * (row + 1)) / rows);
-          const contentWidth = Math.max(1, x1 - x0);
-          const contentHeight = Math.max(1, y1 - y0);
-          const canvas = document.createElement("canvas");
-          canvas.width = contentWidth + padding * 2;
-          canvas.height = contentHeight + padding * 2;
-          const context = canvas.getContext("2d");
-          if (!context) return null;
-
-          context.clearRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(
-            info.image,
-            x0, y0, contentWidth, contentHeight,
-            padding, padding, contentWidth, contentHeight
-          );
-
-          const textureKey = `field:cloud-padded:${columns}x${rows}:${col},${row}:p${padding}`;
-          if (!scene.textures.exists(textureKey)) scene.textures.addCanvas(textureKey, canvas);
-          const result = {
-            key: textureKey,
-            width: canvas.width,
-            height: canvas.height,
-            contentWidth,
-            contentHeight,
-            padding
-          };
-          paddedCloudTextures.set(cacheKey, result);
-          return result;
-        }
-
         // Cloud shadow frames are baked to the final dark-blue RGB while preserving
         // the source alpha. This avoids white RGB fringes from semi-transparent
         // antialiased edge pixels when the normal white cloud sheet is multiplied.
@@ -8167,17 +8137,16 @@ You'll need a firearm and ammo to collect it.</div>
           const y1 = Math.round((info.naturalHeight * (row + 1)) / rows);
           const width = Math.max(1, x1 - x0);
           const height = Math.max(1, y1 - y0);
-          const padding = CLOUD_TEXTURE_PADDING;
           const canvas = document.createElement("canvas");
-          canvas.width = width + padding * 2;
-          canvas.height = height + padding * 2;
+          canvas.width = width;
+          canvas.height = height;
           const context = canvas.getContext("2d");
           if (!context) return null;
 
           context.clearRect(0, 0, canvas.width, canvas.height);
           context.drawImage(
             info.image, x0, y0, width, height,
-            padding, padding, width, height
+            0, 0, width, height
           );
           // Replace RGB for every non-zero-alpha pixel, including soft edge pixels.
           // source-in preserves the original alpha exactly.
@@ -8195,8 +8164,7 @@ You'll need a firearm and ammo to collect it.</div>
             width: canvas.width,
             height: canvas.height,
             contentWidth: width,
-            contentHeight: height,
-            padding
+            contentHeight: height
           };
           cloudShadowBakedTextures.set(cacheKey, result);
           return result;
@@ -8713,24 +8681,15 @@ You'll need a firearm and ammo to collect it.</div>
             const bakedCloudShadow = this.special === "cloudShadow"
               ? getBakedCloudShadowTexture(info, frame)
               : null;
-            const paddedCloud = this.special === "cloud"
-              ? getPaddedCloudTexture(info, frame)
-              : null;
             for (const image of images) {
               if (!image) continue;
               if (bakedCloudShadow) {
                 image.setTexture(bakedCloudShadow.key);
                 image.setDisplaySize(
-                  Math.max(0.01, (this.width || bakedCloudShadow.contentWidth) + bakedCloudShadow.padding * 2),
-                  Math.max(0.01, (this.height || bakedCloudShadow.contentHeight) + bakedCloudShadow.padding * 2)
+                  Math.max(0.01, this.width || bakedCloudShadow.contentWidth),
+                  Math.max(0.01, this.height || bakedCloudShadow.contentHeight)
                 );
                 image.__cozzyCloudShadowBaked = true;
-              } else if (paddedCloud) {
-                image.setTexture(paddedCloud.key);
-                image.setDisplaySize(
-                  Math.max(0.01, (this.width || paddedCloud.contentWidth) + paddedCloud.padding * 2),
-                  Math.max(0.01, (this.height || paddedCloud.contentHeight) + paddedCloud.padding * 2)
-                );
               } else {
                 // setFrame makes the cropped cell the Game Object's actual source frame.
                 // setDisplaySize therefore scales one cell, not the full sprite sheet.
