@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.229"
+  data-game-version="0.230"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -9117,14 +9117,17 @@ Firearm and ammo required.</div>
             if (this.special !== "cloud" || !this.singleImage) return;
             const matrix5 = buildCloudToneMatrix(phaserCloudToneTarget);
             const target = this.singleImage;
+
+            // 실제 구름 ColorMatrix는 postFX로 처리합니다.
+            // preFX 사용 시 큰 구름의 가장자리가 잘리는 현상을 방지하면서 동일한 색상 행렬 값을 유지합니다.
             const signature = matrix5.map((v) => Number(v).toFixed(4)).join(",");
             if (target.__cozzyCloudToneSignature === signature) return;
             target.__cozzyCloudToneSignature = signature;
             target.clearTint?.();
             try {
-              if (target.preFX?.addColorMatrix) {
+              if (target.postFX?.addColorMatrix) {
                 if (!target.__cozzyCloudColorMatrixFx) {
-                  target.__cozzyCloudColorMatrixFx = target.preFX.addColorMatrix();
+                  target.__cozzyCloudColorMatrixFx = target.postFX.addColorMatrix();
                 }
                 target.__cozzyCloudColorMatrixFx.set(toPhaserColorMatrix(matrix5));
                 target.__cozzyCloudColorMatrixFx.active = !isMatrixNearIdentity(matrix5);
