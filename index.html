@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.233"
+  data-game-version="0.234"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -16334,16 +16334,31 @@ Firearm and ammo required.</div>
       function closeExplorationMenu(syncBackdrop = true) {
         if (!isExplorationMenuOpen) return;
 
+        // 모바일에서 이번 진입 중 확인한 목적지 NEW를 닫는 순간 확정합니다.
+        // 아직 확인하지 않은 목적지 NEW가 남아 있으면 상위 Explore 버튼 NEW는 유지됩니다.
+        const didCommitViewedDestinationNew =
+          commitMobileViewedExplorationDestinationNews();
+
         isExplorationMenuOpen = false;
         explorationOverlay.classList.remove("is-open");
         explorationOverlay.setAttribute("aria-hidden", "true");
         setHudActionMenuState(exploreButton, false);
         if (syncBackdrop) syncMenuBackdrop();
         updateTutorialGuide();
+        if (didCommitViewedDestinationNew) saveResourceState();
       }
 
       function closeInventory(syncBackdrop = true) {
         if (!isInventoryOpen) return;
+
+        // 모바일에서 이번 진입 중 실제로 본 아이템 NEW를 닫는 순간 확정합니다.
+        // 제거 후에도 다른 NEW 아이템이 남아 있으면 상위 Bag 버튼 NEW는 유지됩니다.
+        const didCommitViewedInventoryNew = commitMobileViewedInventoryNewStates();
+        if (didCommitViewedInventoryNew) {
+          applyInventoryItemNewTagState();
+          renderInventoryCategories();
+          updateInventoryPageDots();
+        }
 
         closeNoteReader({ restoreFocus: false });
         isInventoryOpen = false;
@@ -16351,16 +16366,25 @@ Firearm and ammo required.</div>
         inventoryOverlay.setAttribute("aria-hidden", "true");
         setHudActionMenuState(inventoryButton, false);
         if (syncBackdrop) syncMenuBackdrop();
+        if (didCommitViewedInventoryNew) saveResourceState();
       }
 
       function closeRepair(syncBackdrop = true) {
         if (!isRepairOpen) return;
+
+        // 모바일에서 이번 진입 중 보인 수리 항목 NEW를 닫는 순간 확정합니다.
+        // 남아 있는 하위 NEW가 없으면 상위 Repair 버튼 NEW도 즉시 제거됩니다.
+        const didCommitViewedRepairNew = commitMobileViewedRepairNewStates();
+        if (didCommitViewedRepairNew) {
+          updateRepairNewBadgeState();
+        }
 
         isRepairOpen = false;
         repairOverlay.classList.remove("is-open");
         repairOverlay.setAttribute("aria-hidden", "true");
         setHudActionMenuState(repairButton, false);
         if (syncBackdrop) syncMenuBackdrop();
+        if (didCommitViewedRepairNew) saveResourceState();
       }
 
       function closeReport(syncBackdrop = true) {
@@ -16588,8 +16612,8 @@ Firearm and ammo required.</div>
         return didChange;
       }
 
-      // 모바일에서는 이번 방문에서 확인한 아이템 NEW를 다음 Bag 진입 직전에 실제 상태에서도 제거합니다.
-      // 아이템 NEW 자체가 사라지므로 해당 아이템을 포함하던 카테고리 탭 NEW도 함께 사라집니다.
+      // 모바일에서는 이번 방문에서 확인한 아이템 NEW를 메뉴가 닫힐 때 실제 상태에서도 제거합니다.
+      // 이전 저장 데이터에 남은 확인 상태가 있으면 다음 Bag 진입 시에도 한 번 더 정리합니다.
       function commitMobileViewedInventoryNewStates() {
         if (!isMobileDeferredNewMode() || viewedInventoryNewItemTypes.size === 0) {
           return false;
@@ -16967,7 +16991,7 @@ Firearm and ammo required.</div>
       function openInventory() {
         if (isInventoryOpen) return;
 
-        // 이전 모바일 방문에서 실제로 보았던 하위 아이템 NEW를 이번 진입 전에 확정 제거합니다.
+        // 이전 버전 저장/중간 종료 등으로 남은 모바일 확인 상태가 있으면 진입 전에 정리합니다.
         const didCommitViewedInventoryNew = commitMobileViewedInventoryNewStates();
         mobileHiddenInventoryNewItemTypes.clear();
         applyInventoryItemNewTagState();
@@ -17006,7 +17030,7 @@ Firearm and ammo required.</div>
       function openExplorationMenu() {
         if (isExplorationMenuOpen) return;
 
-        // 모바일에서 이전 진입 때 한 번 보았던 목적지 NEW는 이번 진입 직전에 제거합니다.
+        // 이전 버전 저장/중간 종료 등으로 남은 모바일 목적지 확인 상태가 있으면 진입 전에 정리합니다.
         const didCommitViewedDestinationNew =
           commitMobileViewedExplorationDestinationNews();
 
@@ -17036,7 +17060,7 @@ Firearm and ammo required.</div>
       function openRepair() {
         if (isRepairOpen) return;
         const isDeferredMobileNew = isMobileDeferredNewMode();
-        // 이전 모바일 확인에서 보였던 노란 NEW 네모는 이번 진입 직전에 제거합니다.
+        // 이전 버전 저장/중간 종료 등으로 남은 모바일 수리 NEW 확인 상태가 있으면 진입 전에 정리합니다.
         const didCommitViewedRepairNew = isDeferredMobileNew
           ? commitMobileViewedRepairNewStates()
           : false;
