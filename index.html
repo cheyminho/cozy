@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.226"
+  data-game-version="0.227"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6884,8 +6884,9 @@ Firearm and ammo required.</div>
       */
       const TREE_FRONT_ZONE_A = { left: 0, top: 422, right: 173, bottom: 512 };
       const TREE_FRONT_ZONE_B = { left: 173, top: 366, right: 512, bottom: 512 };
-      const ZOMBIE_DEPTH_POINT_OFFSET_Y = HALF_H - 25;
-      const DEER_DEPTH_POINT_OFFSET_Y = DEER_HALF_H - 15;
+      const ZOMBIE_DEPTH_POINT_OFFSET_Y = 94;
+      const DEER_DEPTH_POINT_OFFSET_Y = 65;
+      const DOG_DEPTH_POINT_OFFSET_Y = 46;
       const TREE_CHOP_SEQUENCE = [2, 3, 2, 1, 0, 1];
       const TREE_CHOP_FRAME_MS = 100;
       // 나무 단계 이미지는 히트 순간 투명도 전환 없이 즉시 교체합니다.
@@ -24002,7 +24003,7 @@ Firearm and ammo required.</div>
           zombie.x,
           zombie.y,
           zombie.y + ZOMBIE_DEPTH_POINT_OFFSET_Y,
-          zombie.y
+          zombie.y + ZOMBIE_DEPTH_POINT_OFFSET_Y
         );
       }
 
@@ -24129,7 +24130,7 @@ Firearm and ammo required.</div>
           deer.x,
           deer.y,
           deer.y + DEER_DEPTH_POINT_OFFSET_Y,
-          deer.y
+          deer.y + DEER_DEPTH_POINT_OFFSET_Y
         );
       }
 
@@ -24657,8 +24658,8 @@ Firearm and ammo required.</div>
           activeDog.element,
           activeDog.x,
           activeDog.y,
-          activeDog.y + activeDog.size * 0.34,
-          activeDog.y
+          activeDog.y + DOG_DEPTH_POINT_OFFSET_Y,
+          activeDog.y + DOG_DEPTH_POINT_OFFSET_Y
         );
       }
 
