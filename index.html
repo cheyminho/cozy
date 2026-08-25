@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.227"
+  data-game-version="0.228"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7427,6 +7427,351 @@ Firearm and ammo required.</div>
       ];
 
       /* =========================================================
+         굴뚝 연기 수정 위치
+         - position.x / y : 2048×2048 월드 기준 연기 시작점(굴뚝 끝)입니다.
+         - scale          : 연기 전체 크기입니다.
+         - opacity        : 연기 전체 투명도입니다.
+         - fadeInMs / fadeOutMs : 낮 시작/탐험 출발 시 페이드 시간입니다.
+         - particle       : 생성 밀도, 수명, 이동, 크기, 흔들림 등 파티클 옵션입니다.
+         - 맑은 낮 + 비탐험 상태에서만 표시하며, 밤→낮 전환은 실제 화면이 밝아지기 시작한 뒤 생성합니다.
+         ========================================================= */
+      const CHIMNEY_SMOKE_CONFIG = Object.freeze({
+        position: Object.freeze({ x: 976, y: 936 }),
+        scale: 0.45,
+        opacity: 0.3,
+        // 사슴/좀비/개가 사용할 수 있는 최전방 엔티티 band(16)보다 위에 표시합니다.
+        depthBand: 16.5,
+        fadeInMs: 1100,
+        fadeOutMs: 850,
+        particle: Object.freeze({
+          densityPeriodMs: 3500,
+          spawnTickMs: 95,
+          spawnChanceMin: 0.34,
+          spawnChanceMax: 0.68,
+          extraPuffThreshold: 0.84,
+          extraPuffChanceScale: 0.25,
+          extraPuffDelayMinMs: 35,
+          extraPuffDelayMaxMs: 80,
+          initialPuffs: 6,
+          originJitterX: 4,
+          originJitterYMin: -2,
+          originJitterYMax: 4,
+          riseSpeedMin: -52,
+          riseSpeedMax: -34,
+          driftSpeedMin: -4,
+          driftSpeedMax: 4,
+          lifeMinMs: 4500,
+          lifeMaxMs: 6000,
+          startScaleMin: 0.15,
+          startScaleMax: 0.25,
+          endScaleMin: 0.75,
+          endScaleMax: 1.00,
+          wobbleSpeedMin: 0.8,
+          wobbleSpeedMax: 1.35,
+          wobbleStrengthMin: 4,
+          wobbleStrengthMax: 6,
+          particleOpacity: 0.88,
+          haloOpacity: 0.26
+        })
+      });
+
+      function createChimneySmokeController(scene, targetLayer) {
+        const config = CHIMNEY_SMOKE_CONFIG;
+        const particle = config.particle;
+        const puffs = [];
+        const root = scene.add.container(config.position.x, config.position.y);
+        root.setScale(config.scale);
+        root.setAlpha(0);
+        root.setDepth(config.depthBand * 100000 + config.position.y);
+        if (targetLayer) targetLayer.add(root);
+
+        const textureKeys = {
+          halo: "cozzy:chimney-smoke-halo",
+          blob: "cozzy:chimney-smoke-blob"
+        };
+
+        function createBlobTexture(key, size, colors) {
+          if (scene.textures.exists(key)) return;
+          const texture = scene.textures.createCanvas(key, size, size);
+          const ctx = texture.getContext();
+          const c = size / 2;
+          ctx.clearRect(0, 0, size, size);
+
+          const base = ctx.createRadialGradient(
+            size * 0.46, size * 0.44, size * 0.08,
+            c, c, size * 0.42
+          );
+          base.addColorStop(0, colors.base[0]);
+          base.addColorStop(0.62, colors.base[1]);
+          base.addColorStop(1, colors.base[2]);
+          ctx.fillStyle = base;
+          ctx.beginPath();
+          ctx.arc(c, c, size * 0.42, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 우하단 음영. 원본 phaser_chimney_smoke의 source-atop 방식을 유지합니다.
+          ctx.save();
+          ctx.globalCompositeOperation = "source-atop";
+          const shadow = ctx.createRadialGradient(
+            size * 0.69, size * 0.71, size * 0.015,
+            size * 0.69, size * 0.71, size * 0.38
+          );
+          shadow.addColorStop(0, colors.shadow[0]);
+          shadow.addColorStop(0.48, colors.shadow[0]);
+          shadow.addColorStop(1, colors.shadow[1]);
+          ctx.fillStyle = shadow;
+          ctx.fillRect(0, 0, size, size);
+          ctx.restore();
+
+          const highlight = ctx.createRadialGradient(
+            size * 0.34, size * 0.32, 0,
+            size * 0.34, size * 0.32, size * 0.24
+          );
+          highlight.addColorStop(0, colors.highlight[0]);
+          highlight.addColorStop(1, colors.highlight[1]);
+          ctx.fillStyle = highlight;
+          ctx.beginPath();
+          ctx.arc(size * 0.34, size * 0.32, size * 0.24, 0, Math.PI * 2);
+          ctx.fill();
+          texture.refresh();
+        }
+        createBlobTexture(textureKeys.halo, 196, {
+          base: [
+            "rgba(248,244,234,0.30)",
+            "rgba(234,229,217,0.14)",
+            "rgba(222,218,208,0.00)"
+          ],
+          highlight: [
+            "rgba(255,250,240,0.16)",
+            "rgba(255,250,240,0.00)"
+          ],
+          shadow: [
+            "rgba(58,53,46,0.32)",
+            "rgba(58,53,46,0.00)"
+          ]
+        });
+
+        createBlobTexture(textureKeys.blob, 160, {
+          base: [
+            "rgba(246,242,232,0.92)",
+            "rgba(232,227,216,0.74)",
+            "rgba(220,215,204,0.00)"
+          ],
+          highlight: [
+            "rgba(255,250,240,0.28)",
+            "rgba(255,250,240,0.00)"
+          ],
+          shadow: [
+            "rgba(60,54,46,0.58)",
+            "rgba(60,54,46,0.00)"
+          ]
+        });
+        
+        const lobeDefs = Object.freeze([
+          Object.freeze({ ox: 0, oy: 0, scale: 1.00 }),
+          Object.freeze({ ox: -20, oy: 4, scale: 0.86 }),
+          Object.freeze({ ox: 18, oy: -6, scale: 0.80 }),
+          Object.freeze({ ox: 6, oy: -18, scale: 0.72 }),
+          Object.freeze({ ox: -10, oy: 14, scale: 0.60 }),
+          Object.freeze({ ox: 14, oy: 10, scale: 0.54 })
+        ]);
+
+        function shouldShowSmoke() {
+          // body.is-night는 밤→낮 전환 시작 순간 바로 해제되므로,
+          // 실제 장면 Night Mix가 1에서 내려가기 시작했는지까지 확인합니다.
+          // 이렇게 해야 탐험 복귀 직후의 완전한 밤 화면에는 연기가 미리 생성되지 않습니다.
+          const nightMix = typeof getCurrentSceneNightMixVisual === "function"
+            ? getCurrentSceneNightMixVisual(performance.now())
+            : (document.body.classList.contains("is-night") ? 1 : 0);
+          const hasDayStartedBrightening = nightMix < 0.9999;
+
+          return !document.body.classList.contains("is-exploring") &&
+            !document.body.classList.contains("is-rainy") &&
+            hasDayStartedBrightening;
+        }
+
+        function destroyAllPuffs() {
+          for (const puff of puffs) puff.container.destroy(true);
+          puffs.length = 0;
+        }
+
+        function spawnSmoke(initial = false) {
+          const x = Phaser.Math.Between(-particle.originJitterX, particle.originJitterX);
+          const y = Phaser.Math.Between(particle.originJitterYMin, particle.originJitterYMax);
+          const container = scene.add.container(x, y);
+          root.add(container);
+
+          const halo = scene.add.image(0, 0, textureKeys.halo);
+          halo.setAlpha(0.28);
+          container.add(halo);
+
+          const lobeSprites = [];
+          for (const def of lobeDefs) {
+            const sprite = scene.add.image(def.ox, def.oy, textureKeys.blob);
+            sprite.setAlpha(0.86);
+            container.add(sprite);
+            lobeSprites.push(sprite);
+          }
+
+          const puff = {
+            x,
+            y,
+            vx: Phaser.Math.FloatBetween(particle.driftSpeedMin, particle.driftSpeedMax),
+            vy: Phaser.Math.FloatBetween(particle.riseSpeedMin, particle.riseSpeedMax),
+            age: initial ? Phaser.Math.Between(500, 1800) : 0,
+            life: Phaser.Math.Between(particle.lifeMinMs, particle.lifeMaxMs),
+            startScale: Phaser.Math.FloatBetween(particle.startScaleMin, particle.startScaleMax),
+            endScale: Phaser.Math.FloatBetween(particle.endScaleMin, particle.endScaleMax),
+            wobbleSpeed: Phaser.Math.FloatBetween(particle.wobbleSpeedMin, particle.wobbleSpeedMax),
+            wobbleStrength: Phaser.Math.FloatBetween(particle.wobbleStrengthMin, particle.wobbleStrengthMax),
+            seed: Phaser.Math.FloatBetween(0, Math.PI * 2),
+            lateralSlot: Phaser.Math.FloatBetween(-1, 1),
+            container,
+            halo,
+            lobeSprites
+          };
+
+          if (initial) {
+            puff.y -= Phaser.Math.Between(18, 110);
+            puff.x += Phaser.Math.Between(-12, 12);
+            container.x = puff.x;
+            container.y = puff.y;
+          }
+          puffs.push(puff);
+        }
+
+        function warmUpSmoke() {
+          destroyAllPuffs();
+          for (let i = 0; i < particle.initialPuffs; i += 1) spawnSmoke(true);
+        }
+
+        let densityTime = 0;
+        let spawnAccumulator = 0;
+        let visibleAmount = 0;
+        let wasAllowed = false;
+
+        return {
+          update(time, delta) {
+            const safeDelta = Math.max(0, Math.min(100, Number(delta) || 16.67));
+            const allowed = shouldShowSmoke();
+
+            if (allowed && !wasAllowed) {
+              warmUpSmoke();
+              spawnAccumulator = 0;
+            }
+            wasAllowed = allowed;
+
+            const fadeDuration = allowed ? config.fadeInMs : config.fadeOutMs;
+            const fadeStep = fadeDuration <= 0 ? 1 : safeDelta / fadeDuration;
+            visibleAmount = Phaser.Math.Clamp(
+              visibleAmount + (allowed ? fadeStep : -fadeStep),
+              0,
+              1
+            );
+            root.setAlpha(visibleAmount * config.opacity);
+
+            if (allowed) {
+              spawnAccumulator += safeDelta;
+              while (spawnAccumulator >= particle.spawnTickMs) {
+                spawnAccumulator -= particle.spawnTickMs;
+                const phase = (densityTime / particle.densityPeriodMs) * Math.PI * 2;
+                const wave = (Math.sin(phase - Math.PI / 2) + 1) * 0.5;
+                const easedWave = wave * wave * (3 - 2 * wave);
+                const spawnChance = Phaser.Math.Linear(
+                  particle.spawnChanceMin,
+                  particle.spawnChanceMax,
+                  easedWave
+                );
+
+                if (Math.random() < spawnChance) {
+                  spawnSmoke(false);
+                  if (
+                    easedWave > particle.extraPuffThreshold &&
+                    Math.random() <
+                      (easedWave - particle.extraPuffThreshold) * particle.extraPuffChanceScale
+                  ) {
+                    scene.time.delayedCall(
+                      Phaser.Math.Between(
+                        particle.extraPuffDelayMinMs,
+                        particle.extraPuffDelayMaxMs
+                      ),
+                      () => {
+                        if (shouldShowSmoke()) spawnSmoke(false);
+                      }
+                    );
+                  }
+                }
+                densityTime += particle.spawnTickMs;
+              }
+            }
+
+            const dt = safeDelta / 1000;
+            for (let i = puffs.length - 1; i >= 0; i -= 1) {
+              const puff = puffs[i];
+              puff.age += safeDelta;
+              const t = puff.age / puff.life;
+              if (t >= 1) {
+                puff.container.destroy(true);
+                puffs.splice(i, 1);
+                continue;
+              }
+
+              const drift =
+                Math.sin(time * 0.0012 * puff.wobbleSpeed + puff.seed) * puff.wobbleStrength;
+              puff.x += (puff.vx + drift * 0.30) * dt;
+              puff.y += (puff.vy - Math.abs(drift) * 0.08) * dt;
+
+              const scale = Phaser.Math.Linear(puff.startScale, puff.endScale, t);
+              const fadeIn = Math.min(1, t / 0.16);
+              const fadeOut = 1 - Math.pow(t, 1.45);
+              const alpha =
+                Phaser.Math.Clamp(fadeIn * fadeOut, 0, 1) * particle.particleOpacity;
+
+              // 원본의 살짝 호리병형 실루엣을 유지합니다.
+              let silhouetteWidth;
+              if (t < 0.28) {
+                silhouetteWidth = Phaser.Math.Linear(3, 11, t / 0.28);
+              } else if (t < 0.58) {
+                silhouetteWidth = Phaser.Math.Linear(11, 4.5, (t - 0.28) / 0.30);
+              } else {
+                silhouetteWidth = Phaser.Math.Linear(4.5, 15, (t - 0.58) / 0.42);
+              }
+
+              puff.container.x = puff.x + puff.lateralSlot * silhouetteWidth;
+              puff.container.y = puff.y;
+              puff.container.setAlpha(alpha);
+
+              puff.halo.setScale(scale * 1.35, scale * 1.24);
+              puff.halo.setAlpha(alpha * particle.haloOpacity);
+              puff.halo.x = Math.sin(time * 0.0009 + puff.seed) * 4;
+              puff.halo.y = Math.cos(time * 0.0011 + puff.seed) * 3;
+
+              for (let j = 0; j < puff.lobeSprites.length; j += 1) {
+                const sprite = puff.lobeSprites[j];
+                const def = lobeDefs[j];
+                const wobbleX =
+                  Math.sin(time * 0.0015 + puff.seed * 1.7 + j * 0.9) * (2.8 + j * 0.35);
+                const wobbleY =
+                  Math.cos(time * 0.0013 + puff.seed * 1.3 + j * 0.7) * (2.1 + j * 0.25);
+                const spread = 0.48 + scale * 0.24;
+                sprite.x = (def.ox + wobbleX) * spread;
+                sprite.y = (def.oy + wobbleY) * spread;
+                sprite.setScale(scale * def.scale);
+                sprite.setAlpha(alpha * (0.96 - j * 0.06));
+                sprite.setRotation(
+                  Math.sin(time * 0.001 + puff.seed + j * 0.5) * 0.035
+                );
+              }
+            }
+
+            if (!allowed && visibleAmount <= 0 && puffs.length > 0) {
+              destroyAllPuffs();
+            }
+          }
+        };
+      }
+
+      /* =========================================================
          Phaser field bridge
          - Field visuals, hit areas, world coordinates and depth are Phaser-owned.
          - Existing gameplay/state functions keep their data model, while these
@@ -7494,6 +7839,7 @@ Firearm and ammo required.</div>
         };
         let scene = null;
         let game = null;
+        let chimneySmoke = null;
         let readyResolve = null;
         let readyReject = null;
         const readyPromise = new Promise((resolve, reject) => {
@@ -8420,17 +8766,22 @@ Firearm and ammo required.</div>
 
           onClassChange() {
             const c = this.classList;
+            // 엔티티는 위치에 따라 FieldLayer(10/12/14/16)로 depth가 동적으로 정해집니다.
+            // 걷기/상태 클래스 변경 때 기본값 14로 되돌리지 않도록 현재 레이어 band를 유지합니다.
+            const entityDepthBand = Number.isFinite(this.parentElement?.band)
+              ? this.parentElement.band
+              : 14;
             if (c.contains("zombie")) {
-              this.geometry = "center"; this.setSize(ZOMBIE_WIDTH, ZOMBIE_HEIGHT); this.depthBand = 14; this.special = "entityZombie";
+              this.geometry = "center"; this.setSize(ZOMBIE_WIDTH, ZOMBIE_HEIGHT); this.depthBand = entityDepthBand; this.special = "entityZombie";
             } else if (c.contains("deer")) {
-              this.geometry = "center"; this.setSize(DEER_WIDTH, DEER_HEIGHT); this.depthBand = 14; this.special = "entityDeer";
+              this.geometry = "center"; this.setSize(DEER_WIDTH, DEER_HEIGHT); this.depthBand = entityDepthBand; this.special = "entityDeer";
             } else if (c.contains("dog")) {
-              this.geometry = "center"; this.setSize(getDogRenderSize(), getDogRenderSize()); this.depthBand = 14; this.special = "entityDog";
+              this.geometry = "center"; this.setSize(getDogRenderSize(), getDogRenderSize()); this.depthBand = entityDepthBand; this.special = "entityDog";
               this.opacityTransitionMs = getRootNumber("--dog-appear-duration", 300);
               if (c.contains("is-appearing")) this.opacity = 0;
               else if (this.opacity === 0) this.setOpacityValue(1, true);
             } else if (c.contains("cat")) {
-              this.geometry = "center"; this.setSize(CAT_SIZE, CAT_SIZE); this.depthBand = 14; this.special = "entityCat";
+              this.geometry = "center"; this.setSize(CAT_SIZE, CAT_SIZE); this.depthBand = entityDepthBand; this.special = "entityCat";
             } else if (c.contains("cloud-visual")) {
               this.geometry = "center"; this.setSize(CLOUD_FRAME_SIZE, CLOUD_FRAME_SIZE);
               this.depthBand = c.contains("cloud-shadow") ? 1 : 21;
@@ -8949,6 +9300,11 @@ Firearm and ammo required.</div>
               // depth 영역을 실제로 넘을 때만 기존 reparent/syncAll 경로를 사용합니다.
               targetLayer.appendChild(this);
               return;
+            }
+
+            // 클래스 변경 등으로 depthBand가 바뀌었더라도 현재 depth 레이어 값이 최종 기준입니다.
+            if (targetLayer && Number.isFinite(targetLayer.band) && this.depthBand !== targetLayer.band) {
+              this.depthBand = targetLayer.band;
             }
             this.syncPosition();
           }
@@ -9616,6 +9972,9 @@ Firearm and ammo required.</div>
                 fieldTone.atmosphereCamera.ignore([fieldTone.lowLayer, fieldTone.fxLayer]);
                 fieldTone.fxCamera.ignore([fieldTone.lowLayer, fieldTone.atmosphereLayer]);
 
+                // 굴뚝 연기는 기존 필드와 같은 Phaser 카메라/월드 좌표계를 사용합니다.
+                chimneySmoke = createChimneySmokeController(this, fieldTone.lowLayer);
+
                 Promise.all(Array.from(STATIC_ASSETS, loadNaturalImage)).then(() => {
                   buildBackgrounds();
                   attachAll();
@@ -9630,8 +9989,9 @@ Firearm and ammo required.</div>
                   readyResolve();
                 });
               },
-              update(time) {
+              update(time, delta) {
                 const frameNow = performance.now();
+                chimneySmoke?.update(time, delta);
 
                 // 기존 DOM 시대의 별도 requestAnimationFrame 루프를 Phaser 프레임에 통합합니다.
                 // 이동 계산과 실제 Phaser 렌더가 같은 프레임 단계에서 수행됩니다.
