@@ -106,5 +106,11 @@ Cooper: “No. It’s necessary.”`,
     id: "note_013",
     text: `The reasonable man adapts himself to the world: the unreasonable one persists in trying to adapt the world to himself. Therefore all progress depends on the unreasonable man.`,
     author: "George Bernard Shaw"
+  }),
+
+  Object.freeze({
+    id: "note_014",
+    text: `Yes, she would still be alive if she hadn’t gone back into the water, but then we wouldn’t have lasted together for more than thirty years if I had done things like trying to stop her from going into the water when she wanted to.`,
+    author: "Baumgartner"
   })
 ]);
