@@ -2461,9 +2461,10 @@
 
     /* =========================================================
        좌하단 옵션 버튼
-       - icon_option.png: 256×128, 4열×2행 (각 프레임 64×64)
+       - icon_option.png: 256×192, 4열×3행 (각 프레임 64×64)
        - 1행: 소리 켬 / 소리 끔 / 주먹 / 도끼
        - 2행: 핸드건 / 샷건 / 라이플 / 전기톱
+       - 3행 1열: 수류탄
        - 아래쪽 기준선은 탐험 버튼의 아래쪽 기준선과 맞춥니다.
        ========================================================= */
     #optionControls {
@@ -2512,7 +2513,7 @@
       background-color: transparent;
       background-image: url("images/icon_option.png");
       background-repeat: no-repeat;
-      background-size: 400% 200%;
+      background-size: 400% 300%;
       cursor: pointer;
       pointer-events: auto;
       touch-action: none;
@@ -2554,22 +2555,26 @@
     }
 
     #weaponSwitchButton[data-weapon="handgun"] {
-      background-position: 0% 100%;
+      background-position: 0% 50%;
     }
 
     #weaponSwitchButton[data-weapon="shotgun"] {
-      background-position: 33.333333% 100%;
+      background-position: 33.333333% 50%;
     }
 
     #weaponSwitchButton[data-weapon="rifle"] {
-      background-position: 66.666667% 100%;
+      background-position: 66.666667% 50%;
     }
 
     #weaponSwitchButton[data-weapon="chainsaw"] {
-      background-position: 100% 100%;
+      background-position: 100% 50%;
     }
 
-    /* 장비 중인 총기의 남은 탄약을 무기 버튼 바로 아래 중앙에 표시합니다. */
+    #weaponSwitchButton[data-weapon="grenade"] {
+      background-position: 0% 100%;
+    }
+
+    /* 장비 중인 총기/수류탄의 남은 수량을 무기 버튼 바로 아래 중앙에 표시합니다. */
     #weaponAmmoCount {
       position: absolute;
       left: 50%;
@@ -5325,7 +5330,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.234"
+  data-game-version="0.235"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5842,6 +5847,10 @@ You can leave the game and come back anytime.</div>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="rifleAmmo" hidden>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Rifle Ammo</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="grenade" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Grenade</span></span>
               <span class="inventory-item__quantity">×0</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="chainsaw" hidden>
@@ -6368,6 +6377,7 @@ Firearm and ammo required.</div>
           "handgunAmmo",
           "shotgunAmmo",
           "rifleAmmo",
+          "grenade",
           "chainsawBattery"
         ]),
         notes: NOTE_IDS
@@ -6382,6 +6392,7 @@ Firearm and ammo required.</div>
         handgunAmmo: Object.freeze({ min: 5, max: 20 }),
         shotgunAmmo: Object.freeze({ min: 3, max: 15 }),
         rifleAmmo: Object.freeze({ min: 2, max: 10 }),
+        grenade: Object.freeze({ min: 1, max: 2 }),
         chainsawBattery: Object.freeze({ min: 10, max: 60 }),
         repairKit: Object.freeze({ min: 1, max: 1 }),
         fuel: Object.freeze({ min: 5, max: 20 })
@@ -6401,6 +6412,7 @@ Firearm and ammo required.</div>
         shotgun: "Shotgun",
         shotgunAmmo: "Shotgun Ammo",
         rifleAmmo: "Rifle Ammo",
+        grenade: "Grenade",
         chainsaw: "Chainsaw",
         chainsawBattery: "Chainsaw Battery",
         carParts: "Car Parts",
@@ -6428,6 +6440,7 @@ Firearm and ammo required.</div>
         handgunAmmo: 2,
         shotgunAmmo: 2,
         rifleAmmo: 2,
+        grenade: 2,
         chainsawBattery: 2,
         carParts: 2,
         fuel: 2,
@@ -6447,6 +6460,7 @@ Firearm and ammo required.</div>
         handgunAmmo: 1,
         shotgunAmmo: 1,
         rifleAmmo: 1,
+        grenade: 1,
         whitePaint: 2,
         blackPaint: 2,
         redPaint: 2,
@@ -6654,6 +6668,10 @@ Firearm and ammo required.</div>
       // 모든 보유 총기 탄약이 0인 경우에는 Handgun Ammo 보정 확률을 높여 탄약 고갈을 완화합니다.
       const EXPLORATION_AMMO_BONUS_CHANCE = 0.55;
       const EXPLORATION_EMPTY_AMMO_HANDGUN_BONUS_CHANCE = 0.9;
+      // Grenade는 일반 Rifle Ammo 후보보다 약간 더 희귀하게 등장합니다.
+      const GRENADE_NORMAL_REWARD_CANDIDATE_CHANCE = 0.55;
+      // Supply Crate의 별도 탄약 1종 지급에서는 낮은 확률로 Grenade 1개가 대신 나옵니다.
+      const SUPPLY_CRATE_GRENADE_CHANCE = 0.22;
 
       // Supply Crate는 보유 총기 중 현재 탄약이 가장 적은 총을 우선해 탄약 한 종류를 보장합니다.
       const SUPPLY_CRATE_AMMO_RANGES = Object.freeze({
@@ -6665,6 +6683,7 @@ Firearm and ammo required.</div>
       // 테스트 모드 v 버튼으로 지급할 탄약 수량과 체인소우 배터리 잔량입니다.
       // 지급값과 다시 눌렀을 때의 초기화 판정이 이 값을 함께 사용합니다.
       const TEST_AMMO_QUANTITY = 3;
+      const TEST_GRENADE_QUANTITY = 30;
       const TEST_CHAINSAW_BATTERY_PERCENT = 5;
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
       const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
@@ -6793,6 +6812,10 @@ Firearm and ammo required.</div>
         "sounds/sfx_exploringfootsteps.wav";
       const SUPPLY_BOX_DROP_SOUND = "sounds/sfx_supplybox_drop.wav";
       const SUPPLY_BOX_OPEN_SOUND = "sounds/sfx_supplybox_open.wav";
+      const GRENADE_PIN_SOUND = "sounds/sfx_grenade_pin.wav";
+      const GRENADE_BOUNCE_SOUND = "sounds/sfx_grenade_bounce.wav";
+      const GRENADE_BLAST_SOUND = "sounds/sfx_grenade_blast.wav";
+      const GRENADE_EXPLOSION_IMAGE = "images/grenade_explosion.png";
       const REPORT_REQUEST_SOUND = "sounds/sfx_morse.wav";
 
       const CAR_TRAVEL_DURATION_MS = 5_000;
@@ -6955,6 +6978,15 @@ Firearm and ammo required.</div>
       const ZOMBIE_PART_SHADOW_OFFSET_Y = 15;
       const ZOMBIE_PART_SHADOW_OPACITY = 0.3;
 
+      // 수류탄 기본 연출/판정값. 반경과 표시 크기는 테스트 후 쉽게 조정할 수 있습니다.
+      const GRENADE_FUSE_MS = 1_000;
+      const GRENADE_EXPLOSION_RADIUS_PX = 120;
+      const GRENADE_EXPLOSION_COLUMNS = 4;
+      const GRENADE_EXPLOSION_ROWS = 4;
+      const GRENADE_EXPLOSION_FRAME_COUNT = 16;
+      const GRENADE_EXPLOSION_FRAME_MS = 50;
+      const GRENADE_EXPLOSION_DISPLAY_SIZE = 150;
+
       const TREE_MAX_CHOPS_PER_GROWTH = 3;
       const TREE_GROWTH_READY = "ready";
       const TREE_GROWTH_DEPLETED = "depleted";
@@ -6982,6 +7014,7 @@ Firearm and ammo required.</div>
       const SHOTGUN_AMMO_SELECTED_TOAST_MESSAGE = "A few more shells.";
       const RIFLE_SELECTED_TOAST_MESSAGE = "Better from a distance.";
       const RIFLE_AMMO_SELECTED_TOAST_MESSAGE = "A few more rounds.";
+      const GRENADE_SELECTED_TOAST_MESSAGE = "Handle with care.";
       const CHAINSAW_SELECTED_TOAST_MESSAGE = "Let’s cut this short.";
       const CHAINSAW_BATTERY_SELECTED_TOAST_MESSAGE = "This should keep it running.";
       const EMPTY_WEAPON_TOAST_MESSAGE = "No ammo.";
@@ -7864,6 +7897,7 @@ Firearm and ammo required.</div>
           [TREE_DAY_STAGE_THREE_IMAGE, { columns: TREE_SHEET_COLUMNS, rows: TREE_SHEET_COLUMNS }],
           [ZOMBIE_PARTS_SHEET, { columns: 4, rows: 2 }],
           [SUPPLY_BOX_IMAGE, { columns: 3, rows: 2 }],
+          [GRENADE_EXPLOSION_IMAGE, { columns: GRENADE_EXPLOSION_COLUMNS, rows: GRENADE_EXPLOSION_ROWS }],
           ["images/bg_field_default_clouds.png", { columns: CLOUD_SHEET_COLUMNS, rows: CLOUD_SHEET_ROWS }],
           ["images/bird_fly.png", { columns: BIRD_SHEET_COLUMNS, rows: BIRD_SHEET_ROWS }],
           ["images/shed_1.png", { columns: 2, rows: 2 }],
@@ -7893,6 +7927,7 @@ Firearm and ammo required.</div>
           TREE_PART_IMAGE,
           SUPPLY_BOX_IMAGE,
           SUPPLY_BOX_BROKEN_IMAGE,
+          GRENADE_EXPLOSION_IMAGE,
           STUMP_WITH_AXE_IMAGE,
           STUMP_EMPTY_IMAGE,
           "images/house_1.png",
@@ -9551,7 +9586,7 @@ Firearm and ammo required.</div>
           entitiesBehindTree: 12, entities: 14, entitiesFrontStructures: 16,
           clouds: 21, birds: 20, supplyBoxShadowLayer: 1, supplyBoxLayer: 19,
           treePartShadowLayer: 9, treePartLayer: 17, zombiePartShadowLayer: 9,
-          zombiePartLayer: 18, particleLayer: 18
+          zombiePartLayer: 18, particleLayer: 18, grenadeExplosionLayer: 20
         };
         for (const [id, band] of Object.entries(layerBands)) layers.set(id, new FieldLayer(id, band));
 
@@ -10189,6 +10224,9 @@ Firearm and ammo required.</div>
       const rifleAmmoInventoryItem = document.querySelector(
         '.inventory-item[data-item="rifleAmmo"]'
       );
+      const grenadeInventoryItem = document.querySelector(
+        '.inventory-item[data-item="grenade"]'
+      );
       const chainsawInventoryItem = document.querySelector(
         '.inventory-item[data-item="chainsaw"]'
       );
@@ -10306,6 +10344,7 @@ Firearm and ammo required.</div>
       const zombiePartShadowLayer = phaserField.layer("zombiePartShadowLayer");
       const zombiePartLayer = phaserField.layer("zombiePartLayer");
       const particleLayer = phaserField.layer("particleLayer");
+      const grenadeExplosionLayer = phaserField.layer("grenadeExplosionLayer");
       const treeHitArea = phaserField.named("treeHitArea");
 
       // Former CSS pointer/hit-area defaults are now Phaser input flags.
@@ -10693,6 +10732,8 @@ Firearm and ammo required.</div>
       let isRifleEquipped = false;
       let hasRifleAmmo = false;
       let rifleAmmoCount = 0;
+      let grenadeCount = 0;
+      let isGrenadeEquipped = false;
       let hasChainsaw = false;
       let isChainsawEquipped = false;
       let hasChainsawBattery = false;
@@ -11458,6 +11499,13 @@ Firearm and ammo required.</div>
         pointerId: null,
         entityType: "",
         entityId: null
+      };
+
+      // 수류탄은 필드의 원하는 지점을 누르고 떼면 투척합니다. 드래그로 판정되면 사용하지 않습니다.
+      const grenadePressState = {
+        active: false,
+        pointerId: null,
+        resolved: false
       };
 
       let inventorySelectedCategory = "all";
@@ -15142,30 +15190,34 @@ Firearm and ammo required.</div>
           hasRifle = parsed.hasRifle === true;
           hasRifleAmmo = parsed.hasRifleAmmo === true || Number(parsed.rifleAmmo) > 0;
           rifleAmmoCount = normalizeStoredCount(parsed.rifleAmmo, MAX_INVENTORY_QUANTITY);
+          grenadeCount = normalizeStoredCount(parsed.grenade, MAX_INVENTORY_QUANTITY);
           hasChainsaw = parsed.hasChainsaw === true;
           hasChainsawBattery = parsed.hasChainsawBattery === true || Number(parsed.chainsawBattery) > 0;
           chainsawBatteryPercent = normalizeStoredCount(parsed.chainsawBattery, MAX_CHAINSAW_BATTERY);
 
-          const storedEquippedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"]
+          const storedEquippedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw", "grenade"]
             .includes(parsed.equippedWeapon)
             ? parsed.equippedWeapon
             : (parsed.isChainsawEquipped === true ? "chainsaw"
               : parsed.isRifleEquipped === true ? "rifle"
               : parsed.isShotgunEquipped === true ? "shotgun"
               : parsed.isHandgunEquipped === true ? "handgun"
+              : parsed.isGrenadeEquipped === true ? "grenade"
               : parsed.isAxeEquipped !== false ? "axe" : "");
           isAxeEquipped = storedEquippedWeapon === "axe" && hasAxe;
           isHandgunEquipped = storedEquippedWeapon === "handgun" && hasHandgun;
           isShotgunEquipped = storedEquippedWeapon === "shotgun" && hasShotgun;
           isRifleEquipped = storedEquippedWeapon === "rifle" && hasRifle;
           isChainsawEquipped = storedEquippedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
+          isGrenadeEquipped = storedEquippedWeapon === "grenade" && grenadeCount > 0;
           if (
             hasAxe &&
             !isAxeEquipped &&
             !isHandgunEquipped &&
             !isShotgunEquipped &&
             !isRifleEquipped &&
-            !isChainsawEquipped
+            !isChainsawEquipped &&
+            !isGrenadeEquipped
           ) {
             isAxeEquipped = true;
           }
@@ -15224,6 +15276,7 @@ Firearm and ammo required.</div>
             if (hasShotgunAmmo) newInventoryItemTypes.add("shotgunAmmo");
             if (hasRifle) newInventoryItemTypes.add("rifle");
             if (hasRifleAmmo) newInventoryItemTypes.add("rifleAmmo");
+            if (grenadeCount > 0) newInventoryItemTypes.add("grenade");
             if (hasChainsaw) newInventoryItemTypes.add("chainsaw");
             if (hasChainsawBattery) newInventoryItemTypes.add("chainsawBattery");
           }
@@ -15629,6 +15682,8 @@ Firearm and ammo required.</div>
               isRifleEquipped,
               hasRifleAmmo,
               rifleAmmo: rifleAmmoCount,
+              grenade: grenadeCount,
+              isGrenadeEquipped,
               hasChainsaw,
               isChainsawEquipped,
               hasChainsawBattery,
@@ -16405,6 +16460,7 @@ Firearm and ammo required.</div>
           hasShotgunAmmo ||
           hasRifle ||
           hasRifleAmmo ||
+          grenadeCount > 0 ||
           hasChainsaw ||
           hasChainsawBattery ||
           hasMusicBox ||
@@ -19365,6 +19421,7 @@ Firearm and ammo required.</div>
         if (itemType === "handgunAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - handgunAmmoCount);
         if (itemType === "shotgunAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - shotgunAmmoCount);
         if (itemType === "rifleAmmo") return Math.max(0, MAX_INVENTORY_QUANTITY - rifleAmmoCount);
+        if (itemType === "grenade") return Math.max(0, MAX_INVENTORY_QUANTITY - grenadeCount);
         if (itemType === "chainsawBattery") return Math.max(0, MAX_CHAINSAW_BATTERY - chainsawBatteryPercent);
         if (itemType === "carParts") return Math.max(0, getMaxCarPartsCount() - carPartsCount);
         if (itemType === "repairKit") return Math.max(0, MAX_INVENTORY_QUANTITY - repairKitCount);
@@ -19494,6 +19551,7 @@ Firearm and ammo required.</div>
         addSimple("handgunAmmo");
         addSimple("shotgunAmmo");
         addSimple("rifleAmmo");
+        if (Math.random() < GRENADE_NORMAL_REWARD_CANDIDATE_CHANCE) addSimple("grenade");
         addSimple("chainsawBattery");
         if (!isCarRepaired()) addSimple("carParts");
         addSimple("repairKit");
@@ -19811,6 +19869,8 @@ Firearm and ammo required.</div>
         } else if (itemType === "rifleAmmo") {
           rifleAmmoCount = Math.min(MAX_INVENTORY_QUANTITY, rifleAmmoCount + quantity);
           hasRifleAmmo = rifleAmmoCount > 0;
+        } else if (itemType === "grenade") {
+          grenadeCount = Math.min(MAX_INVENTORY_QUANTITY, grenadeCount + quantity);
         } else if (itemType === "chainsaw") {
           hasChainsaw = true;
         } else if (itemType === "chainsawBattery") {
@@ -19994,6 +20054,9 @@ Firearm and ammo required.</div>
         if (!hasShotgun) candidates.push("shotgun");
         if (shotgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("shotgunAmmo");
         if (rifleAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("rifleAmmo");
+        if (grenadeCount < MAX_INVENTORY_QUANTITY && Math.random() < GRENADE_NORMAL_REWARD_CANDIDATE_CHANCE) {
+          candidates.push("grenade");
+        }
         if (!hasChainsaw) candidates.push("chainsaw");
         if (chainsawBatteryPercent < MAX_CHAINSAW_BATTERY) candidates.push("chainsawBattery");
         if (!isCarRepaired() && carPartsCount < getMaxCarPartsCount()) {
@@ -20034,6 +20097,11 @@ Firearm and ammo required.</div>
           rifleAmmoCount = Math.min(
             MAX_INVENTORY_QUANTITY,
             rifleAmmoCount + rollExplorationItemQuantity(reward, quantityMultiplier)
+          );
+        } else if (reward === "grenade") {
+          grenadeCount = Math.min(
+            MAX_INVENTORY_QUANTITY,
+            grenadeCount + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
         } else if (reward === "chainsaw") {
           hasChainsaw = true;
@@ -20190,7 +20258,10 @@ Firearm and ammo required.</div>
           return;
         }
 
-        if (tryAwardExplorationBlueprint(destination)) {
+        if (
+          options.skipBlueprint !== true &&
+          tryAwardExplorationBlueprint(destination)
+        ) {
           // 설계도를 얻은 탐험에서는 아이템을 함께 얻지 않습니다.
           return;
         }
@@ -20613,6 +20684,7 @@ Firearm and ammo required.</div>
           hasRifle &&
           hasRifleAmmo &&
           rifleAmmoCount >= TEST_AMMO_QUANTITY &&
+          grenadeCount >= TEST_GRENADE_QUANTITY &&
           hasChainsaw &&
           hasChainsawBattery &&
           chainsawBatteryPercent >= TEST_CHAINSAW_BATTERY_PERCENT &&
@@ -20653,6 +20725,9 @@ Firearm and ammo required.</div>
         markNewIfMissing("rifleAmmo", hasRifleAmmo && rifleAmmoCount > 0);
         hasRifleAmmo = true;
         rifleAmmoCount = TEST_AMMO_QUANTITY;
+
+        markNewIfMissing("grenade", grenadeCount > 0);
+        grenadeCount = TEST_GRENADE_QUANTITY;
 
         markNewIfMissing("chainsaw", hasChainsaw);
         hasChainsaw = true;
@@ -20911,7 +20986,8 @@ Firearm and ammo required.</div>
           preloadImage(TREE_DAY_SHEET),
           preloadImage(TREE_DAY_STAGE_TWO_IMAGE),
           preloadImage(TREE_DAY_STAGE_THREE_IMAGE),
-          preloadImage(TREE_PART_IMAGE)
+          preloadImage(TREE_PART_IMAGE),
+          preloadImage(GRENADE_EXPLOSION_IMAGE)
         ]);
       }
 
@@ -21012,6 +21088,11 @@ Firearm and ammo required.</div>
       function startBackgroundDrag(event) {
         if (!hasGameInitialized) return;
         if (event.button !== undefined && event.button !== 0) return;
+
+        grenadePressState.active = isGrenadeEquipped && grenadeCount > 0 && !isExploring;
+        grenadePressState.pointerId = grenadePressState.active ? event.pointerId : null;
+        grenadePressState.resolved = false;
+
         if (maxPanX <= 0 && maxPanY <= 0) return;
 
         event.preventDefault?.();
@@ -21068,11 +21149,21 @@ Firearm and ammo required.</div>
           !dragState.active ||
           event.pointerId !== dragState.pointerId
         ) {
+          if (
+            grenadePressState.active &&
+            grenadePressState.pointerId === event.pointerId &&
+            !grenadePressState.resolved
+          ) {
+            tryThrowGrenadeAtClientPoint(event);
+          }
           // 화면을 팬할 수 없는 상태에서도 움직이는 엔티티가 pointerup 전에
           // 포인터 밖으로 빠져나가면 처음 누른 대상을 정상적으로 활성화합니다.
-          if (hasMatchingFieldPress) {
+          if (hasMatchingFieldPress && !grenadePressState.resolved) {
             activatePressedFieldEntity(event);
           }
+          grenadePressState.active = false;
+          grenadePressState.pointerId = null;
+          grenadePressState.resolved = false;
           return;
         }
 
@@ -21088,6 +21179,16 @@ Firearm and ammo required.</div>
         */
         if (
           !didMove &&
+          grenadePressState.active &&
+          grenadePressState.pointerId === event.pointerId &&
+          !grenadePressState.resolved
+        ) {
+          tryThrowGrenadeAtClientPoint(event);
+        }
+
+        if (
+          !didMove &&
+          !grenadePressState.resolved &&
           fieldEntityPressState.active &&
           fieldEntityPressState.pointerId === event.pointerId
         ) {
@@ -21107,6 +21208,9 @@ Firearm and ammo required.</div>
 
         // 대상 요소에서 pointerup을 받지 못한 예외 상황에도 눌림 상태를 남기지 않습니다.
         clearFieldEntityPressState(event.pointerId);
+        grenadePressState.active = false;
+        grenadePressState.pointerId = null;
+        grenadePressState.resolved = false;
       }
 
       function shouldActivateFieldObject(event, element = event?.currentTarget) {
@@ -23183,6 +23287,7 @@ Firearm and ammo required.</div>
       }
 
       function getEquippedWeapon() {
+        if (isGrenadeEquipped) return "grenade";
         if (isChainsawEquipped) return "chainsaw";
         if (isRifleEquipped) return "rifle";
         if (isShotgunEquipped) return "shotgun";
@@ -23201,6 +23306,7 @@ Firearm and ammo required.</div>
         if (equippedWeapon === "handgun") ammoText = String(handgunAmmoCount);
         if (equippedWeapon === "shotgun") ammoText = String(shotgunAmmoCount);
         if (equippedWeapon === "rifle") ammoText = String(rifleAmmoCount);
+        if (equippedWeapon === "grenade") ammoText = String(grenadeCount);
         if (equippedWeapon === "chainsaw") ammoText = `${Math.round(chainsawBatteryPercent)}%`;
         weaponAmmoCount.textContent = ammoText;
         weaponAmmoCount.hidden = ammoText === "";
@@ -23254,7 +23360,7 @@ Firearm and ammo required.</div>
       }
 
       function setEquippedWeapon(weapon = "", options = {}) {
-        const requestedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw"].includes(weapon)
+        const requestedWeapon = ["axe", "handgun", "shotgun", "rifle", "chainsaw", "grenade"].includes(weapon)
           ? weapon
           : "";
         const canEquipRequested =
@@ -23262,7 +23368,8 @@ Firearm and ammo required.</div>
           (requestedWeapon === "handgun" && hasHandgun) ||
           (requestedWeapon === "shotgun" && hasShotgun) ||
           (requestedWeapon === "rifle" && hasRifle) ||
-          (requestedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0);
+          (requestedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0) ||
+          (requestedWeapon === "grenade" && grenadeCount > 0);
         // Axe 획득 이후에는 빈 장비 상태를 허용하지 않습니다.
         const normalizedWeapon = canEquipRequested
           ? requestedWeapon
@@ -23273,6 +23380,7 @@ Firearm and ammo required.</div>
         isShotgunEquipped = normalizedWeapon === "shotgun" && hasShotgun;
         isRifleEquipped = normalizedWeapon === "rifle" && hasRifle;
         isChainsawEquipped = normalizedWeapon === "chainsaw" && hasChainsaw && chainsawBatteryPercent > 0;
+        isGrenadeEquipped = normalizedWeapon === "grenade" && grenadeCount > 0;
 
         if (!isChainsawEquipped) {
           stopChainsawBatteryDrain();
@@ -23293,6 +23401,7 @@ Firearm and ammo required.</div>
         if (hasShotgun) weapons.push("shotgun");
         if (hasRifle) weapons.push("rifle");
         if (hasChainsaw && chainsawBatteryPercent > 0) weapons.push("chainsaw");
+        if (grenadeCount > 0) weapons.push("grenade");
         // Axe 획득 전까지만 맨손 상태를 순환 목록에 포함합니다.
         if (!hasAxe) weapons.push("");
         return weapons;
@@ -23323,6 +23432,8 @@ Firearm and ammo required.</div>
           playSound(SHOTGUN_EQUIP_SOUND);
         } else if (nextWeapon === "rifle") {
           playSound(RIFLE_EQUIP_SOUND);
+        } else if (nextWeapon === "grenade") {
+          playSound(GRENADE_PIN_SOUND);
         } else {
           playSound(INVENTORY_SET_SOUND);
         }
@@ -23405,6 +23516,11 @@ Firearm and ammo required.</div>
         if (rifleAmmoInventoryItem) {
           rifleAmmoInventoryItem.hidden = !hasRifleAmmo;
           setInventoryValue(rifleAmmoInventoryItem, `×${rifleAmmoCount}`);
+        }
+
+        if (grenadeInventoryItem) {
+          grenadeInventoryItem.hidden = grenadeCount <= 0;
+          setInventoryValue(grenadeInventoryItem, `×${grenadeCount}`);
         }
 
         if (chainsawInventoryItem) {
@@ -26903,6 +27019,10 @@ Firearm and ammo required.</div>
         // 뗀 위치가 이동한 엔티티 위인지 다시 검사하지 않고 드래그 여부만 확인합니다.
         if (!shouldActivateFieldObject(event, null)) return false;
 
+        if (isGrenadeEquipped && grenadeCount > 0) {
+          return tryThrowGrenadeAtClientPoint(event);
+        }
+
         event.preventDefault();
 
         if (entityType === "supplyBox") {
@@ -27032,7 +27152,10 @@ Firearm and ammo required.</div>
           turnNextDirection: 0,
           deathStartedAt: 0,
           deathStartX: 0,
+          deathStartY: 0,
           deathSlideDirection: 0,
+          deathSlideVectorX: 0,
+          deathSlideVectorY: 0,
           counted: false,
           movementZone: spawnZone
         };
@@ -27113,23 +27236,40 @@ Firearm and ammo required.</div>
         setDeerFacing(deer);
       }
 
-      function beginDeerDeath(deer) {
+      function beginDeerDeath(deer, options = {}) {
         if (deer.state === "dying" || deer.state === "removed") return;
 
-        const slideDirection = (
+        const forcedSlideDirection = Number(options.slideDirection);
+        const defaultSlideDirection = (
           deer.state === "evading" || deer.state === "leaving"
         )
           ? deer.evadeDirection
           : (deer.state === "turning"
             ? deer.turnDirection
             : (deer.facing === "left" ? -1 : 1));
+        const slideDirection = Number.isFinite(forcedSlideDirection) && forcedSlideDirection !== 0
+          ? (forcedSlideDirection < 0 ? -1 : 1)
+          : defaultSlideDirection;
+        const rawSlideVectorX = Number(options.slideVectorX);
+        const rawSlideVectorY = Number(options.slideVectorY);
+        const slideVectorLength = Math.hypot(rawSlideVectorX, rawSlideVectorY);
+        const hasForcedSlideVector = Number.isFinite(slideVectorLength) && slideVectorLength > 0.001;
+        const slideVectorX = hasForcedSlideVector
+          ? rawSlideVectorX / slideVectorLength
+          : slideDirection || 1;
+        const slideVectorY = hasForcedSlideVector
+          ? rawSlideVectorY / slideVectorLength
+          : 0;
 
         deer.state = "dying";
         deer.element.classList.add("is-dead");
         deer.idleAnimation = null;
         deer.deathStartedAt = performance.now();
         deer.deathStartX = deer.x;
+        deer.deathStartY = deer.y;
         deer.deathSlideDirection = slideDirection || 1;
+        deer.deathSlideVectorX = slideVectorX;
+        deer.deathSlideVectorY = slideVectorY;
         deer.element.style.opacity = "1";
         showSingleDeerFrame(deer, DEER_DEATH_FRAME_SEQUENCE[0]);
 
@@ -27429,7 +27569,11 @@ Firearm and ammo required.</div>
 
         deer.x =
           deer.deathStartX +
-          deer.deathSlideDirection *
+          (Number.isFinite(deer.deathSlideVectorX) ? deer.deathSlideVectorX : deer.deathSlideDirection || 1) *
+            DEER_DEATH_SLIDE_DISTANCE_PX * slideProgress;
+        deer.y =
+          deer.deathStartY +
+          (Number.isFinite(deer.deathSlideVectorY) ? deer.deathSlideVectorY : 0) *
             DEER_DEATH_SLIDE_DISTANCE_PX * slideProgress;
 
         deer.element.style.opacity = "1";
@@ -28063,6 +28207,16 @@ Firearm and ammo required.</div>
       }
 
       function grantSupplyCrateAmmoReward() {
+        if (
+          grenadeCount < MAX_INVENTORY_QUANTITY &&
+          Math.random() < SUPPLY_CRATE_GRENADE_CHANCE
+        ) {
+          grenadeCount = Math.min(MAX_INVENTORY_QUANTITY, grenadeCount + 1);
+          markInventoryItemAsNew("grenade");
+          applyInventoryState();
+          return true;
+        }
+
         const candidates = [];
         if (hasHandgun && handgunAmmoCount < MAX_INVENTORY_QUANTITY) {
           candidates.push({ itemType: "handgunAmmo", count: handgunAmmoCount });
@@ -28118,7 +28272,7 @@ Firearm and ammo required.</div>
         if (options.playOpenSound !== false) {
           playSound(SUPPLY_BOX_OPEN_SOUND);
         }
-        awardExplorationRewards("village", dayCount);
+        awardExplorationRewards("village", dayCount, { skipBlueprint: true });
         grantSupplyCrateAmmoReward();
         showToast("Lucky me.");
 
@@ -28506,6 +28660,198 @@ Firearm and ammo required.</div>
             sharedFallSoundState
           });
         });
+      }
+
+      function spawnGrenadeZombieParts(zombie, explosionX, explosionY) {
+        const sharedFallSoundState = { played: false };
+        const selectedFrames = chooseUniqueRandomZombieParts(5);
+        const deltaX = zombie.x - explosionX;
+        const deltaY = zombie.y - explosionY;
+        const baseAngle = Math.abs(deltaX) + Math.abs(deltaY) > 0.001
+          ? Math.atan2(deltaY, deltaX)
+          : Math.random() * Math.PI * 2;
+
+        selectedFrames.forEach((frameIndex) => {
+          const angle = baseAngle + randomBetween(-0.55, 0.55);
+          const offset = ZOMBIE_PART_START_OFFSETS[frameIndex] || { x: 0, y: 0 };
+          spawnZombieFallingPart({
+            frameIndex,
+            startX: zombie.x + offset.x - ZOMBIE_PART_SIZE / 2,
+            startY: zombie.y + offset.y - ZOMBIE_PART_SIZE / 2,
+            directionX: Math.cos(angle),
+            directionY: Math.sin(angle),
+            distance: randomBetween(
+              ZOMBIE_PART_FLIGHT_DISTANCE_MIN * 1.05,
+              ZOMBIE_PART_FLIGHT_DISTANCE_MAX * 1.2
+            ),
+            sharedFallSoundState
+          });
+        });
+      }
+
+      function beginGrenadeZombieDeath(zombie, explosionX, explosionY) {
+        if (
+          zombie.state === "dying" ||
+          zombie.state === "chainsawAttacking" ||
+          zombie.state === "removed"
+        ) {
+          return false;
+        }
+
+        registerPlayerZombieKill(zombie);
+        spawnGrenadeZombieParts(zombie, explosionX, explosionY);
+        zombie.state = "removed";
+        zombie.element.remove();
+        zombies.delete(zombie.id);
+        updateWeatherLabel();
+        scheduleEmptyFieldZombieSpawn();
+        return true;
+      }
+
+      function getGrenadeExplosionFramePosition(frameIndex) {
+        const normalized = clamp(
+          Math.round(Number(frameIndex) || 0),
+          0,
+          GRENADE_EXPLOSION_FRAME_COUNT - 1
+        );
+        const column = normalized % GRENADE_EXPLOSION_COLUMNS;
+        const row = Math.floor(normalized / GRENADE_EXPLOSION_COLUMNS);
+        const xPercent = GRENADE_EXPLOSION_COLUMNS <= 1
+          ? 0
+          : (column / (GRENADE_EXPLOSION_COLUMNS - 1)) * 100;
+        const yPercent = GRENADE_EXPLOSION_ROWS <= 1
+          ? 0
+          : (row / (GRENADE_EXPLOSION_ROWS - 1)) * 100;
+        return `${xPercent}% ${yPercent}%`;
+      }
+
+      function showGrenadeExplosionVisual(worldX, worldY) {
+        const size = GRENADE_EXPLOSION_DISPLAY_SIZE;
+        const visual = phaserField.createNode({
+          x: worldX - size / 2,
+          y: worldY - size / 2 - 30,
+          width: size,
+          height: size,
+          backgroundPath: GRENADE_EXPLOSION_IMAGE,
+          depthBand: 20
+        });
+        grenadeExplosionLayer.appendChild(visual);
+        visual.singleImage?.setBlendMode(Phaser.BlendModes.NORMAL);
+        visual.style.backgroundPosition = getGrenadeExplosionFramePosition(0);
+        visual.style.opacity = "1";
+
+        let frameIndex = 0;
+        const timerId = window.setInterval(() => {
+          if (!visual.isConnected) {
+            clearInterval(timerId);
+            return;
+          }
+          frameIndex += 1;
+          if (frameIndex >= GRENADE_EXPLOSION_FRAME_COUNT) {
+            clearInterval(timerId);
+            visual.remove();
+            return;
+          }
+          visual.style.backgroundPosition = getGrenadeExplosionFramePosition(frameIndex);
+          const frameAlphas = [
+            1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 0.9,
+            0.8, 0.7, 0.6, 0.5,
+            0.4, 0.3, 0.2, 0.1
+          ];
+          visual.style.opacity = String(frameAlphas[frameIndex] ?? 1);
+        }, GRENADE_EXPLOSION_FRAME_MS);
+      }
+
+      function resolveGrenadeExplosion(worldX, worldY) {
+        playSound(GRENADE_BLAST_SOUND);
+        showGrenadeExplosionVisual(worldX, worldY);
+
+        const hitZombies = Array.from(zombies.values()).filter((zombie) => {
+          if (
+            zombie.state === "dying" ||
+            zombie.state === "chainsawAttacking" ||
+            zombie.state === "removed"
+          ) {
+            return false;
+          }
+          return Math.hypot(zombie.x - worldX, zombie.y - worldY) <= GRENADE_EXPLOSION_RADIUS_PX;
+        });
+
+        const hitDeer = Array.from(deerMap.values()).filter((deer) => {
+          if (deer.state === "dying" || deer.state === "removed") return false;
+          return Math.hypot(deer.x - worldX, deer.y - worldY) <= GRENADE_EXPLOSION_RADIUS_PX;
+        });
+
+        for (const zombie of hitZombies) {
+          beginGrenadeZombieDeath(zombie, worldX, worldY);
+        }
+
+        for (const deer of hitDeer) {
+          let awayX = deer.x - worldX;
+          let awayY = deer.y - worldY;
+          if (Math.hypot(awayX, awayY) <= 0.001) {
+            awayX = deer.facing === "left" ? -1 : 1;
+            awayY = 0;
+          }
+          beginDeerDeath(deer, {
+            slideDirection: awayX < 0 ? -1 : 1,
+            slideVectorX: awayX,
+            slideVectorY: awayY
+          });
+        }
+
+        if (hitZombies.length > 0 || hitDeer.length > 0) {
+          saveResourceState();
+        }
+      }
+
+      function getWorldPointFromClient(clientX, clientY) {
+        const scale = phaserField.getEffectiveViewScale();
+        const offset = phaserField.getEffectiveViewOffset();
+        return {
+          x: clamp(
+            (clientX - window.innerWidth / 2 - offset.x) / scale + WORLD_SIZE / 2,
+            0,
+            WORLD_SIZE
+          ),
+          y: clamp(
+            (clientY - window.innerHeight / 2 - offset.y) / scale + WORLD_SIZE / 2,
+            0,
+            WORLD_SIZE
+          )
+        };
+      }
+
+      function consumeGrenade() {
+        if (grenadeCount <= 0) return false;
+        grenadeCount = Math.max(0, grenadeCount - 1);
+        if (grenadeCount <= 0 && isGrenadeEquipped) {
+          setEquippedWeapon("", { save: false });
+        } else {
+          applyInventoryState();
+        }
+        saveResourceState();
+        return true;
+      }
+
+      function tryThrowGrenadeAtClientPoint(event) {
+        if (!isGrenadeEquipped || grenadeCount <= 0 || isExploring) return false;
+        if (dragState.moved) return false;
+        if (grenadePressState.resolved) return true;
+
+        const clientX = Number(event?.clientX);
+        const clientY = Number(event?.clientY);
+        if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+        if (!consumeGrenade()) return false;
+
+        grenadePressState.resolved = true;
+        const target = getWorldPointFromClient(clientX, clientY);
+        playSound(GRENADE_BOUNCE_SOUND);
+        window.setTimeout(() => {
+          resolveGrenadeExplosion(target.x, target.y);
+        }, GRENADE_FUSE_MS);
+        return true;
       }
 
       function registerPlayerZombieKill(zombie) {
@@ -30145,11 +30491,13 @@ Firearm and ammo required.</div>
 
       axePickupHitArea.addEventListener("pointerup", (event) => {
         if (!shouldActivateFieldObject(event, axePickupHitArea)) return;
+        if (isGrenadeEquipped && grenadeCount > 0 && tryThrowGrenadeAtClientPoint(event)) return;
         collectAxe(event);
       });
       axePickupHitArea.addEventListener("keydown", handleAxePickupKeydown);
       treeHitArea.addEventListener("pointerup", (event) => {
         if (!shouldActivateFieldObject(event, treeHitArea)) return;
+        if (isGrenadeEquipped && grenadeCount > 0 && tryThrowGrenadeAtClientPoint(event)) return;
         playTreeChopAnimation(event);
       });
       treeHitArea.addEventListener("keydown", handleTreeKeydown);
@@ -30157,6 +30505,7 @@ Firearm and ammo required.</div>
       shedObject.addEventListener("pointerup", (event) => {
         if (activatePressedFieldEntity(event)) return;
         if (!shouldActivateFieldObject(event, shedObject)) return;
+        if (isGrenadeEquipped && grenadeCount > 0 && tryThrowGrenadeAtClientPoint(event)) return;
         if (isShedRepaired()) {
           handleStructureInteraction(event, SHED_REPAIRED_TOAST_MESSAGE);
           return;
@@ -30182,6 +30531,7 @@ Firearm and ammo required.</div>
         if (isCarTraveling) return;
         if (activatePressedFieldEntity(event)) return;
         if (!shouldActivateFieldObject(event, carObject)) return;
+        if (isGrenadeEquipped && grenadeCount > 0 && tryThrowGrenadeAtClientPoint(event)) return;
         handleStructureInteraction(
           event,
           isCarRepaired()
@@ -30658,6 +31008,13 @@ Firearm and ammo required.</div>
         if (itemType === "chainsawBattery" && hasChainsawBattery) {
           playSound(INVENTORY_SET_SOUND);
           showToast(CHAINSAW_BATTERY_SELECTED_TOAST_MESSAGE);
+          return;
+        }
+
+        if (itemType === "grenade" && grenadeCount > 0) {
+          playSound(GRENADE_PIN_SOUND);
+          setEquippedWeapon("grenade");
+          showToast(GRENADE_SELECTED_TOAST_MESSAGE);
           return;
         }
 
