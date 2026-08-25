@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.232"
+  data-game-version="0.233"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -11812,9 +11812,8 @@ Firearm and ammo required.</div>
         carPartsCount = 0;
         newInventoryItemTypes.delete("carParts");
         viewedInventoryNewItemTypes.delete("carParts");
-        if (newInventoryItemTypes.size === 0) {
-          hasNewInventoryItem = false;
-        }
+        hasNewInventoryItem = newInventoryItemTypes.size > 0;
+        applyInventoryNewBadgeState();
       }
 
       function isSectionedRepairCategory(category) {
@@ -11947,8 +11946,18 @@ Firearm and ammo required.</div>
         );
       }
 
+      function hasAnyRepairNewItem() {
+        return REPAIR_CATEGORY_ORDER.some((category) =>
+          (repairItemsByCategory[category] || []).some(
+            (item) => item?.unlocked && item.isNew
+          )
+        );
+      }
+
       function updateRepairNewBadgeState() {
         const animate = repairNewBadgeStateInitialized;
+        // 상위 Repair 버튼의 NEW는 화면 안에 실제로 남아 있는 아이템 NEW를 따라갑니다.
+        hasRepairButtonNew = hasAnyRepairNewItem();
         const status = hasRepairButtonNew
           ? "NEW"
           : (hasAnyReadyRepairItem() ? "READY" : "");
@@ -12000,7 +12009,15 @@ Firearm and ammo required.</div>
         );
       }
 
+      function hasAnyExplorationDestinationNew() {
+        return ["village", "forest", "city"].some(
+          (destination) => explorationDestinationNewState[destination] === true
+        );
+      }
+
       function updateExploreNewBadgeState(animate = hasGameInitialized) {
+        // 상위 Explore 버튼의 NEW는 목적지 안에 실제 NEW가 하나라도 남아 있는 동안 유지합니다.
+        hasExploreButtonNew = hasAnyExplorationDestinationNew();
         const status = hasExploreButtonNew
           ? "NEW"
           : (hasAnyReadyExplorationDestination() ? "READY" : "");
@@ -12072,11 +12089,13 @@ Firearm and ammo required.</div>
       }
 
       function clearExploreButtonNewState() {
-        if (!hasExploreButtonNew) return false;
-        hasExploreButtonNew = false;
+        // Explore 버튼만 따로 NEW를 지우지 않습니다.
+        // 하위 목적지 NEW가 모두 확인되었을 때 updateExploreNewBadgeState()가 자동으로 해제합니다.
+        const previousState = hasExploreButtonNew;
         updateExploreNewBadgeState(false);
-        saveResourceState();
-        return true;
+        const didChange = previousState !== hasExploreButtonNew;
+        if (didChange) saveResourceState();
+        return didChange;
       }
 
       function clearExplorationDestinationNewState(destination) {
@@ -12084,6 +12103,7 @@ Firearm and ammo required.</div>
         explorationDestinationNewState[destination] = false;
         mobileViewedExplorationDestinationNews.delete(destination);
         updateExplorationOptionNewBadgeState(destination, false);
+        updateExploreNewBadgeState(false);
         saveResourceState();
         return true;
       }
@@ -16583,6 +16603,7 @@ Firearm and ammo required.</div>
           mobileHiddenInventoryNewItemTypes.delete(itemType);
         }
         viewedInventoryNewItemTypes.clear();
+        if (didChange) applyInventoryNewBadgeState();
         return didChange;
       }
 
@@ -17019,7 +17040,7 @@ Firearm and ammo required.</div>
         const didCommitViewedRepairNew = isDeferredMobileNew
           ? commitMobileViewedRepairNewStates()
           : false;
-        hasRepairButtonNew = false;
+        // Repair 버튼의 NEW는 내부 아이템 NEW가 모두 사라질 때까지 유지합니다.
         const didClearSelectedCategoryNew = clearRepairCategoryNewState(
           repairSelectedCategory
         );
@@ -23099,13 +23120,7 @@ Firearm and ammo required.</div>
       function handleInventoryButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
 
-        if (hasNewInventoryItem) {
-          hasNewInventoryItem = false;
-          applyInventoryNewBadgeState();
-          saveResourceState();
-        }
-
-
+        // Bag 버튼의 NEW는 내부 아이템 NEW가 모두 사라질 때까지 유지합니다.
         // 이미 가방 화면이면 닫거나 다시 열지 않고 현재 상태를 유지합니다.
         if (isInventoryOpen) return;
 
@@ -23114,8 +23129,8 @@ Firearm and ammo required.</div>
 
       function handleExploreButton(event) {
         playSound(EXPLORE_BUTTON_SOUND);
-        clearExploreButtonNewState();
 
+        // Explore 버튼의 NEW는 내부 목적지 NEW가 모두 사라질 때까지 유지합니다.
         // 탐험 중에도 목적지 화면은 확인할 수 있습니다.
         // 실제 목적지 선택은 handleExplorationDestination에서 차단합니다.
         if (isExplorationMenuOpen) return;
@@ -23471,11 +23486,14 @@ Firearm and ammo required.</div>
         applyInventoryItemNewTagState();
         updateInventoryPageDots();
         renderInventoryCategories();
+        applyInventoryNewBadgeState();
         saveResourceState();
       }
 
       function applyInventoryNewBadgeState() {
         const animate = inventoryNewBadgeStateInitialized;
+        // 상위 Bag 버튼의 NEW는 가방 안에 실제 아이템 NEW가 하나라도 남아 있는 동안 유지합니다.
+        hasNewInventoryItem = newInventoryItemTypes.size > 0;
         setAnimatedNewBadgeVisibility(
           inventoryNewBadge,
           hasNewInventoryItem,
