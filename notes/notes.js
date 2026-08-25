@@ -100,5 +100,11 @@ Cooper: “No. It’s necessary.”`,
     id: "note_012",
     text: `Let there be light.`,
     author: "God"
+  }),
+
+  Object.freeze({
+    id: "note_013",
+    text: `The reasonable man adapts himself to the world: the unreasonable one persists in trying to adapt the world to himself. Therefore all progress depends on the unreasonable man.`,
+    author: "George Bernard Shaw"
   })
 ]);
