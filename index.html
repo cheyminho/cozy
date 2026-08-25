@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.230"
+  data-game-version="0.231"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -11103,17 +11103,28 @@ Firearm and ammo required.</div>
         syncGameSoundMuteState();
 
         if (isGameSoundOn) {
-          // 사운드 버튼은 사용자 입력에서 호출되므로 Safari AudioContext 재개도 함께 시도합니다.
+          // 사운드 버튼 자체가 사용자 입력이므로 iOS Safari용 BGM prime/resume도 여기서 다시 수행합니다.
           resumeBgmAudioContext();
 
           if (hasMusicBox && isMusicOn) {
+            const desiredBgmAudio = getCurrentBgmAudio();
+            if (
+              bgmStarted &&
+              activeBgmAudio &&
+              activeBgmAudio !== desiredBgmAudio
+            ) {
+              // OFF 상태에서 낮/밤/날씨가 바뀌었으면 예전 트랙 대신 현재 상태의 트랙으로 다시 시작합니다.
+              stopBgmPlayback();
+            }
+
+            primeBgmWebAudioFromUserGesture();
+
             if (!bgmStarted) {
               startBgmPlayback();
             } else if (activeBgmAudio && activeBgmAudio.paused) {
               /*
-                이어폰 연결/해제나 오디오 출력 전환으로 media element만 pause되고
-                bgmStarted는 true로 남을 수 있습니다. ON 입력에서 현재 트랙을 다시 깨우고,
-                실패하면 일반 시작 루틴이 다음 사용자 입력에서도 재시도할 수 있게 상태를 복구합니다.
+                전역 사운드 OFF나 이어폰 연결/해제로 media element가 pause된 경우
+                ON 입력에서 같은 위치부터 현재 트랙을 다시 재생합니다.
               */
               const interruptedBgmAudio = activeBgmAudio;
               interruptedBgmAudio.play().then(() => {
@@ -11142,7 +11153,8 @@ Firearm and ammo required.</div>
             startChainsawIdleSound();
           }
         } else {
-          stopChainsawIdleSound();
+          // 단순 mute가 아니라 실제 media playback을 pause해 Safari의 재생 중 상태도 해제합니다.
+          pauseAllGameMediaForSoundOff();
         }
 
         if (options.save !== false) saveResourceState();
@@ -11288,6 +11300,8 @@ Firearm and ammo required.</div>
       }
 
       function primeBgmWebAudioFromUserGesture() {
+        // 전역 사운드 OFF에서는 gain 0으로라도 media element를 play하지 않습니다.
+        if (!isGameSoundOn) return;
         if (!ensureBgmWebAudioGraph()) return;
         resumeBgmAudioContext();
 
@@ -11369,6 +11383,52 @@ Firearm and ammo required.</div>
       let rainAmbientLoopTimerId = null;
       let rainAmbientLoopFadeFrameId = null;
       let rainAmbientLoopToken = 0;
+
+      function pauseRainAmbientImmediatelyForGameSoundOff() {
+        rainAmbientFadeToken += 1;
+        rainAmbientStartScheduled = false;
+        cancelRainAmbientLoopSchedule();
+
+        if (rainAmbientFadeFrameId !== null) {
+          cancelAnimationFrame(rainAmbientFadeFrameId);
+          rainAmbientFadeFrameId = null;
+        }
+
+        rainAmbientMasterVolume = 0;
+        rainAmbientStarted = false;
+        resetRainAmbientDecks();
+        applyRainAmbientDeckVolumes();
+      }
+
+      function pauseAllGameMediaForSoundOff() {
+        // 현재 재생 중인 모든 효과음을 실제 pause 상태로 만들고 다음 ON에서 중간부터 이어지지 않게 초기화합니다.
+        for (const audio of sfxAudioRegistry) {
+          try {
+            audio.pause();
+            audio.currentTime = 0;
+          } catch (_) {}
+        }
+
+        pauseRainAmbientImmediatelyForGameSoundOff();
+        stopChainsawIdleSound();
+
+        // BGM은 현재 위치를 유지한 채 pause해, 상태가 그대로면 ON에서 이어서 재생할 수 있게 합니다.
+        bgmFadeToken += 1;
+        if (bgmFadeFrameId !== null) {
+          cancelAnimationFrame(bgmFadeFrameId);
+          bgmFadeFrameId = null;
+        }
+        for (const audio of bgmAudios) {
+          try {
+            audio.pause();
+          } catch (_) {}
+        }
+
+        // media element가 모두 멈춘 뒤 AudioContext도 쉬게 해 모바일 Safari의 오디오 세션을 확실히 내려줍니다.
+        if (bgmAudioContext && bgmAudioContext.state === "running") {
+          bgmAudioContext.suspend().catch(() => {});
+        }
+      }
 
       let worldScale = 1;
       let panX = 0;
@@ -17280,9 +17340,10 @@ Firearm and ammo required.</div>
       }
 
       async function transitionBgmForCurrentState() {
-        if (!isMusicOn || !bgmStarted) return;
+        if (!isGameSoundOn || !isMusicOn || !bgmStarted) return;
 
         await resumeBgmAudioContext();
+        if (!isGameSoundOn) return;
         const incomingAudio = getCurrentBgmAudio();
         if (
           activeBgmAudio === incomingAudio &&
@@ -17331,6 +17392,8 @@ Firearm and ammo required.</div>
         try {
           incomingAudio.currentTime = 0;
         } catch (_) {}
+
+        if (!isGameSoundOn) return;
 
         try {
           await incomingAudio.play();
@@ -17407,6 +17470,7 @@ Firearm and ammo required.</div>
 
       function scheduleRainAmbientLoop(deckIndex, loopToken = rainAmbientLoopToken) {
         if (
+          !isGameSoundOn ||
           loopToken !== rainAmbientLoopToken ||
           !rainAmbientStarted ||
           !document.body.classList.contains("is-rainy")
@@ -17455,6 +17519,7 @@ Firearm and ammo required.</div>
 
       async function crossfadeRainAmbientLoop(fromDeckIndex, loopToken) {
         if (
+          !isGameSoundOn ||
           loopToken !== rainAmbientLoopToken ||
           !rainAmbientStarted ||
           !document.body.classList.contains("is-rainy")
@@ -17592,6 +17657,8 @@ Firearm and ammo required.</div>
 
       async function startRainAmbientPlayback() {
         if (
+          !isGameSoundOn ||
+          isSfxMutedForBackground ||
           !document.body.classList.contains("is-rainy") ||
           rainAmbientStartScheduled
         ) {
@@ -22850,6 +22917,7 @@ Firearm and ammo required.</div>
       }
 
       function playSound(path, volume = 1) {
+        if (!isGameSoundOn || isSfxMutedForBackground) return;
         try {
           const audio = createSfxAudio(path);
           audio.volume = volume;
@@ -22860,6 +22928,7 @@ Firearm and ammo required.</div>
       }
 
       function playStructureSound(path, volume = 1) {
+        if (!isGameSoundOn || isSfxMutedForBackground) return;
         try {
           const audio = structureSoundAudioByPath.get(path);
           if (!audio || (!audio.paused && !audio.ended)) return;
@@ -23119,6 +23188,7 @@ Firearm and ammo required.</div>
       }
 
       function playChainsawEquipThenIdle() {
+        if (!isGameSoundOn || isSfxMutedForBackground) return;
         try {
           const equipAudio = createSfxAudio(CHAINSAW_EQUIP_SOUND);
           let completed = false;
@@ -23441,6 +23511,7 @@ Firearm and ammo required.</div>
 
       async function startBgmPlayback() {
         if (
+          !isGameSoundOn ||
           !hasMusicBox ||
           !isMusicOn ||
           bgmStarted ||
@@ -23451,6 +23522,10 @@ Firearm and ammo required.</div>
 
         bgmStartScheduled = true;
         await resumeBgmAudioContext();
+        if (!isGameSoundOn) {
+          bgmStartScheduled = false;
+          return;
+        }
         syncBgmMasterMuteState();
         const incomingAudio = getCurrentBgmAudio();
 
@@ -24161,9 +24236,11 @@ Firearm and ammo required.</div>
       }
 
       function playBirdFlySound() {
+        if (!isGameSoundOn || isSfxMutedForBackground) return;
         let candidateIndex = 0;
 
         const tryNext = () => {
+          if (!isGameSoundOn || isSfxMutedForBackground) return;
           if (candidateIndex >= BIRD_FLY_SOUND_CANDIDATES.length) return;
 
           const audio = createSfxAudio(
@@ -24180,9 +24257,11 @@ Firearm and ammo required.</div>
       }
 
       function playFallSound() {
+        if (!isGameSoundOn || isSfxMutedForBackground) return;
         let candidateIndex = 0;
 
         const tryNext = () => {
+          if (!isGameSoundOn || isSfxMutedForBackground) return;
           if (candidateIndex >= FALL_SOUND_CANDIDATES.length) return;
 
           const audio = createSfxAudio(FALL_SOUND_CANDIDATES[candidateIndex]);
@@ -25435,7 +25514,7 @@ Firearm and ammo required.</div>
       }
 
       function playDogInteractSound(activeDog) {
-        if (!activeDog) return false;
+        if (!activeDog || !isGameSoundOn || isSfxMutedForBackground) return false;
 
         // bark/pant 중 어느 하나라도 재생 중이면 새 효과음을 겹쳐 재생하지 않습니다.
         const isDogSoundPlaying = Array.from(
