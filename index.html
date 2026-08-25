@@ -5325,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.231"
+  data-game-version="0.232"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -30822,6 +30822,7 @@ Firearm and ammo required.</div>
       // 탐험이 100% 완료된 밤에는 집 중앙 256×256 영역에서 입력을 뗐을 때만 다음 낮으로 넘어갑니다.
       // 집 위에 다른 필드 요소가 겹쳐 있어도 화면 좌표로 중앙 터치 영역을 판정합니다.
       explorationReturnHouseHitArea.addEventListener("pointerup", (event) => {
+        if (!shouldActivateFieldObject(event, explorationReturnHouseHitArea)) return;
         if (
           !isExplorationCompletePending ||
           isExplorationReturnHouseLocked
