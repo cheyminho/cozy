@@ -2882,6 +2882,7 @@
 
     #exploreNewBadge.is-ready,
     #repairNewBadge.is-ready,
+    #reportReadyBadge.is-ready,
     .exploration-option-new-badge.is-ready,
     .repair-category-new-badge.is-ready {
       background: #276ebd;
@@ -5324,7 +5325,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.225"
+  data-game-version="0.226"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5921,7 +5922,7 @@ You can leave the game and come back anytime.</div>
   <div id="reportOverlay" aria-hidden="true">
     <div id="reportMenu" role="dialog" aria-modal="true" aria-label="Report">
       <div id="reportMessage">Use 10 kills to request a supply crate.
-You'll need a firearm and ammo to collect it.</div>
+Firearm and ammo required.</div>
       <div id="reportActions">
         <button id="reportRequestButton" class="report-action-button" type="button" disabled>Request</button>
       </div>
@@ -5956,6 +5957,7 @@ You'll need a firearm and ammo to collect it.</div>
   </div>
   <div id="hudActionButtons" aria-label="HUD actions">
     <button id="reportButton" type="button" aria-label="Report">
+      <span id="reportReadyBadge" class="inventory-new-badge is-ready" hidden>READY</span>
       <span class="hud-action-button__icon is-report" aria-hidden="true"></span>
       <span class="hud-action-button__label">Report</span>
     </button>
@@ -9871,6 +9873,7 @@ You'll need a firearm and ammo to collect it.</div>
         "repairActionButton"
       );
       const repairNewBadge = document.getElementById("repairNewBadge");
+      const reportReadyBadge = document.getElementById("reportReadyBadge");
       const reportButton = document.getElementById("reportButton");
       const repairButton = document.getElementById("repairButton");
       const inventoryButton = document.getElementById("inventoryButton");
@@ -10638,7 +10641,7 @@ You'll need a firearm and ammo to collect it.</div>
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
       const TODO_MAX_LIST_ID = 8;
-      const TODO_SCHEMA_VERSION = 6;
+      const TODO_SCHEMA_VERSION = 7;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -10668,7 +10671,7 @@ You'll need a firearm and ammo to collect it.</div>
 
       const birds = [];
       let firstKillBirdFlockPlayed = false;
-      // 투두를 받기 전에 보급품 상자로 처치한 기록도 이후 미션에서 인정합니다.
+      // 7차 미션을 받은 뒤 보급품 상자로 처치했는지만 기록합니다.
       let hasKilledWithSupplyBox = false;
       let nextSupplyBoxId = 1;
       const supplyBoxes = new Map();
@@ -10716,14 +10719,44 @@ You'll need a firearm and ammo to collect it.</div>
 
       function setGameSoundOn(enabled, options = {}) {
         isGameSoundOn = enabled !== false;
+
+        /*
+          모바일에서 이어폰/블루투스 출력 경로가 바뀌면 Safari가 window blur를 보낸 뒤
+          focus/visibility 복구 이벤트를 누락해 SFX 백그라운드 mute가 남는 경우가 있습니다.
+          사용자가 화면의 사운드 버튼을 직접 눌렀고 페이지가 실제로 보이는 상태라면
+          현재 입력 자체를 foreground 복귀 신호로 사용해 stale mute를 해제합니다.
+        */
+        if (isGameSoundOn && document.visibilityState !== "hidden") {
+          isSfxMutedForBackground = false;
+        }
+
         syncGameSoundMuteState();
 
         if (isGameSoundOn) {
           // 사운드 버튼은 사용자 입력에서 호출되므로 Safari AudioContext 재개도 함께 시도합니다.
           resumeBgmAudioContext();
-          if (hasMusicBox && isMusicOn && !bgmStarted) {
-            startBgmPlayback();
+
+          if (hasMusicBox && isMusicOn) {
+            if (!bgmStarted) {
+              startBgmPlayback();
+            } else if (activeBgmAudio && activeBgmAudio.paused) {
+              /*
+                이어폰 연결/해제나 오디오 출력 전환으로 media element만 pause되고
+                bgmStarted는 true로 남을 수 있습니다. ON 입력에서 현재 트랙을 다시 깨우고,
+                실패하면 일반 시작 루틴이 다음 사용자 입력에서도 재시도할 수 있게 상태를 복구합니다.
+              */
+              const interruptedBgmAudio = activeBgmAudio;
+              interruptedBgmAudio.play().then(() => {
+                bgmPrimedAudios.add(interruptedBgmAudio);
+              }).catch(() => {
+                if (activeBgmAudio !== interruptedBgmAudio) return;
+                activeBgmAudio = null;
+                bgmStarted = false;
+                startBgmPlayback();
+              });
+            }
           }
+
           if (
             document.body.classList.contains("is-rainy") &&
             !rainAmbientStarted
@@ -11005,6 +11038,7 @@ You'll need a firearm and ammo to collect it.</div>
       let suppressInventoryClickUntil = 0;
       let inventoryNewBadgeStateInitialized = false;
       let repairNewBadgeStateInitialized = false;
+      let reportReadyBadgeStateInitialized = false;
       let exploreNewBadgeStateInitialized = false;
       const explorationOptionNewBadgeStateInitialized = {
         village: false,
@@ -11495,6 +11529,25 @@ You'll need a firearm and ammo to collect it.</div>
           repairNewBadgeStateInitialized
         );
         repairNewBadgeStateInitialized = true;
+      }
+
+      function hasFirearmWithAmmo() {
+        return (hasHandgun && handgunAmmoCount > 0) ||
+          (hasShotgun && shotgunAmmoCount > 0) ||
+          (hasRifle && rifleAmmoCount > 0);
+      }
+
+      function updateReportReadyBadgeState(animate = hasGameInitialized) {
+        const isReady =
+          zombieKillResource >= SUPPLY_REQUEST_KILL_COST &&
+          hasFirearmWithAmmo();
+        setExplorationStatusBadge(
+          reportReadyBadge,
+          isReady ? "READY" : "",
+          animate,
+          reportReadyBadgeStateInitialized
+        );
+        reportReadyBadgeStateInitialized = true;
       }
 
       function setExplorationStatusBadge(
@@ -12045,6 +12098,12 @@ You'll need a firearm and ammo to collect it.</div>
           todoProgress[5].item1 = false;
         }
 
+        if (currentTodoListId === 7) {
+          // 보급품 상자 처치 미션은 수령 이전 기록을 인정하지 않습니다.
+          hasKilledWithSupplyBox = false;
+          todoProgress[7].item1 = false;
+        }
+
         syncTodoProgressFromCurrentState(currentTodoListId);
         isTodoListRevealDelayed = true;
         updateTodoListUI();
@@ -12179,7 +12238,7 @@ You'll need a firearm and ammo to collect it.</div>
           complete("item2", repairAppliedItemBySection.buildings.roof !== 5);
           complete("item3", dayCount >= TODO_DAY_28_TARGET);
         } else if (listId === 7) {
-          complete("item1", hasKilledWithSupplyBox);
+          complete("item1", currentTodoListId === 7 && hasKilledWithSupplyBox);
           complete("item2", repairAppliedItemBySection.buildings.walls !== 10);
           complete("item3", hasBuiltOutdoorSectionItem("garden"));
         }
@@ -14903,6 +14962,14 @@ You'll need a firearm and ammo to collect it.</div>
               }
             }
 
+            if (storedTodoSchemaVersion < 7 && currentTodoListId === 7) {
+              // 이전 버전에서 미션 수령 전 처치를 소급 인정했을 수 있으므로 7차 진행 중이면 새 처치를 요구합니다.
+              hasKilledWithSupplyBox = false;
+              todoProgress[7].item1 = false;
+              todoCompletedListId = 0;
+              todoCompletedDay = 0;
+            }
+
             // 기존 6차 세 번째 항목의 저장 완료값은 폐기하고 DAY 28 기준으로 다시 계산합니다.
             todoProgress[6].item3 = dayCount >= TODO_DAY_28_TARGET;
           }
@@ -15028,6 +15095,12 @@ You'll need a firearm and ammo to collect it.</div>
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
           hasKilledWithSupplyBox = parsed.hasKilledWithSupplyBox === true;
+          if (
+            Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1)) < 7 &&
+            currentTodoListId === 7
+          ) {
+            hasKilledWithSupplyBox = false;
+          }
           loadRepairState(parsed.repairState);
           if (isCarRepaired()) {
             clearCarPartsAfterRepair();
@@ -15299,6 +15372,7 @@ You'll need a firearm and ammo to collect it.</div>
         updateWeatherLabel();
         updateExplorationRequirements();
         updateRepairNewBadgeState();
+        updateReportReadyBadgeState();
         updateReportRequestState();
       }
 
@@ -22916,6 +22990,7 @@ You'll need a firearm and ammo to collect it.</div>
         rebuildInventoryPages();
         renderInventoryCategories();
         updateRepairNewBadgeState();
+        updateReportReadyBadgeState();
       }
 
       function applyInventoryItemNewTagState() {
@@ -27643,9 +27718,11 @@ You'll need a firearm and ammo to collect it.</div>
           beginDeerDeath(deer);
         }
 
-        // 보급품 상자로 좀비 또는 사슴을 실제로 처치한 기록을 저장해 이후 7차에서도 인정합니다.
-        hasKilledWithSupplyBox = true;
-        setTodoProgress(7, "item1", true);
+        // 7차 미션을 받은 뒤의 보급품 상자 처치만 미션 완료로 인정합니다.
+        if (currentTodoListId === 7) {
+          hasKilledWithSupplyBox = true;
+          setTodoProgress(7, "item1", true);
+        }
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
         // 보상도 즉시 지급하며, 일반 상자 파손과 동일하게 개봉음을 재생합니다.
