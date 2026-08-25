@@ -87,6 +87,18 @@ Cooper: “No. It’s necessary.”`,
 9. Only when it’s difficult does it become worthwhile.
 
 10. Ideas are cheap. Putting them into action is what has value.`,
-    author: "Feng Ji,",
+    author: "Feng Ji"
+  }),
+
+  Object.freeze({
+    id: "note_011",
+    text: `Protect me from what I want.`,
+    author: "Jenny Holzer"
+  }),
+
+  Object.freeze({
+    id: "note_012",
+    text: `Let there be light.`,
+    author: "God"
   })
 ]);
