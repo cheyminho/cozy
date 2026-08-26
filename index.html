@@ -5330,7 +5330,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.235"
+  data-game-version="0.236"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6498,8 +6498,10 @@ Firearm and ammo required.</div>
       // 파티클 컬러 수정 위치입니다. CSS에서 사용할 수 있는 색상값(예: "#ffffff", "rgb(255, 255, 255)")을 넣으면 됩니다.
       const AXE_PICKUP_PARTICLE_COLOR = "#e5cf99";
       const CHAINSAW_ZOMBIE_PARTICLE_COLOR = "#98c55f";
+      const GRENADE_EXPLOSION_PARTICLE_COLOR = "#e5cf99";
 
       const AXE_PICKUP_PARTICLE_COUNT = 3;
+      const GRENADE_EXPLOSION_PARTICLE_COUNT = 30;
       // 도끼 파티클 시작 위치: 그루터기 중심 기준 +X는 오른쪽, +Y는 아래쪽입니다.
       const AXE_PICKUP_PARTICLE_OFFSET_X = 10;
       const AXE_PICKUP_PARTICLE_OFFSET_Y = -20;
@@ -6816,6 +6818,7 @@ Firearm and ammo required.</div>
       const GRENADE_BOUNCE_SOUND = "sounds/sfx_grenade_bounce.wav";
       const GRENADE_BLAST_SOUND = "sounds/sfx_grenade_blast.wav";
       const GRENADE_EXPLOSION_IMAGE = "images/grenade_explosion.png";
+      const GRENADE_CRATER_IMAGE = "images/grenade_crater.png";
       const REPORT_REQUEST_SOUND = "sounds/sfx_morse.wav";
 
       const CAR_TRAVEL_DURATION_MS = 5_000;
@@ -6986,6 +6989,11 @@ Firearm and ammo required.</div>
       const GRENADE_EXPLOSION_FRAME_COUNT = 16;
       const GRENADE_EXPLOSION_FRAME_MS = 50;
       const GRENADE_EXPLOSION_DISPLAY_SIZE = 150;
+      const GRENADE_CRATER_WIDTH = 102.4;
+      const GRENADE_CRATER_HEIGHT = 51.2;
+      const GRENADE_CRATER_ENTRY_MS = 100;
+      const GRENADE_CRATER_HOLD_MS = 3_000;
+      const GRENADE_CRATER_FADE_MS = 2_000;
 
       const TREE_MAX_CHOPS_PER_GROWTH = 3;
       const TREE_GROWTH_READY = "ready";
@@ -7928,6 +7936,7 @@ Firearm and ammo required.</div>
           SUPPLY_BOX_IMAGE,
           SUPPLY_BOX_BROKEN_IMAGE,
           GRENADE_EXPLOSION_IMAGE,
+          GRENADE_CRATER_IMAGE,
           STUMP_WITH_AXE_IMAGE,
           STUMP_EMPTY_IMAGE,
           "images/house_1.png",
@@ -9586,7 +9595,7 @@ Firearm and ammo required.</div>
           entitiesBehindTree: 12, entities: 14, entitiesFrontStructures: 16,
           clouds: 21, birds: 20, supplyBoxShadowLayer: 1, supplyBoxLayer: 19,
           treePartShadowLayer: 9, treePartLayer: 17, zombiePartShadowLayer: 9,
-          zombiePartLayer: 18, particleLayer: 18, grenadeExplosionLayer: 20
+          zombiePartLayer: 18, particleLayer: 18, grenadeCraterLayer: 1.5, grenadeExplosionLayer: 20
         };
         for (const [id, band] of Object.entries(layerBands)) layers.set(id, new FieldLayer(id, band));
 
@@ -10105,7 +10114,8 @@ Firearm and ammo required.</div>
           getEffectiveViewScale,
           getEffectiveViewOffset,
           get scene() { return scene; },
-          get game() { return game; }
+          get game() { return game; },
+          get lowLayer() { return fieldTone.lowLayer; }
         };
       }
 
@@ -10344,6 +10354,7 @@ Firearm and ammo required.</div>
       const zombiePartShadowLayer = phaserField.layer("zombiePartShadowLayer");
       const zombiePartLayer = phaserField.layer("zombiePartLayer");
       const particleLayer = phaserField.layer("particleLayer");
+      const grenadeCraterLayer = phaserField.layer("grenadeCraterLayer");
       const grenadeExplosionLayer = phaserField.layer("grenadeExplosionLayer");
       const treeHitArea = phaserField.named("treeHitArea");
 
@@ -11051,8 +11062,8 @@ Firearm and ammo required.</div>
       let lootListHideTimerId = null;
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
-      const TODO_MAX_LIST_ID = 8;
-      const TODO_SCHEMA_VERSION = 7;
+      const TODO_MAX_LIST_ID = 9;
+      const TODO_SCHEMA_VERSION = 8;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -11061,7 +11072,8 @@ Firearm and ammo required.</div>
         5: { item1: false, item2: false, item3: false },
         6: { item1: false, item2: false, item3: false },
         7: { item1: false, item2: false, item3: false },
-        8: { item1: false }
+        8: { item1: false, item2: false, item3: false },
+        9: { item1: false }
       };
 
       const skyClouds = [];
@@ -11082,7 +11094,7 @@ Firearm and ammo required.</div>
 
       const birds = [];
       let firstKillBirdFlockPlayed = false;
-      // 7차 미션을 받은 뒤 보급품 상자로 처치했는지만 기록합니다.
+      // 6차 미션을 받은 뒤 보급품 상자로 처치했는지만 기록합니다.
       let hasKilledWithSupplyBox = false;
       let nextSupplyBoxId = 1;
       const supplyBoxes = new Map();
@@ -11801,12 +11813,36 @@ Firearm and ammo required.</div>
         renderRainSpots();
       }
 
+      function forceRainForTodoNineDeliveryDay() {
+        isRainyToday = true;
+        hasEverRained = true;
+        if (!normalizeRainSpotSeed(rainSpotSeed)) {
+          rainSpotSeed = createRainSpotSeed();
+        }
+        rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
+        if (typeof applyWeatherState === "function") {
+          applyWeatherState();
+        }
+        return true;
+      }
+
       function rollWeatherForNewDay() {
         if (dayCount < RAIN_FIRST_ELIGIBLE_DAY) {
           isRainyToday = false;
           rainSpotSeed = 0;
           rainChancePercent = INITIAL_RAIN_CHANCE_PERCENT;
           return false;
+        }
+
+        const shouldForceTodoNineRain =
+          currentTodoListId === 8 &&
+          todoCompletedListId === 8 &&
+          todoCompletedDay > 0 &&
+          dayCount > todoCompletedDay &&
+          isTodoListComplete(8);
+
+        if (shouldForceTodoNineRain) {
+          return forceRainForTodoNineDeliveryDay();
         }
 
         isRainyToday = Math.random() * 100 < rainChancePercent;
@@ -12596,10 +12632,21 @@ Firearm and ammo required.</div>
           todoProgress[5].item1 = false;
         }
 
-        if (currentTodoListId === 7) {
+        if (currentTodoListId === 6) {
           // 보급품 상자 처치 미션은 수령 이전 기록을 인정하지 않습니다.
           hasKilledWithSupplyBox = false;
+          todoProgress[6].item1 = false;
+        }
+
+        if (currentTodoListId === 7) {
+          // 개와 놀기 미션도 수령 이전의 배보이기 기록은 인정하지 않습니다.
           todoProgress[7].item1 = false;
+        }
+
+        if (currentTodoListId === 8) {
+          // 샷건 처치/차량 도색은 반드시 8차 미션 수령 이후의 새 행동만 인정합니다.
+          todoProgress[8].item1 = false;
+          todoProgress[8].item2 = false;
         }
 
         syncTodoProgressFromCurrentState(currentTodoListId);
@@ -12670,6 +12717,12 @@ Firearm and ammo required.</div>
           return true;
         }
 
+        if (completedListId === 8) {
+          // 9차 미션을 받는 날은 비가 오도록 8차 완료 보상을 확정합니다.
+          forceRainForTodoNineDeliveryDay();
+          return true;
+        }
+
         return false;
       }
 
@@ -12731,14 +12784,19 @@ Firearm and ammo required.</div>
               getCurrentRainState()
           );
         } else if (listId === 6) {
-          // 개와 놀기는 미션 수령 후 새 배보이기 동작을 직접 유도해야 완료합니다.
-          // 지붕은 기존 설치 상태를 소급 인정하고, 세 번째 항목은 DAY 28부터 완료합니다.
+          // 보급품 상자 처치는 미션 수령 후 새 처치만 인정합니다.
+          // 지붕과 북마크는 현재 상태를 소급 인정합니다.
+          complete("item1", currentTodoListId === 6 && hasKilledWithSupplyBox);
           complete("item2", repairAppliedItemBySection.buildings.roof !== 5);
-          complete("item3", dayCount >= TODO_DAY_28_TARGET);
+          complete("item3", bookmarkedNoteIds.size > 0);
         } else if (listId === 7) {
-          complete("item1", currentTodoListId === 7 && hasKilledWithSupplyBox);
+          // 개와 놀기는 미션 수령 후 새 배보이기 동작을 직접 유도해야 완료합니다.
           complete("item2", repairAppliedItemBySection.buildings.walls !== 10);
           complete("item3", hasBuiltOutdoorSectionItem("garden"));
+        } else if (listId === 8) {
+          // 샷건 처치와 차량 도색은 미션 수령 후 새 행동만 인정합니다.
+          // 28 days later는 기존처럼 현재 DAY가 28 이상이면 완료합니다.
+          complete("item3", dayCount >= TODO_DAY_28_TARGET);
         }
 
         if (listId === currentTodoListId) {
@@ -13537,6 +13595,8 @@ Firearm and ammo required.</div>
           return ["All Paint x1"];
         }
 
+        if (listId === 8) return ["Raingurl"];
+
         return [];
       }
 
@@ -13570,16 +13630,21 @@ Firearm and ammo required.</div>
             "explore the city"
           ],
           6: [
-            "play with the dog",
+            "kill with a supply box",
             "change the roof",
-            "28 days later"
+            "bookmark a note"
           ],
           7: [
-            "kill with a supply box",
+            "play with the dog",
             "change the walls",
             "build a flower bed"
           ],
           8: [
+            "get a shotgun kill",
+            "paint the car",
+            "28 days later"
+          ],
+          9: [
             "wait for the next update"
           ]
         };
@@ -14904,6 +14969,9 @@ Firearm and ammo required.</div>
           playSound(CAR_PAINT_SOUND);
           consumeRepairMaterials(item.materials);
           activeCarPaintBlueprintId = item.blueprintId;
+          if (currentTodoListId === 8) {
+            setTodoProgress(8, "item2", true);
+          }
           item.isNew = false;
           updateResourceHud();
           applyRepairState();
@@ -15466,15 +15534,44 @@ Firearm and ammo required.</div>
             }
 
             if (storedTodoSchemaVersion < 7 && currentTodoListId === 7) {
-              // 이전 버전에서 미션 수령 전 처치를 소급 인정했을 수 있으므로 7차 진행 중이면 새 처치를 요구합니다.
+              // 이전 버전에서 미션 수령 전 처치를 소급 인정했을 수 있으므로 7차 진행 중이면 해당 기록을 폐기합니다.
               hasKilledWithSupplyBox = false;
               todoProgress[7].item1 = false;
               todoCompletedListId = 0;
               todoCompletedDay = 0;
             }
 
-            // 기존 6차 세 번째 항목의 저장 완료값은 폐기하고 DAY 28 기준으로 다시 계산합니다.
-            todoProgress[6].item3 = dayCount >= TODO_DAY_28_TARGET;
+            if (storedTodoSchemaVersion < 8) {
+              // 6차 item1은 새 보급품 상자 처치, item3은 북마크 미션입니다.
+              if (currentTodoListId <= 6) {
+                hasKilledWithSupplyBox = false;
+                todoProgress[6].item1 = false;
+                todoProgress[6].item3 = bookmarkedNoteIds.size > 0;
+                if (currentTodoListId === 6) {
+                  todoCompletedListId = 0;
+                  todoCompletedDay = 0;
+                }
+              }
+
+              // 7차 item1은 새 "play with the dog" 미션이므로 진행 중/미수령 상태에서는 새 행동을 요구합니다.
+              if (currentTodoListId <= 7) {
+                todoProgress[7].item1 = false;
+                if (currentTodoListId === 7) {
+                  todoCompletedListId = 0;
+                  todoCompletedDay = 0;
+                }
+              }
+
+              // 기존 8차는 업데이트 대기용 목록이었으므로 새 8차 세 미션은 새로 시작합니다.
+              todoProgress[8].item1 = false;
+              todoProgress[8].item2 = false;
+              todoProgress[8].item3 = dayCount >= TODO_DAY_28_TARGET;
+              todoProgress[9].item1 = false;
+              if (currentTodoListId === 8) {
+                todoCompletedListId = 0;
+                todoCompletedDay = 0;
+              }
+            }
           }
 
           // 회신 기반 저장값을 자동 완료/다음 DAY 배달 상태로 마이그레이션합니다.
@@ -15599,8 +15696,8 @@ Firearm and ammo required.</div>
             parsed.firstKillBirdFlockPlayed === true;
           hasKilledWithSupplyBox = parsed.hasKilledWithSupplyBox === true;
           if (
-            Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1)) < 7 &&
-            currentTodoListId === 7
+            Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1)) < 8 &&
+            currentTodoListId <= 6
           ) {
             hasKilledWithSupplyBox = false;
           }
@@ -16848,6 +16945,9 @@ Firearm and ammo required.</div>
 
         playSound(INVENTORY_SET_SOUND);
         updateNoteBookmarkButtonState(normalizedNoteId);
+        if (currentTodoListId === 6 && bookmarkedNoteIds.size > 0) {
+          setTodoProgress(6, "item3", true);
+        }
         // 즐겨찾기 토글 직후에는 현재 리스트 순서를 유지합니다.
         // Notes 탭을 다시 열거나 가방을 다시 열 때 rebuildInventoryPages()에서 정렬을 갱신합니다.
         saveResourceState();
@@ -19522,6 +19622,14 @@ Firearm and ammo required.</div>
         return true;
       }
 
+      function isTodoEightShotgunBoostActive() {
+        return (
+          currentTodoListId === 8 &&
+          todoProgress[8]?.item1 !== true &&
+          !hasShotgun
+        );
+      }
+
       function getNormalExplorationRewardDescriptors(plan, slotsRemaining) {
         const usedKeys = getPlanRewardTypeKeys(plan);
         const descriptors = [];
@@ -19546,7 +19654,9 @@ Firearm and ammo required.</div>
         };
 
         addWeapon("handgun", "handgunAmmo");
-        addWeapon("shotgun", "shotgunAmmo");
+        if (plan?.todoEightShotgunBoostRolled !== true) {
+          addWeapon("shotgun", "shotgunAmmo");
+        }
         addWeapon("chainsaw", "chainsawBattery");
         addSimple("handgunAmmo");
         addSimple("shotgunAmmo");
@@ -19784,6 +19894,19 @@ Firearm and ammo required.</div>
             addPlannedReward(plan, createPlannedItemReward("handgunAmmo", ammoQuantity, { guaranteedDayFive: true }));
           }
           targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
+        }
+
+        // 8차 샷건 미션 수령 시 샷건이 없다면 기존 샷건 획득 루트에서 정확히 50%로 판정합니다.
+        // 이 판정을 한 탐험에서는 실패하더라도 일반 랜덤 후보에서 샷건을 다시 뽑지 않습니다.
+        if (
+          isTodoEightShotgunBoostActive() &&
+          (destination === "village" || destination === "city")
+        ) {
+          plan.todoEightShotgunBoostRolled = true;
+          if (Math.random() < 0.5) {
+            addWeaponBundleToPlan(plan, "shotgun", "shotgunAmmo");
+            targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
+          }
         }
 
         // Todo 4 Village 보정 보상도 한 슬롯으로 취급합니다.
@@ -20046,12 +20169,12 @@ Firearm and ammo required.</div>
         }
       }
 
-      function awardExplorationItem(destination) {
+      function awardExplorationItem(destination, options = {}) {
         const candidates = [];
 
         if (!hasHandgun) candidates.push("handgun");
         if (handgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("handgunAmmo");
-        if (!hasShotgun) candidates.push("shotgun");
+        if (!hasShotgun && options.excludeShotgun !== true) candidates.push("shotgun");
         if (shotgunAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("shotgunAmmo");
         if (rifleAmmoCount < MAX_INVENTORY_QUANTITY) candidates.push("rifleAmmo");
         if (grenadeCount < MAX_INVENTORY_QUANTITY && Math.random() < GRENADE_NORMAL_REWARD_CANDIDATE_CHANCE) {
@@ -20254,6 +20377,17 @@ Firearm and ammo required.</div>
 
         configureExplorationBlueprintDefinitions();
 
+        const todoEightShotgunBoostActive =
+          isTodoEightShotgunBoostActive() &&
+          (destination === "village" || destination === "city");
+        if (todoEightShotgunBoostActive && Math.random() < 0.5) {
+          hasShotgun = true;
+          grantStarterSupplyForWeapon("shotgun");
+          markInventoryItemAsNew("shotgun");
+          applyInventoryState();
+          return;
+        }
+
         if (tryAwardFourthTodoVillageReward(destination, options)) {
           return;
         }
@@ -20275,7 +20409,7 @@ Firearm and ammo required.</div>
           return;
         }
 
-        awardExplorationItem(destination);
+        awardExplorationItem(destination, { excludeShotgun: todoEightShotgunBoostActive });
       }
 
       function finishExploration() {
@@ -20987,7 +21121,8 @@ Firearm and ammo required.</div>
           preloadImage(TREE_DAY_STAGE_TWO_IMAGE),
           preloadImage(TREE_DAY_STAGE_THREE_IMAGE),
           preloadImage(TREE_PART_IMAGE),
-          preloadImage(GRENADE_EXPLOSION_IMAGE)
+          preloadImage(GRENADE_EXPLOSION_IMAGE),
+          preloadImage(GRENADE_CRATER_IMAGE)
         ]);
       }
 
@@ -23751,7 +23886,10 @@ Firearm and ammo required.</div>
         particle.style.top = `${y + randomRange(-(options.jitterY ?? 0), options.jitterY ?? 0)}px`;
         particle.style.setProperty("--particle-color", color);
         const particleSize = Math.floor(
-          randomRange(PARTICLE_SIZE_MIN_PX, PARTICLE_SIZE_MAX_PX + 1)
+          randomRange(
+            options.sizeMin ?? PARTICLE_SIZE_MIN_PX,
+            (options.sizeMax ?? PARTICLE_SIZE_MAX_PX) + 1
+          )
         );
         const particleAlpha = randomRange(PARTICLE_ALPHA_MIN, PARTICLE_ALPHA_MAX);
         particle.style.setProperty("--particle-size", `${particleSize}px`);
@@ -23759,7 +23897,11 @@ Firearm and ammo required.</div>
         particleLayer.appendChild(particle);
 
         const vx = randomRange(options.vxMin ?? -0.09, options.vxMax ?? 0.09);
-        const vy = -randomRange(options.upSpeedMin ?? 0.13, options.upSpeedMax ?? 0.23);
+        const hasDirectVerticalVelocity =
+          Number.isFinite(options.vyMin) || Number.isFinite(options.vyMax);
+        const vy = hasDirectVerticalVelocity
+          ? randomRange(options.vyMin ?? options.vyMax ?? 0, options.vyMax ?? options.vyMin ?? 0)
+          : -randomRange(options.upSpeedMin ?? 0.13, options.upSpeedMax ?? 0.23);
         const gravity = options.gravity ?? PARTICLE_GRAVITY_PX_PER_MS2;
         const duration = randomRange(options.durationMin ?? 550, options.durationMax ?? 850);
         const startedAt = performance.now();
@@ -23799,6 +23941,29 @@ Firearm and ammo required.</div>
             upSpeedMax: 0.27,
             durationMin: 650,
             durationMax: 900
+          });
+        }
+      }
+
+      function spawnGrenadeExplosionParticles(worldX, worldY) {
+        for (let i = 0; i < GRENADE_EXPLOSION_PARTICLE_COUNT; i += 1) {
+          const baseAngle = Math.random() < 0.5 ? 0 : Math.PI;
+          const angle = baseAngle + randomRange(-0.95, 0.95);
+          const speed = randomRange(0.08, 0.2);
+          const vx = Math.cos(angle) * speed * 1.15;
+          const vy = Math.sin(angle) * speed * 0.45;
+          spawnGravityParticle(worldX, worldY, GRENADE_EXPLOSION_PARTICLE_COLOR, {
+            jitterX: 14,
+            jitterY: 14,
+            vxMin: vx * 0.88,
+            vxMax: vx * 1.12,
+            vyMin: vy * 0.88,
+            vyMax: vy * 1.12,
+            gravity: PARTICLE_GRAVITY_PX_PER_MS2 * 0.08,
+            durationMin: 380,
+            durationMax: 650,
+            sizeMin: 1,
+            sizeMax: 6
           });
         }
       }
@@ -25400,9 +25565,9 @@ Firearm and ammo required.</div>
         options = {}
       ) {
         hasSeenDogBelly = true;
-        // 6차 미션을 실제로 받은 뒤 새로 배보이기 동작을 유도했을 때만 "play with the dog"를 완료합니다.
-        if (currentTodoListId === 6) {
-          setTodoProgress(6, "item1", true);
+        // 7차 미션을 실제로 받은 뒤 새로 배보이기 동작을 유도했을 때만 "play with the dog"를 완료합니다.
+        if (currentTodoListId === 7) {
+          setTodoProgress(7, "item1", true);
         }
         activeDog.state = "bellyDown";
         activeDog.stateUntil = 0;
@@ -28363,10 +28528,10 @@ Firearm and ammo required.</div>
           beginDeerDeath(deer);
         }
 
-        // 7차 미션을 받은 뒤의 보급품 상자 처치만 미션 완료로 인정합니다.
-        if (currentTodoListId === 7) {
+        // 6차 미션을 받은 뒤의 보급품 상자 처치만 미션 완료로 인정합니다.
+        if (currentTodoListId === 6) {
           hasKilledWithSupplyBox = true;
-          setTodoProgress(7, "item1", true);
+          setTodoProgress(6, "item1", true);
         }
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
@@ -28763,9 +28928,69 @@ Firearm and ammo required.</div>
         }, GRENADE_EXPLOSION_FRAME_MS);
       }
 
+      function showGrenadeCrater(worldX, worldY) {
+        const scene = phaserField.scene;
+        const lowLayer = phaserField.lowLayer;
+        if (!scene) return;
+
+        const craterY = worldY + 15;
+        const craterDepth = 1.5 * 100000 + Math.round(craterY);
+        const craterTextureKey = `field:${GRENADE_CRATER_IMAGE}`;
+        let crater = null;
+
+        if (scene.textures.exists(craterTextureKey)) {
+          crater = scene.add.image(worldX, craterY, craterTextureKey);
+          crater.setOrigin(0.5, 0.5);
+          crater.setDisplaySize(GRENADE_CRATER_WIDTH, GRENADE_CRATER_HEIGHT);
+          crater.setBlendMode(Phaser.BlendModes.NORMAL);
+        } else {
+          crater = scene.add.ellipse(
+            worldX,
+            craterY,
+            GRENADE_CRATER_WIDTH * 0.72,
+            GRENADE_CRATER_HEIGHT * 0.46,
+            0x2b241f,
+            0.65
+          );
+        }
+
+        if (lowLayer) {
+          lowLayer.add(crater);
+          lowLayer.queueDepthSort?.();
+          lowLayer.depthSort?.();
+        }
+
+        crater.setDepth(craterDepth);
+        crater.setAlpha(1);
+        crater.setScale(0.5);
+
+        scene.tweens.add({
+          targets: crater,
+          scaleX: 1,
+          scaleY: 1,
+          duration: GRENADE_CRATER_ENTRY_MS,
+          ease: "Cubic.easeOut"
+        });
+
+        scene.time.delayedCall(GRENADE_CRATER_HOLD_MS, () => {
+          if (!crater || !crater.scene) return;
+          scene.tweens.add({
+            targets: crater,
+            alpha: 0,
+            scaleX: 0.9,
+            scaleY: 0.9,
+            duration: GRENADE_CRATER_FADE_MS,
+            ease: "Linear",
+            onComplete: () => crater?.destroy()
+          });
+        });
+      }
+
       function resolveGrenadeExplosion(worldX, worldY) {
         playSound(GRENADE_BLAST_SOUND);
+        showGrenadeCrater(worldX, worldY);
         showGrenadeExplosionVisual(worldX, worldY);
+        spawnGrenadeExplosionParticles(worldX, worldY);
 
         const hitZombies = Array.from(zombies.values()).filter((zombie) => {
           if (
@@ -28915,6 +29140,9 @@ Firearm and ammo required.</div>
 
       function beginShotgunDeath(zombie) {
         if (zombie.state === "dying" || zombie.state === "removed") return;
+        if (currentTodoListId === 8) {
+          setTodoProgress(8, "item1", true);
+        }
         registerPlayerZombieKill(zombie);
         spawnShotgunZombieParts(zombie);
         zombie.state = "removed";
