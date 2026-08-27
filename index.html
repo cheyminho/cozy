@@ -5330,7 +5330,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.236"
+  data-game-version="0.237"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7023,6 +7023,7 @@ Firearm and ammo required.</div>
       const RIFLE_SELECTED_TOAST_MESSAGE = "Better from a distance.";
       const RIFLE_AMMO_SELECTED_TOAST_MESSAGE = "A few more rounds.";
       const GRENADE_SELECTED_TOAST_MESSAGE = "Handle with care.";
+      const GRENADE_SAFE_ZONE_TOAST_MESSAGE = "Not a good idea.";
       const CHAINSAW_SELECTED_TOAST_MESSAGE = "Let’s cut this short.";
       const CHAINSAW_BATTERY_SELECTED_TOAST_MESSAGE = "This should keep it running.";
       const EMPTY_WEAPON_TOAST_MESSAGE = "No ammo.";
@@ -29068,10 +29069,49 @@ Firearm and ammo required.</div>
         const clientX = Number(event?.clientX);
         const clientY = Number(event?.clientY);
         if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+
+        const target = getWorldPointFromClient(clientX, clientY);
+
+        // 중앙 안전구역뿐 아니라 창고·자동차·나무의 실제 표시 영역에도
+        // 수류탄을 던질 수 없습니다. 금지 시 수류탄은 소모하지 않습니다.
+        const treeScale = getTreeRenderScale();
+        const grenadeBlockedZones = [
+          SAFE_ZONE,
+          {
+            left: shedObject.offsetLeft,
+            top: shedObject.offsetTop,
+            right: shedObject.offsetLeft + shedObject.offsetWidth,
+            bottom: shedObject.offsetTop + shedObject.offsetHeight
+          },
+          {
+            left: carObject.offsetLeft,
+            top: carObject.offsetTop,
+            right: carObject.offsetLeft + carObject.offsetWidth,
+            bottom: carObject.offsetTop + carObject.offsetHeight
+          },
+          {
+            left: tree.offsetLeft,
+            top: tree.offsetTop,
+            right: tree.offsetLeft + tree.offsetWidth * treeScale,
+            bottom: tree.offsetTop + tree.offsetHeight * treeScale
+          }
+        ];
+        const isInsideGrenadeBlockedZone = grenadeBlockedZones.some((zone) =>
+          target.x >= zone.left &&
+          target.x <= zone.right &&
+          target.y >= zone.top &&
+          target.y <= zone.bottom
+        );
+        if (isInsideGrenadeBlockedZone) {
+          grenadePressState.resolved = true;
+          event?.preventDefault?.();
+          showToast(GRENADE_SAFE_ZONE_TOAST_MESSAGE);
+          return true;
+        }
+
         if (!consumeGrenade()) return false;
 
         grenadePressState.resolved = true;
-        const target = getWorldPointFromClient(clientX, clientY);
         playSound(GRENADE_BOUNCE_SOUND);
         window.setTimeout(() => {
           resolveGrenadeExplosion(target.x, target.y);
