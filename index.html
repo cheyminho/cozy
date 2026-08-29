@@ -5633,7 +5633,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.241"
+  data-game-version="0.242"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -7258,6 +7258,10 @@ Firearm and ammo required.</div>
       const BGM_FADE_OUT_MS = 2_500;
       const BGM_QUIET_HOLD_MS = 1_000;
       const BGM_FADE_IN_MS = 2_500;
+      // 모바일 Safari에서 play() 시작 지연이 직접 들리지 않도록 짧게 무음 워밍업 후 올립니다.
+      const BGM_MOBILE_START_FADE_IN_MS = 250;
+      // 모바일에서 무음 워밍업 트랙을 0초로 되감은 뒤 Safari가 seek를 안정화할 짧은 시간입니다.
+      const BGM_MOBILE_SEEK_SETTLE_MS = 120;
       // 빗소리는 Walkman 설정과 별개로 날씨만 따라가며 부드럽게 나타나고 사라집니다.
       const RAIN_AMBIENT_FADE_IN_MS = 2_500;
       const RAIN_AMBIENT_FADE_OUT_MS = 2_500;
@@ -11816,6 +11820,11 @@ Firearm and ammo required.</div>
         }
       }
 
+      function shouldUseMobileBgmWarmup() {
+        if (!window.matchMedia) return false;
+        return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+      }
+
       function primeBgmWebAudioFromUserGesture() {
         // 전역 사운드 OFF에서는 gain 0으로라도 media element를 play하지 않습니다.
         if (!isGameSoundOn) return;
@@ -11827,6 +11836,7 @@ Firearm and ammo required.</div>
         for (const audio of bgmAudios) {
           if (
             audio === activeBgmAudio ||
+            audio === bgmTransitionTargetAudio ||
             bgmPrimedAudios.has(audio) ||
             bgmPrimePendingAudios.has(audio)
           ) {
@@ -11850,7 +11860,19 @@ Firearm and ammo required.</div>
               bgmStartScheduled &&
               bgmStartTimerId === null &&
               audio === getCurrentBgmAudio();
-            if (audio !== activeBgmAudio && !isImmediateStartTarget) {
+            const keepMobileScheduledTargetWarm =
+              shouldUseMobileBgmWarmup() &&
+              bgmStartScheduled &&
+              audio === getCurrentBgmAudio();
+            const keepMobileTransitionTargetWarm =
+              shouldUseMobileBgmWarmup() &&
+              audio === bgmTransitionTargetAudio;
+            if (
+              audio !== activeBgmAudio &&
+              !isImmediateStartTarget &&
+              !keepMobileScheduledTargetWarm &&
+              !keepMobileTransitionTargetWarm
+            ) {
               audio.pause();
               try {
                 audio.currentTime = 0;
@@ -11880,6 +11902,8 @@ Firearm and ammo required.</div>
       let bgmStartTimerId = null;
       let bgmFadeFrameId = null;
       let bgmFadeToken = 0;
+      // 모바일 BGM 전환 중 prime 루틴이 새 트랙을 pause/reset하지 않도록 보호합니다.
+      let bgmTransitionTargetAudio = null;
 
       const rainAmbientAudios = [
         createSfxAudio(RAIN_AMBIENT_SOUND),
@@ -18127,6 +18151,9 @@ Firearm and ammo required.</div>
         }
 
         const transitionToken = ++bgmFadeToken;
+        const useMobileWarmup = shouldUseMobileBgmWarmup();
+        let incomingWarmupPromise = null;
+        bgmTransitionTargetAudio = incomingAudio;
 
         if (bgmFadeFrameId !== null) {
           cancelAnimationFrame(bgmFadeFrameId);
@@ -18134,11 +18161,30 @@ Firearm and ammo required.</div>
         }
 
         if (incomingAudio !== activeBgmAudio) {
-          // 새 곡이 조용한 구간 동안 미리 진행되지 않도록 멈춰 둡니다.
-          incomingAudio.pause();
+          setBgmAudioLevel(incomingAudio, 0);
           try {
             incomingAudio.currentTime = 0;
           } catch (_) {}
+
+          if (useMobileWarmup) {
+            // 모바일은 기존 곡이 페이드아웃되는 동안 다음 곡을 완전 무음으로 미리 재생해
+            // 실제 페이드인 시점의 media element play()/디코딩 지연을 숨깁니다.
+            // muted도 함께 사용해 iOS에서 GainNode 적용 직전 짧은 소리가 새는 경우를 막습니다.
+            incomingAudio.muted = true;
+            try {
+              incomingWarmupPromise = Promise.resolve(incomingAudio.play())
+                .then(() => {
+                  bgmPrimedAudios.add(incomingAudio);
+                  return true;
+                })
+                .catch(() => false);
+            } catch (_) {
+              incomingWarmupPromise = Promise.resolve(false);
+            }
+          } else {
+            // PC는 기존 동작을 유지합니다.
+            incomingAudio.pause();
+          }
         }
 
         const fadedOut = await animateBgmVolumes(
@@ -18155,30 +18201,63 @@ Firearm and ammo required.</div>
         );
         if (!holdCompleted) return;
 
+        let mobileWarmupReady = false;
+        if (incomingWarmupPromise) {
+          mobileWarmupReady = await incomingWarmupPromise;
+          if (transitionToken !== bgmFadeToken) return;
+        }
+
         for (const audio of bgmAudios) {
           if (audio === incomingAudio) continue;
           audio.pause();
+          audio.muted = false;
           try {
             audio.currentTime = 0;
           } catch (_) {}
         }
-        try {
-          incomingAudio.currentTime = 0;
-        } catch (_) {}
 
-        if (!isGameSoundOn) return;
-
-        try {
-          await incomingAudio.play();
-        } catch (_) {
-          // 새 트랙 재생이 차단되면 다음 사용자 입력에서 다시 시도합니다.
-          activeBgmAudio = null;
-          bgmStarted = false;
+        if (!isGameSoundOn) {
+          if (bgmTransitionTargetAudio === incomingAudio) {
+            bgmTransitionTargetAudio = null;
+          }
           return;
+        }
+
+        if (useMobileWarmup && mobileWarmupReady && !incomingAudio.paused) {
+          // 워밍업 재생을 끊었다 다시 play하지 않습니다. gain/muted가 0인 상태에서
+          // 시작점만 되감고 짧게 안정화한 뒤 그대로 페이드인합니다.
+          setBgmAudioLevel(incomingAudio, 0);
+          try {
+            incomingAudio.currentTime = 0;
+          } catch (_) {}
+          const seekSettled = await waitForBgmTransition(
+            BGM_MOBILE_SEEK_SETTLE_MS,
+            transitionToken
+          );
+          if (!seekSettled) return;
+          incomingAudio.muted = false;
+        } else {
+          incomingAudio.muted = false;
+          try {
+            incomingAudio.currentTime = 0;
+          } catch (_) {}
+          try {
+            await incomingAudio.play();
+            bgmPrimedAudios.add(incomingAudio);
+          } catch (_) {
+            // 새 트랙 재생이 차단되면 다음 사용자 입력에서 다시 시도합니다.
+            activeBgmAudio = null;
+            bgmStarted = false;
+            if (bgmTransitionTargetAudio === incomingAudio) {
+              bgmTransitionTargetAudio = null;
+            }
+            return;
+          }
         }
 
         if (transitionToken !== bgmFadeToken) {
           incomingAudio.pause();
+          incomingAudio.muted = false;
           return;
         }
 
@@ -18190,6 +18269,9 @@ Firearm and ammo required.</div>
           transitionToken
         );
         if (!fadedIn) return;
+        if (bgmTransitionTargetAudio === incomingAudio) {
+          bgmTransitionTargetAudio = null;
+        }
       }
 
       function applyRainAmbientDeckVolumes() {
@@ -24881,20 +24963,40 @@ Firearm and ammo required.</div>
         }
         syncBgmMasterMuteState();
         const incomingAudio = getCurrentBgmAudio();
+        const useMobileWarmup = shouldUseMobileBgmWarmup();
 
         for (const audio of bgmAudios) {
-          audio.pause();
-          setBgmAudioLevel(audio, audio === incomingAudio ? 1 : 0);
+          if (audio !== incomingAudio || !useMobileWarmup) {
+            audio.pause();
+          }
+          setBgmAudioLevel(
+            audio,
+            audio === incomingAudio && !useMobileWarmup ? 1 : 0
+          );
           try {
             audio.currentTime = 0;
           } catch (_) {}
         }
 
         try {
-          await incomingAudio.play();
+          if (incomingAudio.paused) {
+            await incomingAudio.play();
+          }
           bgmPrimedAudios.add(incomingAudio);
           activeBgmAudio = incomingAudio;
           bgmStarted = true;
+
+          if (useMobileWarmup) {
+            // 모바일에서는 재생 자체를 무음으로 먼저 안정화한 뒤 짧게 올려
+            // 시작 순간의 Safari media element 재개음을 숨깁니다.
+            const startFadeToken = ++bgmFadeToken;
+            await animateBgmVolumes(
+              incomingAudio,
+              1,
+              BGM_MOBILE_START_FADE_IN_MS,
+              startFadeToken
+            );
+          }
         } catch (_) {
           // 저장 상태가 On이어도 자동 재생이 차단될 수 있습니다.
           // 이후 사용자 클릭에서 다시 재생을 시도합니다.
