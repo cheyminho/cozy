@@ -2245,6 +2245,7 @@
 
     #exploringGuide {
       width: 100%;
+      display: grid;
       color: #fff;
       font-family: "Kalam", cursive;
       font-size: 18px;
@@ -2254,6 +2255,18 @@
       white-space: pre-line;
       text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
       pointer-events: none;
+    }
+
+    /* 탐험 진행률이 100%가 되면 기존 안내가 1초간 사라진 뒤 완료 안내가 1초간 나타납니다. */
+    .exploring-guide-text {
+      grid-area: 1 / 1;
+      opacity: 0;
+      transition: opacity 1000ms ease-in-out;
+      pointer-events: none;
+    }
+
+    .exploring-guide-text.is-active {
+      opacity: 1;
     }
 
     /* 탐험 중 옵션 버튼은 버튼 수가 달라져도 행 전체가 항상 가운데 정렬됩니다. */
@@ -5633,7 +5646,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.243"
+  data-game-version="0.244"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -6063,8 +6076,11 @@
       <button id="exploringSoundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
       <button id="exploringWeatherTestToggleButton" class="option-control-button weather-test-toggle-button" type="button" aria-label="Set test weather to rainy" aria-pressed="false" hidden></button>
     </div>
-    <div id="exploringGuide">Exploring takes time, but rewards await.
+    <div id="exploringGuide">
+      <div class="exploring-guide-text is-active">Exploring takes time, but rewards await.
 You can leave the game and come back anytime.</div>
+      <div class="exploring-guide-text" aria-hidden="true"></div>
+    </div>
   </div>
   <div id="explorationOverlay" aria-hidden="true">
     <div id="explorationMenu" role="menu" aria-label="Exploration destinations">
@@ -10751,6 +10767,12 @@ Firearm and ammo required.</div>
       const exploringPercentValue = document.getElementById("exploringPercentValue");
       const exploringGuideGroup = document.getElementById("exploringGuideGroup");
       const exploringGuide = document.getElementById("exploringGuide");
+      const exploringGuideTextLayers = Array.from(
+        exploringGuide.querySelectorAll(".exploring-guide-text")
+      );
+      let exploringGuideActiveTextLayer = exploringGuideTextLayers[0] || null;
+      let exploringGuideInactiveTextLayer = exploringGuideTextLayers[1] || null;
+      let exploringGuideCrossfadeTimerId = null;
       const weatherStatusRow = document.getElementById("weatherStatusRow");
       const weatherLabel = document.getElementById("weatherLabel");
       const remainingZombieLabel = document.getElementById("remainingZombieLabel");
@@ -17926,6 +17948,53 @@ Firearm and ammo required.</div>
         exploringPercentValue.textContent = String(clamp(Math.round(value), 0, 100));
       }
 
+      function setExploringGuideText(message, options = {}) {
+        const targetMessage = String(message || "");
+        const shouldCrossfade = Boolean(options.crossfade);
+
+        if (!exploringGuideActiveTextLayer || !exploringGuideInactiveTextLayer) {
+          exploringGuide.textContent = targetMessage;
+          return;
+        }
+
+        if (exploringGuideActiveTextLayer.textContent === targetMessage) return;
+
+        if (exploringGuideCrossfadeTimerId !== null) {
+          clearTimeout(exploringGuideCrossfadeTimerId);
+          exploringGuideCrossfadeTimerId = null;
+        }
+
+        if (!shouldCrossfade) {
+          exploringGuideActiveTextLayer.textContent = targetMessage;
+          exploringGuideActiveTextLayer.classList.add("is-active");
+          exploringGuideInactiveTextLayer.classList.remove("is-active");
+          exploringGuideInactiveTextLayer.textContent = "";
+          return;
+        }
+
+        const outgoingLayer = exploringGuideActiveTextLayer;
+        const incomingLayer = exploringGuideInactiveTextLayer;
+        incomingLayer.textContent = targetMessage;
+        incomingLayer.classList.remove("is-active");
+
+        // 새 문구는 opacity 0으로 대기시키고, 기존 문구를 먼저 1초 동안 페이드아웃합니다.
+        void exploringGuide.offsetWidth;
+        outgoingLayer.classList.remove("is-active");
+
+        // 반복 UI 동기화가 들어와도 같은 전환을 다시 시작하지 않도록
+        // 논리상 활성 레이어는 먼저 새 문구 쪽으로 넘겨 둡니다.
+        exploringGuideActiveTextLayer = incomingLayer;
+        exploringGuideInactiveTextLayer = outgoingLayer;
+        exploringGuideCrossfadeTimerId = window.setTimeout(() => {
+          exploringGuideCrossfadeTimerId = null;
+          outgoingLayer.textContent = "";
+
+          // 기존 문구가 완전히 사라진 뒤 새 문구를 1초 동안 페이드인합니다.
+          void exploringGuide.offsetWidth;
+          incomingLayer.classList.add("is-active");
+        }, 1000);
+      }
+
       function syncExplorationProgressUI() {
         document.body.classList.toggle(
           "is-exploration-complete",
@@ -17936,9 +18005,12 @@ Firearm and ammo required.</div>
         // 집을 눌러 복귀 페이드가 진행 중일 때는 하단 문구를 바꾸지 않습니다.
         // Complete 안내가 그대로 사라진 뒤, 완전히 숨은 상태에서 다음 탐험용 기본 문구로 되돌립니다.
         if (!document.body.classList.contains("is-exploration-return-fading-out")) {
-          exploringGuide.textContent = isExplorationCompletePending
-            ? EXPLORATION_COMPLETE_GUIDE_MESSAGE
-            : EXPLORING_GUIDE_DEFAULT_MESSAGE;
+          setExploringGuideText(
+            isExplorationCompletePending
+              ? EXPLORATION_COMPLETE_GUIDE_MESSAGE
+              : EXPLORING_GUIDE_DEFAULT_MESSAGE,
+            { crossfade: isExplorationCompletePending }
+          );
         }
       }
 
@@ -21229,7 +21301,7 @@ Firearm and ammo required.</div>
         // commitResourceState()에서 body.is-exploring이 제거된 뒤에 복귀 페이드 상태를 정리합니다.
         // 이 순서를 지켜야 하단 그룹이 순간적으로 다시 나타나는 플래시가 생기지 않습니다.
         document.body.classList.remove("is-exploration-return-fading-out");
-        exploringGuide.textContent = EXPLORING_GUIDE_DEFAULT_MESSAGE;
+        setExploringGuideText(EXPLORING_GUIDE_DEFAULT_MESSAGE);
 
         if (explorationReturnUiTimerId !== null) {
           clearTimeout(explorationReturnUiTimerId);
