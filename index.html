@@ -2278,6 +2278,13 @@
       width: max-content;
       max-width: 100%;
       margin: 0 auto;
+      transform: translateY(0);
+    }
+
+    /* 완료 문구 페이드인 1초 동안, 줄 수 변화로 달라진 버튼 위치도 EaseInOutSine으로 보간합니다. */
+    #exploringOptionControls.is-guide-position-animating {
+      transition: transform 1000ms cubic-bezier(0.37, 0, 0.63, 1);
+      will-change: transform;
     }
 
     #exploringOptionControls .option-control-button {
@@ -5646,7 +5653,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.244"
+  data-game-version="0.245"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -10773,6 +10780,9 @@ Firearm and ammo required.</div>
       let exploringGuideActiveTextLayer = exploringGuideTextLayers[0] || null;
       let exploringGuideInactiveTextLayer = exploringGuideTextLayers[1] || null;
       let exploringGuideCrossfadeTimerId = null;
+      let exploringGuidePositionAnimationTimerId = null;
+      let exploringGuidePendingMessage = null;
+      const exploringOptionControls = document.getElementById("exploringOptionControls");
       const weatherStatusRow = document.getElementById("weatherStatusRow");
       const weatherLabel = document.getElementById("weatherLabel");
       const remainingZombieLabel = document.getElementById("remainingZombieLabel");
@@ -11597,6 +11607,10 @@ Firearm and ammo required.</div>
         BGM 오디오는 이 레지스트리에 넣지 않아 기존처럼 계속 재생됩니다.
       */
       const sfxAudioRegistry = new Set();
+      // playSound()에서 일회성으로 생성되는 효과음만 별도로 추적합니다.
+      // 재생 완료/실패/전역 사운드 OFF 시 즉시 레지스트리에서 제거해
+      // 모바일에서 HTMLAudioElement가 계속 누적되지 않게 합니다.
+      const transientSfxAudios = new Set();
       let isSfxMutedForBackground = document.visibilityState === "hidden";
 
       function createSfxAudio(path) {
@@ -11971,6 +11985,12 @@ Firearm and ammo required.</div>
             audio.currentTime = 0;
           } catch (_) {}
         }
+
+        // 일회성 효과음은 사운드 OFF 시 다시 이어서 쓸 필요가 없으므로 참조도 함께 해제합니다.
+        for (const audio of transientSfxAudios) {
+          sfxAudioRegistry.delete(audio);
+        }
+        transientSfxAudios.clear();
 
         pauseRainAmbientImmediatelyForGameSoundOff();
         stopChainsawIdleSound();
@@ -17948,6 +17968,44 @@ Firearm and ammo required.</div>
         exploringPercentValue.textContent = String(clamp(Math.round(value), 0, 100));
       }
 
+      function resetExploringGuideOptionPositionAnimation() {
+        if (exploringGuidePositionAnimationTimerId !== null) {
+          clearTimeout(exploringGuidePositionAnimationTimerId);
+          exploringGuidePositionAnimationTimerId = null;
+        }
+        if (!exploringOptionControls) return;
+        exploringOptionControls.classList.remove("is-guide-position-animating");
+        exploringOptionControls.style.transform = "translateY(0)";
+      }
+
+      function animateExploringGuideOptionPositionFrom(previousTop) {
+        if (!exploringOptionControls || !Number.isFinite(previousTop)) return;
+
+        resetExploringGuideOptionPositionAnimation();
+        const nextTop = exploringOptionControls.getBoundingClientRect().top;
+        const offsetY = previousTop - nextTop;
+        if (Math.abs(offsetY) < 0.5) return;
+
+        // 새 문구 레이아웃이 적용되는 순간에는 이전 화면 위치를 유지한 뒤,
+        // 문구의 1초 페이드인과 동시에 최종 위치까지 EaseInOutSine으로 이동합니다.
+        exploringOptionControls.style.transform = `translateY(${offsetY}px)`;
+        void exploringOptionControls.offsetWidth;
+        exploringOptionControls.classList.add("is-guide-position-animating");
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!exploringOptionControls.classList.contains("is-guide-position-animating")) return;
+            exploringOptionControls.style.transform = "translateY(0)";
+          });
+        });
+
+        exploringGuidePositionAnimationTimerId = window.setTimeout(() => {
+          exploringGuidePositionAnimationTimerId = null;
+          exploringOptionControls.classList.remove("is-guide-position-animating");
+          exploringOptionControls.style.transform = "translateY(0)";
+        }, 1000);
+      }
+
       function setExploringGuideText(message, options = {}) {
         const targetMessage = String(message || "");
         const shouldCrossfade = Boolean(options.crossfade);
@@ -17957,7 +18015,12 @@ Firearm and ammo required.</div>
           return;
         }
 
-        if (exploringGuideActiveTextLayer.textContent === targetMessage) return;
+        if (
+          exploringGuideActiveTextLayer.textContent === targetMessage ||
+          exploringGuidePendingMessage === targetMessage
+        ) {
+          return;
+        }
 
         if (exploringGuideCrossfadeTimerId !== null) {
           clearTimeout(exploringGuideCrossfadeTimerId);
@@ -17965,6 +18028,8 @@ Firearm and ammo required.</div>
         }
 
         if (!shouldCrossfade) {
+          exploringGuidePendingMessage = null;
+          resetExploringGuideOptionPositionAnimation();
           exploringGuideActiveTextLayer.textContent = targetMessage;
           exploringGuideActiveTextLayer.classList.add("is-active");
           exploringGuideInactiveTextLayer.classList.remove("is-active");
@@ -17974,10 +18039,11 @@ Firearm and ammo required.</div>
 
         const outgoingLayer = exploringGuideActiveTextLayer;
         const incomingLayer = exploringGuideInactiveTextLayer;
-        incomingLayer.textContent = targetMessage;
+        exploringGuidePendingMessage = targetMessage;
+        incomingLayer.textContent = "";
         incomingLayer.classList.remove("is-active");
 
-        // 새 문구는 opacity 0으로 대기시키고, 기존 문구를 먼저 1초 동안 페이드아웃합니다.
+        // 첫 1초 동안은 기존 문구만 페이드아웃하고 버튼 위치도 그대로 유지합니다.
         void exploringGuide.offsetWidth;
         outgoingLayer.classList.remove("is-active");
 
@@ -17987,10 +18053,18 @@ Firearm and ammo required.</div>
         exploringGuideInactiveTextLayer = outgoingLayer;
         exploringGuideCrossfadeTimerId = window.setTimeout(() => {
           exploringGuideCrossfadeTimerId = null;
-          outgoingLayer.textContent = "";
+          const previousOptionTop = exploringOptionControls
+            ? exploringOptionControls.getBoundingClientRect().top
+            : NaN;
 
-          // 기존 문구가 완전히 사라진 뒤 새 문구를 1초 동안 페이드인합니다.
+          outgoingLayer.textContent = "";
+          incomingLayer.textContent = targetMessage;
+          exploringGuidePendingMessage = null;
+
+          // 새 문구가 레이아웃에 반영된 뒤 버튼은 이전 위치를 시각적으로 유지하고,
+          // 새 문구의 1초 페이드인과 정확히 같은 타이밍으로 새 위치까지 이동합니다.
           void exploringGuide.offsetWidth;
+          animateExploringGuideOptionPositionFrom(previousOptionTop);
           incomingLayer.classList.add("is-active");
         }, 1000);
       }
@@ -24410,8 +24484,24 @@ Firearm and ammo required.</div>
         if (!isGameSoundOn || isSfxMutedForBackground) return;
         try {
           const audio = createSfxAudio(path);
+          transientSfxAudios.add(audio);
           audio.volume = volume;
-          audio.play().catch(() => {});
+
+          let released = false;
+          const releaseAudio = () => {
+            if (released) return;
+            released = true;
+            audio.removeEventListener("ended", releaseAudio);
+            audio.removeEventListener("error", releaseAudio);
+            transientSfxAudios.delete(audio);
+            sfxAudioRegistry.delete(audio);
+          };
+
+          audio.addEventListener("ended", releaseAudio, { once: true });
+          audio.addEventListener("error", releaseAudio, { once: true });
+          audio.play().catch(() => {
+            releaseAudio();
+          });
         } catch (_) {
           // 오디오 재생 실패는 게임 진행에 영향을 주지 않습니다.
         }
