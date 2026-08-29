@@ -239,7 +239,7 @@
       --note-reader-font-size: clamp(18px, 2.3vw, 22px);
       /* 세로 공간이 부족할 때 자동 축소할 수 있는 최소 크기입니다. */
       --note-reader-min-font-size: 8px;
-      --note-author-font-weight: 400;
+      --note-author-font-weight: 300;
       --note-author-font-style: normal;
       --note-title-font-size: calc(var(--note-reader-font-size) - 2px);
       --note-title-font-weight: 300;
@@ -2257,7 +2257,8 @@
       pointer-events: none;
     }
 
-    /* 탐험 진행률이 100%가 되면 기존 안내가 1초간 사라진 뒤 완료 안내가 1초간 나타납니다. */
+    /* 탐험 진행률 100% 전환: 기존 문구 1초 페이드아웃, 0.5초 뒤 새 문구 1초 페이드인.
+       두 페이드는 0.5초 겹쳐 전체 전환 시간은 1.5초입니다. */
     .exploring-guide-text {
       grid-area: 1 / 1;
       opacity: 0;
@@ -2281,9 +2282,9 @@
       transform: translateY(0);
     }
 
-    /* 완료 문구 페이드인 1초 동안, 줄 수 변화로 달라진 버튼 위치도 EaseInOutSine으로 보간합니다. */
+    /* 두 문구가 겹치는 0.5초 동안 줄 수 변화로 달라지는 버튼 위치를 EaseInOutSine으로 보간합니다. */
     #exploringOptionControls.is-guide-position-animating {
-      transition: transform 1000ms cubic-bezier(0.37, 0, 0.63, 1);
+      transition: transform 500ms cubic-bezier(0.37, 0, 0.63, 1);
       will-change: transform;
     }
 
@@ -3122,7 +3123,7 @@
       margin-top: 1.45em;
       text-align: right;
       white-space: pre-wrap;
-      font-size: var(--note-reader-current-font-size);
+      font-size: max(6px, calc(var(--note-reader-current-font-size) - 2px));
       font-weight: var(--note-author-font-weight);
       font-style: var(--note-author-font-style);
     }
@@ -5653,7 +5654,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.245"
+  data-game-version="0.246"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -17978,32 +17979,28 @@ Firearm and ammo required.</div>
         exploringOptionControls.style.transform = "translateY(0)";
       }
 
-      function animateExploringGuideOptionPositionFrom(previousTop) {
-        if (!exploringOptionControls || !Number.isFinite(previousTop)) return;
+      function animateExploringGuideOptionPositionBy(offsetY) {
+        if (!exploringOptionControls || !Number.isFinite(offsetY)) return;
 
         resetExploringGuideOptionPositionAnimation();
-        const nextTop = exploringOptionControls.getBoundingClientRect().top;
-        const offsetY = previousTop - nextTop;
         if (Math.abs(offsetY) < 0.5) return;
 
-        // 새 문구 레이아웃이 적용되는 순간에는 이전 화면 위치를 유지한 뒤,
-        // 문구의 1초 페이드인과 동시에 최종 위치까지 EaseInOutSine으로 이동합니다.
-        exploringOptionControls.style.transform = `translateY(${offsetY}px)`;
-        void exploringOptionControls.offsetWidth;
+        // 두 문구가 겹치는 0.5초 동안만 EaseInOutSine으로 최종 위치까지 이동합니다.
         exploringOptionControls.classList.add("is-guide-position-animating");
+        exploringOptionControls.style.transform = "translateY(0)";
+        void exploringOptionControls.offsetWidth;
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (!exploringOptionControls.classList.contains("is-guide-position-animating")) return;
-            exploringOptionControls.style.transform = "translateY(0)";
+            exploringOptionControls.style.transform = `translateY(${offsetY}px)`;
           });
         });
 
         exploringGuidePositionAnimationTimerId = window.setTimeout(() => {
           exploringGuidePositionAnimationTimerId = null;
-          exploringOptionControls.classList.remove("is-guide-position-animating");
-          exploringOptionControls.style.transform = "translateY(0)";
-        }, 1000);
+          // 레이아웃 전환 시점에 JS가 transform을 0으로 맞추므로 여기서는 상태만 유지합니다.
+        }, 500);
       }
 
       function setExploringGuideText(message, options = {}) {
@@ -18030,6 +18027,7 @@ Firearm and ammo required.</div>
         if (!shouldCrossfade) {
           exploringGuidePendingMessage = null;
           resetExploringGuideOptionPositionAnimation();
+          exploringGuide.style.removeProperty("height");
           exploringGuideActiveTextLayer.textContent = targetMessage;
           exploringGuideActiveTextLayer.classList.add("is-active");
           exploringGuideInactiveTextLayer.classList.remove("is-active");
@@ -18043,7 +18041,8 @@ Firearm and ammo required.</div>
         incomingLayer.textContent = "";
         incomingLayer.classList.remove("is-active");
 
-        // 첫 1초 동안은 기존 문구만 페이드아웃하고 버튼 위치도 그대로 유지합니다.
+        // 기존 문구는 1초 동안 페이드아웃합니다. 새 문구는 0.5초 뒤 페이드인을 시작해
+        // 두 문구가 0.5초 동안 겹치고 전체 전환 시간은 1.5초가 됩니다.
         void exploringGuide.offsetWidth;
         outgoingLayer.classList.remove("is-active");
 
@@ -18052,21 +18051,39 @@ Firearm and ammo required.</div>
         exploringGuideActiveTextLayer = incomingLayer;
         exploringGuideInactiveTextLayer = outgoingLayer;
         exploringGuideCrossfadeTimerId = window.setTimeout(() => {
-          exploringGuideCrossfadeTimerId = null;
-          const previousOptionTop = exploringOptionControls
-            ? exploringOptionControls.getBoundingClientRect().top
-            : NaN;
+          const previousGuideHeight = exploringGuide.getBoundingClientRect().height;
 
-          outgoingLayer.textContent = "";
           incomingLayer.textContent = targetMessage;
           exploringGuidePendingMessage = null;
 
-          // 새 문구가 레이아웃에 반영된 뒤 버튼은 이전 위치를 시각적으로 유지하고,
-          // 새 문구의 1초 페이드인과 정확히 같은 타이밍으로 새 위치까지 이동합니다.
+          // 기존 문구가 레이아웃을 계속 잡고 있어도 최종 문구 높이를 따로 측정합니다.
+          // 하단 고정 그룹이므로 (기존 높이 - 새 높이)만큼 옵션 버튼의 최종 Y가 이동합니다.
+          const incomingHeight = incomingLayer.scrollHeight;
+          const optionOffsetY = previousGuideHeight - incomingHeight;
+
+          // 겹치는 0.5초 동안 레이아웃 높이는 기존 값으로 고정하고,
+          // 버튼만 최종 위치까지 이동시켜 줄 수 변화로 인한 점프를 막습니다.
+          exploringGuide.style.height = `${previousGuideHeight}px`;
+          animateExploringGuideOptionPositionBy(optionOffsetY);
           void exploringGuide.offsetWidth;
-          animateExploringGuideOptionPositionFrom(previousOptionTop);
           incomingLayer.classList.add("is-active");
-        }, 1000);
+
+          exploringGuideCrossfadeTimerId = window.setTimeout(() => {
+            // 기존 문구의 1초 페이드아웃이 끝나는 시점.
+            // 실제 레이아웃을 새 문구 높이로 바꾸는 동시에 버튼 transform을 해제하면
+            // 화면상 위치는 그대로 이어져 점프가 생기지 않습니다.
+            outgoingLayer.textContent = "";
+            exploringOptionControls?.classList.remove("is-guide-position-animating");
+            if (exploringOptionControls) exploringOptionControls.style.transform = "translateY(0)";
+            exploringGuide.style.height = `${incomingHeight}px`;
+            void exploringGuide.offsetWidth;
+
+            exploringGuideCrossfadeTimerId = window.setTimeout(() => {
+              exploringGuideCrossfadeTimerId = null;
+              exploringGuide.style.removeProperty("height");
+            }, 500);
+          }, 500);
+        }, 500);
       }
 
       function syncExplorationProgressUI() {
