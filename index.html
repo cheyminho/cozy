@@ -5299,12 +5299,12 @@
     }
 
     .flower-plant-actions.is-bottom {
-      bottom: max(84px, calc(env(safe-area-inset-bottom) + 50px));
+      bottom: max(60px, calc(env(safe-area-inset-bottom) + 50px));
       transform: translate(-50%, 90px);
     }
 
     .flower-plant-actions.is-top {
-      top: max(84px, calc(env(safe-area-inset-top) + 50px));
+      top: max(60px, calc(env(safe-area-inset-top) + 50px));
       transform: translate(-50%, -90px);
     }
 
@@ -5633,7 +5633,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.238"
+  data-game-version="0.239"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -22004,7 +22004,7 @@ Firearm and ammo required.</div>
         plantedFlowers.push(flower);
         createPlantedFlowerNode(flower);
         flowerPlantPlacementCommitted = true;
-        playSound(FLOWER_PLANT_SOUND, 0.4);
+        playSound(FLOWER_PLANT_SOUND, 0.25);
         showToast(FLOWER_PLANTED_TOAST_MESSAGE);
         if (currentTodoListId === 4) setTodoProgress(4, "item2", true);
         applyInventoryState();
