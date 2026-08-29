@@ -3308,7 +3308,7 @@
       display: flex;
       align-items: flex-end;
       justify-content: center;
-      gap: 16px;
+      gap: 10px;
       width: fit-content;
       max-width: 100%;
       min-height: 45px;
@@ -3368,11 +3368,15 @@
       cursor: pointer;
     }
 
+    .inventory-category:not(.is-selected) {
+      font-size: 13px;
+    }
+
     .inventory-category-label {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 3px;
+      gap: 1px;
       transform: scale(1);
       transform-origin: center bottom;
       transition:
@@ -3392,7 +3396,7 @@
       pointer-events: none;
     }
 
-    /* icon_inventorytab.png: 좌상단 All / 우상단 Weapons / 좌하단 Notes (기존 Clothing 위치) */
+    /* icon_inventorytab.png: 좌상단 All / 우상단 Arms / 좌하단 Notes / 우하단 Flowers */
     .inventory-category-icon {
       display: inline-block;
       flex: 0 0 auto;
@@ -3417,7 +3421,12 @@
       background-position: left bottom;
     }
 
+    .inventory-category[data-inventory-category="flowers"] .inventory-category-icon {
+      background-position: right bottom;
+    }
+
     .inventory-category.is-selected {
+      font-size: 13px;
       border-color: transparent;
       border-radius: 0;
       z-index: 1;
@@ -3855,14 +3864,21 @@
     }
 
     @media (max-width: 420px) {
-      #repairCategories,
-      #inventoryCategories {
+      #repairCategories {
         gap: 13px;
+      }
+
+      #inventoryCategories {
+        gap: 7px;
       }
 
       .repair-category,
       .inventory-category {
         font-size: 13px;
+      }
+
+      .inventory-category:not(.is-selected) {
+        font-size: 11px;
       }
 
       .repair-category.is-selected .repair-category-label,
@@ -5150,6 +5166,293 @@
       background: rgba(255, 235, 80, 0.08);
     }
 
+    /* =========================================================
+       꽃 심기 화면
+       ========================================================= */
+    #flowerPlantOverlay {
+      --flower-hole-x: 50vw;
+      --flower-hole-y: 50vh;
+      position: fixed;
+      inset: 0;
+      z-index: 155;
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      touch-action: none;
+      transition: opacity 160ms ease-out, visibility 0s linear 160ms;
+    }
+
+    #flowerPlantOverlay.is-open {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: 0s;
+    }
+
+    #flowerPlantDimmer {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.50);
+      pointer-events: none;
+      -webkit-mask-image: radial-gradient(
+        circle 32px at var(--flower-hole-x) var(--flower-hole-y),
+        transparent 0 31px,
+        rgba(0, 0, 0, 1) 32px
+      );
+      mask-image: radial-gradient(
+        circle 32px at var(--flower-hole-x) var(--flower-hole-y),
+        transparent 0 31px,
+        rgba(0, 0, 0, 1) 32px
+      );
+    }
+
+    #flowerPlantPosition {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 64px;
+      height: 64px;
+      border: 1px solid rgba(255, 255, 255, 1);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      touch-action: none;
+      pointer-events: auto;
+      will-change: left, top;
+    }
+
+    #flowerPlantPosition.is-dragging {
+      cursor: grabbing;
+    }
+
+    #flowerPlantPreview {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 16px;
+      height: 32px;
+      background-image: url("images/flowers.png");
+      background-repeat: no-repeat;
+      background-size: 64px 64px;
+      background-position: 0 0;
+      transform: translate(-50%, -50%);
+      opacity: 1;
+      pointer-events: none;
+      image-rendering: auto;
+      transition: opacity 120ms ease-out;
+    }
+
+    #flowerPlantPreview.is-hidden {
+      opacity: 0;
+    }
+
+    .flower-plant-direction-arrow {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: url("images/arrow_mini.png") center / 16px 16px no-repeat;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .flower-plant-direction-arrow.is-top {
+      left: 50%;
+      top: -14px;
+      transform: translateX(-50%);
+    }
+
+    .flower-plant-direction-arrow.is-right {
+      right: -14px;
+      top: 50%;
+      transform: translateY(-50%) rotate(90deg);
+    }
+
+    .flower-plant-direction-arrow.is-bottom {
+      left: 50%;
+      bottom: -14px;
+      transform: translateX(-50%) rotate(180deg);
+    }
+
+    .flower-plant-direction-arrow.is-left {
+      left: -14px;
+      top: 50%;
+      transform: translateY(-50%) rotate(-90deg);
+    }
+
+    .flower-plant-actions {
+      position: fixed;
+      left: 50%;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: max-content;
+      max-width: calc(100vw - 32px);
+      opacity: 0;
+      pointer-events: none;
+      will-change: transform, opacity;
+      transition:
+        transform 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+        opacity 160ms ease-out;
+    }
+
+    .flower-plant-actions.is-bottom {
+      bottom: max(84px, calc(env(safe-area-inset-bottom) + 50px));
+      transform: translate(-50%, 90px);
+    }
+
+    .flower-plant-actions.is-top {
+      top: max(84px, calc(env(safe-area-inset-top) + 50px));
+      transform: translate(-50%, -90px);
+    }
+
+    .flower-plant-actions.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, 0);
+    }
+
+    .flower-plant-button-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .flower-plant-action-button {
+      padding: 12px 20px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 22px;
+      font-weight: 350;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        transform 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        font-weight 160ms cubic-bezier(0.215, 0.61, 0.355, 1),
+        opacity 120ms ease-out;
+    }
+
+    .flower-plant-action-button:disabled {
+      cursor: default;
+      opacity: 0.3;
+    }
+
+    .flower-plant-action-button:active:not(:disabled) {
+      transform: scale(0.94);
+      transition-duration: 70ms;
+    }
+
+    .flower-plant-action-button:focus-visible:not(:disabled) {
+      font-weight: 500;
+      transform: scale(1.07);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .flower-plant-action-button:hover:not(:disabled) {
+        font-weight: 500;
+        transform: scale(1.07);
+      }
+    }
+
+    .flower-plant-count {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 13px;
+      font-weight: 350;
+      line-height: 1;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /*
+      꽃 심기 중에는 일반 UI를 탐험 전환과 같은 방향성으로 퇴장시킵니다.
+      가방 메뉴는 중앙 UI이므로 짧게 페이드만 하고 논리적으로는 열린 상태를 유지해
+      Cancel 시 Flowers 탭으로 그대로 복귀합니다.
+    */
+    body.is-flower-planting #inventoryOverlay {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: visible !important;
+      transition: opacity 160ms ease-out !important;
+    }
+
+    body.is-flower-planting-returning #inventoryOverlay {
+      transition: opacity 160ms ease-out !important;
+    }
+
+    body.is-flower-planting #menuBackdrop {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      transition: opacity 160ms ease-out, visibility 0s linear 160ms !important;
+    }
+
+    #hud,
+    #optionControls,
+    #hudActionButtons,
+    #reportButton,
+    #repairButton,
+    #inventoryButton,
+    #exploreButton,
+    #todoListOverlay,
+    #lootListOverlay,
+    #dayStatus,
+    #exploringStatus,
+    #versionLabel,
+    #tutorialGuideLayer,
+    #tutorialVillageGuideLayer,
+    #findZombieGuideLayer {
+      transition:
+        translate var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1),
+        opacity var(--game-ui-entry-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body.is-flower-planting #hud {
+      opacity: 0 !important;
+      translate: 0 -120px !important;
+      pointer-events: none !important;
+    }
+
+    body.is-flower-planting #optionControls {
+      opacity: 0 !important;
+      translate: -180px 0 !important;
+      pointer-events: none !important;
+    }
+
+    body.is-flower-planting #reportButton,
+    body.is-flower-planting #repairButton,
+    body.is-flower-planting #inventoryButton,
+    body.is-flower-planting #exploreButton,
+    body.is-flower-planting #todoListOverlay,
+    body.is-flower-planting #lootListOverlay,
+    body.is-flower-planting #dayStatus,
+    body.is-flower-planting #exploringStatus {
+      opacity: 0 !important;
+      translate: 180px 0 !important;
+      pointer-events: none !important;
+    }
+
+    body.is-flower-planting #versionLabel,
+    body.is-flower-planting #tutorialGuideLayer,
+    body.is-flower-planting #tutorialVillageGuideLayer,
+    body.is-flower-planting #findZombieGuideLayer {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
   </style>
 
   <style id="phaser-field-overrides">
@@ -5330,7 +5633,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.237"
+  data-game-version="0.238"
   data-reset-save-on-version-mismatch="false"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5451,6 +5754,12 @@
         saturation: 0.7,
         contrast: 1,
         colorBalance: Object.freeze({ red: 0.4, green: 0.9, blue: 2.5 })
+      }),
+      flowers: Object.freeze({
+        brightness: 0.72,
+        saturation: 0.82,
+        contrast: 1,
+        colorBalance: Object.freeze({ red: 0.7, green: 0.95, blue: 1.45 })
       })
     });
 
@@ -5810,11 +6119,15 @@ You can leave the game and come back anytime.</div>
         </button>
         <button class="inventory-category" type="button" role="tab" aria-selected="false" data-inventory-category="weapons">
           <span class="inventory-category-new-badge" hidden>NEW</span>
-          <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>Weapons</span></span>
+          <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>Arms</span></span>
         </button>
         <button class="inventory-category" type="button" role="tab" aria-selected="false" data-inventory-category="notes">
           <span class="inventory-category-new-badge" hidden>NEW</span>
           <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>Notes</span></span>
+        </button>
+        <button class="inventory-category" type="button" role="tab" aria-selected="false" data-inventory-category="flowers">
+          <span class="inventory-category-new-badge" hidden>NEW</span>
+          <span class="inventory-category-label"><span class="inventory-category-icon" aria-hidden="true"></span><span>Flowers</span></span>
         </button>
       </div>
       <div id="inventoryListArea">
@@ -5885,8 +6198,36 @@ You can leave the game and come back anytime.</div>
               <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Map</span></span>
               <span class="inventory-item__quantity"></span>
             </button>
-            <button class="inventory-item" type="button" role="menuitem" data-item="flowers" hidden>
-              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Flowers</span></span>
+            <button class="inventory-item" type="button" role="menuitem" data-item="shovel" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Shovel</span></span>
+              <span class="inventory-item__quantity"></span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerWhite" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">White Flower</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerRed" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Red Flower</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerPink" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Pink Flower</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerYellow" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Yellow Flower</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerOrange" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Orange Flower</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerBlue" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Blue Flower</span></span>
+              <span class="inventory-item__quantity">×0</span>
+            </button>
+            <button class="inventory-item" type="button" role="menuitem" data-item="flowerViolet" hidden>
+              <span class="inventory-item__name"><span class="inventory-item-new-badge" hidden>NEW</span><span class="inventory-item__label">Violet Flower</span></span>
               <span class="inventory-item__quantity">×0</span>
             </button>
             <button class="inventory-item" type="button" role="menuitem" data-item="whitePaint" hidden>
@@ -5926,6 +6267,30 @@ You can leave the game and come back anytime.</div>
     <div id="noteReaderContent" role="dialog" aria-modal="true" aria-label="Note">
       <div id="noteReaderText"></div>
       <div id="noteReaderAuthor"></div>
+    </div>
+  </div>
+  <div id="flowerPlantOverlay" aria-hidden="true">
+    <div id="flowerPlantDimmer" aria-hidden="true"></div>
+    <div id="flowerPlantPosition" role="application" aria-label="Flower position">
+      <div class="flower-plant-direction-arrow is-top" aria-hidden="true"></div>
+      <div class="flower-plant-direction-arrow is-right" aria-hidden="true"></div>
+      <div class="flower-plant-direction-arrow is-bottom" aria-hidden="true"></div>
+      <div class="flower-plant-direction-arrow is-left" aria-hidden="true"></div>
+      <div id="flowerPlantPreview" aria-hidden="true"></div>
+    </div>
+    <div id="flowerPlantActionsBottom" class="flower-plant-actions is-bottom is-visible">
+      <div class="flower-plant-button-row">
+        <button class="flower-plant-action-button" type="button" data-flower-plant-action="plant">Plant</button>
+        <button class="flower-plant-action-button" type="button" data-flower-plant-action="cancel">Cancel</button>
+      </div>
+      <div class="flower-plant-count" data-flower-plant-count>White Flowers x0</div>
+    </div>
+    <div id="flowerPlantActionsTop" class="flower-plant-actions is-top">
+      <div class="flower-plant-button-row">
+        <button class="flower-plant-action-button" type="button" data-flower-plant-action="plant">Plant</button>
+        <button class="flower-plant-action-button" type="button" data-flower-plant-action="cancel">Cancel</button>
+      </div>
+      <div class="flower-plant-count" data-flower-plant-count>White Flowers x0</div>
     </div>
   </div>
   <div id="reportOverlay" aria-hidden="true">
@@ -6366,7 +6731,31 @@ Firearm and ammo required.</div>
           : "Note";
       }
 
-      const INVENTORY_CATEGORY_ORDER = Object.freeze(["all", "weapons", "notes"]);
+      const FLOWER_SHEET = "images/flowers.png";
+      const FLOWER_COLORS = Object.freeze(["white", "red", "pink", "yellow", "orange", "blue", "violet"]);
+      const FLOWER_DEFINITIONS = Object.freeze({
+        white: Object.freeze({ itemType: "flowerWhite", label: "White Flower", frameX: 0, frameY: 0 }),
+        red: Object.freeze({ itemType: "flowerRed", label: "Red Flower", frameX: 1, frameY: 0 }),
+        pink: Object.freeze({ itemType: "flowerPink", label: "Pink Flower", frameX: 2, frameY: 0 }),
+        yellow: Object.freeze({ itemType: "flowerYellow", label: "Yellow Flower", frameX: 3, frameY: 0 }),
+        orange: Object.freeze({ itemType: "flowerOrange", label: "Orange Flower", frameX: 0, frameY: 1 }),
+        blue: Object.freeze({ itemType: "flowerBlue", label: "Blue Flower", frameX: 1, frameY: 1 }),
+        violet: Object.freeze({ itemType: "flowerViolet", label: "Violet Flower", frameX: 2, frameY: 1 })
+      });
+      const FLOWER_ITEM_TYPES = Object.freeze(FLOWER_COLORS.map((color) => FLOWER_DEFINITIONS[color].itemType));
+      const FLOWER_COLOR_BY_ITEM_TYPE = Object.freeze(
+        Object.fromEntries(FLOWER_COLORS.map((color) => [FLOWER_DEFINITIONS[color].itemType, color]))
+      );
+      const FLOWER_FRAME_WIDTH = 16;
+      const FLOWER_FRAME_HEIGHT = 32;
+      const PLANTED_FLOWER_SCALE = 0.5;
+      const MAX_PLANTED_FLOWERS = 200;
+      const FLOWER_OCCUPIED_RADIUS = 4;
+      const FLOWER_MAX_PLANTED_TOAST_MESSAGE = "That’s enough flowers.";
+      const FLOWER_PLANTED_TOAST_MESSAGE = "Nice spot.";
+      const SHOVEL_SOUND = "sounds/sfx_shovel.wav";
+
+      const INVENTORY_CATEGORY_ORDER = Object.freeze(["all", "weapons", "notes", "flowers"]);
       const INVENTORY_CATEGORY_ITEM_TYPES = Object.freeze({
         weapons: Object.freeze([
           "axe",
@@ -6380,7 +6769,8 @@ Firearm and ammo required.</div>
           "grenade",
           "chainsawBattery"
         ]),
-        notes: NOTE_IDS
+        notes: NOTE_IDS,
+        flowers: Object.freeze(["shovel", ...FLOWER_ITEM_TYPES])
       });
 
       /*
@@ -6418,7 +6808,15 @@ Firearm and ammo required.</div>
         carParts: "Car Parts",
         repairKit: "Repair Kit",
         fuel: "Fuel",
-        flowers: "Flowers",
+        flowers: "White Flower",
+        shovel: "Shovel",
+        flowerWhite: "White Flower",
+        flowerRed: "Red Flower",
+        flowerPink: "Pink Flower",
+        flowerYellow: "Yellow Flower",
+        flowerOrange: "Orange Flower",
+        flowerBlue: "Blue Flower",
+        flowerViolet: "Violet Flower",
         whitePaint: "White Paint",
         blackPaint: "Black Paint",
         redPaint: "Red Paint",
@@ -6445,7 +6843,15 @@ Firearm and ammo required.</div>
         carParts: 2,
         fuel: 2,
         repairKit: 2,
+        shovel: 1.5,
         flowers: 2,
+        flowerWhite: 2,
+        flowerRed: 2,
+        flowerPink: 2,
+        flowerYellow: 2,
+        flowerOrange: 2,
+        flowerBlue: 2,
+        flowerViolet: 2,
         whitePaint: 2,
         blackPaint: 2,
         redPaint: 2,
@@ -6461,6 +6867,13 @@ Firearm and ammo required.</div>
         shotgunAmmo: 1,
         rifleAmmo: 1,
         grenade: 1,
+        flowerWhite: 3,
+        flowerRed: 3,
+        flowerPink: 3,
+        flowerYellow: 3,
+        flowerOrange: 3,
+        flowerBlue: 3,
+        flowerViolet: 3,
         whitePaint: 2,
         blackPaint: 2,
         redPaint: 2,
@@ -6686,6 +7099,7 @@ Firearm and ammo required.</div>
       // 지급값과 다시 눌렀을 때의 초기화 판정이 이 값을 함께 사용합니다.
       const TEST_AMMO_QUANTITY = 3;
       const TEST_GRENADE_QUANTITY = 30;
+      const TEST_FLOWER_QUANTITY = 30;
       const TEST_CHAINSAW_BATTERY_PERCENT = 5;
       const TEST_BUTTON_TRIPLE_CLICK_MAX_GAP_MS = 500;
       const DAY_NUMBER_ROLL_DELAY_MS = 2_000;
@@ -6817,6 +7231,7 @@ Firearm and ammo required.</div>
       const GRENADE_PIN_SOUND = "sounds/sfx_grenade_pin.wav";
       const GRENADE_BOUNCE_SOUND = "sounds/sfx_grenade_bounce.wav";
       const GRENADE_BLAST_SOUND = "sounds/sfx_grenade_blast.wav";
+      const FLOWER_PLANT_SOUND = "sounds/sfx_plant.wav";
       const GRENADE_EXPLOSION_IMAGE = "images/grenade_explosion.png";
       const GRENADE_CRATER_IMAGE = "images/grenade_crater.png";
       const REPORT_REQUEST_SOUND = "sounds/sfx_morse.wav";
@@ -7907,6 +8322,7 @@ Firearm and ammo required.</div>
           [ZOMBIE_PARTS_SHEET, { columns: 4, rows: 2 }],
           [SUPPLY_BOX_IMAGE, { columns: 3, rows: 2 }],
           [GRENADE_EXPLOSION_IMAGE, { columns: GRENADE_EXPLOSION_COLUMNS, rows: GRENADE_EXPLOSION_ROWS }],
+          [FLOWER_SHEET, { columns: 4, rows: 2 }],
           ["images/bg_field_default_clouds.png", { columns: CLOUD_SHEET_COLUMNS, rows: CLOUD_SHEET_ROWS }],
           ["images/bird_fly.png", { columns: BIRD_SHEET_COLUMNS, rows: BIRD_SHEET_ROWS }],
           ["images/shed_1.png", { columns: 2, rows: 2 }],
@@ -7938,6 +8354,7 @@ Firearm and ammo required.</div>
           SUPPLY_BOX_BROKEN_IMAGE,
           GRENADE_EXPLOSION_IMAGE,
           GRENADE_CRATER_IMAGE,
+          FLOWER_SHEET,
           STUMP_WITH_AXE_IMAGE,
           STUMP_EMPTY_IMAGE,
           "images/house_1.png",
@@ -9124,15 +9541,19 @@ Firearm and ammo required.</div>
             if (inheritedRole === "night") return;
 
             const isEntitySprite = this.special === "sprite";
-            const isFieldObject = this.dualTone || inheritedRole === "day" || isEntitySprite;
+            const isFlowerSprite = this.special === "flower";
+            const isFieldObject = this.dualTone || inheritedRole === "day" || isEntitySprite || isFlowerSprite;
             if (!isFieldObject) return;
 
-            const tone = isEntitySprite
-              ? NIGHT_FIELD_OBJECT_TONE.entities
-              : NIGHT_FIELD_OBJECT_TONE.structures;
+            const tone = isFlowerSprite
+              ? NIGHT_FIELD_OBJECT_TONE.flowers
+              : isEntitySprite
+                ? NIGHT_FIELD_OBJECT_TONE.entities
+                : NIGHT_FIELD_OBJECT_TONE.structures;
             const matrix5 = buildNightObjectMatrix(tone, mix);
             const target = this.singleImage;
-            const signature = `${isEntitySprite ? "entity" : "structure"}|${matrix5.map((v) => Number(v).toFixed(4)).join(",")}`;
+            const toneRole = isFlowerSprite ? "flower" : isEntitySprite ? "entity" : "structure";
+            const signature = `${toneRole}|${matrix5.map((v) => Number(v).toFixed(4)).join(",")}`;
             if (target.__cozzyNightFilterSignature === signature) return;
             target.__cozzyNightFilterSignature = signature;
             target.clearTint?.();
@@ -9592,8 +10013,11 @@ Firearm and ammo required.</div>
         staticNode("treeHitArea", { x: 1103, y: 592, width: 256, height: 512, scaleX: getTreeRenderScale(), scaleY: getTreeRenderScale(), depthBand: 8 });
 
         const layerBands = {
-          cloudShadows: 1, rainSpotLayer: 0.5, entitiesBehindShed: 10,
-          entitiesBehindTree: 12, entities: 14, entitiesFrontStructures: 16,
+          cloudShadows: 1, rainSpotLayer: 0.5,
+          flowersBehindShed: 9.5, entitiesBehindShed: 10,
+          flowersBehindTree: 11.5, entitiesBehindTree: 12,
+          flowersBehindCar: 13.5, entities: 14,
+          flowersFrontStructures: 15.5, entitiesFrontStructures: 16,
           clouds: 21, birds: 20, supplyBoxShadowLayer: 1, supplyBoxLayer: 19,
           treePartShadowLayer: 9, treePartLayer: 17, zombiePartShadowLayer: 9,
           zombiePartLayer: 18, particleLayer: 18, grenadeCraterLayer: 1.5, grenadeExplosionLayer: 20
@@ -10125,9 +10549,13 @@ Firearm and ammo required.</div>
       const world = document.getElementById("world");
       const cloudShadowsLayer = phaserField.layer("cloudShadows");
       const rainSpotLayer = phaserField.layer("rainSpotLayer");
+      const flowersBehindShedLayer = phaserField.layer("flowersBehindShed");
       const entitiesBehindShed = phaserField.layer("entitiesBehindShed");
+      const flowersBehindTreeLayer = phaserField.layer("flowersBehindTree");
       const entitiesBehindTree = phaserField.layer("entitiesBehindTree");
+      const flowersBehindCarLayer = phaserField.layer("flowersBehindCar");
       const entities = phaserField.layer("entities");
+      const flowersFrontStructuresLayer = phaserField.layer("flowersFrontStructures");
       const entitiesFrontStructures = phaserField.layer("entitiesFrontStructures");
       const cloudsLayer = phaserField.layer("clouds");
       const birdsLayer = phaserField.layer("birds");
@@ -10262,8 +10690,23 @@ Firearm and ammo required.</div>
       const mapInventoryItem = document.querySelector(
         '.inventory-item[data-item="map"]'
       );
-      const flowersInventoryItem = document.querySelector(
-        '.inventory-item[data-item="flowers"]'
+      const shovelInventoryItem = document.querySelector('.inventory-item[data-item="shovel"]');
+      const flowerInventoryItems = Object.fromEntries(
+        FLOWER_COLORS.map((color) => [
+          color,
+          document.querySelector(`.inventory-item[data-item="${FLOWER_DEFINITIONS[color].itemType}"]`)
+        ])
+      );
+      const flowerPlantOverlay = document.getElementById("flowerPlantOverlay");
+      const flowerPlantPosition = document.getElementById("flowerPlantPosition");
+      const flowerPlantPreview = document.getElementById("flowerPlantPreview");
+      const flowerPlantActionsBottom = document.getElementById("flowerPlantActionsBottom");
+      const flowerPlantActionsTop = document.getElementById("flowerPlantActionsTop");
+      const flowerPlantActionButtons = Array.from(
+        document.querySelectorAll("[data-flower-plant-action]")
+      );
+      const flowerPlantCountLabels = Array.from(
+        document.querySelectorAll("[data-flower-plant-count]")
       );
       const paintInventoryItems = Object.fromEntries(
         Object.keys(PAINT_ITEM_DEFINITIONS).map((itemType) => [
@@ -10732,6 +11175,8 @@ Firearm and ammo required.</div>
       let stoneCount = 0;
       let hasAxe = false;
       let isAxeEquipped = false;
+      let hasShovel = false;
+      let isStumpRemoved = false;
       let hasHandgun = false;
       let isHandgunEquipped = false;
       let hasHandgunAmmo = false;
@@ -10881,6 +11326,23 @@ Firearm and ammo required.</div>
 
       let carPartsCount = 0;
       let flowerCount = 0;
+      const flowerCounts = Object.fromEntries(FLOWER_COLORS.map((color) => [color, 0]));
+      let flowerConsumeCursor = 0;
+      let plantedFlowerIdCounter = 0;
+      let plantedFlowers = [];
+      const plantedFlowerNodes = new Map();
+      let isFlowerPlanting = false;
+      let flowerPlacementMode = "plant";
+      let selectedPlantFlowerColor = "white";
+      let flowerPlantWorldX = WORLD_SIZE / 2;
+      let flowerPlantWorldY = WORLD_SIZE / 2;
+      let flowerPlantButtonsAtTop = false;
+      let flowerPlantPlacementCommitted = false;
+      const flowerPlantDragState = {
+        active: false,
+        pointerId: null,
+        moved: false
+      };
       const paintCounts = Object.fromEntries(
         Object.keys(PAINT_ITEM_DEFINITIONS).map((itemType) => [itemType, 0])
       );
@@ -11063,8 +11525,8 @@ Firearm and ammo required.</div>
       let lootListHideTimerId = null;
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
-      const TODO_MAX_LIST_ID = 9;
-      const TODO_SCHEMA_VERSION = 8;
+      const TODO_MAX_LIST_ID = 10;
+      const TODO_SCHEMA_VERSION = 9;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -11074,7 +11536,8 @@ Firearm and ammo required.</div>
         6: { item1: false, item2: false, item3: false },
         7: { item1: false, item2: false, item3: false },
         8: { item1: false, item2: false, item3: false },
-        9: { item1: false }
+        9: { item1: false, item2: false, item3: false },
+        10: { item1: false }
       };
 
       const skyClouds = [];
@@ -11561,6 +12024,96 @@ Firearm and ammo required.</div>
           : 0;
       }
 
+      function syncFlowerCount() {
+        flowerCount = FLOWER_COLORS.reduce(
+          (sum, color) => sum + Math.max(0, Math.round(Number(flowerCounts[color]) || 0)),
+          0
+        );
+        return flowerCount;
+      }
+
+      function getFlowerCount(color) {
+        return Math.max(0, Math.round(Number(flowerCounts[color]) || 0));
+      }
+
+      function addFlowerCount(color, amount = 1) {
+        if (!FLOWER_DEFINITIONS[color]) return false;
+        const next = Math.min(
+          MAX_INVENTORY_QUANTITY,
+          getFlowerCount(color) + Math.max(0, Math.round(Number(amount) || 0))
+        );
+        if (next === getFlowerCount(color)) return false;
+        flowerCounts[color] = next;
+        syncFlowerCount();
+        return true;
+      }
+
+      function consumeFlowersBalanced(amount) {
+        let remaining = Math.max(0, Math.round(Number(amount) || 0));
+        if (remaining <= 0) return true;
+        if (syncFlowerCount() < remaining) return false;
+
+        while (remaining > 0) {
+          const maxCount = Math.max(...FLOWER_COLORS.map((color) => getFlowerCount(color)));
+          if (maxCount <= 0) return false;
+
+          let selectedIndex = -1;
+          for (let offset = 0; offset < FLOWER_COLORS.length; offset += 1) {
+            const index = (flowerConsumeCursor + offset) % FLOWER_COLORS.length;
+            if (getFlowerCount(FLOWER_COLORS[index]) === maxCount) {
+              selectedIndex = index;
+              break;
+            }
+          }
+          if (selectedIndex < 0) return false;
+
+          const color = FLOWER_COLORS[selectedIndex];
+          flowerCounts[color] = Math.max(0, getFlowerCount(color) - 1);
+          flowerConsumeCursor = (selectedIndex + 1) % FLOWER_COLORS.length;
+          remaining -= 1;
+        }
+
+        syncFlowerCount();
+        return true;
+      }
+
+      function setTotalFlowerCount(amount) {
+        const target = clamp(
+          Math.round(Number(amount) || 0),
+          0,
+          MAX_INVENTORY_QUANTITY * FLOWER_COLORS.length
+        );
+        const current = syncFlowerCount();
+        if (target === current) return;
+
+        if (target < current) {
+          consumeFlowersBalanced(current - target);
+          return;
+        }
+
+        let remaining = target - current;
+        while (remaining > 0) {
+          const minCount = Math.min(...FLOWER_COLORS.map((color) => getFlowerCount(color)));
+          let selectedIndex = -1;
+          for (let offset = 0; offset < FLOWER_COLORS.length; offset += 1) {
+            const index = (flowerConsumeCursor + offset) % FLOWER_COLORS.length;
+            if (
+              getFlowerCount(FLOWER_COLORS[index]) === minCount &&
+              getFlowerCount(FLOWER_COLORS[index]) < MAX_INVENTORY_QUANTITY
+            ) {
+              selectedIndex = index;
+              break;
+            }
+          }
+          if (selectedIndex < 0) break;
+          const color = FLOWER_COLORS[selectedIndex];
+          flowerCounts[color] = getFlowerCount(color) + 1;
+          flowerConsumeCursor = (selectedIndex + 1) % FLOWER_COLORS.length;
+          remaining -= 1;
+        }
+        syncFlowerCount();
+      }
+
       function isPrime(value) {
         if (!Number.isInteger(value) || value < 2) return false;
         if (value === 2) return true;
@@ -11814,7 +12367,7 @@ Firearm and ammo required.</div>
         renderRainSpots();
       }
 
-      function forceRainForTodoNineDeliveryDay() {
+      function forceRainForTodoTenDeliveryDay() {
         isRainyToday = true;
         hasEverRained = true;
         if (!normalizeRainSpotSeed(rainSpotSeed)) {
@@ -11835,36 +12388,29 @@ Firearm and ammo required.</div>
           return false;
         }
 
-        const shouldForceTodoNineRain =
-          currentTodoListId === 8 &&
-          todoCompletedListId === 8 &&
+        const shouldForceTodoTenRain =
+          currentTodoListId === 9 &&
+          todoCompletedListId === 9 &&
           todoCompletedDay > 0 &&
           dayCount > todoCompletedDay &&
-          isTodoListComplete(8);
-
-        if (shouldForceTodoNineRain) {
-          return forceRainForTodoNineDeliveryDay();
-        }
+          isTodoListComplete(9);
+        if (shouldForceTodoTenRain) return forceRainForTodoTenDeliveryDay();
 
         isRainyToday = Math.random() * 100 < rainChancePercent;
         if (isRainyToday) {
           hasEverRained = true;
           if (
-            currentTodoListId === 5 &&
+            currentTodoListId === 6 &&
             todoRainMissionAcceptedDay > 0 &&
             dayCount >= todoRainMissionAcceptedDay
           ) {
-            setTodoProgress(5, "item1", true);
+            setTodoProgress(6, "item1", true);
           }
         }
         rainSpotSeed = isRainyToday ? createRainSpotSeed() : 0;
         rainChancePercent = isRainyToday
           ? INITIAL_RAIN_CHANCE_PERCENT
-          : Math.min(
-              MAX_RAIN_CHANCE_PERCENT,
-              rainChancePercent + RAIN_CHANCE_DAILY_INCREASE_PERCENT
-            );
-
+          : Math.min(MAX_RAIN_CHANCE_PERCENT, rainChancePercent + RAIN_CHANCE_DAILY_INCREASE_PERCENT);
         return isRainyToday;
       }
 
@@ -12626,28 +13172,23 @@ Firearm and ammo required.</div>
         todoCompletedListId = 0;
         todoCompletedDay = 0;
 
-
-        if (currentTodoListId === 5 && todoRainMissionAcceptedDay <= 0) {
+        if (currentTodoListId === 6 && todoRainMissionAcceptedDay <= 0) {
           todoRainMissionAcceptedDay = dayCount;
-          // 이전 날의 비로 미리 완료된 값이 남아 있어도 미션 수령 시점에 폐기합니다.
-          todoProgress[5].item1 = false;
-        }
-
-        if (currentTodoListId === 6) {
-          // 보급품 상자 처치 미션은 수령 이전 기록을 인정하지 않습니다.
-          hasKilledWithSupplyBox = false;
           todoProgress[6].item1 = false;
         }
 
         if (currentTodoListId === 7) {
-          // 개와 놀기 미션도 수령 이전의 배보이기 기록은 인정하지 않습니다.
+          hasKilledWithSupplyBox = false;
           todoProgress[7].item1 = false;
         }
 
         if (currentTodoListId === 8) {
-          // 샷건 처치/차량 도색은 반드시 8차 미션 수령 이후의 새 행동만 인정합니다.
           todoProgress[8].item1 = false;
-          todoProgress[8].item2 = false;
+        }
+
+        if (currentTodoListId === 9) {
+          todoProgress[9].item1 = false;
+          todoProgress[9].item2 = false;
         }
 
         syncTodoProgressFromCurrentState(currentTodoListId);
@@ -12675,52 +13216,46 @@ Firearm and ammo required.</div>
         }
 
         if (completedListId === 3) {
-          const didNotHaveRifle = !hasRifle;
-          hasRifle = true;
-          if (didNotHaveRifle) {
-            markInventoryItemAsNew("rifle");
-          }
-
-          const previousRifleAmmoCount = rifleAmmoCount;
-          rifleAmmoCount = Math.min(
-            MAX_INVENTORY_QUANTITY,
-            rifleAmmoCount + 6
-          );
-          hasRifleAmmo = rifleAmmoCount > 0;
-          if (rifleAmmoCount > previousRifleAmmoCount) {
-            markInventoryItemAsNew("rifleAmmo");
-          }
+          const wasMissingShovel = !hasShovel;
+          hasShovel = true;
+          if (wasMissingShovel) markInventoryItemAsNew("shovel");
+          applyInventoryState();
           return true;
         }
 
         if (completedListId === 4) {
-          const wasMissingMap = !hasMap;
-          hasMap = true;
-          if (wasMissingMap) {
-            markInventoryItemAsNew("map");
-          }
-          updateExplorationRequirements();
+          const didNotHaveRifle = !hasRifle;
+          hasRifle = true;
+          if (didNotHaveRifle) markInventoryItemAsNew("rifle");
+          applyInventoryState();
           return true;
         }
 
         if (completedListId === 5) {
-          awardTodoBuildingBlueprintOrWood(TIMBER_ROOF_BLUEPRINT_ID, 10);
+          const wasMissingMap = !hasMap;
+          hasMap = true;
+          if (wasMissingMap) markInventoryItemAsNew("map");
+          updateExplorationRequirements();
           return true;
         }
 
         if (completedListId === 6) {
-          awardTodoBuildingBlueprintOrWood(TIMBER_WALLS_BLUEPRINT_ID, 15);
+          awardTodoBuildingBlueprintOrWood(TIMBER_ROOF_BLUEPRINT_ID, 10);
           return true;
         }
 
         if (completedListId === 7) {
-          awardSeventhTodoReward();
+          awardTodoBuildingBlueprintOrWood(TIMBER_WALLS_BLUEPRINT_ID, 15);
           return true;
         }
 
         if (completedListId === 8) {
-          // 9차 미션을 받는 날은 비가 오도록 8차 완료 보상을 확정합니다.
-          forceRainForTodoNineDeliveryDay();
+          awardSeventhTodoReward();
+          return true;
+        }
+
+        if (completedListId === 9) {
+          forceRainForTodoTenDeliveryDay();
           return true;
         }
 
@@ -12770,40 +13305,33 @@ Firearm and ammo required.</div>
           complete("item1", repairAppliedItemBySection.outdoor.fence >= 0);
           complete("item3", isShedRepaired());
         } else if (listId === 3) {
-          // item1은 Report 화면에서 보급품 Request가 실제로 성공했을 때만 완료합니다.
           complete("item2", dogCompletedStage >= 3);
         } else if (listId === 4) {
+          // 그루터기는 4차 수령 전에 제거했어도 소급 인정합니다.
+          complete("item1", isStumpRemoved);
+        } else if (listId === 5) {
           complete("item2", fuelCount >= 10);
           complete("item3", isCarRepaired());
-        } else if (listId === 5) {
-          // 미션을 실제로 받은 날을 포함해 그 이후 현재 비가 오는 경우만 인정합니다.
+        } else if (listId === 6) {
           complete(
             "item1",
-            currentTodoListId === 5 &&
+            currentTodoListId === 6 &&
               todoRainMissionAcceptedDay > 0 &&
               dayCount >= todoRainMissionAcceptedDay &&
               getCurrentRainState()
           );
-        } else if (listId === 6) {
-          // 보급품 상자 처치는 미션 수령 후 새 처치만 인정합니다.
-          // 지붕과 북마크는 현재 상태를 소급 인정합니다.
-          complete("item1", currentTodoListId === 6 && hasKilledWithSupplyBox);
+        } else if (listId === 7) {
+          complete("item1", currentTodoListId === 7 && hasKilledWithSupplyBox);
           complete("item2", repairAppliedItemBySection.buildings.roof !== 5);
           complete("item3", bookmarkedNoteIds.size > 0);
-        } else if (listId === 7) {
-          // 개와 놀기는 미션 수령 후 새 배보이기 동작을 직접 유도해야 완료합니다.
+        } else if (listId === 8) {
           complete("item2", repairAppliedItemBySection.buildings.walls !== 10);
           complete("item3", hasBuiltOutdoorSectionItem("garden"));
-        } else if (listId === 8) {
-          // 샷건 처치와 차량 도색은 미션 수령 후 새 행동만 인정합니다.
-          // 28 days later는 기존처럼 현재 DAY가 28 이상이면 완료합니다.
+        } else if (listId === 9) {
           complete("item3", dayCount >= TODO_DAY_28_TARGET);
         }
 
-        if (listId === currentTodoListId) {
-          syncCurrentTodoCompletionState();
-        }
-
+        if (listId === currentTodoListId) syncCurrentTodoCompletionState();
         return changed;
       }
 
@@ -13565,39 +14093,37 @@ Firearm and ammo required.</div>
       function getTodoRewardTexts(listId) {
         if (listId === 1) return ["Wooden Fence"];
         if (listId === 2) return ["Compass"];
-        if (listId === 3) return ["Rifle", "Rifle Ammo x10"];
-        if (listId === 4) return ["Map"];
+        if (listId === 3) return ["Shovel"];
+        if (listId === 4) return ["Rifle"];
+        if (listId === 5) return ["Map"];
 
-        if (listId === 5) {
+        if (listId === 6) {
           const hasTimberRoof =
             getBuildingBlueprintItem(TIMBER_ROOF_BLUEPRINT_ID)?.unlocked === true;
           return [hasTimberRoof ? "Wood x10" : "Timber Roof"];
         }
 
-        if (listId === 6) {
+        if (listId === 7) {
           const hasTimberWalls =
             getBuildingBlueprintItem(TIMBER_WALLS_BLUEPRINT_ID)?.unlocked === true;
           return [hasTimberWalls ? "Wood x15" : "Timber Walls"];
         }
 
-        if (listId === 7) {
+        if (listId === 8) {
           const nonWhiteBlueprintIds = CAR_PAINT_BLUEPRINT_IDS.filter(
             (blueprintId) => blueprintId !== CAR_PAINT_WHITE_BLUEPRINT_ID
           );
           const missingNonWhiteBlueprintIds = nonWhiteBlueprintIds.filter(
             (blueprintId) => getRepairBlueprintItem(blueprintId)?.unlocked !== true
           );
-          if (missingNonWhiteBlueprintIds.length > 0) {
-            return ["Car Paint Blueprint"];
-          }
+          if (missingNonWhiteBlueprintIds.length > 0) return ["Car Paint Blueprint"];
           if (getRepairBlueprintItem(CAR_PAINT_WHITE_BLUEPRINT_ID)?.unlocked !== true) {
             return [CAR_PAINT_BLUEPRINT_DEFINITIONS[CAR_PAINT_WHITE_BLUEPRINT_ID]?.name || "Car Paint: White"];
           }
           return ["All Paint x1"];
         }
 
-        if (listId === 8) return ["Raingurl"];
-
+        if (listId === 9) return ["Raingurl"];
         return [];
       }
 
@@ -13605,49 +14131,16 @@ Firearm and ammo required.</div>
         if (!todoListOverlay) return;
 
         const taskTexts = {
-          1: [
-            "clear the zombies",
-            "hunt a deer for food",
-            "explore the village"
-          ],
-          2: [
-            "build a fence",
-            "explore until the tree grows back.",
-            "repair the shed"
-          ],
-          3: [
-            "report 10 zombie kills",
-            "befriend the dog",
-            "explore the forest"
-          ],
-          4: [
-            "headshot",
-            "collect 10 fuel",
-            "repair the car"
-          ],
-          5: [
-            "singin’ in the rain",
-            "find flowers",
-            "explore the city"
-          ],
-          6: [
-            "kill with a supply box",
-            "change the roof",
-            "bookmark a note"
-          ],
-          7: [
-            "play with the dog",
-            "change the walls",
-            "build a flower bed"
-          ],
-          8: [
-            "get a shotgun kill",
-            "paint the car",
-            "28 days later"
-          ],
-          9: [
-            "wait for the next update"
-          ]
+          1: ["clear the zombies", "hunt a deer for food", "explore the village"],
+          2: ["build a fence", "explore until the tree grows back.", "repair the shed"],
+          3: ["report 10 zombie kills", "befriend the dog", "explore the forest"],
+          4: ["remove the stump", "plant a flower", "remove a flower"],
+          5: ["headshot", "collect 10 fuel", "repair the car"],
+          6: ["singin’ in the rain", "find flowers", "explore the city"],
+          7: ["kill with a supply box", "change the roof", "bookmark a note"],
+          8: ["play with the dog", "change the walls", "build a flower bed"],
+          9: ["get a shotgun kill", "paint the car", "28 days later"],
+          10: ["wait for the next update"]
         };
 
         const visible =
@@ -13655,17 +14148,12 @@ Firearm and ammo required.</div>
           !isTodoListRevealDelayed &&
           !isExploring &&
           !document.body.classList.contains("is-exploration-return-ui-delayed");
-        if (visible) {
-          showTodoListOverlay();
-        } else {
-          hideTodoListOverlay();
-          return;
-        }
+        if (visible) showTodoListOverlay();
+        else { hideTodoListOverlay(); return; }
 
         const texts = taskTexts[currentTodoListId] || [];
         const progress = todoProgress[currentTodoListId] || {};
         const keys = ["item1", "item2", "item3"];
-
         todoItemElements.forEach((element, index) => {
           const key = keys[index];
           const text = texts[index] || "";
@@ -13687,7 +14175,6 @@ Firearm and ammo required.</div>
             todoRewardItem.appendChild(rewardLine);
           }
         }
-
       }
 
       function showLootListOverlay() {
@@ -14267,7 +14754,7 @@ Firearm and ammo required.</div>
         if (resource === "food") return foodCount;
         if (resource === "stone") return stoneCount;
         if (resource === "carParts") return carPartsCount;
-        if (resource === "flowers") return flowerCount;
+        if (resource === "flowers") return syncFlowerCount();
         if (resource === "repairKit") return repairKitCount;
         if (resource in paintCounts) return paintCounts[resource];
         return 0;
@@ -14278,7 +14765,7 @@ Firearm and ammo required.</div>
         if (resource === "food") foodCount = Math.max(0, amount);
         if (resource === "stone") stoneCount = Math.max(0, amount);
         if (resource === "carParts") carPartsCount = clamp(Math.round(Number(amount) || 0), 0, getMaxCarPartsCount());
-        if (resource === "flowers") flowerCount = clamp(Math.round(Number(amount) || 0), 0, MAX_INVENTORY_QUANTITY);
+        if (resource === "flowers") setTotalFlowerCount(amount);
         if (resource === "repairKit") repairKitCount = clamp(Math.round(Number(amount) || 0), 0, MAX_INVENTORY_QUANTITY);
         if (resource in paintCounts) {
           paintCounts[resource] = clamp(
@@ -14297,8 +14784,13 @@ Firearm and ammo required.</div>
 
       function consumeRepairMaterials(materials) {
         for (const [resource, amount] of Object.entries(materials)) {
-          setRepairResourceAmount(resource, getRepairResourceAmount(resource) - amount);
+          if (resource === "flowers") {
+            consumeFlowersBalanced(amount);
+          } else {
+            setRepairResourceAmount(resource, getRepairResourceAmount(resource) - amount);
+          }
         }
+        syncFlowerCount();
       }
 
       function getRepairNewItemKey(category, index, item = null) {
@@ -14452,15 +14944,21 @@ Firearm and ammo required.</div>
         const line = getCategoryLineBounds(inventoryCategoriesElement);
         if (!line || !inventoryListArea) return;
 
-        // 탭 라인의 길이는 그대로 유지하고, 탭 아래 정보 영역만 좌우 각각 4px씩 안쪽으로 줄입니다.
-        const INVENTORY_CONTENT_SIDE_INSET = 4;
-        inventoryListArea.style.width = `${Math.max(0, line.width - INVENTORY_CONTENT_SIDE_INSET * 2)}px`;
+        // 가방 콘텐츠 폭도 수리 화면 콘텐츠 폭과 동일하게 맞춥니다.
+        // repairContent는 수리 탭 라인에 맞춰 이미 계산되어 있으므로 그 실제 폭을 그대로 사용합니다.
+        const repairContentWidth = Math.ceil(repairContent?.getBoundingClientRect().width || 0);
+        if (repairContentWidth > 0) {
+          inventoryListArea.style.width = `${repairContentWidth}px`;
+        } else {
+          inventoryListArea.style.removeProperty("width");
+        }
         inventoryListArea.style.setProperty("--inventory-list-align-x", "0px");
 
         const listRect = inventoryListArea.getBoundingClientRect();
+        const desiredLeft = line.right - listRect.width;
         inventoryListArea.style.setProperty(
           "--inventory-list-align-x",
-          `${line.left + INVENTORY_CONTENT_SIDE_INSET - listRect.left}px`
+          `${desiredLeft - listRect.left}px`
         );
       }
 
@@ -14970,8 +15468,8 @@ Firearm and ammo required.</div>
           playSound(CAR_PAINT_SOUND);
           consumeRepairMaterials(item.materials);
           activeCarPaintBlueprintId = item.blueprintId;
-          if (currentTodoListId === 8) {
-            setTodoProgress(8, "item2", true);
+          if (currentTodoListId === 9) {
+            setTodoProgress(9, "item2", true);
           }
           item.isNew = false;
           updateResourceHud();
@@ -14996,7 +15494,7 @@ Firearm and ammo required.</div>
             setTodoProgress(2, "item3", true);
           }
           if (item.blueprintId === CAR_REPAIR_BLUEPRINT_ID) {
-            setTodoProgress(4, "item3", true);
+            setTodoProgress(5, "item3", true);
             clearCarPartsAfterRepair();
           }
           updateResourceHud();
@@ -15019,7 +15517,7 @@ Firearm and ammo required.</div>
           if (repairSelectedCategory === "outdoor") {
             const section = getRepairSectionDefinition("outdoor", selectedIndex);
             if (section?.key === "garden") {
-              setTodoProgress(7, "item3", true);
+              setTodoProgress(8, "item3", true);
             }
           }
           updateResourceHud();
@@ -15066,9 +15564,9 @@ Firearm and ammo required.</div>
           previousAppliedIndex !== selectedIndex
         ) {
           if (appliedSection?.key === "roof") {
-            setTodoProgress(6, "item2", true);
-          } else if (appliedSection?.key === "walls") {
             setTodoProgress(7, "item2", true);
+          } else if (appliedSection?.key === "walls") {
+            setTodoProgress(8, "item2", true);
           }
         }
         applyRepairState();
@@ -15246,6 +15744,8 @@ Firearm and ammo required.</div>
             treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
           }
           hasAxe = parsed.hasAxe === true;
+          hasShovel = parsed.hasShovel === true;
+          isStumpRemoved = parsed.isStumpRemoved === true;
           hasHandgun = parsed.hasHandgun === true;
           hasHandgunAmmo = parsed.hasHandgunAmmo === true ||
             Number(parsed.handgunAmmo) > 0;
@@ -15324,7 +15824,7 @@ Firearm and ammo required.</div>
           for (const itemType of storedNewInventoryItems) {
             if (typeof itemType !== "string") continue;
             const normalizedNoteId = normalizeNoteId(itemType);
-            const resolvedItemType = normalizedNoteId || itemType;
+            const resolvedItemType = normalizedNoteId || (itemType === "flowers" ? "flowerWhite" : itemType);
             if (
               inventoryItems.some(
                 (item) => item.dataset.item === resolvedItemType
@@ -15357,7 +15857,7 @@ Firearm and ammo required.</div>
             : [];
           for (const itemType of storedViewedInventoryNewItems) {
             if (typeof itemType !== "string") continue;
-            const resolvedItemType = normalizeNoteId(itemType) || itemType;
+            const resolvedItemType = normalizeNoteId(itemType) || (itemType === "flowers" ? "flowerWhite" : itemType);
             if (newInventoryItemTypes.has(resolvedItemType)) {
               viewedInventoryNewItemTypes.add(resolvedItemType);
             }
@@ -15384,7 +15884,43 @@ Firearm and ammo required.</div>
           }
           hasCompass = parsed.hasCompass === true;
           carPartsCount = normalizeStoredCount(parsed.carParts, getMaxCarPartsCount());
-          flowerCount = normalizeStoredCount(parsed.flowers, MAX_INVENTORY_QUANTITY);
+
+          const storedFlowerCounts =
+            parsed.flowerCounts && typeof parsed.flowerCounts === "object"
+              ? parsed.flowerCounts
+              : null;
+          for (const color of FLOWER_COLORS) {
+            flowerCounts[color] = storedFlowerCounts
+              ? normalizeStoredCount(storedFlowerCounts[color], MAX_INVENTORY_QUANTITY)
+              : 0;
+          }
+          // 이전 버전의 단일 Flowers 수량은 모두 White Flower로 이전합니다.
+          if (!storedFlowerCounts) {
+            flowerCounts.white = normalizeStoredCount(parsed.flowers, MAX_INVENTORY_QUANTITY);
+          }
+          flowerConsumeCursor = clamp(
+            Math.round(Number(parsed.flowerConsumeCursor) || 0),
+            0,
+            FLOWER_COLORS.length - 1
+          );
+          syncFlowerCount();
+
+          const storedPlantedFlowers = Array.isArray(parsed.plantedFlowers)
+            ? parsed.plantedFlowers
+            : [];
+          plantedFlowers = storedPlantedFlowers
+            .slice(0, MAX_PLANTED_FLOWERS)
+            .map((entry, index) => {
+              const color = FLOWER_DEFINITIONS[entry?.color] ? entry.color : "";
+              const x = clamp(Number(entry?.x) || 0, 0, WORLD_SIZE);
+              const y = clamp(Number(entry?.y) || 0, 0, WORLD_SIZE);
+              if (!color) return null;
+              const numericId = Math.max(1, Math.round(Number(entry?.id) || index + 1));
+              plantedFlowerIdCounter = Math.max(plantedFlowerIdCounter, numericId);
+              return { id: numericId, color, x, y };
+            })
+            .filter(Boolean);
+
           const storedPaintCounts = parsed.paintCounts && typeof parsed.paintCounts === "object"
             ? parsed.paintCounts
             : {};
@@ -15483,8 +16019,8 @@ Firearm and ammo required.</div>
           const storedTodoProgress = parsed.todoProgress && typeof parsed.todoProgress === "object"
             ? parsed.todoProgress
             : null;
+          const storedTodoSchemaVersion = Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1));
           if (storedTodoProgress) {
-            const storedTodoSchemaVersion = Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1));
             for (const [listId, tasks] of Object.entries(todoProgress)) {
               const storedTasks = storedTodoProgress[listId];
               if (!storedTasks || typeof storedTasks !== "object") continue;
@@ -15575,6 +16111,32 @@ Firearm and ammo required.</div>
             }
           }
 
+          if (storedTodoSchemaVersion < 9) {
+            // 새 4차를 삽입해 기존 4~9차 진행 상태를 5~10차로 한 단계 이동합니다.
+            for (let oldId = 9; oldId >= 4; oldId -= 1) {
+              const source = todoProgress[oldId];
+              const target = todoProgress[oldId + 1];
+              for (const key of Object.keys(target)) {
+                target[key] = source?.[key] === true;
+              }
+            }
+            for (const key of Object.keys(todoProgress[4])) todoProgress[4][key] = false;
+
+            const shiftTodoId = (value) => {
+              const normalized = clamp(Math.round(Number(value) || 0), 0, 9);
+              return normalized >= 4 ? normalized + 1 : normalized;
+            };
+            const previousCurrentTodoListId = currentTodoListId;
+            currentTodoListId = shiftTodoId(currentTodoListId);
+            todoCompletedListId = shiftTodoId(todoCompletedListId);
+            lastCatDeliveredTodoListId = shiftTodoId(lastCatDeliveredTodoListId);
+
+            // 기존 3차까지 통과한 저장은 새 3차 보상인 Shovel을 소급 지급합니다.
+            if (previousCurrentTodoListId >= 4 || todoCompletedListId >= 3) {
+              hasShovel = true;
+            }
+          }
+
           // 회신 기반 저장값을 자동 완료/다음 DAY 배달 상태로 마이그레이션합니다.
           if (currentTodoListId > 0 && isTodoListComplete(currentTodoListId)) {
             if (
@@ -15596,11 +16158,11 @@ Firearm and ammo required.</div>
           // 이전 버전 저장에는 5차 비 미션 수령일이 없으므로 현재 진행 상태에 맞춰 보정합니다.
           // 아직 5차를 받기 전이면 과거 비로 미리 완료된 값은 제거합니다.
           if (todoRainMissionAcceptedDay <= 0) {
-            if (currentTodoListId === 5) {
+            if (currentTodoListId === 6) {
               todoRainMissionAcceptedDay = dayCount;
-              todoProgress[5].item1 = getCurrentRainState();
-            } else if (todoCompletedListId < 5 && currentTodoListId < 5) {
-              todoProgress[5].item1 = false;
+              todoProgress[6].item1 = getCurrentRainState();
+            } else if (todoCompletedListId < 6 && currentTodoListId < 6) {
+              todoProgress[6].item1 = false;
             }
           }
 
@@ -15698,7 +16260,7 @@ Firearm and ammo required.</div>
           hasKilledWithSupplyBox = parsed.hasKilledWithSupplyBox === true;
           if (
             Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1)) < 8 &&
-            currentTodoListId <= 6
+            currentTodoListId <= 7
           ) {
             hasKilledWithSupplyBox = false;
           }
@@ -15729,6 +16291,7 @@ Firearm and ammo required.</div>
         applyInventoryNewBadgeState();
         applyRepairState();
         applyTreeVisualState();
+        renderPlantedFlowers();
         updateTodoListUI();
         updateResourceHud();
         updateDayStatus();
@@ -15768,6 +16331,8 @@ Firearm and ammo required.</div>
               treeGrowthState,
               hasAxe,
               isAxeEquipped,
+              hasShovel,
+              isStumpRemoved,
               hasHandgun,
               isHandgunEquipped,
               hasHandgunAmmo,
@@ -15800,7 +16365,15 @@ Firearm and ammo required.</div>
               mobileViewedExplorationDestinationNews: Array.from(mobileViewedExplorationDestinationNews),
               hasCompass,
               carParts: carPartsCount,
-              flowers: flowerCount,
+              flowers: syncFlowerCount(),
+              flowerCounts: { ...flowerCounts },
+              flowerConsumeCursor,
+              plantedFlowers: plantedFlowers.map((flower) => ({
+                id: flower.id,
+                color: flower.color,
+                x: flower.x,
+                y: flower.y
+              })),
               paintCounts: { ...paintCounts },
               activeCarPaintBlueprintId,
               repairKit: repairKitCount,
@@ -16122,6 +16695,9 @@ Firearm and ammo required.</div>
 
       window.addEventListener("resize", updateDayNumberScale, { passive: true });
       window.addEventListener("resize", updateInventoryCategoryLayout, { passive: true });
+      window.addEventListener("resize", () => {
+        if (isFlowerPlanting) syncFlowerPlantPositionUi();
+      }, { passive: true });
 
       function commitResourceState(options = {}) {
         updateResourceHud();
@@ -16551,23 +17127,11 @@ Firearm and ammo required.</div>
       }
 
       function hasAnyInventoryItem() {
-        return hasAxe ||
-          hasHandgun ||
-          hasHandgunAmmo ||
-          hasShotgun ||
-          hasShotgunAmmo ||
-          hasRifle ||
-          hasRifleAmmo ||
-          grenadeCount > 0 ||
-          hasChainsaw ||
-          hasChainsawBattery ||
-          hasMusicBox ||
-          hasCompass ||
-          carPartsCount > 0 ||
-          fuelCount > 0 ||
-          repairKitCount > 0 ||
-          hasMap ||
-          acquiredNoteIds.size > 0 ||
+        return hasAxe || hasShovel ||
+          hasHandgun || hasHandgunAmmo || hasShotgun || hasShotgunAmmo ||
+          hasRifle || hasRifleAmmo || grenadeCount > 0 || hasChainsaw || hasChainsawBattery ||
+          hasMusicBox || hasCompass || carPartsCount > 0 || fuelCount > 0 || repairKitCount > 0 ||
+          hasMap || syncFlowerCount() > 0 || acquiredNoteIds.size > 0 ||
           Object.values(paintCounts).some((count) => count > 0);
       }
 
@@ -16630,8 +17194,15 @@ Firearm and ammo required.</div>
           inventoryCategories,
           ".inventory-category-label"
         );
-        if (longestWidth > 0) {
-          inventoryCategoriesElement.style.width = `${longestWidth}px`;
+        const repairCategoryWidth = Math.ceil(
+          repairCategoriesElement?.getBoundingClientRect().width || 0
+        );
+        const targetWidth = repairCategoryWidth > 0
+          ? repairCategoryWidth
+          : longestWidth;
+        if (targetWidth > 0) {
+          // 가방 탭 전체 라인 폭을 수리 화면 탭과 동일하게 고정합니다.
+          inventoryCategoriesElement.style.width = `${targetWidth}px`;
         }
         applyCategoryButtonWidths(inventoryCategories, ".inventory-category-label");
         updateInventoryCategoryIndicator();
@@ -16946,8 +17517,8 @@ Firearm and ammo required.</div>
 
         playSound(INVENTORY_SET_SOUND);
         updateNoteBookmarkButtonState(normalizedNoteId);
-        if (currentTodoListId === 6 && bookmarkedNoteIds.size > 0) {
-          setTodoProgress(6, "item3", true);
+        if (currentTodoListId === 7 && bookmarkedNoteIds.size > 0) {
+          setTodoProgress(7, "item3", true);
         }
         // 즐겨찾기 토글 직후에는 현재 리스트 순서를 유지합니다.
         // Notes 탭을 다시 열거나 가방을 다시 열 때 rebuildInventoryPages()에서 정렬을 갱신합니다.
@@ -19527,7 +20098,9 @@ Firearm and ammo required.</div>
         if (itemType === "carParts") return Math.max(0, getMaxCarPartsCount() - carPartsCount);
         if (itemType === "repairKit") return Math.max(0, MAX_INVENTORY_QUANTITY - repairKitCount);
         if (itemType === "fuel") return Math.max(0, MAX_INVENTORY_QUANTITY - fuelCount);
-        if (itemType === "flowers") return Math.max(0, MAX_INVENTORY_QUANTITY - flowerCount);
+        if (itemType === "flowers") return Math.max(0, MAX_INVENTORY_QUANTITY - getFlowerCount("white"));
+        const flowerColor = FLOWER_COLOR_BY_ITEM_TYPE[itemType];
+        if (flowerColor) return Math.max(0, MAX_INVENTORY_QUANTITY - getFlowerCount(flowerColor));
         if (itemType in paintCounts) return Math.max(0, MAX_INVENTORY_QUANTITY - paintCounts[itemType]);
         if (itemType === "handgun") return hasHandgun ? 0 : 1;
         if (itemType === "shotgun") return hasShotgun ? 0 : 1;
@@ -19623,10 +20196,10 @@ Firearm and ammo required.</div>
         return true;
       }
 
-      function isTodoEightShotgunBoostActive() {
+      function isTodoNineShotgunBoostActive() {
         return (
-          currentTodoListId === 8 &&
-          todoProgress[8]?.item1 !== true &&
+          currentTodoListId === 9 &&
+          todoProgress[9]?.item1 !== true &&
           !hasShotgun
         );
       }
@@ -19655,7 +20228,7 @@ Firearm and ammo required.</div>
         };
 
         addWeapon("handgun", "handgunAmmo");
-        if (plan?.todoEightShotgunBoostRolled !== true) {
+        if (plan?.todoNineShotgunBoostRolled !== true) {
           addWeapon("shotgun", "shotgunAmmo");
         }
         addWeapon("chainsaw", "chainsawBattery");
@@ -19704,8 +20277,8 @@ Firearm and ammo required.</div>
         }
       }
 
-      function rollPlannedFourthTodoVillageReward(destination, usedKeys = new Set()) {
-        if (destination !== "village" || currentTodoListId !== 4 || Math.random() >= 0.5) {
+      function rollPlannedFifthTodoVillageReward(destination, usedKeys = new Set()) {
+        if (destination !== "village" || currentTodoListId !== 5 || Math.random() >= 0.5) {
           return null;
         }
 
@@ -19737,7 +20310,10 @@ Firearm and ammo required.</div>
       function finalizeExplorationRewardRevealSchedule(plan) {
         if (!plan) return plan;
         const fixedResources = (plan.rewards || []).filter((reward) => reward.progressive === true);
-        const dynamicRewards = (plan.rewards || []).filter((reward) => reward.progressive !== true);
+        const flowerRewards = (plan.rewards || []).filter((reward) => reward.isForestFlower === true);
+        const dynamicRewards = (plan.rewards || []).filter(
+          (reward) => reward.progressive !== true && reward.isForestFlower !== true
+        );
 
         for (const reward of dynamicRewards) {
           reward.revealProgress =
@@ -19746,9 +20322,13 @@ Firearm and ammo required.</div>
               (EXPLORATION_LOOT_REVEAL_MAX_PROGRESS - EXPLORATION_LOOT_REVEAL_MIN_PROGRESS);
         }
         dynamicRewards.sort((a, b) => a.revealProgress - b.revealProgress);
+        for (const reward of flowerRewards) {
+          reward.revealProgress = 1;
+        }
+
         plan.rewards = plan.destination === "forest"
-          ? [...fixedResources, ...dynamicRewards]
-          : dynamicRewards;
+          ? [...fixedResources, ...dynamicRewards, ...flowerRewards]
+          : [...dynamicRewards, ...flowerRewards];
         return plan;
       }
 
@@ -19826,8 +20406,7 @@ Firearm and ammo required.</div>
           version: 1,
           destination,
           departureDay: normalizeDayCount(departureDay || dayCount),
-          rewards: [],
-          todoFlowerGuaranteed: false
+          rewards: []
         };
 
         if (destination === "forest") {
@@ -19851,7 +20430,25 @@ Firearm and ammo required.</div>
           };
           plan.rewards.push(woodReward, stoneReward);
 
-          // 기존 DAY 5 보장 규칙은 Forest에서도 유지합니다.
+          // Forest에서는 Blueprint 당첨 여부와 무관하게 색상 꽃 1개를 항상 계획합니다.
+          // 탐험 시작 시 색상을 확정해 새로고침해도 재추첨되지 않게 합니다.
+          const availableFlowerColors = FLOWER_COLORS.filter(
+            (color) => getRemainingCapacityAfterPlan(plan, FLOWER_DEFINITIONS[color].itemType) > 0
+          );
+          if (availableFlowerColors.length > 0) {
+            const flowerColor =
+              availableFlowerColors[Math.floor(Math.random() * availableFlowerColors.length)];
+            addPlannedReward(
+              plan,
+              createPlannedItemReward(
+                FLOWER_DEFINITIONS[flowerColor].itemType,
+                1,
+                { isForestFlower: true, flowerColor }
+              )
+            );
+          }
+
+          // 기존 DAY 5 보장 규칙은 Forest에서도 유지하되 꽃 보상은 이미 별도로 포함합니다.
           if (plan.departureDay >= 5 && !hasHandgun) {
             addPlannedReward(plan, createPlannedItemReward("handgun", 1, { guaranteedDayFive: true }));
             const ammoQuantity = Math.min(10, getRemainingCapacityAfterPlan(plan, "handgunAmmo"));
@@ -19861,24 +20458,9 @@ Firearm and ammo required.</div>
             return finalizeExplorationRewardRevealSchedule(plan);
           }
 
-          if (currentTodoListId === 5 && todoProgress[5].item2 !== true) {
-            // 기존 규칙처럼 첫 Forest 탐험 자체로 꽃 찾기 투두는 완료합니다.
-            // 가방이 가득 찬 경우 실제 Flowers 획득량은 0일 수 있으므로 Loot에는 획득한 경우만 표시합니다.
-            plan.todoFlowerGuaranteed = true;
-            const flowerQuantity = Math.min(1, getRemainingCapacityAfterPlan(plan, "flowers"));
-            if (flowerQuantity > 0) {
-              addPlannedReward(plan, createPlannedItemReward("flowers", flowerQuantity, { todoFlowerGuarantee: true }));
-            }
-          }
-
           const blueprintReward = rollPlannedExplorationBlueprint("forest", getPlanRewardTypeKeys(plan));
           if (blueprintReward) {
             addPlannedReward(plan, blueprintReward);
-          } else if (!plan.todoFlowerGuaranteed) {
-            const flowerQuantity = Math.min(1, getRemainingCapacityAfterPlan(plan, "flowers"));
-            if (flowerQuantity > 0) {
-              addPlannedReward(plan, createPlannedItemReward("flowers", flowerQuantity));
-            }
           }
           addExplorationAmmoBonusToPlan(plan);
           return finalizeExplorationRewardRevealSchedule(plan);
@@ -19897,26 +20479,26 @@ Firearm and ammo required.</div>
           targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
         }
 
-        // 8차 샷건 미션 수령 시 샷건이 없다면 기존 샷건 획득 루트에서 정확히 50%로 판정합니다.
+        // 9차 샷건 미션 수령 시 샷건이 없다면 기존 샷건 획득 루트에서 정확히 50%로 판정합니다.
         // 이 판정을 한 탐험에서는 실패하더라도 일반 랜덤 후보에서 샷건을 다시 뽑지 않습니다.
         if (
-          isTodoEightShotgunBoostActive() &&
+          isTodoNineShotgunBoostActive() &&
           (destination === "village" || destination === "city")
         ) {
-          plan.todoEightShotgunBoostRolled = true;
+          plan.todoNineShotgunBoostRolled = true;
           if (Math.random() < 0.5) {
             addWeaponBundleToPlan(plan, "shotgun", "shotgunAmmo");
             targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
           }
         }
 
-        // Todo 4 Village 보정 보상도 한 슬롯으로 취급합니다.
-        const todoFourReward = rollPlannedFourthTodoVillageReward(
+        // Todo 5 Village 보정 보상도 한 슬롯으로 취급합니다.
+        const todoFiveReward = rollPlannedFifthTodoVillageReward(
           destination,
           getPlanRewardTypeKeys(plan)
         );
-        if (todoFourReward) {
-          addPlannedReward(plan, todoFourReward);
+        if (todoFiveReward) {
+          addPlannedReward(plan, todoFiveReward);
           targetTypeCount = Math.max(targetTypeCount, getPlanRewardTypeKeys(plan).size);
         }
 
@@ -19952,9 +20534,22 @@ Firearm and ammo required.</div>
             ? normalizeNoteId(rawReward.noteId)
             : "";
           if (kind === "note" && !normalizedNoteId) continue;
+          const normalizedItemType =
+            kind === "item" && rawReward.itemType === "flowers"
+              ? FLOWER_DEFINITIONS.white.itemType
+              : rawReward.itemType;
+          const normalizedFlowerColor = FLOWER_COLOR_BY_ITEM_TYPE[normalizedItemType] || rawReward.flowerColor || "";
+          const isNormalizedForestFlower =
+            destination === "forest" && Boolean(normalizedFlowerColor);
           rewards.push({
             ...rawReward,
             kind,
+            itemType: normalizedItemType,
+            ...(normalizedFlowerColor ? {
+              flowerColor: normalizedFlowerColor,
+              label: FLOWER_DEFINITIONS[normalizedFlowerColor].label
+            } : {}),
+            ...(isNormalizedForestFlower ? { isForestFlower: true } : {}),
             quantity,
             ...(kind === "note" ? {
               noteId: normalizedNoteId,
@@ -19962,16 +20557,22 @@ Firearm and ammo required.</div>
               label: getNoteDisplayName(normalizedNoteId)
             } : {}),
             progressive: rawReward.progressive === true,
-            revealProgress: clamp(Number(rawReward.revealProgress) || 0, 0, 1)
+            revealProgress: isNormalizedForestFlower
+              ? 1
+              : clamp(Number(rawReward.revealProgress) || 0, 0, 1)
           });
+        }
+        if (destination === "forest") {
+          rewards.sort(
+            (left, right) => Number(left?.isForestFlower === true) - Number(right?.isForestFlower === true)
+          );
         }
         if (rewards.length === 0) return null;
         return {
           version: 1,
           destination,
           departureDay: normalizeDayCount(rawPlan.departureDay || explorationDepartureDay || dayCount),
-          rewards,
-          todoFlowerGuaranteed: rawPlan.todoFlowerGuaranteed === true
+          rewards
         };
       }
 
@@ -20006,9 +20607,14 @@ Firearm and ammo required.</div>
           repairKitCount = Math.min(MAX_INVENTORY_QUANTITY, repairKitCount + quantity);
         } else if (itemType === "fuel") {
           fuelCount = Math.min(MAX_INVENTORY_QUANTITY, fuelCount + quantity);
-          if (fuelCount >= 10) setTodoProgress(4, "item2", true);
+          if (fuelCount >= 10) setTodoProgress(5, "item2", true);
         } else if (itemType === "flowers") {
-          flowerCount = Math.min(MAX_INVENTORY_QUANTITY, flowerCount + quantity);
+          addFlowerCount("white", quantity);
+        } else if (FLOWER_COLOR_BY_ITEM_TYPE[itemType]) {
+          addFlowerCount(FLOWER_COLOR_BY_ITEM_TYPE[itemType], quantity);
+          if (currentTodoListId === 6 && todoProgress[6].item2 !== true) {
+            setTodoProgress(6, "item2", true);
+          }
         } else if (itemType in paintCounts) {
           paintCounts[itemType] = Math.min(MAX_INVENTORY_QUANTITY, paintCounts[itemType] + quantity);
         } else {
@@ -20057,9 +20663,6 @@ Firearm and ammo required.</div>
           }
         }
 
-        if (plan.todoFlowerGuaranteed) {
-          setTodoProgress(5, "item2", true);
-        }
         if (changedInventory) applyInventoryState();
         if (changedRepair) applyRepairState();
         return true;
@@ -20252,7 +20855,7 @@ Firearm and ammo required.</div>
             fuelCount + rollExplorationItemQuantity(reward, quantityMultiplier)
           );
           if (fuelCount >= 10) {
-            setTodoProgress(4, "item2", true);
+            setTodoProgress(5, "item2", true);
           }
         } else if (reward in paintCounts) {
           paintCounts[reward] = Math.min(
@@ -20282,27 +20885,23 @@ Firearm and ammo required.</div>
       }
 
       function awardForestFlower() {
-        if (flowerCount >= MAX_INVENTORY_QUANTITY) return false;
-
-        flowerCount = Math.min(
-          MAX_INVENTORY_QUANTITY,
-          flowerCount + 1
-        );
-        markInventoryItemAsNew("flowers");
+        if (getFlowerCount("white") >= MAX_INVENTORY_QUANTITY) return false;
+        if (!addFlowerCount("white", 1)) return false;
+        markInventoryItemAsNew(FLOWER_DEFINITIONS.white.itemType);
         applyInventoryState();
         return true;
       }
 
       /*
-        네 번째 to do list 진행 중 실제 Village 탐험에서만 사용하는 보정 보상입니다.
+        다섯 번째 to do list 진행 중 실제 Village 탐험에서만 사용하는 보정 보상입니다.
         50% 확률로 아직 목표 수량을 채우지 못한 자동차 수리 관련 항목 중 하나를 지급합니다.
         Car Repair 설계도는 이미 획득했다면 후보에서 제외합니다.
       */
-      function tryAwardFourthTodoVillageReward(destination, options = {}) {
+      function tryAwardFifthTodoVillageReward(destination, options = {}) {
         if (
           options.isActualExploration !== true ||
           destination !== "village" ||
-          currentTodoListId !== 4
+          currentTodoListId !== 5
         ) {
           return false;
         }
@@ -20351,7 +20950,7 @@ Firearm and ammo required.</div>
             fuelCount + rollExplorationItemQuantity("fuel")
           );
           if (fuelCount >= 10) {
-            setTodoProgress(4, "item2", true);
+            setTodoProgress(5, "item2", true);
           }
         }
 
@@ -20378,10 +20977,10 @@ Firearm and ammo required.</div>
 
         configureExplorationBlueprintDefinitions();
 
-        const todoEightShotgunBoostActive =
-          isTodoEightShotgunBoostActive() &&
+        const todoNineShotgunBoostActive =
+          isTodoNineShotgunBoostActive() &&
           (destination === "village" || destination === "city");
-        if (todoEightShotgunBoostActive && Math.random() < 0.5) {
+        if (todoNineShotgunBoostActive && Math.random() < 0.5) {
           hasShotgun = true;
           grantStarterSupplyForWeapon("shotgun");
           markInventoryItemAsNew("shotgun");
@@ -20389,7 +20988,7 @@ Firearm and ammo required.</div>
           return;
         }
 
-        if (tryAwardFourthTodoVillageReward(destination, options)) {
+        if (tryAwardFifthTodoVillageReward(destination, options)) {
           return;
         }
 
@@ -20410,7 +21009,7 @@ Firearm and ammo required.</div>
           return;
         }
 
-        awardExplorationItem(destination, { excludeShotgun: todoEightShotgunBoostActive });
+        awardExplorationItem(destination, { excludeShotgun: todoNineShotgunBoostActive });
       }
 
       function finishExploration() {
@@ -20480,11 +21079,11 @@ Firearm and ammo required.</div>
         } else if (completedDestination === "forest") {
           setTodoProgress(3, "item3", true);
         } else if (completedDestination === "city") {
-          setTodoProgress(5, "item3", true);
+          setTodoProgress(6, "item3", true);
         }
 
         dayCount += 1;
-        if (syncTodoProgressFromCurrentState(6)) {
+        if (syncTodoProgressFromCurrentState(7)) {
           updateTodoListUI();
         }
         const isNewDayRainy = rollWeatherForNewDay();
@@ -20810,6 +21409,7 @@ Firearm and ammo required.</div>
         );
         return hasAllNotes &&
           hasAxe &&
+          hasShovel &&
           hasHandgun &&
           hasHandgunAmmo &&
           handgunAmmoCount >= TEST_AMMO_QUANTITY &&
@@ -20826,7 +21426,7 @@ Firearm and ammo required.</div>
           hasMusicBox &&
           hasCompass &&
           (isCarRepaired() || carPartsCount >= getMaxCarPartsCount()) &&
-          flowerCount > 0 &&
+          FLOWER_COLORS.every((color) => getFlowerCount(color) >= TEST_FLOWER_QUANTITY) &&
           Object.values(paintCounts).every((count) => count > 0) &&
           repairKitCount > 0 &&
           hasMap &&
@@ -20841,6 +21441,9 @@ Firearm and ammo required.</div>
 
         markNewIfMissing("axe", hasAxe);
         hasAxe = true;
+
+        markNewIfMissing("shovel", hasShovel);
+        hasShovel = true;
 
         markNewIfMissing("handgun", hasHandgun);
         hasHandgun = true;
@@ -20883,8 +21486,12 @@ Firearm and ammo required.</div>
           carPartsCount = Math.max(carPartsCount, getMaxCarPartsCount());
         }
 
-        markNewIfMissing("flowers", flowerCount > 0);
-        flowerCount = Math.max(flowerCount, 1);
+        for (const color of FLOWER_COLORS) {
+          const definition = FLOWER_DEFINITIONS[color];
+          markNewIfMissing(definition.itemType, getFlowerCount(color) > 0);
+          flowerCounts[color] = Math.max(getFlowerCount(color), TEST_FLOWER_QUANTITY);
+        }
+        syncFlowerCount();
 
         for (const itemType of Object.keys(paintCounts)) {
           markNewIfMissing(itemType, paintCounts[itemType] > 0);
@@ -20907,7 +21514,7 @@ Firearm and ammo required.</div>
         }
 
         syncTodoProgressFromCurrentState(3);
-        syncTodoProgressFromCurrentState(4);
+        syncTodoProgressFromCurrentState(5);
 
         if (newlyObtainedItemTypes.size > 0) {
           for (const itemType of newlyObtainedItemTypes) {
@@ -21123,12 +21730,449 @@ Firearm and ammo required.</div>
           preloadImage(TREE_DAY_STAGE_THREE_IMAGE),
           preloadImage(TREE_PART_IMAGE),
           preloadImage(GRENADE_EXPLOSION_IMAGE),
-          preloadImage(GRENADE_CRATER_IMAGE)
+          preloadImage(GRENADE_CRATER_IMAGE),
+          preloadImage(FLOWER_SHEET)
         ]);
+      }
+
+
+      function getFlowerBackgroundPosition(color) {
+        const definition = FLOWER_DEFINITIONS[color] || FLOWER_DEFINITIONS.white;
+        return `${-definition.frameX * FLOWER_FRAME_WIDTH}px ${-definition.frameY * FLOWER_FRAME_HEIGHT}px`;
+      }
+
+      function getPlantedFlowerLayer(worldX, worldY) {
+        const targetEntityLayer = getEntityTargetDepthLayer(worldX, worldY);
+        if (targetEntityLayer === entitiesBehindShed) return flowersBehindShedLayer;
+        if (targetEntityLayer === entitiesBehindTree) return flowersBehindTreeLayer;
+        if (targetEntityLayer === entities) return flowersBehindCarLayer;
+        return flowersFrontStructuresLayer;
+      }
+
+      function createPlantedFlowerNode(flower) {
+        if (!flower || !FLOWER_DEFINITIONS[flower.color]) return null;
+        const node = phaserField.createNode({
+          id: `plantedFlower${flower.id}`,
+          x: flower.x,
+          y: flower.y,
+          width: FLOWER_FRAME_WIDTH,
+          height: FLOWER_FRAME_HEIGHT,
+          geometry: "center",
+          backgroundPath: FLOWER_SHEET,
+          backgroundPosition: getFlowerBackgroundPosition(flower.color),
+          scaleX: PLANTED_FLOWER_SCALE,
+          scaleY: PLANTED_FLOWER_SCALE,
+          dualTone: true,
+          special: "flower",
+          sortY: flower.y
+        });
+        const targetLayer = getPlantedFlowerLayer(flower.x, flower.y);
+        targetLayer?.appendChild(node);
+        // 런타임에 새로 만든 FieldNode는 constructor의 backgroundPath만으로는
+        // 텍스처가 적용되지 않으므로 명시적으로 프레임 텍스처를 로드합니다.
+        node.setBackgroundImage?.(FLOWER_SHEET);
+        node.setBackgroundPosition?.(getFlowerBackgroundPosition(flower.color));
+        plantedFlowerNodes.set(flower.id, node);
+        return node;
+      }
+
+      function renderPlantedFlowers() {
+        for (const node of plantedFlowerNodes.values()) {
+          node?.remove?.();
+        }
+        plantedFlowerNodes.clear();
+        for (const flower of plantedFlowers) {
+          createPlantedFlowerNode(flower);
+        }
+      }
+
+      function getClientPointFromWorld(worldX, worldY) {
+        const scale = phaserField.getEffectiveViewScale();
+        const offset = phaserField.getEffectiveViewOffset();
+        return {
+          x: (worldX - WORLD_SIZE / 2) * scale + window.innerWidth / 2 + offset.x,
+          y: (worldY - WORLD_SIZE / 2) * scale + window.innerHeight / 2 + offset.y
+        };
+      }
+
+      function updateFlowerPlantActionLocation(clientY) {
+        const viewportHeight = Math.max(1, window.innerHeight);
+        const enterTopThreshold = viewportHeight - 150;
+        const leaveTopThreshold = viewportHeight - 180;
+        const shouldUseTop = flowerPlantButtonsAtTop
+          ? clientY > leaveTopThreshold
+          : clientY > enterTopThreshold;
+
+        if (shouldUseTop === flowerPlantButtonsAtTop) return;
+        flowerPlantButtonsAtTop = shouldUseTop;
+        flowerPlantActionsTop?.classList.toggle("is-visible", shouldUseTop);
+        flowerPlantActionsBottom?.classList.toggle("is-visible", !shouldUseTop);
+      }
+
+      function updateFlowerPlantControls() {
+        const isRemoveMode = flowerPlacementMode === "remove";
+        const definition = FLOWER_DEFINITIONS[selectedPlantFlowerColor] || FLOWER_DEFINITIONS.white;
+        const count = getFlowerCount(selectedPlantFlowerColor);
+        const canPlantHere = !isRemoveMode && canPlantFlowerAt(flowerPlantWorldX, flowerPlantWorldY);
+        const hasRemoveTarget = isRemoveMode && hasShovelRemovalTargetAt(flowerPlantWorldX, flowerPlantWorldY);
+
+        for (const label of flowerPlantCountLabels) {
+          label.hidden = isRemoveMode;
+          label.textContent = `${definition.label}s x${count}`;
+        }
+        for (const button of flowerPlantActionButtons) {
+          if (button.dataset.flowerPlantAction !== "plant") continue;
+          button.textContent = isRemoveMode ? "Remove" : "Plant";
+          button.disabled = isRemoveMode
+            ? !hasRemoveTarget
+            : count <= 0 || flowerPlantPlacementCommitted || !canPlantHere;
+        }
+        if (flowerPlantPreview) {
+          flowerPlantPreview.style.backgroundPosition = getFlowerBackgroundPosition(selectedPlantFlowerColor);
+          flowerPlantPreview.classList.toggle("is-hidden", isRemoveMode || flowerPlantPlacementCommitted);
+        }
+      }
+
+      function unlockFlowerPlantCandidateAfterMove() {
+        if (!flowerPlantPlacementCommitted) return;
+        flowerPlantPlacementCommitted = false;
+        updateFlowerPlantControls();
+      }
+
+      function syncFlowerPlantPositionUi() {
+        if (!isFlowerPlanting || !flowerPlantPosition || !flowerPlantOverlay) return;
+        const client = getClientPointFromWorld(flowerPlantWorldX, flowerPlantWorldY);
+        flowerPlantPosition.style.left = `${client.x}px`;
+        flowerPlantPosition.style.top = `${client.y}px`;
+        flowerPlantOverlay.style.setProperty("--flower-hole-x", `${client.x}px`);
+        flowerPlantOverlay.style.setProperty("--flower-hole-y", `${client.y}px`);
+        updateFlowerPlantActionLocation(client.y);
+      }
+
+      function setFlowerPlantWorldPositionFromClient(clientX, clientY, clampToScreen = true) {
+        const x = clampToScreen ? clamp(Number(clientX) || 0, 0, window.innerWidth) : Number(clientX) || 0;
+        const y = clampToScreen ? clamp(Number(clientY) || 0, 0, window.innerHeight) : Number(clientY) || 0;
+        const worldPoint = getWorldPointFromClient(x, y);
+        flowerPlantWorldX = worldPoint.x;
+        flowerPlantWorldY = worldPoint.y;
+        syncFlowerPlantPositionUi();
+        updateFlowerPlantControls();
+      }
+
+      function getFlowerPlantBlockedZones() {
+        const treeScale = getTreeRenderScale();
+        const zones = [
+          SAFE_ZONE,
+          {
+            left: shedObject.offsetLeft,
+            top: shedObject.offsetTop,
+            right: shedObject.offsetLeft + shedObject.offsetWidth,
+            bottom: shedObject.offsetTop + shedObject.offsetHeight
+          },
+          {
+            left: carObject.offsetLeft,
+            top: carObject.offsetTop,
+            right: carObject.offsetLeft + carObject.offsetWidth,
+            bottom: carObject.offsetTop + carObject.offsetHeight
+          },
+          {
+            left: tree.offsetLeft,
+            top: tree.offsetTop,
+            right: tree.offsetLeft + tree.offsetWidth * treeScale,
+            bottom: tree.offsetTop + tree.offsetHeight * treeScale
+          }
+        ];
+        if (!isStumpRemoved) {
+          zones.push({
+            left: axeStump.offsetLeft,
+            top: axeStump.offsetTop,
+            right: axeStump.offsetLeft + axeStump.offsetWidth,
+            bottom: axeStump.offsetTop + axeStump.offsetHeight
+          });
+        }
+        return zones;
+      }
+
+      function isFlowerSpotOccupied(worldX, worldY) {
+        const radiusSquared = FLOWER_OCCUPIED_RADIUS * FLOWER_OCCUPIED_RADIUS;
+        return plantedFlowers.some((flower) => {
+          const dx = Number(flower?.x) - worldX;
+          const dy = Number(flower?.y) - worldY;
+          return Number.isFinite(dx) && Number.isFinite(dy) &&
+            dx * dx + dy * dy <= radiusSquared;
+        });
+      }
+
+      function getFlowerPlacementRadiusWorld() {
+        return 32 / Math.max(0.001, phaserField.getEffectiveViewScale());
+      }
+
+      function isCircleTouchingRect(cx, cy, radius, rect) {
+        const closestX = clamp(cx, rect.left, rect.right);
+        const closestY = clamp(cy, rect.top, rect.bottom);
+        const dx = cx - closestX;
+        const dy = cy - closestY;
+        return dx * dx + dy * dy <= radius * radius;
+      }
+
+      function getFlowersInShovelArea(worldX, worldY) {
+        const radius = getFlowerPlacementRadiusWorld();
+        const radiusSquared = radius * radius;
+        return plantedFlowers.filter((flower) => {
+          const dx = Number(flower?.x) - worldX;
+          const dy = Number(flower?.y) - worldY;
+          return Number.isFinite(dx) && Number.isFinite(dy) && dx * dx + dy * dy <= radiusSquared;
+        });
+      }
+
+      function isStumpInShovelArea(worldX, worldY) {
+        if (isStumpRemoved || !hasAxe) return false;
+        return isCircleTouchingRect(worldX, worldY, getFlowerPlacementRadiusWorld(), {
+          left: axeStump.offsetLeft,
+          top: axeStump.offsetTop,
+          right: axeStump.offsetLeft + axeStump.offsetWidth,
+          bottom: axeStump.offsetTop + axeStump.offsetHeight
+        });
+      }
+
+      function hasShovelRemovalTargetAt(worldX, worldY) {
+        return getFlowersInShovelArea(worldX, worldY).length > 0 ||
+          isStumpInShovelArea(worldX, worldY);
+      }
+
+      function removeWithShovel() {
+        if (!isFlowerPlanting || flowerPlacementMode !== "remove" || !hasShovel) return false;
+
+        const flowersToRemove = getFlowersInShovelArea(flowerPlantWorldX, flowerPlantWorldY);
+        const removeIds = new Set(flowersToRemove.map((flower) => flower.id));
+        const shouldRemoveStump = isStumpInShovelArea(flowerPlantWorldX, flowerPlantWorldY);
+        if (removeIds.size === 0 && !shouldRemoveStump) {
+          updateFlowerPlantControls();
+          return false;
+        }
+
+        if (removeIds.size > 0) {
+          plantedFlowers = plantedFlowers.filter((flower) => !removeIds.has(flower.id));
+          for (const id of removeIds) {
+            plantedFlowerNodes.get(id)?.remove?.();
+            plantedFlowerNodes.delete(id);
+          }
+          if (currentTodoListId === 4) setTodoProgress(4, "item3", true);
+        }
+
+        if (shouldRemoveStump) {
+          isStumpRemoved = true;
+          applyAxeState();
+          setTodoProgress(4, "item1", true);
+        }
+
+        playSound(SHOVEL_SOUND);
+        updateFlowerPlantControls();
+        saveResourceState();
+        return true;
+      }
+
+      function canPlantFlowerAt(worldX, worldY) {
+        const halfWidth = FLOWER_FRAME_WIDTH * PLANTED_FLOWER_SCALE / 2;
+        const halfHeight = FLOWER_FRAME_HEIGHT * PLANTED_FLOWER_SCALE / 2;
+        if (isFlowerSpotOccupied(worldX, worldY)) return false;
+        return !getFlowerPlantBlockedZones().some((zone) =>
+          isInsideInflatedZoneFor(zone, worldX, worldY, halfWidth, halfHeight)
+        );
+      }
+
+      function plantSelectedFlower() {
+        if (!isFlowerPlanting || flowerPlacementMode !== "plant") return false;
+        const count = getFlowerCount(selectedPlantFlowerColor);
+        if (count <= 0 || !canPlantFlowerAt(flowerPlantWorldX, flowerPlantWorldY)) {
+          updateFlowerPlantControls();
+          return false;
+        }
+        if (plantedFlowers.length >= MAX_PLANTED_FLOWERS) {
+          showToast(FLOWER_MAX_PLANTED_TOAST_MESSAGE);
+          return false;
+        }
+
+        flowerCounts[selectedPlantFlowerColor] = Math.max(0, count - 1);
+        syncFlowerCount();
+        const flower = {
+          id: ++plantedFlowerIdCounter,
+          color: selectedPlantFlowerColor,
+          x: flowerPlantWorldX,
+          y: flowerPlantWorldY
+        };
+        plantedFlowers.push(flower);
+        createPlantedFlowerNode(flower);
+        flowerPlantPlacementCommitted = true;
+        playSound(FLOWER_PLANT_SOUND, 0.4);
+        showToast(FLOWER_PLANTED_TOAST_MESSAGE);
+        if (currentTodoListId === 4) setTodoProgress(4, "item2", true);
+        applyInventoryState();
+        updateFlowerPlantControls();
+        saveResourceState();
+        return true;
+      }
+
+      function openFlowerPlanting(color) {
+        if (!FLOWER_DEFINITIONS[color] || getFlowerCount(color) <= 0 || isExploring) return false;
+        flowerPlacementMode = "plant";
+        selectedPlantFlowerColor = color;
+        inventorySelectedCategory = "flowers";
+        renderInventoryCategories();
+        rebuildInventoryPages();
+        renderInventoryCategories();
+
+        isFlowerPlanting = true;
+        flowerPlantPlacementCommitted = false;
+        flowerPlantButtonsAtTop = false;
+        flowerPlantActionsTop?.classList.remove("is-visible");
+        flowerPlantActionsBottom?.classList.add("is-visible");
+        document.body.classList.add("is-flower-planting");
+        flowerPlantOverlay?.classList.add("is-open");
+        flowerPlantOverlay?.setAttribute("aria-hidden", "false");
+        flowerPlantPosition?.setAttribute("aria-label", "Flower position");
+        setFlowerPlantWorldPositionFromClient(window.innerWidth / 2, window.innerHeight / 2, true);
+        updateFlowerPlantControls();
+        return true;
+      }
+
+      function openShovelRemoving() {
+        if (!hasShovel || isExploring) return false;
+        flowerPlacementMode = "remove";
+        inventorySelectedCategory = "flowers";
+        renderInventoryCategories();
+        rebuildInventoryPages();
+        renderInventoryCategories();
+
+        isFlowerPlanting = true;
+        flowerPlantPlacementCommitted = false;
+        flowerPlantButtonsAtTop = false;
+        flowerPlantActionsTop?.classList.remove("is-visible");
+        flowerPlantActionsBottom?.classList.add("is-visible");
+        document.body.classList.add("is-flower-planting");
+        flowerPlantOverlay?.classList.add("is-open");
+        flowerPlantOverlay?.setAttribute("aria-hidden", "false");
+        flowerPlantPosition?.setAttribute("aria-label", "Removal area");
+        setFlowerPlantWorldPositionFromClient(window.innerWidth / 2, window.innerHeight / 2, true);
+        updateFlowerPlantControls();
+        return true;
+      }
+
+      function closeFlowerPlanting() {
+        if (!isFlowerPlanting) return false;
+        isFlowerPlanting = false;
+        flowerPlantDragState.active = false;
+        flowerPlantDragState.pointerId = null;
+        flowerPlantDragState.moved = false;
+        flowerPlantPlacementCommitted = false;
+        flowerPlantPosition?.classList.remove("is-dragging");
+        flowerPlantOverlay?.classList.remove("is-open");
+        flowerPlantOverlay?.setAttribute("aria-hidden", "true");
+        document.body.classList.add("is-flower-planting-returning");
+        document.body.classList.remove("is-flower-planting");
+        window.setTimeout(() => {
+          document.body.classList.remove("is-flower-planting-returning");
+        }, 180);
+        inventorySelectedCategory = "flowers";
+        renderInventoryCategories();
+        rebuildInventoryPages();
+        renderInventoryCategories();
+        updateInventoryCategoryLayout();
+        saveResourceState();
+        return true;
+      }
+
+      function startFlowerPlantDrag(event) {
+        if (!isFlowerPlanting || !flowerPlantPosition) return;
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        flowerPlantDragState.active = true;
+        flowerPlantDragState.pointerId = event.pointerId;
+        flowerPlantDragState.moved = false;
+        flowerPlantPosition.classList.add("is-dragging");
+        try {
+          flowerPlantPosition.setPointerCapture(event.pointerId);
+        } catch (_) {}
+      }
+
+      function moveFlowerPlantDrag(event) {
+        if (
+          !flowerPlantDragState.active ||
+          event.pointerId !== flowerPlantDragState.pointerId
+        ) {
+          return;
+        }
+        flowerPlantDragState.moved = true;
+        unlockFlowerPlantCandidateAfterMove();
+        setFlowerPlantWorldPositionFromClient(event.clientX, event.clientY, true);
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      function endFlowerPlantDrag(event) {
+        if (
+          !flowerPlantDragState.active ||
+          event.pointerId !== flowerPlantDragState.pointerId
+        ) {
+          return;
+        }
+        try {
+          if (flowerPlantPosition?.hasPointerCapture?.(event.pointerId)) {
+            flowerPlantPosition.releasePointerCapture(event.pointerId);
+          }
+        } catch (_) {}
+        flowerPlantDragState.active = false;
+        flowerPlantDragState.pointerId = null;
+        flowerPlantPosition?.classList.remove("is-dragging");
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      flowerPlantPosition?.addEventListener("pointerdown", startFlowerPlantDrag);
+      flowerPlantPosition?.addEventListener("pointermove", moveFlowerPlantDrag);
+      flowerPlantPosition?.addEventListener("pointerup", endFlowerPlantDrag);
+      flowerPlantPosition?.addEventListener("pointercancel", endFlowerPlantDrag);
+
+      flowerPlantOverlay?.addEventListener("pointerdown", (event) => {
+        if (!isFlowerPlanting || event.target !== flowerPlantOverlay) return;
+        try {
+          flowerPlantOverlay.setPointerCapture(event.pointerId);
+        } catch (_) {}
+        startBackgroundDrag(event);
+      });
+      flowerPlantOverlay?.addEventListener("pointermove", (event) => {
+        if (!isFlowerPlanting || flowerPlantDragState.active) return;
+        moveBackgroundDrag(event);
+      });
+      flowerPlantOverlay?.addEventListener("pointerup", (event) => {
+        if (!isFlowerPlanting || flowerPlantDragState.active) return;
+        endBackgroundDrag(event);
+        try {
+          if (flowerPlantOverlay.hasPointerCapture?.(event.pointerId)) {
+            flowerPlantOverlay.releasePointerCapture(event.pointerId);
+          }
+        } catch (_) {}
+      });
+      flowerPlantOverlay?.addEventListener("pointercancel", (event) => {
+        if (!isFlowerPlanting || flowerPlantDragState.active) return;
+        endBackgroundDrag(event);
+      });
+
+      for (const button of flowerPlantActionButtons) {
+        bindReliableTap(button, () => {
+          if (button.dataset.flowerPlantAction === "plant") {
+            if (flowerPlacementMode === "remove") removeWithShovel();
+            else plantSelectedFlower();
+          } else if (button.dataset.flowerPlantAction === "cancel") {
+            closeFlowerPlanting();
+          }
+        });
       }
 
       function applyWorldTransform() {
         phaserField.setView(worldScale, panX, panY);
+        if (isFlowerPlanting) syncFlowerPlantPositionUi();
       }
 
       function updatePanBounds() {
@@ -21225,7 +22269,8 @@ Firearm and ammo required.</div>
         if (!hasGameInitialized) return;
         if (event.button !== undefined && event.button !== 0) return;
 
-        grenadePressState.active = isGrenadeEquipped && grenadeCount > 0 && !isExploring;
+        grenadePressState.active =
+          isGrenadeEquipped && grenadeCount > 0 && !isExploring && !isFlowerPlanting;
         grenadePressState.pointerId = grenadePressState.active ? event.pointerId : null;
         grenadePressState.resolved = false;
 
@@ -23403,13 +24448,18 @@ Firearm and ammo required.</div>
       }
 
       function applyAxeState() {
-        const stumpImage = hasAxe
-          ? STUMP_EMPTY_IMAGE
-          : STUMP_WITH_AXE_IMAGE;
-        axeStump.style.setProperty(
-          "--stump-image",
-          `url("${stumpImage}")`
-        );
+        if (isStumpRemoved) {
+          axeStump.hidden = true;
+          axeStump.setAttribute("aria-hidden", "true");
+          axePickupHitArea.hidden = true;
+          axePickupHitArea.style.pointerEvents = "none";
+          axePickupHitArea.tabIndex = -1;
+          return;
+        }
+
+        axeStump.hidden = false;
+        const stumpImage = hasAxe ? STUMP_EMPTY_IMAGE : STUMP_WITH_AXE_IMAGE;
+        axeStump.style.setProperty("--stump-image", `url("${stumpImage}")`);
         axeStump.setAttribute("aria-hidden", hasAxe ? "true" : "false");
         axePickupHitArea.hidden = hasAxe;
         axePickupHitArea.style.pointerEvents = hasAxe ? "none" : "auto";
@@ -23624,6 +24674,11 @@ Firearm and ammo required.</div>
           setInventoryValue(axeInventoryItem, hasAxe && isAxeEquipped ? "E" : "");
         }
 
+        if (shovelInventoryItem) {
+          shovelInventoryItem.hidden = !hasShovel;
+          setInventoryValue(shovelInventoryItem, "");
+        }
+
         if (handgunInventoryItem) {
           handgunInventoryItem.hidden = !hasHandgun;
           setInventoryValue(handgunInventoryItem, hasHandgun && isHandgunEquipped ? "E" : "");
@@ -23699,9 +24754,13 @@ Firearm and ammo required.</div>
           setInventoryValue(mapInventoryItem, "");
         }
 
-        if (flowersInventoryItem) {
-          flowersInventoryItem.hidden = flowerCount <= 0;
-          setInventoryValue(flowersInventoryItem, `×${flowerCount}`);
+        syncFlowerCount();
+        for (const color of FLOWER_COLORS) {
+          const item = flowerInventoryItems[color];
+          if (!item) continue;
+          const count = getFlowerCount(color);
+          item.hidden = count <= 0;
+          setInventoryValue(item, `×${count}`);
         }
 
         for (const [itemType, item] of Object.entries(paintInventoryItems)) {
@@ -25566,9 +26625,9 @@ Firearm and ammo required.</div>
         options = {}
       ) {
         hasSeenDogBelly = true;
-        // 7차 미션을 실제로 받은 뒤 새로 배보이기 동작을 유도했을 때만 "play with the dog"를 완료합니다.
-        if (currentTodoListId === 7) {
-          setTodoProgress(7, "item1", true);
+        // 8차 미션을 실제로 받은 뒤 새로 배보이기 동작을 유도했을 때만 "play with the dog"를 완료합니다.
+        if (currentTodoListId === 8) {
+          setTodoProgress(8, "item1", true);
         }
         activeDog.state = "bellyDown";
         activeDog.stateUntil = 0;
@@ -27563,7 +28622,7 @@ Firearm and ammo required.</div>
           if (weapon === "rifle") {
             consumeAmmo("rifle");
             playSound(RIFLE_FIRE_SOUND);
-            setTodoProgress(4, "item1", true);
+            setTodoProgress(5, "item1", true);
             beginDeerDeath(deer);
           }
           return;
@@ -27590,7 +28649,7 @@ Firearm and ammo required.</div>
         if (weapon === "rifle") {
           consumeAmmo("rifle");
           playSound(RIFLE_FIRE_SOUND);
-          setTodoProgress(4, "item1", true);
+          setTodoProgress(5, "item1", true);
           beginDeerDeath(deer);
         }
       }
@@ -28530,9 +29589,9 @@ Firearm and ammo required.</div>
         }
 
         // 6차 미션을 받은 뒤의 보급품 상자 처치만 미션 완료로 인정합니다.
-        if (currentTodoListId === 6) {
+        if (currentTodoListId === 7) {
           hasKilledWithSupplyBox = true;
-          setTodoProgress(6, "item1", true);
+          setTodoProgress(7, "item1", true);
         }
 
         // 엔티티를 맞힌 상자는 착지/바운스를 기다리지 않고 바로 파손되고
@@ -29180,8 +30239,8 @@ Firearm and ammo required.</div>
 
       function beginShotgunDeath(zombie) {
         if (zombie.state === "dying" || zombie.state === "removed") return;
-        if (currentTodoListId === 8) {
-          setTodoProgress(8, "item1", true);
+        if (currentTodoListId === 9) {
+          setTodoProgress(9, "item1", true);
         }
         registerPlayerZombieKill(zombie);
         spawnShotgunZombieParts(zombie);
@@ -29328,7 +30387,7 @@ Firearm and ammo required.</div>
           alertNearbyDeer(zombie);
           playSound(RIFLE_FIRE_SOUND);
           zombie.lastPlayerWeapon = weapon;
-          setTodoProgress(4, "item1", true);
+          setTodoProgress(5, "item1", true);
           beginDeath(zombie, true, { deathType: "headshot" });
           return;
         }
@@ -31376,8 +32435,16 @@ Firearm and ammo required.</div>
           return;
         }
 
-        if (itemType === "flowers" && flowerCount > 0) {
+        if (itemType === "shovel" && hasShovel) {
           playSound(INVENTORY_SET_SOUND);
+          openShovelRemoving();
+          return;
+        }
+
+        const selectedFlowerColor = FLOWER_COLOR_BY_ITEM_TYPE[itemType];
+        if (selectedFlowerColor && getFlowerCount(selectedFlowerColor) > 0) {
+          playSound(INVENTORY_SET_SOUND);
+          openFlowerPlanting(selectedFlowerColor);
           return;
         }
 
