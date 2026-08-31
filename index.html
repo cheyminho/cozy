@@ -2544,19 +2544,26 @@
       background-position: 33.333333% 0%;
     }
 
-    /* 컬러 테스트 UI가 켜졌을 때만 표시되는 날씨 테스트 토글입니다.
-       icon_weather.png: 128×64, 2열×1행 (맑음 / 비). */
-    .weather-test-toggle-button {
+    /* 테스트 옵션 아이콘 시트: icon_weather.png 256×128, 4열×2행, 각 프레임 64×64.
+       1: 맑음 / 2: 비 / 3: 예약 / 4: 안전구역 / 5~8: 봄·여름·가을·겨울 */
+    .weather-test-toggle-button,
+    .season-test-toggle-button,
+    .safe-zone-test-toggle-button {
       background-image: url("images/icon_weather.png");
-      background-size: 200% 100%;
-      background-position: 0% 0%;
+      background-size: 400% 200%;
     }
 
-    .weather-test-toggle-button.is-rainy {
-      background-position: 100% 0%;
-    }
+    .weather-test-toggle-button { background-position: 0% 0%; }
+    .weather-test-toggle-button.is-rainy { background-position: 33.333333% 0%; }
+    .safe-zone-test-toggle-button { background-position: 100% 0%; }
+    .season-test-toggle-button[data-season-index="0"] { background-position: 0% 100%; }
+    .season-test-toggle-button[data-season-index="1"] { background-position: 33.333333% 100%; }
+    .season-test-toggle-button[data-season-index="2"] { background-position: 66.666667% 100%; }
+    .season-test-toggle-button[data-season-index="3"] { background-position: 100% 100%; }
 
-    .weather-test-toggle-button[hidden] {
+    .weather-test-toggle-button[hidden],
+    .season-test-toggle-button[hidden],
+    .safe-zone-test-toggle-button[hidden] {
       display: none;
     }
 
@@ -5647,7 +5654,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.249"
+  data-game-version="0.250"
   data-reset-save-on-version-mismatch="true"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -5723,6 +5730,8 @@
     // 컬러 테스트 버튼 표시 상태도 별도로 저장합니다. 자원 수치는 플레이 중 변할 수 있으므로
     // F5 복원 여부를 areTestResourcesFull() 판정에 의존하지 않습니다.
     const SCENE_COLOR_TEST_CONTROLS_STORAGE_KEY = "cozy.scene-color-test-controls.v1";
+    const TEST_SEASON_STORAGE_KEY = "cozy.test-season.v1";
+    const SAFE_ZONE_TEST_VISIBILITY_STORAGE_KEY = "cozy.safe-zone-test-visible.v1";
     let FORCE_RAIN_FOR_TEST = null;
 
     /*
@@ -6017,6 +6026,8 @@
   <div id="toastLayer" aria-live="polite" aria-atomic="false"></div>
 
   <div id="optionControls" aria-label="Game options">
+        <button id="safeZoneTestToggleButton" class="option-control-button safe-zone-test-toggle-button" type="button" aria-label="Show safe zones" aria-pressed="false" hidden></button>
+        <button id="seasonTestToggleButton" class="option-control-button season-test-toggle-button" type="button" data-season-index="0" aria-label="Test season: Spring" hidden></button>
         <button id="weatherTestToggleButton" class="option-control-button weather-test-toggle-button" type="button" aria-label="Set test weather to rainy" aria-pressed="false" hidden></button>
 		<button id="soundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
 	    <button id="weaponSwitchButton" class="option-control-button" type="button" data-weapon="fist" aria-label="Switch weapon"><span id="weaponAmmoCount" hidden></span></button>
@@ -6074,8 +6085,10 @@
   </div>
   <div id="exploringGuideGroup">
     <div id="exploringOptionControls" aria-label="Exploration options">
-      <button id="exploringSoundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
+      <button id="exploringSafeZoneTestToggleButton" class="option-control-button safe-zone-test-toggle-button" type="button" aria-label="Show safe zones" aria-pressed="false" hidden></button>
+      <button id="exploringSeasonTestToggleButton" class="option-control-button season-test-toggle-button" type="button" data-season-index="0" aria-label="Test season: Spring" hidden></button>
       <button id="exploringWeatherTestToggleButton" class="option-control-button weather-test-toggle-button" type="button" aria-label="Set test weather to rainy" aria-pressed="false" hidden></button>
+      <button id="exploringSoundToggleButton" class="option-control-button sound-toggle-button" type="button" aria-label="Turn sound off" aria-pressed="true"></button>
     </div>
     <div id="exploringGuide">
       <div class="exploring-guide-text is-active">Exploring takes time, but rewards await.
@@ -6459,13 +6472,27 @@ Firearm and ammo required.</div>
         getComputedStyle(document.documentElement).getPropertyValue("--central-area-offset-y")
       ) || 0;
 
-      // 기본 420×300 안전영역도 중앙 거점과 같은 세로 오프셋을 사용합니다.
-      const SAFE_ZONE = {
-        left: 814,
-        top: 874 + CENTRAL_AREA_OFFSET_Y,
-        right: 1234,
-        bottom: 1174 + CENTRAL_AREA_OFFSET_Y
-      };
+      // 안전구역은 표시와 실제 판정이 항상 같은 4개 꼭지점을 공유합니다.
+      // 아래 top / right / bottom / left 좌표를 직접 수정하면 테스트 표시와 충돌 판정이 함께 바뀝니다.
+      function createSafeZonePolygon(points) {
+        const normalizedPoints = points.map((point) => ({ x: point.x, y: point.y }));
+        const xs = normalizedPoints.map((point) => point.x);
+        const ys = normalizedPoints.map((point) => point.y);
+        return {
+          points: normalizedPoints,
+          left: Math.min(...xs),
+          top: Math.min(...ys),
+          right: Math.max(...xs),
+          bottom: Math.max(...ys)
+        };
+      }
+
+      const SAFE_ZONE = createSafeZonePolygon([
+        { x: 1010, y: 920 + CENTRAL_AREA_OFFSET_Y },  // top
+        { x: 1260, y: 1000 + CENTRAL_AREA_OFFSET_Y }, // right
+        { x: 1055, y: 1150 + CENTRAL_AREA_OFFSET_Y }, // bottom
+        { x: 790, y: 1060 + CENTRAL_AREA_OFFSET_Y }   // left
+      ]);
 
       /*
         비 오는 날 물웅덩이 조절 위치
@@ -6480,21 +6507,21 @@ Firearm and ammo required.</div>
       const RAIN_SPOT_WORLD_EDGE_MARGIN = 32;
       const RAIN_SPOT_PLACEMENT_CANDIDATES = 64;
 
-      // 자동차·창고 안전 구역은 각 256×256 원본 리소스의 로컬 좌표로 정의합니다.
-      // 실제 표시 크기가 달라도 같은 이미지 부위를 사용하도록 표시 크기에 비례 환산합니다.
+      // 자동차·창고 안전구역도 256×256 원본 리소스 기준의 4개 꼭지점으로 정의합니다.
+      // 각 점은 top → right → bottom → left 순서이며, 숫자를 직접 바꿔 쿼터뷰 경계를 맞출 수 있습니다.
       const STRUCTURE_RESOURCE_SIZE = 256;
-      const CAR_SAFE_ZONE_LOCAL = Object.freeze({
-        left: 49,
-        top: 121,
-        right: 177,
-        bottom: 185
-      });
-      const SHED_SAFE_ZONE_LOCAL = Object.freeze({
-        left: 24,
-        top: 137,
-        right: 152,
-        bottom: 201
-      });
+      const CAR_SAFE_ZONE_LOCAL = Object.freeze([
+        Object.freeze({ x: 138, y: 73 }),
+        Object.freeze({ x: 215, y: 115 }),
+        Object.freeze({ x: 100, y: 200 }),
+        Object.freeze({ x: 25, y: 155 })
+      ]);
+      const SHED_SAFE_ZONE_LOCAL = Object.freeze([
+        Object.freeze({ x: 105, y: 133 }),
+        Object.freeze({ x: 175, y: 162 }),
+        Object.freeze({ x: 90, y: 205 }),
+        Object.freeze({ x: 20, y: 178 })
+      ]);
 
       const ZOMBIE_WIDTH = 64;
       const ZOMBIE_HEIGHT = 128;
@@ -10801,6 +10828,12 @@ Firearm and ammo required.</div>
       );
       const weatherTestButtons = Array.from(
         document.querySelectorAll(".weather-test-toggle-button")
+      );
+      const seasonTestButtons = Array.from(
+        document.querySelectorAll(".season-test-toggle-button")
+      );
+      const safeZoneTestButtons = Array.from(
+        document.querySelectorAll(".safe-zone-test-toggle-button")
       );
       const startScreen = document.getElementById("startScreen");
       const startScreenSurvived = document.getElementById("startScreenSurvived");
@@ -19609,6 +19642,14 @@ Firearm and ammo required.</div>
         syncHouseExplorationLightForSceneColorTest();
         syncFireflyVisibility();
         FORCE_RAIN_FOR_TEST = null;
+        testSeasonIndex = 0;
+        safeZoneTestVisible = false;
+        try {
+          sessionStorage.removeItem(TEST_SEASON_STORAGE_KEY);
+          sessionStorage.removeItem(SAFE_ZONE_TEST_VISIBILITY_STORAGE_KEY);
+        } catch (_) {}
+        updateSeasonTestButtonState();
+        drawSafeZoneTestOverlay();
         setWeatherTestButtonsVisible(false);
         saveSceneColorTestControlsEnabled(false);
       }
@@ -19640,10 +19681,116 @@ Firearm and ammo required.</div>
 
       function setWeatherTestButtonsVisible(visible) {
         const shouldShow = TEST_MODE && visible;
-        for (const button of weatherTestButtons) {
-          button.hidden = !shouldShow;
-        }
+        for (const button of weatherTestButtons) button.hidden = !shouldShow;
+        for (const button of seasonTestButtons) button.hidden = !shouldShow;
+        for (const button of safeZoneTestButtons) button.hidden = !shouldShow;
         updateWeatherTestButtonState();
+        updateSeasonTestButtonState();
+        updateSafeZoneTestButtonState();
+      }
+
+      const TEST_SEASON_NAMES = ["Spring", "Summer", "Autumn", "Winter"];
+
+      function loadStoredTestSeasonIndex() {
+        if (!TEST_MODE) return 0;
+        try {
+          const value = Number.parseInt(sessionStorage.getItem(TEST_SEASON_STORAGE_KEY), 10);
+          return Number.isInteger(value) && value >= 0 && value < TEST_SEASON_NAMES.length
+            ? value
+            : 0;
+        } catch (_) {
+          return 0;
+        }
+      }
+
+      function saveStoredTestSeasonIndex() {
+        try {
+          if (!TEST_MODE) return;
+          sessionStorage.setItem(TEST_SEASON_STORAGE_KEY, String(testSeasonIndex));
+        } catch (_) {}
+      }
+
+      function loadStoredSafeZoneTestVisibility() {
+        if (!TEST_MODE) return false;
+        try {
+          return sessionStorage.getItem(SAFE_ZONE_TEST_VISIBILITY_STORAGE_KEY) === "1";
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function saveStoredSafeZoneTestVisibility() {
+        try {
+          if (!TEST_MODE) return;
+          sessionStorage.setItem(
+            SAFE_ZONE_TEST_VISIBILITY_STORAGE_KEY,
+            safeZoneTestVisible ? "1" : "0"
+          );
+        } catch (_) {}
+      }
+
+      let testSeasonIndex = loadStoredTestSeasonIndex();
+      let safeZoneTestVisible = loadStoredSafeZoneTestVisibility();
+      let safeZoneTestGraphics = null;
+
+      function updateSeasonTestButtonState() {
+        for (const button of seasonTestButtons) {
+          button.dataset.seasonIndex = String(testSeasonIndex);
+          button.setAttribute("aria-label", `Test season: ${TEST_SEASON_NAMES[testSeasonIndex]}`);
+        }
+      }
+
+      function handleSeasonTestButton(button, event) {
+        if (!TEST_MODE || !button || button.hidden) return;
+        event?.preventDefault();
+        event?.stopPropagation();
+        testSeasonIndex = (testSeasonIndex + 1) % TEST_SEASON_NAMES.length;
+        saveStoredTestSeasonIndex();
+        updateSeasonTestButtonState();
+      }
+
+      function drawSafeZoneTestOverlay() {
+        if (!phaserField.scene) return;
+        if (!safeZoneTestGraphics) {
+          safeZoneTestGraphics = phaserField.scene.add.graphics();
+          safeZoneTestGraphics.setDepth(24 * 100000);
+          // 필드 컬러 보정과 대기 레이어에는 포함하지 않고 마지막 FX 카메라에서만 선명한 빨간 선으로 표시합니다.
+          for (const camera of phaserField.scene.cameras.cameras) {
+            if (camera.name !== "weatherFxCamera") camera.ignore(safeZoneTestGraphics);
+          }
+        }
+        safeZoneTestGraphics.clear();
+        safeZoneTestGraphics.setVisible(safeZoneTestVisible);
+        if (!safeZoneTestVisible) return;
+
+        safeZoneTestGraphics.lineStyle(3, 0xff3030, 1);
+        for (const zone of getZombieSafeZones()) {
+          if (!zone?.points?.length) continue;
+          safeZoneTestGraphics.beginPath();
+          safeZoneTestGraphics.moveTo(zone.points[0].x, zone.points[0].y);
+          for (let index = 1; index < zone.points.length; index += 1) {
+            safeZoneTestGraphics.lineTo(zone.points[index].x, zone.points[index].y);
+          }
+          safeZoneTestGraphics.closePath();
+          safeZoneTestGraphics.strokePath();
+        }
+      }
+
+      function updateSafeZoneTestButtonState() {
+        for (const button of safeZoneTestButtons) {
+          button.setAttribute("aria-pressed", safeZoneTestVisible ? "true" : "false");
+          button.setAttribute("aria-label", safeZoneTestVisible ? "Hide safe zones" : "Show safe zones");
+        }
+      }
+
+      function handleSafeZoneTestButton(button, event) {
+        if (!TEST_MODE || !button || button.hidden) return;
+        event?.preventDefault();
+        event?.stopPropagation();
+        safeZoneTestVisible = !safeZoneTestVisible;
+        saveStoredSafeZoneTestVisibility();
+        updateSafeZoneTestButtonState();
+        drawSafeZoneTestOverlay();
       }
 
       function handleWeatherTestButton(button, event) {
@@ -19709,6 +19856,7 @@ Firearm and ammo required.</div>
         saveSceneColorTestControlsEnabled(true);
         updateSceneColorTestButtonState();
         setWeatherTestButtonsVisible(true);
+        phaserField.ready().then(() => drawSafeZoneTestOverlay());
       }
 
       function handleSceneColorTestButton(button, event) {
@@ -23702,6 +23850,82 @@ Firearm and ammo required.</div>
         return Math.random() < 0.5 ? 0 : 4;
       }
 
+      function getPolygonRectPenetration(zone, x, y, halfWidth, halfHeight) {
+        if (!zone?.points || zone.points.length < 3) return null;
+
+        const rectPoints = [
+          { x: x - halfWidth, y: y - halfHeight },
+          { x: x + halfWidth, y: y - halfHeight },
+          { x: x + halfWidth, y: y + halfHeight },
+          { x: x - halfWidth, y: y + halfHeight }
+        ];
+        const axes = [{ x: 1, y: 0 }, { x: 0, y: 1 }];
+
+        for (let index = 0; index < zone.points.length; index += 1) {
+          const a = zone.points[index];
+          const b = zone.points[(index + 1) % zone.points.length];
+          const edgeX = b.x - a.x;
+          const edgeY = b.y - a.y;
+          const length = Math.hypot(edgeX, edgeY);
+          if (length <= 0.0001) continue;
+          axes.push({ x: -edgeY / length, y: edgeX / length });
+        }
+
+        const polygonCenter = zone.points.reduce(
+          (center, point) => ({ x: center.x + point.x, y: center.y + point.y }),
+          { x: 0, y: 0 }
+        );
+        polygonCenter.x /= zone.points.length;
+        polygonCenter.y /= zone.points.length;
+
+        let minimumOverlap = Infinity;
+        let minimumAxis = null;
+
+        for (const axis of axes) {
+          let polygonMin = Infinity;
+          let polygonMax = -Infinity;
+          for (const point of zone.points) {
+            const projection = point.x * axis.x + point.y * axis.y;
+            polygonMin = Math.min(polygonMin, projection);
+            polygonMax = Math.max(polygonMax, projection);
+          }
+
+          let rectMin = Infinity;
+          let rectMax = -Infinity;
+          for (const point of rectPoints) {
+            const projection = point.x * axis.x + point.y * axis.y;
+            rectMin = Math.min(rectMin, projection);
+            rectMax = Math.max(rectMax, projection);
+          }
+
+          const overlap = Math.min(polygonMax, rectMax) - Math.max(polygonMin, rectMin);
+          if (overlap <= 0) return null;
+
+          if (overlap < minimumOverlap) {
+            let axisX = axis.x;
+            let axisY = axis.y;
+            const centerDirection =
+              (x - polygonCenter.x) * axisX +
+              (y - polygonCenter.y) * axisY;
+            if (centerDirection < 0) {
+              axisX *= -1;
+              axisY *= -1;
+            }
+            minimumOverlap = overlap;
+            minimumAxis = { x: axisX, y: axisY };
+          }
+        }
+
+        if (!minimumAxis) return null;
+        return {
+          x: minimumAxis.x * minimumOverlap,
+          y: minimumAxis.y * minimumOverlap,
+          normalX: minimumAxis.x,
+          normalY: minimumAxis.y,
+          overlap: minimumOverlap
+        };
+      }
+
       function isInsideInflatedZoneFor(
         zone,
         x,
@@ -23709,6 +23933,9 @@ Firearm and ammo required.</div>
         halfWidth,
         halfHeight
       ) {
+        if (zone?.points) {
+          return Boolean(getPolygonRectPenetration(zone, x, y, halfWidth, halfHeight));
+        }
         return (
           x > zone.left - halfWidth &&
           x < zone.right + halfWidth &&
@@ -23731,16 +23958,13 @@ Firearm and ammo required.</div>
         return isInsideInflatedSafeZoneFor(x, y, HALF_W, HALF_H);
       }
 
-      function getStructureSafeZoneFromLocalRect(element, localRect) {
+      function getStructureSafeZoneFromLocalPolygon(element, localPoints) {
         const scaleX = element.offsetWidth / STRUCTURE_RESOURCE_SIZE;
         const scaleY = element.offsetHeight / STRUCTURE_RESOURCE_SIZE;
-
-        return {
-          left: element.offsetLeft + localRect.left * scaleX,
-          top: element.offsetTop + localRect.top * scaleY,
-          right: element.offsetLeft + localRect.right * scaleX,
-          bottom: element.offsetTop + localRect.bottom * scaleY
-        };
+        return createSafeZonePolygon(localPoints.map((point) => ({
+          x: element.offsetLeft + point.x * scaleX,
+          y: element.offsetTop + point.y * scaleY
+        })));
       }
 
       // 창고와 자동차의 기본 배치 기준 안전 구역을 캐시해
@@ -23750,11 +23974,11 @@ Firearm and ammo required.</div>
       let cachedDeerSafeZones = [SAFE_ZONE];
 
       function refreshStructureSafeZones() {
-        const shedSafeZone = getStructureSafeZoneFromLocalRect(
+        const shedSafeZone = getStructureSafeZoneFromLocalPolygon(
           shedObject,
           SHED_SAFE_ZONE_LOCAL
         );
-        const carSafeZone = getStructureSafeZoneFromLocalRect(
+        const carSafeZone = getStructureSafeZoneFromLocalPolygon(
           carObject,
           CAR_SAFE_ZONE_LOCAL
         );
@@ -23762,6 +23986,7 @@ Firearm and ammo required.</div>
         cachedStructureSafeZones = [shedSafeZone, carSafeZone];
         cachedZombieSafeZones = [SAFE_ZONE, ...cachedStructureSafeZones];
         cachedDeerSafeZones = [SAFE_ZONE, ...cachedStructureSafeZones];
+        if (safeZoneTestVisible) drawSafeZoneTestOverlay();
       }
 
       function getStructureSafeZones() {
@@ -30561,6 +30786,28 @@ Firearm and ammo required.</div>
         previousX,
         previousY
       ) {
+        if (zone?.points) {
+          const penetration = getPolygonRectPenetration(
+            zone,
+            zombie.x,
+            zombie.y,
+            HALF_W,
+            HALF_H
+          );
+          if (!penetration) return false;
+
+          zombie.x += penetration.x + penetration.normalX * 0.05;
+          zombie.y += penetration.y + penetration.normalY * 0.05;
+          const velocityAlongNormal =
+            zombie.direction.x * penetration.normalX +
+            zombie.direction.y * penetration.normalY;
+          if (velocityAlongNormal < 0) {
+            zombie.direction.x -= 2 * velocityAlongNormal * penetration.normalX;
+            zombie.direction.y -= 2 * velocityAlongNormal * penetration.normalY;
+          }
+          return true;
+        }
+
         if (
           !isInsideInflatedZoneFor(
             zone,
@@ -32759,6 +33006,16 @@ Firearm and ammo required.</div>
       for (const button of weatherTestButtons) {
         button.addEventListener("pointerdown", (event) => {
           handleWeatherTestButton(button, event);
+        });
+      }
+      for (const button of seasonTestButtons) {
+        button.addEventListener("pointerdown", (event) => {
+          handleSeasonTestButton(button, event);
+        });
+      }
+      for (const button of safeZoneTestButtons) {
+        button.addEventListener("pointerdown", (event) => {
+          handleSafeZoneTestButton(button, event);
         });
       }
 
