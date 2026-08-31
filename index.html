@@ -2279,14 +2279,6 @@
       width: max-content;
       max-width: 100%;
       margin: 0 auto;
-      transform: translateY(0);
-    }
-
-    /* 새 문구의 1초 페이드인이 시작될 때, 줄 수 변화로 달라지는 버튼 위치를
-       첫 0.5초 동안 EaseInOutSine으로 보간합니다. */
-    #exploringOptionControls.is-guide-position-animating {
-      transition: transform 500ms cubic-bezier(0.37, 0, 0.63, 1);
-      will-change: transform;
     }
 
     #exploringOptionControls .option-control-button {
@@ -5655,7 +5647,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.248"
+  data-game-version="0.249"
   data-reset-save-on-version-mismatch="true"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -10787,7 +10779,6 @@ Firearm and ammo required.</div>
       let exploringGuideActiveTextLayer = exploringGuideTextLayers[0] || null;
       let exploringGuideInactiveTextLayer = exploringGuideTextLayers[1] || null;
       let exploringGuideCrossfadeTimerId = null;
-      let exploringGuidePositionAnimationTimerId = null;
       let exploringGuidePendingMessage = null;
       const exploringOptionControls = document.getElementById("exploringOptionControls");
       const weatherStatusRow = document.getElementById("weatherStatusRow");
@@ -17746,49 +17737,13 @@ Firearm and ammo required.</div>
         exploringPercentValue.textContent = String(clamp(Math.round(value), 0, 100));
       }
 
-      function resetExploringGuideOptionPositionAnimation() {
-        if (exploringGuidePositionAnimationTimerId !== null) {
-          clearTimeout(exploringGuidePositionAnimationTimerId);
-          exploringGuidePositionAnimationTimerId = null;
-        }
-        if (!exploringOptionControls) return;
-        exploringOptionControls.classList.remove("is-guide-position-animating");
-        exploringOptionControls.style.transform = "translateY(0)";
-      }
-
-      function animateExploringGuideOptionPositionBy(offsetY) {
-        if (!exploringOptionControls || !Number.isFinite(offsetY)) return;
-
-        resetExploringGuideOptionPositionAnimation();
-        if (Math.abs(offsetY) < 0.5) return;
-
-        // 새 문구가 나타나기 시작하는 순간부터 0.5초 동안만
-        // EaseInOutSine으로 최종 위치까지 이동합니다.
-        exploringOptionControls.classList.add("is-guide-position-animating");
-        exploringOptionControls.style.transform = "translateY(0)";
-        void exploringOptionControls.offsetWidth;
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!exploringOptionControls.classList.contains("is-guide-position-animating")) return;
-            exploringOptionControls.style.transform = `translateY(${offsetY}px)`;
-          });
-        });
-
-        exploringGuidePositionAnimationTimerId = window.setTimeout(() => {
-          exploringGuidePositionAnimationTimerId = null;
-          // 레이아웃 전환 시점에 JS가 transform을 0으로 맞추므로 여기서는 상태만 유지합니다.
-        }, 500);
-      }
-
       function cancelExploringGuideTextTransition() {
         if (exploringGuideCrossfadeTimerId !== null) {
           clearTimeout(exploringGuideCrossfadeTimerId);
           exploringGuideCrossfadeTimerId = null;
         }
         exploringGuidePendingMessage = null;
-        resetExploringGuideOptionPositionAnimation();
-        exploringGuide.style.removeProperty("height");
+        exploringGuide.style.removeProperty("min-height");
       }
 
       function setExploringGuideText(message, options = {}) {
@@ -17810,6 +17765,13 @@ Firearm and ammo required.</div>
           return;
         }
 
+        // 문구 전환 전 현재 안내 영역의 높이를 기억합니다.
+        // 모바일에서 3줄 → 2줄처럼 줄 수가 줄어도 하단 그룹이 아래로 재정렬되지 않도록
+        // 완료 문구 전환 동안에는 기존 높이를 최소 높이로 유지합니다.
+        const preservedGuideHeight = shouldCrossfade
+          ? exploringGuide.getBoundingClientRect().height
+          : 0;
+
         cancelExploringGuideTextTransition();
 
         if (!shouldCrossfade) {
@@ -17825,6 +17787,9 @@ Firearm and ammo required.</div>
         exploringGuidePendingMessage = targetMessage;
         incomingLayer.textContent = "";
         incomingLayer.classList.remove("is-active");
+        if (preservedGuideHeight > 0) {
+          exploringGuide.style.minHeight = `${preservedGuideHeight}px`;
+        }
 
         // 1단계: 기존 문구만 1초 동안 완전히 페이드아웃합니다.
         // 이 구간에는 새 문구를 표시하지 않아 두 문구가 겹치지 않습니다.
@@ -17834,38 +17799,21 @@ Firearm and ammo required.</div>
         exploringGuideCrossfadeTimerId = window.setTimeout(() => {
           exploringGuideCrossfadeTimerId = null;
 
-          const previousGuideHeight = exploringGuide.getBoundingClientRect().height;
           incomingLayer.textContent = targetMessage;
-          const incomingHeight = incomingLayer.scrollHeight;
-          const optionOffsetY = previousGuideHeight - incomingHeight;
 
           // 2단계: 새 문구가 1초 동안 페이드인합니다.
-          // 시작과 동시에 옵션 버튼은 0.5초 동안 새 줄 수에 맞는 위치로 이동합니다.
-          exploringGuide.style.height = `${previousGuideHeight}px`;
-          animateExploringGuideOptionPositionBy(optionOffsetY);
+          // 기존 안내 영역의 높이는 유지하므로 줄 수가 달라져도 텍스트/토글 위치를 재정렬하지 않습니다.
           void exploringGuide.offsetWidth;
           incomingLayer.classList.add("is-active");
 
-          // 0.5초 후 실제 레이아웃 높이를 새 문구 높이로 넘기고 transform을 해제합니다.
           exploringGuideCrossfadeTimerId = window.setTimeout(() => {
             exploringGuideCrossfadeTimerId = null;
 
-            exploringOptionControls?.classList.remove("is-guide-position-animating");
-            if (exploringOptionControls) exploringOptionControls.style.transform = "translateY(0)";
-            exploringGuide.style.height = `${incomingHeight}px`;
-            void exploringGuide.offsetWidth;
-
-            // 새 문구의 남은 0.5초 페이드인이 끝난 뒤 레이어를 최종 정리합니다.
-            exploringGuideCrossfadeTimerId = window.setTimeout(() => {
-              exploringGuideCrossfadeTimerId = null;
-
-              outgoingLayer.textContent = "";
-              exploringGuide.style.removeProperty("height");
-              exploringGuidePendingMessage = null;
-              exploringGuideActiveTextLayer = incomingLayer;
-              exploringGuideInactiveTextLayer = outgoingLayer;
-            }, 500);
-          }, 500);
+            outgoingLayer.textContent = "";
+            exploringGuidePendingMessage = null;
+            exploringGuideActiveTextLayer = incomingLayer;
+            exploringGuideInactiveTextLayer = outgoingLayer;
+          }, 1000);
         }, 1000);
       }
 
