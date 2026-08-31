@@ -5655,7 +5655,7 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.247"
+  data-game-version="0.248"
   data-reset-save-on-version-mismatch="true"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -21368,6 +21368,7 @@ Firearm and ammo required.</div>
         }
         updateExploringCountdown();
         scheduleExplorationReturnCue();
+        scheduleExploringGuideCompletionTransition();
         // 테스트 단축 상태도 저장해 새로고침 시 동일한 밤/완료 직전 상태를 복원합니다.
         saveResourceState();
       }
