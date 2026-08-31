@@ -2257,8 +2257,8 @@
       pointer-events: none;
     }
 
-    /* 탐험 진행률 100% 전환: 기존 문구 1초 페이드아웃, 0.5초 뒤 새 문구 1초 페이드인.
-       두 페이드는 0.5초 겹쳐 전체 전환 시간은 1.5초입니다. */
+    /* 탐험 완료 2초 전 전환: 기존 문구 1초 페이드아웃 후 새 문구가 1초 페이드인합니다.
+       두 페이드는 겹치지 않으며 100% 도달 시 전체 2초 전환이 끝납니다. */
     .exploring-guide-text {
       grid-area: 1 / 1;
       opacity: 0;
@@ -2282,7 +2282,8 @@
       transform: translateY(0);
     }
 
-    /* 두 문구가 겹치는 0.5초 동안 줄 수 변화로 달라지는 버튼 위치를 EaseInOutSine으로 보간합니다. */
+    /* 새 문구의 1초 페이드인이 시작될 때, 줄 수 변화로 달라지는 버튼 위치를
+       첫 0.5초 동안 EaseInOutSine으로 보간합니다. */
     #exploringOptionControls.is-guide-position-animating {
       transition: transform 500ms cubic-bezier(0.37, 0, 0.63, 1);
       will-change: transform;
@@ -5654,8 +5655,8 @@
 -->
 <body
   class="is-initializing-status is-initializing-weather is-start-screen"
-  data-game-version="0.246"
-  data-reset-save-on-version-mismatch="false"
+  data-game-version="0.247"
+  data-reset-save-on-version-mismatch="true"
 >
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <!-- 201 버전과 동일한 밤 기본 RGB 밸런스. SCENE_COLOR_TONES.night.baseLayer에서 갱신합니다. -->
@@ -6531,7 +6532,7 @@ Firearm and ammo required.</div>
       */
       const DOG_SPAWN_X = 1260;
       const DOG_SPAWN_Y = 825;
-      const DOG_FIRST_APPEAR_DAY = 2;
+      const DOG_FIRST_APPEAR_DAY = 3;
       const TODO_DAY_28_TARGET = 28;
       const DOG_STORY_MIN_DURATION_MS = 1_000;
       const DOG_STORY_MAX_DURATION_MS = 3_000;
@@ -6594,12 +6595,11 @@ Firearm and ammo required.</div>
         0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1
       ]);
       const DOG_STORY_FRAME_INTERVAL_MS = 100;
-      // 개 친밀도는 4단계이며, 1단계 완료 후 2일, 2단계 완료 후 1일, 3단계 완료 후 2일 뒤 최종 Free Roam이 열립니다.
-      const DOG_AFFECTION_SCHEMA_VERSION = 3;
+      // 개 친밀도는 1 → 2 → 3(Free Roam) 순서로 진행합니다.
+      // DAY 3 첫 등장, 1단계 완료 후 3일 뒤 2단계, 2단계 완료 후 2일 뒤 최종 Free Roam이 열립니다.
       const DOG_STAGE_ADVANCE_DELAY_DAYS = Object.freeze({
-        1: 2,
-        2: 1,
-        3: 2
+        1: 3,
+        2: 2
       });
 
       /*
@@ -6632,8 +6632,6 @@ Firearm and ammo required.</div>
       ]);
       // 편지를 우편함에 넣는 동작의 중간 지점에서 실제 배달 완료와 사운드를 한 번 처리합니다.
       const CAT_MAILBOX_SOUND_DELIVERY_FRAME_INDEX = 5;
-      // 이전 버전은 고양이 출발 시 배달 완료로 저장했기 때문에 새 규칙과 구분합니다.
-      const CAT_MAIL_DELIVERY_SCHEMA_VERSION = 3;
       const CAT_DEPTH_POINT_OFFSET_Y = CAT_SIZE * 0.34;
 
       /*
@@ -7443,7 +7441,6 @@ Firearm and ammo required.</div>
       const TREE_GROWTH_DEPLETED = "depleted";
       const TREE_GROWTH_REGROWING = "regrowing";
       // 완전히 벤 나무는 부분 회복 상태에서 하루를 더 유지합니다.
-      const TREE_GROWTH_REGROWING_HOLD = "regrowingHold";
 
       const UNARMED_TOAST_MESSAGE = "I need a weapon.";
       const DEER_AXE_FIRST_EVADE_TOAST_MESSAGE = "Oops.";
@@ -7733,6 +7730,8 @@ Firearm and ammo required.</div>
         "Exploring takes time, but rewards await.\nYou can leave the game and come back anytime.";
       const EXPLORATION_COMPLETE_GUIDE_MESSAGE =
         "Exploration complete.\nTap the house to start a new day.";
+      // 완료 문구 전환은 탐험 종료 2초 전에 시작해 100% 시점에 끝납니다.
+      const EXPLORATION_COMPLETE_GUIDE_TRANSITION_LEAD_MS = 2_000;
       const FOREST_BLOCKED_TOAST_MESSAGE =
         "I shouldn't go without a compass.";
       const CITY_BLOCKED_TOAST_MESSAGE = "It's too far to walk.";
@@ -9239,6 +9238,13 @@ Firearm and ammo required.</div>
           remove() {
             if (this.parentElement?.removeChild) this.parentElement.removeChild(this);
             this._connected = false;
+
+            // 부모 FieldNode가 제거될 때 자식 래퍼도 각각 전역 Set에서 해제합니다.
+            // Phaser Container의 destroy(true)만으로는 FieldNode 참조가 정리되지 않아
+            // 반복 생성되는 엔티티의 자식 노드가 장시간 플레이에서 누적될 수 있습니다.
+            [...this.children].forEach((child) => child?.remove?.());
+            this.children.length = 0;
+
             this.go?.destroy(true);
             this.go = null;
             nodes.delete(this);
@@ -11350,7 +11356,6 @@ Firearm and ammo required.</div>
       const TUTORIAL_GUIDE_ENTRY_DISTANCE_PX = 20;
       // 각 화살표 가이드가 조건을 만족한 뒤 실제로 나타나기까지의 대기 시간입니다.
       const TUTORIAL_GUIDE_SHOW_DELAY_MS = 1_500;
-      const TUTORIAL_GUIDE_SCHEMA_VERSION = 2;
       const tutorialCompletedGuideIds = new Set();
       let tutorialActiveGuideId = 0;
       let tutorialGuidePositionAnimationFrameId = null;
@@ -11458,6 +11463,7 @@ Firearm and ammo required.</div>
       let hasStartedCityExplorationReturn = false;
       let explorationReturnCueTimerId = null;
       let explorationTimerId = null;
+      let exploringGuideCompletionTransitionTimerId = null;
       let explorationCompleteToastTimerId = null;
       let isExplorationReturnHouseLocked = true;
       let suppressExplorationCompletionClickUntil = 0;
@@ -11488,7 +11494,7 @@ Firearm and ammo required.</div>
       let dogTreeEscapeDay = 0;
       // 투두를 받기 전에 했던 개 상호작용도 이후 미션에서 인정하기 위한 기록입니다.
       let hasSeenDogBelly = false;
-      // 2~3단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
+      // 2단계는 완료한 당일에도 개가 남아 있으므로 새로고침 복원을 위해 별도 기록합니다.
       let dogStayStage = 0;
       let dogStayDay = 0;
       let storedPopulationSnapshot = null;
@@ -11563,7 +11569,6 @@ Firearm and ammo required.</div>
       let todoListRevealTimerId = null;
       let isTodoListRevealDelayed = false;
       const TODO_MAX_LIST_ID = 10;
-      const TODO_SCHEMA_VERSION = 9;
       const todoProgress = {
         1: { item1: false, item2: false, item3: false },
         2: { item1: false, item2: false, item3: false },
@@ -11608,7 +11613,7 @@ Firearm and ammo required.</div>
         BGM 오디오는 이 레지스트리에 넣지 않아 기존처럼 계속 재생됩니다.
       */
       const sfxAudioRegistry = new Set();
-      // playSound()에서 일회성으로 생성되는 효과음만 별도로 추적합니다.
+      // 일회성으로 생성되는 효과음만 별도로 추적합니다.
       // 재생 완료/실패/전역 사운드 OFF 시 즉시 레지스트리에서 제거해
       // 모바일에서 HTMLAudioElement가 계속 누적되지 않게 합니다.
       const transientSfxAudios = new Set();
@@ -13372,7 +13377,7 @@ Firearm and ammo required.</div>
           complete("item1", repairAppliedItemBySection.outdoor.fence >= 0);
           complete("item3", isShedRepaired());
         } else if (listId === 3) {
-          complete("item2", dogCompletedStage >= 3);
+          complete("item2", dogCompletedStage >= 2);
         } else if (listId === 4) {
           // 그루터기는 4차 수령 전에 제거했어도 소급 인정합니다.
           complete("item1", isStumpRemoved);
@@ -15693,53 +15698,12 @@ Firearm and ammo required.</div>
             ? (storedRainSpotSeed || normalizeRainSpotSeed(rainSpotSeed) || createRainSpotSeed())
             : 0;
 
-          const storedDogAffectionSchemaVersion = Math.max(
-            0,
-            Math.round(Number(parsed.dogAffectionSchemaVersion) || 0)
-          );
-          const storedDogCompletedStage = clamp(
+          // 버전이 다른 저장은 위에서 전체 초기화하므로 현재 구조의 값만 복원합니다.
+          dogCompletedStage = clamp(
             Math.round(Number(parsed.dogCompletedStage) || 0),
             0,
-            6
+            2
           );
-          const storedDogStayStage = clamp(
-            Math.round(Number(parsed.dogStayStage) || 0),
-            0,
-            6
-          );
-          const isPreFiveStageDogAffectionSave = storedDogAffectionSchemaVersion < 2;
-          const isFiveStageDogAffectionSave = storedDogAffectionSchemaVersion === 2;
-
-          // 저장 호환: 예전 7단계 및 직전 5단계 구조를 현재 4단계 구조로 변환합니다.
-          // 직전 5단계의 3단계(자유 이동→앉기)는 제거하고, 기존 4→새 3 / 기존 5→새 4 흐름으로 당깁니다.
-          const migratePreFiveStageDogCompletedStage = (stage) => {
-            if (stage >= 6) return 3;
-            if (stage >= 3) return 2;
-            if (stage >= 2) return 1;
-            return 0;
-          };
-          const migrateFiveStageDogCompletedStage = (stage) => {
-            if (stage >= 4) return 3;
-            if (stage >= 2) return 2;
-            if (stage >= 1) return 1;
-            return 0;
-          };
-          const migratePreFiveStageDogStayStage = (stage) => {
-            if (stage === 3) return 2;
-            if (stage === 6) return 3;
-            return 0;
-          };
-          const migrateFiveStageDogStayStage = (stage) => {
-            if (stage === 2) return 2;
-            if (stage === 4) return 3;
-            return 0;
-          };
-
-          dogCompletedStage = isPreFiveStageDogAffectionSave
-            ? migratePreFiveStageDogCompletedStage(storedDogCompletedStage)
-            : (isFiveStageDogAffectionSave
-                ? migrateFiveStageDogCompletedStage(storedDogCompletedStage)
-                : clamp(storedDogCompletedStage, 0, 3));
 
           const storedDogNextStageDay = Math.round(
             Number(parsed.dogNextStageDay) || 0
@@ -15750,22 +15714,14 @@ Firearm and ammo required.</div>
                 ? Math.max(storedDogNextStageDay, DOG_FIRST_APPEAR_DAY)
                 : Math.max(DOG_FIRST_APPEAR_DAY, dayCount + 1));
 
-          // 예전 1→2 / 3→4의 긴 대기값은 최대 다음 DAY까지만 기다리도록 줄입니다.
-          if (isPreFiveStageDogAffectionSave && dogCompletedStage > 0) {
-            dogNextStageDay = Math.min(dogNextStageDay, dayCount + 1);
-          }
-
           dogTreeEscapeDay = Math.max(
             0,
             Math.round(Number(parsed.dogTreeEscapeDay) || 0)
           );
           hasSeenDogBelly =
-            parsed.hasSeenDogBelly === true || dogCompletedStage >= 3;
-          dogStayStage = isPreFiveStageDogAffectionSave
-            ? migratePreFiveStageDogStayStage(storedDogStayStage)
-            : (isFiveStageDogAffectionSave
-                ? migrateFiveStageDogStayStage(storedDogStayStage)
-                : clamp(storedDogStayStage, 0, 3));
+            parsed.hasSeenDogBelly === true || dogCompletedStage >= 2;
+          dogStayStage =
+            Math.round(Number(parsed.dogStayStage) || 0) === 2 ? 2 : 0;
           dogStayDay = Math.max(
             0,
             Math.round(Number(parsed.dogStayDay) || 0)
@@ -15800,8 +15756,7 @@ Firearm and ammo required.</div>
           treeGrowthState = [
             TREE_GROWTH_READY,
             TREE_GROWTH_DEPLETED,
-            TREE_GROWTH_REGROWING,
-            TREE_GROWTH_REGROWING_HOLD
+            TREE_GROWTH_REGROWING
           ].includes(parsed.treeGrowthState)
             ? parsed.treeGrowthState
             : (treeChopCount >= TREE_MAX_CHOPS_PER_GROWTH
@@ -16012,81 +15967,35 @@ Firearm and ammo required.</div>
             0,
             TODO_MAX_LIST_ID
           );
-          const legacyTodoSubmittedListId = clamp(
-            Math.round(Number(parsed.todoSubmittedListId) || 0),
-            0,
-            TODO_MAX_LIST_ID
-          );
-          const legacyTodoSubmittedDay = normalizeDayCount(
-            parsed.todoSubmittedDay || 0
-          );
           todoCompletedListId = clamp(
-            Math.round(
-              Number(
-                parsed.todoCompletedListId ?? legacyTodoSubmittedListId
-              ) || 0
-            ),
+            Math.round(Number(parsed.todoCompletedListId) || 0),
             0,
             TODO_MAX_LIST_ID
           );
-          todoCompletedDay = normalizeDayCount(
-            parsed.todoCompletedDay ?? legacyTodoSubmittedDay
-          );
-
-          // 기존 회신 완료 세이브는 완료된 투두가 화면에 계속 남도록 새 상태로 옮깁니다.
-          if (currentTodoListId <= 0 && legacyTodoSubmittedListId > 0) {
-            currentTodoListId = legacyTodoSubmittedListId;
-            todoCompletedListId = legacyTodoSubmittedListId;
-            todoCompletedDay = legacyTodoSubmittedDay || dayCount;
-          }
-
+          todoCompletedDay = normalizeDayCount(parsed.todoCompletedDay || 0);
           todoRainMissionAcceptedDay = normalizeDayCount(
             parsed.todoRainMissionAcceptedDay || 0
           );
-          const storedCatMailDeliverySchemaVersion = Math.max(
+          lastCatDeliveredTodoListId = clamp(
+            Math.round(Number(parsed.lastCatDeliveredTodoListId) || 0),
             0,
-            Math.round(Number(parsed.catMailDeliverySchemaVersion) || 0)
+            TODO_MAX_LIST_ID
           );
-          lastCatDeliveredTodoListId =
-            storedCatMailDeliverySchemaVersion === CAT_MAIL_DELIVERY_SCHEMA_VERSION
-              ? clamp(
-                  Math.round(Number(parsed.lastCatDeliveredTodoListId) || 0),
-                  0,
-                  TODO_MAX_LIST_ID
-                )
-              : 0;
 
           tutorialCompletedGuideIds.clear();
-          const storedTutorialGuideSchemaVersion = Math.max(
-            1,
-            Math.round(Number(parsed.tutorialGuideSchemaVersion) || 1)
-          );
           const storedTutorialCompletedGuideIds = Array.isArray(parsed.tutorialCompletedGuides)
             ? parsed.tutorialCompletedGuides
             : [];
           for (const guideId of storedTutorialCompletedGuideIds) {
             const normalizedGuideId = Math.round(Number(guideId) || 0);
-            const migratedGuideId =
-              storedTutorialGuideSchemaVersion < TUTORIAL_GUIDE_SCHEMA_VERSION &&
-              normalizedGuideId >= 7 && normalizedGuideId <= 9
-                ? normalizedGuideId + 1
-                : normalizedGuideId;
-            if (migratedGuideId >= 1 && migratedGuideId <= 10) {
-              tutorialCompletedGuideIds.add(migratedGuideId);
+            if (normalizedGuideId >= 1 && normalizedGuideId <= 10) {
+              tutorialCompletedGuideIds.add(normalizedGuideId);
             }
-          }
-
-          if (
-            storedTutorialGuideSchemaVersion < TUTORIAL_GUIDE_SCHEMA_VERSION &&
-            (dayCount >= 2 || todoCompletedListId >= 1 || currentTodoListId >= 2)
-          ) {
-            tutorialCompletedGuideIds.add(7);
           }
 
           const storedTodoProgress = parsed.todoProgress && typeof parsed.todoProgress === "object"
             ? parsed.todoProgress
             : null;
-          const storedTodoSchemaVersion = Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1));
           if (storedTodoProgress) {
             for (const [listId, tasks] of Object.entries(todoProgress)) {
               const storedTasks = storedTodoProgress[listId];
@@ -16095,142 +16004,20 @@ Firearm and ammo required.</div>
                 tasks[key] = storedTasks[key] === true;
               }
             }
-
-            if (storedTodoSchemaVersion < 2) {
-              const previousThirdList = storedTodoProgress[3] || {};
-              todoProgress[3].item1 = false;
-              todoProgress[3].item2 = previousThirdList.item1 === true;
-              todoProgress[3].item3 = previousThirdList.item2 === true;
-              todoProgress[4].item1 = previousThirdList.item1 === true;
-              todoProgress[4].item3 = previousThirdList.item3 === true;
-            }
-
-            if (storedTodoSchemaVersion < 3) {
-              // 기존 5차는 업데이트 대기용 한 칸짜리 목록이었으므로 새 5~8차는 새로 시작합니다.
-              for (const listId of [5, 6, 7, 8]) {
-                for (const key of Object.keys(todoProgress[listId])) {
-                  todoProgress[listId][key] = false;
-                }
-              }
-              if (legacyTodoSubmittedListId >= 5) {
-                currentTodoListId = 5;
-                todoCompletedListId = 0;
-                todoCompletedDay = 0;
-              }
-            }
-
-            if (storedTodoSchemaVersion < 4) {
-              // 3차 item2는 이전 무기 미션 완료값을 버리고 현재 개 친밀도 기준으로 다시 계산합니다.
-              todoProgress[3].item2 = dogCompletedStage >= 3;
-              // 6차 item1은 새 "play with the dog" 미션이므로 과거 화단 완료값을 이어받지 않습니다.
-              todoProgress[6].item1 = false;
-              // 7차 item3은 화단 제작 상태를 repairState 로드 후 다시 소급 계산합니다.
-              todoProgress[7].item3 = false;
-            }
-
-            if (storedTodoSchemaVersion < 6 && currentTodoListId <= 3) {
-              // 3차 item1이 설계도 수집에서 보급품 요청으로 변경되어 이전 완료값을 이어받지 않습니다.
-              todoProgress[3].item1 = false;
-              if (currentTodoListId === 3) {
-                todoCompletedListId = 0;
-                todoCompletedDay = 0;
-              }
-            }
-
-            if (storedTodoSchemaVersion < 7 && currentTodoListId === 7) {
-              // 이전 버전에서 미션 수령 전 처치를 소급 인정했을 수 있으므로 7차 진행 중이면 해당 기록을 폐기합니다.
-              hasKilledWithSupplyBox = false;
-              todoProgress[7].item1 = false;
-              todoCompletedListId = 0;
-              todoCompletedDay = 0;
-            }
-
-            if (storedTodoSchemaVersion < 8) {
-              // 6차 item1은 새 보급품 상자 처치, item3은 북마크 미션입니다.
-              if (currentTodoListId <= 6) {
-                hasKilledWithSupplyBox = false;
-                todoProgress[6].item1 = false;
-                todoProgress[6].item3 = bookmarkedNoteIds.size > 0;
-                if (currentTodoListId === 6) {
-                  todoCompletedListId = 0;
-                  todoCompletedDay = 0;
-                }
-              }
-
-              // 7차 item1은 새 "play with the dog" 미션이므로 진행 중/미수령 상태에서는 새 행동을 요구합니다.
-              if (currentTodoListId <= 7) {
-                todoProgress[7].item1 = false;
-                if (currentTodoListId === 7) {
-                  todoCompletedListId = 0;
-                  todoCompletedDay = 0;
-                }
-              }
-
-              // 기존 8차는 업데이트 대기용 목록이었으므로 새 8차 세 미션은 새로 시작합니다.
-              todoProgress[8].item1 = false;
-              todoProgress[8].item2 = false;
-              todoProgress[8].item3 = dayCount >= TODO_DAY_28_TARGET;
-              todoProgress[9].item1 = false;
-              if (currentTodoListId === 8) {
-                todoCompletedListId = 0;
-                todoCompletedDay = 0;
-              }
-            }
           }
 
-          if (storedTodoSchemaVersion < 9) {
-            // 새 4차를 삽입해 기존 4~9차 진행 상태를 5~10차로 한 단계 이동합니다.
-            for (let oldId = 9; oldId >= 4; oldId -= 1) {
-              const source = todoProgress[oldId];
-              const target = todoProgress[oldId + 1];
-              for (const key of Object.keys(target)) {
-                target[key] = source?.[key] === true;
-              }
-            }
-            for (const key of Object.keys(todoProgress[4])) todoProgress[4][key] = false;
-
-            const shiftTodoId = (value) => {
-              const normalized = clamp(Math.round(Number(value) || 0), 0, 9);
-              return normalized >= 4 ? normalized + 1 : normalized;
-            };
-            const previousCurrentTodoListId = currentTodoListId;
-            currentTodoListId = shiftTodoId(currentTodoListId);
-            todoCompletedListId = shiftTodoId(todoCompletedListId);
-            lastCatDeliveredTodoListId = shiftTodoId(lastCatDeliveredTodoListId);
-
-            // 기존 3차까지 통과한 저장은 새 3차 보상인 Shovel을 소급 지급합니다.
-            if (previousCurrentTodoListId >= 4 || todoCompletedListId >= 3) {
-              hasShovel = true;
-            }
-          }
-
-          // 회신 기반 저장값을 자동 완료/다음 DAY 배달 상태로 마이그레이션합니다.
+          // 현재 버전의 저장 상태가 완료 조건과 일치하도록 최소한의 상태만 동기화합니다.
           if (currentTodoListId > 0 && isTodoListComplete(currentTodoListId)) {
             if (
               todoCompletedListId !== currentTodoListId ||
               todoCompletedDay <= 0
             ) {
               todoCompletedListId = currentTodoListId;
-              todoCompletedDay =
-                legacyTodoSubmittedListId === currentTodoListId &&
-                legacyTodoSubmittedDay > 0
-                  ? legacyTodoSubmittedDay
-                  : dayCount;
+              todoCompletedDay = dayCount;
             }
           } else if (todoCompletedListId !== currentTodoListId) {
             todoCompletedListId = 0;
             todoCompletedDay = 0;
-          }
-
-          // 이전 버전 저장에는 5차 비 미션 수령일이 없으므로 현재 진행 상태에 맞춰 보정합니다.
-          // 아직 5차를 받기 전이면 과거 비로 미리 완료된 값은 제거합니다.
-          if (todoRainMissionAcceptedDay <= 0) {
-            if (currentTodoListId === 6) {
-              todoRainMissionAcceptedDay = dayCount;
-              todoProgress[6].item1 = getCurrentRainState();
-            } else if (todoCompletedListId < 6 && currentTodoListId < 6) {
-              todoProgress[6].item1 = false;
-            }
           }
 
           fuelCount = normalizeStoredCount(parsed.fuel, MAX_INVENTORY_QUANTITY);
@@ -16325,12 +16112,6 @@ Firearm and ammo required.</div>
           firstKillBirdFlockPlayed =
             parsed.firstKillBirdFlockPlayed === true;
           hasKilledWithSupplyBox = parsed.hasKilledWithSupplyBox === true;
-          if (
-            Math.max(1, Math.round(Number(parsed.todoSchemaVersion) || 1)) < 8 &&
-            currentTodoListId <= 7
-          ) {
-            hasKilledWithSupplyBox = false;
-          }
           loadRepairState(parsed.repairState);
           if (isCarRepaired()) {
             clearCarPartsAfterRepair();
@@ -16376,7 +16157,6 @@ Firearm and ammo required.</div>
             RESOURCE_STORAGE_KEY,
             JSON.stringify({
               version: GAME_VERSION,
-              dogAffectionSchemaVersion: DOG_AFFECTION_SCHEMA_VERSION,
               dogCompletedStage,
               dogNextStageDay,
               dogTreeEscapeDay,
@@ -16451,10 +16231,7 @@ Firearm and ammo required.</div>
               todoCompletedDay,
               todoRainMissionAcceptedDay,
               lastCatDeliveredTodoListId,
-              tutorialGuideSchemaVersion: TUTORIAL_GUIDE_SCHEMA_VERSION,
               tutorialCompletedGuides: Array.from(tutorialCompletedGuideIds).sort((a, b) => a - b),
-              catMailDeliverySchemaVersion: CAT_MAIL_DELIVERY_SCHEMA_VERSION,
-              todoSchemaVersion: TODO_SCHEMA_VERSION,
               todoProgress,
               fuel: fuelCount,
               hasMap,
@@ -17985,7 +17762,8 @@ Firearm and ammo required.</div>
         resetExploringGuideOptionPositionAnimation();
         if (Math.abs(offsetY) < 0.5) return;
 
-        // 두 문구가 겹치는 0.5초 동안만 EaseInOutSine으로 최종 위치까지 이동합니다.
+        // 새 문구가 나타나기 시작하는 순간부터 0.5초 동안만
+        // EaseInOutSine으로 최종 위치까지 이동합니다.
         exploringOptionControls.classList.add("is-guide-position-animating");
         exploringOptionControls.style.transform = "translateY(0)";
         void exploringOptionControls.offsetWidth;
@@ -18003,6 +17781,16 @@ Firearm and ammo required.</div>
         }, 500);
       }
 
+      function cancelExploringGuideTextTransition() {
+        if (exploringGuideCrossfadeTimerId !== null) {
+          clearTimeout(exploringGuideCrossfadeTimerId);
+          exploringGuideCrossfadeTimerId = null;
+        }
+        exploringGuidePendingMessage = null;
+        resetExploringGuideOptionPositionAnimation();
+        exploringGuide.style.removeProperty("height");
+      }
+
       function setExploringGuideText(message, options = {}) {
         const targetMessage = String(message || "");
         const shouldCrossfade = Boolean(options.crossfade);
@@ -18013,21 +17801,18 @@ Firearm and ammo required.</div>
         }
 
         if (
-          exploringGuideActiveTextLayer.textContent === targetMessage ||
+          (
+            exploringGuideActiveTextLayer.textContent === targetMessage &&
+            exploringGuideActiveTextLayer.classList.contains("is-active")
+          ) ||
           exploringGuidePendingMessage === targetMessage
         ) {
           return;
         }
 
-        if (exploringGuideCrossfadeTimerId !== null) {
-          clearTimeout(exploringGuideCrossfadeTimerId);
-          exploringGuideCrossfadeTimerId = null;
-        }
+        cancelExploringGuideTextTransition();
 
         if (!shouldCrossfade) {
-          exploringGuidePendingMessage = null;
-          resetExploringGuideOptionPositionAnimation();
-          exploringGuide.style.removeProperty("height");
           exploringGuideActiveTextLayer.textContent = targetMessage;
           exploringGuideActiveTextLayer.classList.add("is-active");
           exploringGuideInactiveTextLayer.classList.remove("is-active");
@@ -18041,49 +17826,75 @@ Firearm and ammo required.</div>
         incomingLayer.textContent = "";
         incomingLayer.classList.remove("is-active");
 
-        // 기존 문구는 1초 동안 페이드아웃합니다. 새 문구는 0.5초 뒤 페이드인을 시작해
-        // 두 문구가 0.5초 동안 겹치고 전체 전환 시간은 1.5초가 됩니다.
+        // 1단계: 기존 문구만 1초 동안 완전히 페이드아웃합니다.
+        // 이 구간에는 새 문구를 표시하지 않아 두 문구가 겹치지 않습니다.
         void exploringGuide.offsetWidth;
         outgoingLayer.classList.remove("is-active");
 
-        // 반복 UI 동기화가 들어와도 같은 전환을 다시 시작하지 않도록
-        // 논리상 활성 레이어는 먼저 새 문구 쪽으로 넘겨 둡니다.
-        exploringGuideActiveTextLayer = incomingLayer;
-        exploringGuideInactiveTextLayer = outgoingLayer;
         exploringGuideCrossfadeTimerId = window.setTimeout(() => {
+          exploringGuideCrossfadeTimerId = null;
+
           const previousGuideHeight = exploringGuide.getBoundingClientRect().height;
-
           incomingLayer.textContent = targetMessage;
-          exploringGuidePendingMessage = null;
-
-          // 기존 문구가 레이아웃을 계속 잡고 있어도 최종 문구 높이를 따로 측정합니다.
-          // 하단 고정 그룹이므로 (기존 높이 - 새 높이)만큼 옵션 버튼의 최종 Y가 이동합니다.
           const incomingHeight = incomingLayer.scrollHeight;
           const optionOffsetY = previousGuideHeight - incomingHeight;
 
-          // 겹치는 0.5초 동안 레이아웃 높이는 기존 값으로 고정하고,
-          // 버튼만 최종 위치까지 이동시켜 줄 수 변화로 인한 점프를 막습니다.
+          // 2단계: 새 문구가 1초 동안 페이드인합니다.
+          // 시작과 동시에 옵션 버튼은 0.5초 동안 새 줄 수에 맞는 위치로 이동합니다.
           exploringGuide.style.height = `${previousGuideHeight}px`;
           animateExploringGuideOptionPositionBy(optionOffsetY);
           void exploringGuide.offsetWidth;
           incomingLayer.classList.add("is-active");
 
+          // 0.5초 후 실제 레이아웃 높이를 새 문구 높이로 넘기고 transform을 해제합니다.
           exploringGuideCrossfadeTimerId = window.setTimeout(() => {
-            // 기존 문구의 1초 페이드아웃이 끝나는 시점.
-            // 실제 레이아웃을 새 문구 높이로 바꾸는 동시에 버튼 transform을 해제하면
-            // 화면상 위치는 그대로 이어져 점프가 생기지 않습니다.
-            outgoingLayer.textContent = "";
+            exploringGuideCrossfadeTimerId = null;
+
             exploringOptionControls?.classList.remove("is-guide-position-animating");
             if (exploringOptionControls) exploringOptionControls.style.transform = "translateY(0)";
             exploringGuide.style.height = `${incomingHeight}px`;
             void exploringGuide.offsetWidth;
 
+            // 새 문구의 남은 0.5초 페이드인이 끝난 뒤 레이어를 최종 정리합니다.
             exploringGuideCrossfadeTimerId = window.setTimeout(() => {
               exploringGuideCrossfadeTimerId = null;
+
+              outgoingLayer.textContent = "";
               exploringGuide.style.removeProperty("height");
+              exploringGuidePendingMessage = null;
+              exploringGuideActiveTextLayer = incomingLayer;
+              exploringGuideInactiveTextLayer = outgoingLayer;
             }, 500);
           }, 500);
-        }, 500);
+        }, 1000);
+      }
+
+      function scheduleExploringGuideCompletionTransition() {
+        if (exploringGuideCompletionTransitionTimerId !== null) {
+          clearTimeout(exploringGuideCompletionTransitionTimerId);
+          exploringGuideCompletionTransitionTimerId = null;
+        }
+
+        if (!isExploring || isExplorationCompletePending || explorationEndsAt <= 0) return;
+
+        const delayMs =
+          explorationEndsAt - Date.now() - EXPLORATION_COMPLETE_GUIDE_TRANSITION_LEAD_MS;
+
+        const startTransition = () => {
+          exploringGuideCompletionTransitionTimerId = null;
+          if (!isExploring || isExplorationCompletePending || explorationEndsAt <= 0) return;
+          setExploringGuideText(EXPLORATION_COMPLETE_GUIDE_MESSAGE, { crossfade: true });
+        };
+
+        if (delayMs <= 0) {
+          startTransition();
+          return;
+        }
+
+        exploringGuideCompletionTransitionTimerId = window.setTimeout(
+          startTransition,
+          delayMs
+        );
       }
 
       function syncExplorationProgressUI() {
@@ -18093,16 +17904,12 @@ Firearm and ammo required.</div>
         );
         exploringLabel.textContent = isExplorationCompletePending ? "Complete" : "Exploring";
 
-        // 집을 눌러 복귀 페이드가 진행 중일 때는 하단 문구를 바꾸지 않습니다.
-        // Complete 안내가 그대로 사라진 뒤, 완전히 숨은 상태에서 다음 탐험용 기본 문구로 되돌립니다.
-        if (!document.body.classList.contains("is-exploration-return-fading-out")) {
-          setExploringGuideText(
-            isExplorationCompletePending
-              ? EXPLORATION_COMPLETE_GUIDE_MESSAGE
-              : EXPLORING_GUIDE_DEFAULT_MESSAGE,
-            { crossfade: isExplorationCompletePending }
-          );
-        }
+        setExploringGuideText(
+          isExplorationCompletePending
+            ? EXPLORATION_COMPLETE_GUIDE_MESSAGE
+            : EXPLORING_GUIDE_DEFAULT_MESSAGE,
+          { crossfade: isExplorationCompletePending }
+        );
       }
 
       function enterExplorationCompletePendingState(options = {}) {
@@ -18134,6 +17941,10 @@ Firearm and ammo required.</div>
         if (explorationReturnCueTimerId !== null) {
           clearTimeout(explorationReturnCueTimerId);
           explorationReturnCueTimerId = null;
+        }
+        if (exploringGuideCompletionTransitionTimerId !== null) {
+          clearTimeout(exploringGuideCompletionTransitionTimerId);
+          exploringGuideCompletionTransitionTimerId = null;
         }
 
         if (!wasPending && options.save !== false) {
@@ -20076,6 +19887,7 @@ Firearm and ammo required.</div>
         updateDayStatus();
         updateExploringCountdown();
         scheduleExplorationReturnCue();
+        scheduleExploringGuideCompletionTransition();
         scheduleNextZombieSpawnTick();
         scheduleNextDeerSpawnTick();
         updateTutorialGuide();
@@ -20116,6 +19928,10 @@ Firearm and ammo required.</div>
           if (explorationReturnCueTimerId !== null) {
             clearTimeout(explorationReturnCueTimerId);
             explorationReturnCueTimerId = null;
+          }
+          if (exploringGuideCompletionTransitionTimerId !== null) {
+            clearTimeout(exploringGuideCompletionTransitionTimerId);
+            exploringGuideCompletionTransitionTimerId = null;
           }
           hideLootListOverlay();
           resetCarToHomePosition();
@@ -20229,6 +20045,7 @@ Firearm and ammo required.</div>
 
         updateExploringCountdown();
         scheduleExplorationReturnCue();
+        scheduleExploringGuideCompletionTransition();
 
         if (!previewOnly) {
           explorationTimerId = window.setInterval(
@@ -21300,6 +21117,10 @@ Firearm and ammo required.</div>
           clearTimeout(explorationReturnCueTimerId);
           explorationReturnCueTimerId = null;
         }
+        if (exploringGuideCompletionTransitionTimerId !== null) {
+          clearTimeout(exploringGuideCompletionTransitionTimerId);
+          exploringGuideCompletionTransitionTimerId = null;
+        }
 
         // Loot는 집 클릭 순간 이미 1초 페이드아웃을 끝냈으므로
         // 여기서 다시 300ms hide 애니메이션을 재생하지 않고 바로 숨깁니다.
@@ -21346,12 +21167,8 @@ Firearm and ammo required.</div>
           // 3번 베어 고갈된 뒤 첫 탐험 완료: 부분 회복
           treeGrowthState = TREE_GROWTH_REGROWING;
           treeChopCount = TREE_MAX_CHOPS_PER_GROWTH;
-        } else if (
-          treeGrowthState === TREE_GROWTH_REGROWING ||
-          treeGrowthState === TREE_GROWTH_REGROWING_HOLD
-        ) {
+        } else if (treeGrowthState === TREE_GROWTH_REGROWING) {
           // 두 번째 탐험 완료: 완전 회복 + 투두 완료
-          // REGROWING_HOLD는 이전 버전 저장 데이터 호환용으로 함께 처리합니다.
           treeGrowthState = TREE_GROWTH_READY;
           treeChopCount = 0;
           setTodoProgress(2, "item2", true);
@@ -24789,10 +24606,15 @@ Firearm and ammo required.</div>
         if (!isGameSoundOn || isSfxMutedForBackground) return;
         try {
           const equipAudio = createSfxAudio(CHAINSAW_EQUIP_SOUND);
+          transientSfxAudios.add(equipAudio);
           let completed = false;
           const finish = () => {
             if (completed) return;
             completed = true;
+            equipAudio.removeEventListener("ended", finish);
+            equipAudio.removeEventListener("error", finish);
+            transientSfxAudios.delete(equipAudio);
+            sfxAudioRegistry.delete(equipAudio);
             if (isChainsawEquipped && chainsawBatteryPercent > 0) {
               startChainsawIdleSound();
             }
@@ -25368,10 +25190,7 @@ Firearm and ammo required.</div>
 
       function getTreePersistentVisualStage() {
         if (treeGrowthState === TREE_GROWTH_DEPLETED) return 3;
-        if (
-          treeGrowthState === TREE_GROWTH_REGROWING ||
-          treeGrowthState === TREE_GROWTH_REGROWING_HOLD
-        ) return 2;
+        if (treeGrowthState === TREE_GROWTH_REGROWING) return 2;
         if (treeChopCount >= 2) return 3;
         if (treeChopCount >= 1) return 2;
         return 1;
@@ -25918,9 +25737,28 @@ Firearm and ammo required.</div>
           );
           candidateIndex += 1;
           audio.volume = 1;
+          transientSfxAudios.add(audio);
 
-          audio.addEventListener("error", tryNext, { once: true });
-          audio.play().catch(() => {});
+          let released = false;
+          const releaseAudio = () => {
+            if (released) return;
+            released = true;
+            audio.removeEventListener("ended", handleEnded);
+            audio.removeEventListener("error", handleError);
+            transientSfxAudios.delete(audio);
+            sfxAudioRegistry.delete(audio);
+          };
+          const handleEnded = () => releaseAudio();
+          const handleError = () => {
+            releaseAudio();
+            tryNext();
+          };
+
+          audio.addEventListener("ended", handleEnded, { once: true });
+          audio.addEventListener("error", handleError, { once: true });
+          audio.play().catch(() => {
+            releaseAudio();
+          });
         };
 
         tryNext();
@@ -25937,9 +25775,28 @@ Firearm and ammo required.</div>
           const audio = createSfxAudio(FALL_SOUND_CANDIDATES[candidateIndex]);
           candidateIndex += 1;
           audio.volume = 1;
+          transientSfxAudios.add(audio);
 
-          audio.addEventListener("error", tryNext, { once: true });
-          audio.play().catch(() => {});
+          let released = false;
+          const releaseAudio = () => {
+            if (released) return;
+            released = true;
+            audio.removeEventListener("ended", handleEnded);
+            audio.removeEventListener("error", handleError);
+            transientSfxAudios.delete(audio);
+            sfxAudioRegistry.delete(audio);
+          };
+          const handleEnded = () => releaseAudio();
+          const handleError = () => {
+            releaseAudio();
+            tryNext();
+          };
+
+          audio.addEventListener("ended", handleEnded, { once: true });
+          audio.addEventListener("error", handleError, { once: true });
+          audio.play().catch(() => {
+            releaseAudio();
+          });
         };
 
         tryNext();
@@ -26271,7 +26128,7 @@ Firearm and ammo required.</div>
         return normalizeDogAngle(toAngle - fromAngle);
       }
 
-      // 4단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
+      // 3단계(Free Roam)는 현재 해상도에서 드래그해 볼 수 있는 전체 영역을 사용합니다.
       // 이전 친밀도 단계는 기존 GAME_ZONE 범위를 그대로 유지합니다.
       function getDogMovementZone(activeDogOrStage = null) {
         const activeStage = Number(
@@ -26280,7 +26137,7 @@ Firearm and ammo required.</div>
             : activeDogOrStage?.activeStage
         ) || 0;
 
-        return activeStage >= 4 ? getDraggableViewSpawnZone() : GAME_ZONE;
+        return activeStage >= 3 ? getDraggableViewSpawnZone() : GAME_ZONE;
       }
 
       // 해상도 변경으로 Free Roam 영역이 줄어 개가 새 경계 밖에 놓이면,
@@ -26357,7 +26214,7 @@ Firearm and ammo required.</div>
       function keepFreeRoamDogInsideMovementZone(activeDog) {
         if (
           !activeDog ||
-          activeDog.activeStage < 4 ||
+          activeDog.activeStage < 3 ||
           activeDog.state === "fastRun"
         ) {
           return false;
@@ -26820,13 +26677,13 @@ Firearm and ammo required.</div>
       }
 
       function getDogStoryBaseState(stage) {
-        if (stage === 3) return "storyLieWag";
+        if (stage === 2) return "storyLieWag";
         return "storyLieIdle";
       }
 
-      // 1·2·4단계는 나무 아래에서 머무르는 친밀도 연출입니다.
+      // 1·2단계는 나무 아래에서 머무르는 친밀도 연출입니다.
       function dogStageUsesUnderTreeShade(stage) {
-        return stage === 1 || stage === 2 || stage === 3;
+        return stage === 1 || stage === 2;
       }
 
       function setDogUnderTreeShade(activeDog, shouldShade) {
@@ -26854,7 +26711,7 @@ Firearm and ammo required.</div>
       }
 
       function dogStageUsesOccasionalHeadLift(stage) {
-        return stage === 1 || stage === 2 || stage === 3;
+        return stage === 1 || stage === 2;
       }
 
       function scheduleDogStoryHeadLift(
@@ -26957,7 +26814,7 @@ Firearm and ammo required.</div>
         if (activeDog.bellyReturnPersistent) {
           startDogSitIdle(activeDog, now, Infinity, {
             persistent: true,
-            returnMode: "stage3"
+            returnMode: "stage2"
           });
           return;
         }
@@ -26972,21 +26829,21 @@ Firearm and ammo required.</div>
         if (dayCount < DOG_FIRST_APPEAR_DAY) return 0;
         if (dogTreeEscapeDay === dayCount) return 0;
 
-        if (
-          dogStayDay === dayCount &&
-          dogStayStage >= 2 &&
-          dogStayStage <= 3
-        ) {
-          return dogStayStage;
+        if (dogStayDay === dayCount && dogStayStage === 2) {
+          return 2;
         }
 
-        const nextStage = Math.min(4, dogCompletedStage + 1);
         if (dayCount < dogNextStageDay) return 0;
-        return nextStage;
+        if (dogCompletedStage >= 2) return 3;
+        if (dogCompletedStage >= 1) return 2;
+        return 1;
       }
 
       function completeDogStage(stage, options = {}) {
-        if (stage < 1 || stage > 3 || dogCompletedStage >= stage) {
+        if (
+          (stage !== 1 && stage !== 2) ||
+          dogCompletedStage >= stage
+        ) {
           return false;
         }
 
@@ -26994,12 +26851,12 @@ Firearm and ammo required.</div>
         dogNextStageDay =
           dayCount + (DOG_STAGE_ADVANCE_DELAY_DAYS[stage] || 1);
 
-        if (stage >= 3) {
+        if (stage === 2) {
           setTodoProgress(3, "item2", true);
         }
 
-        if (options.stayVisible === true && stage >= 2) {
-          dogStayStage = stage;
+        if (options.stayVisible === true && stage === 2) {
+          dogStayStage = 2;
           dogStayDay = dayCount;
         } else if (dogStayDay === dayCount) {
           dogStayStage = 0;
@@ -27231,7 +27088,7 @@ Firearm and ammo required.</div>
         playDogInteractSound(activeDog);
         const stage = activeDog.activeStage;
 
-        // 1단계: 기존 2단계. 접근하면 100px 이동해 앉고, 다시 누르면 빠르게 도망가며 완료됩니다.
+        // 1단계: 접근하면 빠르게 이동해 앉고, 다시 누르면 빠르게 도망가며 완료됩니다.
         if (stage === 1) {
           if (
             activeDog.state === "sitIdle" &&
@@ -27252,27 +27109,13 @@ Firearm and ammo required.</div>
           return true;
         }
 
-        // 2단계: 기존 3단계. 누워 있는 개를 누르면 꼬리를 흔들며 완료됩니다.
+        // 2단계: 1단계 완료 3일 후 등장합니다. 한 번 누르면 계속 앉고, 다시 누르면 배를 보이며 친밀도 진행이 완료됩니다.
         if (stage === 2) {
           if (
-            activeDog.state === "storyLieIdle" ||
-            activeDog.state === "storyLieHeadUp" ||
-            activeDog.state === "storyTailWagReaction"
+            activeDog.state === "sitIdle" &&
+            activeDog.sitReturnMode === "stage2"
           ) {
             completeDogStage(2, { stayVisible: true });
-            startDogTailWagReaction(activeDog, now);
-            showDogFrame(activeDog);
-          }
-          return true;
-        }
-
-        // 3단계: 한 번 누르면 계속 앉고, 다시 누르면 배를 보이며 친밀도 진행이 완료됩니다.
-        if (stage === 3) {
-          if (
-            activeDog.state === "sitIdle" &&
-            activeDog.sitReturnMode === "stage3"
-          ) {
-            completeDogStage(3, { stayVisible: true });
             startDogBellyDown(activeDog, now, {
               returnPersistent: true
             });
@@ -27286,16 +27129,16 @@ Firearm and ammo required.</div>
           ) {
             startDogSitIdle(activeDog, now, Infinity, {
               persistent: true,
-              returnMode: "stage3"
+              returnMode: "stage2"
             });
             showDogFrame(activeDog);
           }
           return true;
         }
 
-        // 4단계는 최종 Free Roam 상태입니다.
+        // 3단계는 최종 Free Roam 상태입니다.
         // 자유 이동 → 앉기 → 배보이기 → 앉기 → 자유 이동을 반복합니다.
-        if (stage === 4) {
+        if (stage === 3) {
           if (activeDog.state === "sitIdle") {
             startDogBellyDown(activeDog, now, {
               returnPersistent: false
@@ -27809,7 +27652,7 @@ Firearm and ammo required.</div>
 
         const size = getDogRenderSize();
         const halfSize = size / 2;
-        const randomSpawnPosition = activeStage === 4
+        const randomSpawnPosition = activeStage === 3
           ? getRandomDogPosition({ size, activeStage })
           : null;
         const position = randomSpawnPosition || {
@@ -27849,16 +27692,16 @@ Firearm and ammo required.</div>
         entities.appendChild(element);
 
         const now = performance.now();
-        const shouldRestoreCompletedStageThreeSit =
-          activeStage === 3 &&
-          dogCompletedStage >= 3 &&
-          dogStayStage === 3 &&
+        const shouldRestoreCompletedStageTwoSit =
+          activeStage === 2 &&
+          dogCompletedStage >= 2 &&
+          dogStayStage === 2 &&
           dogStayDay === dayCount;
 
         let initialState = getDogStoryBaseState(activeStage);
-        if (activeStage === 4) {
+        if (activeStage === 3) {
           initialState = Math.random() < 0.68 ? "idle" : "run";
-        } else if (shouldRestoreCompletedStageThreeSit) {
+        } else if (shouldRestoreCompletedStageTwoSit) {
           initialState = "sitIdle";
         }
 
@@ -27896,9 +27739,9 @@ Firearm and ammo required.</div>
           renderKey: ""
         };
 
-        if (shouldRestoreCompletedStageThreeSit) {
+        if (shouldRestoreCompletedStageTwoSit) {
           dog.sitPersistent = true;
-          dog.sitReturnMode = "stage3";
+          dog.sitReturnMode = "stage2";
           dog.stateUntil = Infinity;
         } else if (dog.state === "idle") {
           dog.angle =
@@ -28561,7 +28404,7 @@ Firearm and ammo required.</div>
           const activated = activateDog(dog, performance.now());
           if (activated) {
             showToast(
-              dogCompletedStage >= 3
+              dogCompletedStage >= 2
                 ? DOG_FRIENDLY_INTERACT_TOAST_MESSAGE
                 : DOG_EARLY_INTERACT_TOAST_MESSAGE
             );
